@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
+    DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment, FunctionEnvironment,
 };
 use crate::ecmascript::types::OrdinaryObject;
 use crate::engine::context::{Bindable, NoGcScope};
@@ -36,7 +36,7 @@ pub(crate) enum ThisBindingStatus {
 /// Record also contains the state that is used to perform super method
 /// invocations from within the function.
 #[derive(Debug)]
-pub struct FunctionEnvironment {
+pub struct FunctionEnvironmentRecord {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
@@ -68,10 +68,10 @@ pub struct FunctionEnvironment {
     ///
     /// TODO: Use Struct of Arrays to keep the DeclarativeEnvironment alignside
     /// FunctionEnvironment
-    pub(crate) declarative_environment: DeclarativeEnvironmentIndex<'static>,
+    pub(crate) declarative_environment: DeclarativeEnvironment<'static>,
 }
 
-impl HeapMarkAndSweep for FunctionEnvironment {
+impl HeapMarkAndSweep for FunctionEnvironmentRecord {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             this_value,
@@ -111,14 +111,14 @@ pub(crate) fn new_function_environment<'a>(
     f: ECMAScriptFunction,
     new_target: Option<Object>,
     gc: NoGcScope<'a, '_>,
-) -> FunctionEnvironmentIndex<'a> {
+) -> FunctionEnvironment<'a> {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
-    let dcl_env = DeclarativeEnvironment::new(Some(ecmascript_function_object.environment));
+    let dcl_env = DeclarativeEnvironmentRecord::new(Some(ecmascript_function_object.environment));
     agent.heap.environments.declarative.push(Some(dcl_env));
     let declarative_environment =
-        DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+        DeclarativeEnvironment::last(&agent.heap.environments.declarative);
     // 2. Set env.[[FunctionObject]] to F.
     let function_object = f.into_function().unbind();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
@@ -128,7 +128,7 @@ pub(crate) fn new_function_environment<'a>(
         // 4. Else, set env.[[ThisBindingStatus]] to UNINITIALIZED.
         ThisBindingStatus::Uninitialized
     };
-    let env = FunctionEnvironment {
+    let env = FunctionEnvironmentRecord {
         this_value: None,
 
         function_object,
@@ -157,14 +157,14 @@ pub(crate) fn new_class_static_element_environment<'a>(
     agent: &mut Agent,
     class_constructor: Function,
     gc: NoGcScope<'a, '_>,
-) -> FunctionEnvironmentIndex<'a> {
+) -> FunctionEnvironment<'a> {
     // 1. Let env be a new Function Environment Record containing no bindings.
-    let dcl_env = DeclarativeEnvironment::new(Some(agent.current_lexical_environment(gc)));
+    let dcl_env = DeclarativeEnvironmentRecord::new(Some(agent.current_lexical_environment(gc)));
     agent.heap.environments.declarative.push(Some(dcl_env));
     let declarative_environment =
-        DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+        DeclarativeEnvironment::last(&agent.heap.environments.declarative);
 
-    let env = FunctionEnvironment {
+    let env = FunctionEnvironmentRecord {
         this_value: Some(class_constructor.into_value().unbind()),
 
         function_object: class_constructor.unbind(),
@@ -185,18 +185,18 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
     agent: &mut Agent,
     class_constructor: Function,
     class_instance: Object,
-    outer_env: EnvironmentIndex,
+    outer_env: Environment,
     gc: NoGcScope<'a, '_>,
-) -> FunctionEnvironmentIndex<'a> {
+) -> FunctionEnvironment<'a> {
     agent
         .heap
         .environments
         .declarative
-        .push(Some(DeclarativeEnvironment::new(Some(outer_env))));
+        .push(Some(DeclarativeEnvironmentRecord::new(Some(outer_env))));
     let declarative_environment =
-        DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+        DeclarativeEnvironment::last(&agent.heap.environments.declarative);
     agent.heap.environments.push_function_environment(
-        FunctionEnvironment {
+        FunctionEnvironmentRecord {
             this_value: Some(class_instance.into_value().unbind()),
             this_binding_status: ThisBindingStatus::Initialized,
             function_object: class_constructor.unbind(),
@@ -207,7 +207,7 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
     )
 }
 
-impl FunctionEnvironmentIndex<'_> {
+impl FunctionEnvironment<'_> {
     pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
         agent[self].this_binding_status
     }
@@ -450,7 +450,7 @@ impl FunctionEnvironmentIndex<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
     ) -> Option<Option<Object<'a>>> {
-        let env_rec: &FunctionEnvironment = &agent[self];
+        let env_rec: &FunctionEnvironmentRecord = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
@@ -471,7 +471,7 @@ impl FunctionEnvironmentIndex<'_> {
     }
 }
 
-impl HeapMarkAndSweep for FunctionEnvironmentIndex<'static> {
+impl HeapMarkAndSweep for FunctionEnvironment<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.function_environments.push(*self);
     }

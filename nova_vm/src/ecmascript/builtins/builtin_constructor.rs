@@ -13,8 +13,8 @@ use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{
-            Agent, EnvironmentIndex, ExecutionContext, JsResult, PrivateEnvironmentIndex,
-            ProtoIntrinsics, agent::ExceptionType,
+            Agent, Environment, ExecutionContext, JsResult, PrivateEnvironment, ProtoIntrinsics,
+            agent::ExceptionType,
         },
         scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::class_definitions::{
@@ -439,8 +439,8 @@ pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) prototype: Option<Object<'a>>,
     pub(crate) prototype_property: Object<'a>,
     pub(crate) compiled_initializer_bytecode: Option<Executable>,
-    pub(crate) env: EnvironmentIndex<'a>,
-    pub(crate) private_env: Option<PrivateEnvironmentIndex<'a>>,
+    pub(crate) env: Environment<'a>,
+    pub(crate) private_env: Option<PrivateEnvironment<'a>>,
     pub(crate) source_code: SourceCode,
     pub(crate) source_text: Span,
 }

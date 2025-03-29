@@ -10,7 +10,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-use super::PrivateEnvironmentIndex;
+use super::PrivateEnvironment;
 
 #[derive(Debug)]
 pub enum PrivateName {
@@ -36,13 +36,13 @@ impl PrivateName {
 /// evaluated, a new PrivateEnvironment Record is created to record the Private
 /// Names declared by that class.
 #[derive(Debug)]
-pub struct PrivateEnvironment {
+pub struct PrivateEnvironmentRecord {
     /// ### \[\[OuterPrivateEnvironment\]\]
     ///
     /// The PrivateEnvironment Record of the nearest containing class. null if
     /// the class with which this PrivateEnvironment Record is associated is
     /// not contained in any other class.
-    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex<'static>>,
+    pub(crate) outer_private_environment: Option<PrivateEnvironment<'static>>,
 
     /// ### \[\[Names\]\]
     ///
@@ -50,7 +50,7 @@ pub struct PrivateEnvironment {
     pub(crate) names: AHashMap<String, PrivateName>,
 }
 
-impl HeapMarkAndSweep for PrivateEnvironment {
+impl HeapMarkAndSweep for PrivateEnvironmentRecord {
     fn mark_values(&self, _queues: &mut WorkQueues) {
         todo!()
     }
@@ -65,11 +65,11 @@ impl HeapMarkAndSweep for PrivateEnvironment {
 /// The abstract operation NewPrivateEnvironment takes argument outerPrivEnv (a
 /// PrivateEnvironment Record or null) and returns a PrivateEnvironment Record.
 pub(crate) fn new_private_environment(
-    outer_private_environment: Option<PrivateEnvironmentIndex>,
-) -> PrivateEnvironment {
+    outer_private_environment: Option<PrivateEnvironment>,
+) -> PrivateEnvironmentRecord {
     // 1. Let names be a new empty List.
     // 2. Return the PrivateEnvironment Record {
-    PrivateEnvironment {
+    PrivateEnvironmentRecord {
         // [[OuterPrivateEnvironment]]: outerPrivEnv,
         outer_private_environment: outer_private_environment.unbind(),
         // [[Names]]: names
@@ -78,7 +78,7 @@ pub(crate) fn new_private_environment(
     // }.
 }
 
-impl HeapMarkAndSweep for PrivateEnvironmentIndex<'static> {
+impl HeapMarkAndSweep for PrivateEnvironment<'static> {
     fn mark_values(&self, _queues: &mut WorkQueues) {
         todo!()
     }

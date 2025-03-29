@@ -17,8 +17,8 @@ use crate::{
             Agent, JsResult,
             agent::ExceptionType,
             environments::{
-                DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex,
-                ObjectEnvironment, ObjectEnvironmentIndex,
+                DeclarativeEnvironment, DeclarativeEnvironmentRecord, GlobalEnvironment,
+                ObjectEnvironment, ObjectEnvironmentRecord,
             },
         },
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
@@ -39,14 +39,14 @@ use crate::{
 /// built-in globals (clause 19), properties of the global object, and for all
 /// top-level declarations (8.2.9, 8.2.11) that occur within a Script.
 #[derive(Debug, Clone)]
-pub struct GlobalEnvironment {
+pub struct GlobalEnvironmentRecord {
     /// ### \[\[ObjectRecord\]\]
     ///
     /// Binding object is the global object. It contains global built-in
     /// bindings as well as FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings in global code for the associated realm.
-    pub(crate) object_record: ObjectEnvironmentIndex<'static>,
+    pub(crate) object_record: ObjectEnvironment<'static>,
 
     /// ### \[\[GlobalThisValue\]\]
     ///
@@ -60,7 +60,7 @@ pub struct GlobalEnvironment {
     /// associated realm code except for FunctionDeclaration,
     /// GeneratorDeclaration, AsyncFunctionDeclaration,
     /// AsyncGeneratorDeclaration, and VariableDeclaration bindings.
-    pub(crate) declarative_record: DeclarativeEnvironmentIndex<'static>,
+    pub(crate) declarative_record: DeclarativeEnvironment<'static>,
 
     /// ### \[\[VarNames\]\]
     ///
@@ -72,26 +72,29 @@ pub struct GlobalEnvironment {
     var_names: AHashSet<String<'static>>,
 }
 
-impl GlobalEnvironment {
+impl GlobalEnvironmentRecord {
     /// ### [9.1.2.5 NewGlobalEnvironment ( G, thisValue )](https://tc39.es/ecma262/#sec-newglobalenvironment)
     ///
     /// The abstract operation NewGlobalEnvironment takes arguments G (an
     /// Object) and thisValue (an Object) and returns a Global Environment
     /// Record.
-    pub(crate) fn new(agent: &mut Agent, global: Object, this_value: Object) -> GlobalEnvironment {
+    pub(crate) fn new(
+        agent: &mut Agent,
+        global: Object,
+        this_value: Object,
+    ) -> GlobalEnvironmentRecord {
         // 1. Let objRec be NewObjectEnvironment(G, false, null).
-        let obj_rec = ObjectEnvironment::new(global, false, None);
+        let obj_rec = ObjectEnvironmentRecord::new(global, false, None);
         agent.heap.environments.object.push(Some(obj_rec));
-        let object_record = ObjectEnvironmentIndex::last(&agent.heap.environments.object);
+        let object_record = ObjectEnvironment::last(&agent.heap.environments.object);
 
         // 2. Let dclRec be NewDeclarativeEnvironment(null).
-        let dcl_rec = DeclarativeEnvironment::new(None);
+        let dcl_rec = DeclarativeEnvironmentRecord::new(None);
         agent.heap.environments.declarative.push(Some(dcl_rec));
-        let declarative_record =
-            DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+        let declarative_record = DeclarativeEnvironment::last(&agent.heap.environments.declarative);
 
         // 3. Let env be a new Global Environment Record.
-        GlobalEnvironment {
+        GlobalEnvironmentRecord {
             // 4. Set env.[[ObjectRecord]] to objRec.
             object_record,
 
@@ -110,7 +113,7 @@ impl GlobalEnvironment {
     }
 }
 
-impl HeapMarkAndSweep for GlobalEnvironment {
+impl HeapMarkAndSweep for GlobalEnvironmentRecord {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_record,
@@ -147,7 +150,7 @@ impl HeapMarkAndSweep for GlobalEnvironment {
     }
 }
 
-impl GlobalEnvironmentIndex<'_> {
+impl GlobalEnvironment<'_> {
     /// ### Try [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Global Environment Record envRec
@@ -1103,7 +1106,7 @@ impl GlobalEnvironmentIndex<'_> {
     }
 }
 
-impl HeapMarkAndSweep for GlobalEnvironmentIndex<'static> {
+impl HeapMarkAndSweep for GlobalEnvironment<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.global_environments.push(*self);
     }

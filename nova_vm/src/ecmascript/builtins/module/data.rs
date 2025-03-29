@@ -6,7 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     ecmascript::{
-        execution::{ModuleEnvironmentIndex, RealmIdentifier},
+        execution::{ModuleEnvironment, RealmIdentifier},
         types::{HeapString, OrdinaryObject, PropertyKey, String},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -31,7 +31,7 @@ pub(crate) struct ModuleRecord {
     ///
     /// The Environment Record containing the top level bindings for this
     /// module. This field is set when the module is linked.
-    pub(super) environment: Option<ModuleEnvironmentIndex<'static>>,
+    pub(super) environment: Option<ModuleEnvironment<'static>>,
     /// \[\[Namespace]]
     ///
     /// The Module Namespace Object (28.3) if one has been created for this

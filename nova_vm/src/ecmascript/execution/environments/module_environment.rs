@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::DeclarativeEnvironment;
+use super::DeclarativeEnvironmentRecord;
 
 /// ### [9.1.1.5 Module Environment Records](https://tc39.es/ecma262/#sec-module-environment-records)
 /// A Module Environment Record is a Declarative Environment Record that is
@@ -20,4 +20,4 @@ use super::DeclarativeEnvironment;
 /// a ModuleEnvironment, so we treat them exactly the same way.
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct ModuleEnvironment(DeclarativeEnvironment);
+pub struct ModuleEnvironmentRecord(DeclarativeEnvironmentRecord);

@@ -18,8 +18,8 @@ use crate::{
         abstract_operations::type_conversion::to_number,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
-            PrivateEnvironmentIndex, RealmIdentifier, agent::ExceptionType, get_this_environment,
+            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
+            PrivateEnvironment, RealmIdentifier, agent::ExceptionType, get_this_environment,
             new_declarative_environment,
         },
         scripts_and_modules::source_code::SourceCode,
@@ -185,7 +185,7 @@ pub fn perform_eval<'gc>(
         // a. Let thisEnvRec be GetThisEnvironment().
         let this_env_rec = get_this_environment(agent, gc.nogc());
         // b. If thisEnvRec is a Function Environment Record, then
-        if let EnvironmentIndex::Function(this_env_rec) = this_env_rec {
+        if let Environment::Function(this_env_rec) = this_env_rec {
             // i. Let F be thisEnvRec.[[FunctionObject]].
             let f = agent[this_env_rec].function_object;
             // ii. Set inFunction to true.
@@ -274,7 +274,7 @@ pub fn perform_eval<'gc>(
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(runningContext's LexicalEnvironment).
-            lexical_environment: EnvironmentIndex::Declarative(
+            lexical_environment: Environment::Declarative(
                 new_declarative_environment(agent, Some(running_context_lex_env), gc.nogc())
                     .unbind(),
             ),
@@ -288,12 +288,11 @@ pub fn perform_eval<'gc>(
         }
     } else {
         // 17. Else,
-        let global_env =
-            EnvironmentIndex::Global(agent[eval_realm].global_env.unwrap()).bind(gc.nogc());
+        let global_env = Environment::Global(agent[eval_realm].global_env.unwrap()).bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
-            lexical_environment: EnvironmentIndex::Declarative(
+            lexical_environment: Environment::Declarative(
                 new_declarative_environment(agent, Some(global_env), gc.nogc()).unbind(),
             ),
             // b. Let varEnv be evalRealm.[[GlobalEnv]].
@@ -375,9 +374,9 @@ pub fn perform_eval<'gc>(
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
     script: &Program,
-    var_env: EnvironmentIndex,
-    lex_env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
+    var_env: Environment,
+    lex_env: Environment,
+    private_env: Option<PrivateEnvironment>,
     strict_eval: bool,
     mut gc: GcScope,
 ) -> JsResult<()> {
@@ -396,7 +395,7 @@ pub fn eval_declaration_instantiation(
     // 3. If strict is false, then
     if !strict_eval {
         // a. If varEnv is a Global Environment Record, then
-        if let EnvironmentIndex::Global(var_env) = var_env {
+        if let Environment::Global(var_env) = var_env {
             // i. For each element name of varNames, do
             for name in &var_names {
                 let name = String::from_str(agent, name.as_str(), gc.nogc());
@@ -425,7 +424,7 @@ pub fn eval_declaration_instantiation(
         // d. Repeat, while thisEnv and varEnv are not the same Environment Record,
         while this_env != var_env {
             // i. If thisEnv is not an Object Environment Record, then
-            if !matches!(this_env, EnvironmentIndex::Object(_)) {
+            if !matches!(this_env, Environment::Object(_)) {
                 // 1. NOTE: The environment of with statements cannot contain
                 //    any lexical declaration so it doesn't need to be checked
                 //    for var/let hoisting conflicts.
@@ -509,8 +508,7 @@ pub fn eval_declaration_instantiation(
             // iv. If declaredFunctionNames does not contain fn, then
             if declared_function_names.insert(function_name) {
                 // 1. If varEnv is a Global Environment Record, then
-                if let EnvironmentIndex::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc())
-                {
+                if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
                     let function_name = String::from_str(agent, function_name.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
@@ -559,8 +557,7 @@ pub fn eval_declaration_instantiation(
                     let vn = String::from_str(agent, vn_string.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
                     // a. If varEnv is a Global Environment Record, then
-                    if let EnvironmentIndex::Global(var_env) =
-                        scoped_var_env.get(agent).bind(gc.nogc())
+                    if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc())
                     {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
                         let vn_definable = var_env.unbind().can_declare_global_var(
@@ -669,7 +666,7 @@ pub fn eval_declaration_instantiation(
         .unbind();
 
         // c. If varEnv is a Global Environment Record, then
-        if let EnvironmentIndex::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
+        if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
             let function_name =
                 String::from_str(agent, function_name.unwrap().as_str(), gc.nogc()).unbind();
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
@@ -727,7 +724,7 @@ pub fn eval_declaration_instantiation(
     // 18. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. If varEnv is a Global Environment Record, then
-        if let EnvironmentIndex::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
+        if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
             var_env.unbind().create_global_var_binding(
                 agent,

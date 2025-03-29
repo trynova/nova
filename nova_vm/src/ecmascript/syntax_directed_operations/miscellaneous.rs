@@ -11,7 +11,7 @@ use core::hint::unreachable_unchecked;
 use crate::{
     ecmascript::{
         builtins::ECMAScriptFunction,
-        execution::{Agent, EnvironmentIndex, PrivateEnvironmentIndex},
+        execution::{Agent, Environment, PrivateEnvironment},
         syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
     },
     engine::context::NoGcScope,
@@ -26,8 +26,8 @@ use oxc_ast::ast;
 pub(crate) fn instantiate_function_object<'a>(
     agent: &mut Agent,
     function: &ast::Function<'_>,
-    env: EnvironmentIndex<'a>,
-    private_env: Option<PrivateEnvironmentIndex<'a>>,
+    env: Environment<'a>,
+    private_env: Option<PrivateEnvironment<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> ECMAScriptFunction<'a> {
     // FunctionDeclaration :

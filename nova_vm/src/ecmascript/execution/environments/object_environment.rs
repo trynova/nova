@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{ObjectEnvironmentIndex, OuterEnv};
+use super::{ObjectEnvironment, OuterEnv};
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_define_property_or_throw, try_get, try_has_property, try_set,
 };
@@ -37,7 +37,7 @@ use crate::{
 /// if the Writable attribute of the corresponding property is false. Immutable
 /// bindings do not exist for Object Environment Records.
 #[derive(Debug, Clone)]
-pub struct ObjectEnvironment {
+pub struct ObjectEnvironmentRecord {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.
@@ -55,7 +55,7 @@ pub struct ObjectEnvironment {
     pub(crate) outer_env: OuterEnv<'static>,
 }
 
-impl ObjectEnvironment {
+impl ObjectEnvironmentRecord {
     /// ### [9.1.2.3 NewObjectEnvironment ( O, W, E )](https://tc39.es/ecma262/#sec-newobjectenvironmenthttps://tc39.es/ecma262/#sec-newobjectenvironment)
     ///
     /// The abstract operation NewObjectEnvironment takes arguments O (an
@@ -65,9 +65,9 @@ impl ObjectEnvironment {
         binding_object: Object,
         is_with_environment: bool,
         outer_env: OuterEnv,
-    ) -> ObjectEnvironment {
+    ) -> ObjectEnvironmentRecord {
         // 1. Let env be a new Object Environment Record.
-        ObjectEnvironment {
+        ObjectEnvironmentRecord {
             // 2. Set env.[[BindingObject]] to O.
             binding_object: binding_object.unbind(),
             // 3. Set env.[[IsWithEnvironment]] to W.
@@ -79,7 +79,7 @@ impl ObjectEnvironment {
     }
 }
 
-impl HeapMarkAndSweep for ObjectEnvironment {
+impl HeapMarkAndSweep for ObjectEnvironmentRecord {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             binding_object,
@@ -101,7 +101,7 @@ impl HeapMarkAndSweep for ObjectEnvironment {
     }
 }
 
-impl ObjectEnvironmentIndex<'_> {
+impl ObjectEnvironment<'_> {
     /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec
@@ -592,7 +592,7 @@ impl ObjectEnvironmentIndex<'_> {
     }
 }
 
-impl HeapMarkAndSweep for ObjectEnvironmentIndex<'static> {
+impl HeapMarkAndSweep for ObjectEnvironment<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.object_environments.push(*self);
     }

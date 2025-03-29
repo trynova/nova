@@ -6,8 +6,8 @@ use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{
-            Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext, GlobalEnvironmentIndex,
-            JsResult, RealmIdentifier, agent::ExceptionType,
+            Agent, ECMAScriptCode, Environment, ExecutionContext, GlobalEnvironment, JsResult,
+            RealmIdentifier, agent::ExceptionType,
         },
         scripts_and_modules::ScriptOrModule,
         syntax_directed_operations::{
@@ -275,10 +275,10 @@ pub fn script_evaluation<'gc>(
 
         ecmascript_code: Some(ECMAScriptCode {
             // 6. Set the VariableEnvironment of scriptContext to globalEnv.
-            variable_environment: EnvironmentIndex::Global(global_env.unwrap()),
+            variable_environment: Environment::Global(global_env.unwrap()),
 
             // 7. Set the LexicalEnvironment of scriptContext to globalEnv.
-            lexical_environment: EnvironmentIndex::Global(global_env.unwrap()),
+            lexical_environment: Environment::Global(global_env.unwrap()),
 
             // 8. Set the PrivateEnvironment of scriptContext to null.
             private_environment: None,
@@ -341,7 +341,7 @@ pub fn script_evaluation<'gc>(
 pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
     script: ScriptIdentifier,
-    env: GlobalEnvironmentIndex,
+    env: GlobalEnvironment,
     mut gc: GcScope,
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
@@ -546,13 +546,8 @@ pub(crate) fn global_declaration_instantiation(
             function_name = Some(identifier.name);
         });
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
-        let fo = instantiate_function_object(
-            agent,
-            f,
-            EnvironmentIndex::Global(env),
-            private_env,
-            gc.nogc(),
-        );
+        let fo =
+            instantiate_function_object(agent, f, Environment::Global(env), private_env, gc.nogc());
         let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc());
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
         env.create_global_function_binding(

@@ -5,7 +5,7 @@
 mod intrinsics;
 
 use super::{
-    Agent, ExecutionContext, GlobalEnvironment, JsResult, environments::GlobalEnvironmentIndex,
+    Agent, ExecutionContext, GlobalEnvironmentRecord, JsResult, environments::GlobalEnvironment,
 };
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -141,7 +141,7 @@ pub struct Realm {
     /// ### \[\[GlobalEnv]]
     ///
     /// The global environment for this realm.
-    pub(crate) global_env: Option<GlobalEnvironmentIndex<'static>>,
+    pub(crate) global_env: Option<GlobalEnvironment<'static>>,
 
     /// ### \[\[TemplateMap]]
     ///
@@ -306,7 +306,7 @@ pub(crate) fn set_realm_global_object(
     agent[realm_id].global_object = global_object.unbind();
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
-    let new_global_env = GlobalEnvironment::new(agent, global_object, this_value);
+    let new_global_env = GlobalEnvironmentRecord::new(agent, global_object, this_value);
 
     // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
     agent[realm_id].global_env = Some(

@@ -69,8 +69,8 @@ use crate::{
             proxy::Proxy,
         },
         execution::{
-            DeclarativeEnvironmentIndex, FunctionEnvironmentIndex, GlobalEnvironmentIndex,
-            ModuleEnvironmentIndex, ObjectEnvironmentIndex, PrivateEnvironmentIndex,
+            DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
+            ObjectEnvironment, PrivateEnvironment,
         },
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
@@ -128,9 +128,8 @@ mod private {
             proxy::Proxy,
         },
         execution::{
-            DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
-            GlobalEnvironmentIndex, ModuleEnvironmentIndex, ObjectEnvironmentIndex,
-            PrivateEnvironmentIndex,
+            DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
+            ModuleEnvironment, ObjectEnvironment, PrivateEnvironment,
         },
         types::{
             BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
@@ -194,13 +193,13 @@ mod private {
     impl RootableSealed for WeakSet<'_> {}
 
     // Environments are also rootable
-    impl RootableSealed for DeclarativeEnvironmentIndex<'_> {}
-    impl RootableSealed for FunctionEnvironmentIndex<'_> {}
-    impl RootableSealed for GlobalEnvironmentIndex<'_> {}
-    impl RootableSealed for ModuleEnvironmentIndex<'_> {}
-    impl RootableSealed for ObjectEnvironmentIndex<'_> {}
-    impl RootableSealed for PrivateEnvironmentIndex<'_> {}
-    impl RootableSealed for EnvironmentIndex<'_> {}
+    impl RootableSealed for DeclarativeEnvironment<'_> {}
+    impl RootableSealed for FunctionEnvironment<'_> {}
+    impl RootableSealed for GlobalEnvironment<'_> {}
+    impl RootableSealed for ModuleEnvironment<'_> {}
+    impl RootableSealed for ObjectEnvironment<'_> {}
+    impl RootableSealed for PrivateEnvironment<'_> {}
+    impl RootableSealed for Environment<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {}
@@ -363,12 +362,12 @@ pub enum HeapRootData {
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
     PromiseReaction(PromiseReaction),
-    DeclarativeEnvironment(DeclarativeEnvironmentIndex<'static>),
-    FunctionEnvironment(FunctionEnvironmentIndex<'static>),
-    GlobalEnvironment(GlobalEnvironmentIndex<'static>),
-    ModuleEnvironment(ModuleEnvironmentIndex<'static>),
-    ObjectEnvironment(ObjectEnvironmentIndex<'static>),
-    PrivateEnvironment(PrivateEnvironmentIndex<'static>),
+    DeclarativeEnvironment(DeclarativeEnvironment<'static>),
+    FunctionEnvironment(FunctionEnvironment<'static>),
+    GlobalEnvironment(GlobalEnvironment<'static>),
+    ModuleEnvironment(ModuleEnvironment<'static>),
+    ObjectEnvironment(ObjectEnvironment<'static>),
+    PrivateEnvironment(PrivateEnvironment<'static>),
 }
 
 impl From<Object<'static>> for HeapRootData {

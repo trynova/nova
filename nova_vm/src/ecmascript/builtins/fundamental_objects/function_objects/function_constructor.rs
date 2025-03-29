@@ -14,7 +14,7 @@ use crate::{
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{
-            Agent, EnvironmentIndex, JsResult, ProtoIntrinsics, RealmIdentifier,
+            Agent, Environment, JsResult, ProtoIntrinsics, RealmIdentifier,
             agent::ExceptionType,
         },
         scripts_and_modules::source_code::SourceCode,
@@ -306,7 +306,7 @@ pub(crate) fn create_dynamic_function<'a>(
         is_async: function.r#async,
         is_generator: function.generator,
         lexical_this: false,
-        env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
+        env: Environment::Global(agent.current_realm().global_env.unwrap()),
         private_env: None,
     };
     let f = ordinary_function_create(agent, params, gc.nogc()).unbind();

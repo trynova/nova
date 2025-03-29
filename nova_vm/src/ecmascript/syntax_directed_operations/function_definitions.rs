@@ -32,7 +32,7 @@ use crate::{
             promise::Promise,
             set_function_name,
         },
-        execution::{Agent, EnvironmentIndex, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics},
+        execution::{Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics},
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
             PropertyKey, String, Value,
@@ -99,8 +99,8 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 pub(crate) fn instantiate_ordinary_function_object<'a>(
     agent: &mut Agent,
     function: &ast::Function<'_>,
-    env: EnvironmentIndex<'a>,
-    private_env: Option<PrivateEnvironmentIndex<'a>>,
+    env: Environment<'a>,
+    private_env: Option<PrivateEnvironment<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> ECMAScriptFunction<'a> {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }

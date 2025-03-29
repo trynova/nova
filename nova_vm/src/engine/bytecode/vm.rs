@@ -42,7 +42,7 @@ use crate::{
             ordinary_function_create, set_function_name,
         },
         execution::{
-            Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
+            Agent, Environment, JsResult, ProtoIntrinsics,
             agent::{ExceptionType, JsError, resolve_binding},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment,
@@ -153,7 +153,7 @@ struct ExceptionJumpTarget<'a> {
     /// Instruction pointer.
     ip: usize,
     /// The lexical environment which contains this exception jump target.
-    lexical_environment: EnvironmentIndex<'a>,
+    lexical_environment: Environment<'a>,
 }
 
 /// ## Notes
@@ -498,12 +498,10 @@ impl<'a> Vm {
                 let env_rec = get_this_environment(agent, gc.nogc());
                 // 2. Return ? envRec.GetThisBinding().
                 let result = match env_rec {
-                    EnvironmentIndex::Declarative(_) => unreachable!(),
-                    EnvironmentIndex::Function(idx) => idx.get_this_binding(agent, gc.nogc())?,
-                    EnvironmentIndex::Global(idx) => {
-                        idx.get_this_binding(agent, gc.nogc()).into_value()
-                    }
-                    EnvironmentIndex::Object(_) => unreachable!(),
+                    Environment::Declarative(_) => unreachable!(),
+                    Environment::Function(idx) => idx.get_this_binding(agent, gc.nogc())?,
+                    Environment::Global(idx) => idx.get_this_binding(agent, gc.nogc()).into_value(),
+                    Environment::Object(_) => unreachable!(),
                 };
                 vm.result = Some(result.unbind());
             }
@@ -1148,7 +1146,7 @@ impl<'a> Vm {
                         gc.nogc(),
                     );
                     func_env.create_immutable_binding(agent, name, false);
-                    (name.into(), EnvironmentIndex::Declarative(func_env), true)
+                    (name.into(), Environment::Declarative(func_env), true)
                 } else {
                     (
                         String::EMPTY_STRING.into(),
@@ -1523,8 +1521,7 @@ impl<'a> Vm {
                 vm.result = Some(result.unbind().into_value());
             }
             Instruction::EvaluateSuper => {
-                let EnvironmentIndex::Function(this_env) = get_this_environment(agent, gc.nogc())
-                else {
+                let Environment::Function(this_env) = get_this_environment(agent, gc.nogc()) else {
                     unreachable!();
                 };
                 // 1. Let newTarget be GetNewTarget().
@@ -1586,8 +1583,7 @@ impl<'a> Vm {
                     result.unbind().bind(gc.nogc())
                 };
                 // 7. Let thisER be GetThisEnvironment().
-                let EnvironmentIndex::Function(this_er) = get_this_environment(agent, gc.nogc())
-                else {
+                let Environment::Function(this_er) = get_this_environment(agent, gc.nogc()) else {
                     unreachable!();
                 };
                 // 8. Perform ? thisER.BindThisValue(result).
@@ -1892,7 +1888,7 @@ impl<'a> Vm {
                     // a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
                     new_declarative_environment(
                         agent,
-                        Some(EnvironmentIndex::Declarative(var_env)),
+                        Some(Environment::Declarative(var_env)),
                         gc.nogc(),
                     )
                 } else {
@@ -1915,7 +1911,7 @@ impl<'a> Vm {
                     .bind(gc.nogc());
                 let local_env =
                     new_class_static_element_environment(agent, class_constructor, gc.nogc());
-                let local_env = EnvironmentIndex::Function(local_env);
+                let local_env = Environment::Function(local_env);
 
                 agent.set_current_lexical_environment(local_env);
                 agent.set_current_variable_environment(local_env);
@@ -2307,7 +2303,7 @@ impl<'a> Vm {
                 // 1. Let envRec be GetThisEnvironment().
                 let env_rec = get_this_environment(agent, gc.nogc());
                 // 2. Assert: envRec has a [[NewTarget]] field.
-                let EnvironmentIndex::Function(env_rec) = env_rec else {
+                let Environment::Function(env_rec) = env_rec else {
                     unreachable!()
                 };
                 // 3. Return envRec.[[NewTarget]].

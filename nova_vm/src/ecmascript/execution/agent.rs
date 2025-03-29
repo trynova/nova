@@ -10,7 +10,7 @@
 use ahash::AHashMap;
 
 use super::{
-    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, EnvironmentIndex, ExecutionContext, PrivateEnvironmentIndex, Realm, RealmIdentifier
+    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, PrivateEnvironment, Realm, RealmIdentifier
 };
 use crate::{
     ecmascript::{
@@ -468,10 +468,7 @@ impl Agent {
     }
 
     /// Returns the running execution context's LexicalEnvironment.
-    pub(crate) fn current_lexical_environment<'a>(
-        &self,
-        gc: NoGcScope<'a, '_>,
-    ) -> EnvironmentIndex<'a> {
+    pub(crate) fn current_lexical_environment<'a>(&self, gc: NoGcScope<'a, '_>) -> Environment<'a> {
         self.execution_context_stack
             .last()
             .unwrap()
@@ -486,7 +483,7 @@ impl Agent {
     pub(crate) fn current_variable_environment<'a>(
         &self,
         gc: NoGcScope<'a, '_>,
-    ) -> EnvironmentIndex<'a> {
+    ) -> Environment<'a> {
         self.execution_context_stack
             .last()
             .unwrap()
@@ -501,7 +498,7 @@ impl Agent {
     pub(crate) fn current_private_environment<'a>(
         &self,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<PrivateEnvironmentIndex<'a>> {
+    ) -> Option<PrivateEnvironment<'a>> {
         self.execution_context_stack
             .last()
             .unwrap()
@@ -513,7 +510,7 @@ impl Agent {
     }
 
     /// Sets the running execution context's LexicalEnvironment.
-    pub(crate) fn set_current_lexical_environment(&mut self, env: EnvironmentIndex) {
+    pub(crate) fn set_current_lexical_environment(&mut self, env: Environment) {
         self.execution_context_stack
             .last_mut()
             .unwrap()
@@ -524,7 +521,7 @@ impl Agent {
     }
 
     /// Sets the running execution context's VariableEnvironment.
-    pub(crate) fn set_current_variable_environment<'a>(&mut self, env: EnvironmentIndex) {
+    pub(crate) fn set_current_variable_environment<'a>(&mut self, env: Environment) {
         self.execution_context_stack
             .last_mut()
             .unwrap()
@@ -535,7 +532,7 @@ impl Agent {
     }
 
     /// Sets the running execution context's PrivateEnvironment.
-    pub(crate) fn set_current_private_environment<'a>(&mut self, env: PrivateEnvironmentIndex) {
+    pub(crate) fn set_current_private_environment<'a>(&mut self, env: PrivateEnvironment) {
         self.execution_context_stack
             .last_mut()
             .unwrap()
@@ -595,7 +592,7 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 pub(crate) fn try_resolve_binding<'a>(
     agent: &mut Agent,
     name: String<'a>,
-    env: Option<EnvironmentIndex>,
+    env: Option<Environment>,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
     let env = env.unwrap_or_else(|| {
@@ -629,7 +626,7 @@ pub(crate) fn try_resolve_binding<'a>(
 pub(crate) fn resolve_binding<'a, 'b>(
     agent: &mut Agent,
     name: String<'b>,
-    env: Option<EnvironmentIndex>,
+    env: Option<Environment>,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<Reference<'a>> {
     let name = name.bind(gc.nogc());

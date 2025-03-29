@@ -12,7 +12,7 @@ use crate::{
     },
     engine::{
         bytecode::vm::{
-            EnvironmentIndex, Executable, Instruction, Vm, VmIterator, array_create,
+            Environment, Executable, Instruction, Vm, VmIterator, array_create,
             copy_data_properties_into_object, initialize_referenced_binding, iterator_close,
             put_value, resolve_binding, to_object, try_create_data_property_or_throw,
         },
@@ -27,7 +27,7 @@ pub(super) fn execute_simple_array_binding(
     vm: &mut Vm,
     executable: Executable,
     mut iterator: VmIterator,
-    environment: Option<EnvironmentIndex>,
+    environment: Option<Environment>,
     mut gc: GcScope,
 ) -> JsResult<()> {
     let mut iterator_is_done = false;
@@ -138,7 +138,7 @@ pub(super) fn execute_simple_object_binding(
     vm: &mut Vm,
     executable: Executable,
     object: Object,
-    environment: Option<EnvironmentIndex>,
+    environment: Option<Environment>,
     mut gc: GcScope,
 ) -> JsResult<()> {
     let object = object.scope(agent, gc.nogc());
@@ -246,7 +246,7 @@ pub(super) fn execute_nested_simple_binding(
     vm: &mut Vm,
     executable: Executable,
     value: Value,
-    environment: Option<EnvironmentIndex>,
+    environment: Option<Environment>,
     mut gc: GcScope,
 ) -> JsResult<()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();

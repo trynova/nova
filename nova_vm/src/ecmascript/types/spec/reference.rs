@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
         execution::{
-            EnvironmentIndex,
+            Environment,
             agent::{self, ExceptionType},
             get_global_object,
         },
@@ -603,7 +603,7 @@ pub(crate) fn get_this_value<'a>(reference: &Reference<'a>) -> Value<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Base<'a> {
     Value(Value<'a>),
-    Environment(EnvironmentIndex<'a>),
+    Environment(Environment<'a>),
     Unresolvable,
 }
 
