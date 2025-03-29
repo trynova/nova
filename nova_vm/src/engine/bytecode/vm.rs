@@ -1987,26 +1987,27 @@ impl<'a> Vm {
                 let lexical = instr.args[1].unwrap() == 1;
                 let env = if lexical {
                     // Lexical binding, const [] = a; or let [] = a;
-                    Some(agent.current_lexical_environment(gc.nogc()))
+                    Some(
+                        agent
+                            .current_lexical_environment(gc.nogc())
+                            .scope(agent, gc.nogc()),
+                    )
                 } else {
                     // Var binding, var [] = a;
                     None
                 };
                 let iterator = vm.iterator_stack.pop().unwrap().bind(gc.nogc());
-                execute_simple_array_binding(
-                    agent,
-                    vm,
-                    executable,
-                    iterator,
-                    env.unbind(),
-                    gc.reborrow(),
-                )?
+                execute_simple_array_binding(agent, vm, executable, iterator, env, gc.reborrow())?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
                 let env = if lexical {
                     // Lexical binding, const {} = a; or let {} = a;
-                    Some(agent.current_lexical_environment(gc.nogc()))
+                    Some(
+                        agent
+                            .current_lexical_environment(gc.nogc())
+                            .scope(agent, gc.nogc()),
+                    )
                 } else {
                     // Var binding, var {} = a;
                     None
@@ -2017,7 +2018,7 @@ impl<'a> Vm {
                     vm,
                     executable,
                     object.unbind(),
-                    env.unbind(),
+                    env,
                     gc.reborrow(),
                 )?
             }

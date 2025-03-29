@@ -14,8 +14,7 @@ use crate::{
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{
-            Agent, Environment, JsResult, ProtoIntrinsics, RealmIdentifier,
-            agent::ExceptionType,
+            Agent, Environment, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType,
         },
         scripts_and_modules::source_code::SourceCode,
         types::{

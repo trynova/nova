@@ -595,11 +595,13 @@ pub(crate) fn try_resolve_binding<'a>(
     env: Option<Environment>,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
-    let env = env.unwrap_or_else(|| {
-        // 1. If env is not present or env is undefined, then
-        //    a. Set env to the running execution context's LexicalEnvironment.
-        agent.current_lexical_environment(gc)
-    });
+    let env = env
+        .unwrap_or_else(|| {
+            // 1. If env is not present or env is undefined, then
+            //    a. Set env to the running execution context's LexicalEnvironment.
+            agent.current_lexical_environment(gc)
+        })
+        .bind(gc);
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
@@ -630,11 +632,13 @@ pub(crate) fn resolve_binding<'a, 'b>(
     gc: GcScope<'a, 'b>,
 ) -> JsResult<Reference<'a>> {
     let name = name.bind(gc.nogc());
-    let env = env.unwrap_or_else(|| {
-        // 1. If env is not present or env is undefined, then
-        //    a. Set env to the running execution context's LexicalEnvironment.
-        agent.current_lexical_environment(gc.nogc())
-    });
+    let env = env
+        .unwrap_or_else(|| {
+            // 1. If env is not present or env is undefined, then
+            //    a. Set env to the running execution context's LexicalEnvironment.
+            agent.current_lexical_environment(gc.nogc())
+        })
+        .bind(gc.nogc());
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.

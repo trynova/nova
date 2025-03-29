@@ -843,10 +843,12 @@ impl Default for Environments {
 pub(crate) fn try_get_identifier_reference<'a>(
     agent: &mut Agent,
     env: Option<Environment>,
-    name: String<'a>,
+    name: String,
     strict: bool,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
+    let env = env.bind(gc);
+    let name = name.bind(gc);
     // 1. If env is null, then
     let Some(env) = env else {
         // a. Return the Reference Record {

@@ -11,6 +11,7 @@ use crate::{
         types::{IntoValue, Object, PropertyKey, Value},
     },
     engine::{
+        Scoped,
         bytecode::vm::{
             Environment, Executable, Instruction, Vm, VmIterator, array_create,
             copy_data_properties_into_object, initialize_referenced_binding, iterator_close,
@@ -27,7 +28,7 @@ pub(super) fn execute_simple_array_binding(
     vm: &mut Vm,
     executable: Executable,
     mut iterator: VmIterator,
-    environment: Option<Environment>,
+    environment: Option<Scoped<Environment>>,
     mut gc: GcScope,
 ) -> JsResult<()> {
     let mut iterator_is_done = false;
@@ -85,7 +86,12 @@ pub(super) fn execute_simple_array_binding(
                 let binding_id =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 let value = value.scope(agent, gc.nogc());
-                let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?;
+                let lhs = resolve_binding(
+                    agent,
+                    binding_id.unbind(),
+                    environment.as_ref().map(|v| v.get(agent)),
+                    gc.reborrow(),
+                )?;
                 if environment.is_none() {
                     put_value(agent, &lhs.unbind(), value.get(agent), gc.reborrow())?;
                 } else {
@@ -103,7 +109,7 @@ pub(super) fn execute_simple_array_binding(
                     vm,
                     executable,
                     value.unbind(),
-                    environment,
+                    environment.clone(),
                     gc.reborrow(),
                 )?;
             }
@@ -138,7 +144,7 @@ pub(super) fn execute_simple_object_binding(
     vm: &mut Vm,
     executable: Executable,
     object: Object,
-    environment: Option<Environment>,
+    environment: Option<Scoped<Environment>>,
     mut gc: GcScope,
 ) -> JsResult<()> {
     let object = object.scope(agent, gc.nogc());
@@ -167,8 +173,13 @@ pub(super) fn execute_simple_object_binding(
 
                 // TODO: Properly handle potential GC.
                 let property_key = property_key.unbind();
-                let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
-                    .unbind();
+                let lhs = resolve_binding(
+                    agent,
+                    binding_id.unbind(),
+                    environment.as_ref().map(|v| v.get(agent)),
+                    gc.reborrow(),
+                )?
+                .unbind();
                 let v = get(
                     agent,
                     object.get(agent),
@@ -205,7 +216,7 @@ pub(super) fn execute_simple_object_binding(
                     vm,
                     executable,
                     v.unbind(),
-                    environment,
+                    environment.clone(),
                     gc.reborrow(),
                 )?;
             }
@@ -214,8 +225,13 @@ pub(super) fn execute_simple_object_binding(
                 let binding_id =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 // TODO: Properly handle potential GC.
-                let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
-                    .unbind();
+                let lhs = resolve_binding(
+                    agent,
+                    binding_id.unbind(),
+                    environment.as_ref().map(|v| v.get(agent)),
+                    gc.reborrow(),
+                )?
+                .unbind();
                 // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                 // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                 let rest_obj = copy_data_properties_into_object(
@@ -246,7 +262,7 @@ pub(super) fn execute_nested_simple_binding(
     vm: &mut Vm,
     executable: Executable,
     value: Value,
-    environment: Option<Environment>,
+    environment: Option<Scoped<Environment>>,
     mut gc: GcScope,
 ) -> JsResult<()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
@@ -258,7 +274,7 @@ pub(super) fn execute_nested_simple_binding(
                 vm,
                 executable,
                 new_iterator,
-                environment,
+                environment.clone(),
                 gc.reborrow(),
             )
         }
@@ -269,7 +285,7 @@ pub(super) fn execute_nested_simple_binding(
                 vm,
                 executable,
                 object.unbind(),
-                environment,
+                environment.clone(),
                 gc.reborrow(),
             )
         }
