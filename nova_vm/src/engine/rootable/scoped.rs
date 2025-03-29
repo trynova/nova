@@ -242,41 +242,6 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
             }
         }
     }
-
-    pub fn from_scoped<U: 'static + Rootable>(
-        agent: &Agent,
-        scoped: Scoped<'scope, U>,
-        value: T,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Self {
-        let heap_data = match T::to_root_repr(value) {
-            Ok(stack_repr) => {
-                // The value doesn't need rooting.
-                return Self {
-                    inner: stack_repr,
-                    _marker: PhantomData,
-                    _scope: PhantomData,
-                };
-            }
-            Err(heap_data) => heap_data,
-        };
-        let Err(heap_root_ref) = U::from_root_repr(&scoped.inner) else {
-            // Previous Scoped is an on-stack value, we can't reuse its heap
-            // slot.
-            return Self::new(agent, value, gc);
-        };
-        // Previous Scoped had a heap slot, we can reuse it.
-        let mut stack_refs_borrow = agent.stack_refs.borrow_mut();
-        let Some(heap_slot) = stack_refs_borrow.get_mut(heap_root_ref.to_index()) else {
-            handle_bound_check_failure()
-        };
-        *heap_slot = heap_data;
-        Self {
-            inner: T::from_heap_ref(heap_root_ref),
-            _marker: PhantomData,
-            _scope: PhantomData,
-        }
-    }
 }
 
 /// # Scoped heap root collection

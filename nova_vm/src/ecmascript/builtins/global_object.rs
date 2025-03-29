@@ -183,7 +183,7 @@ pub fn perform_eval<'gc>(
     // 10. If direct is true, then
     if direct {
         // a. Let thisEnvRec be GetThisEnvironment().
-        let this_env_rec = get_this_environment(agent);
+        let this_env_rec = get_this_environment(agent, gc.nogc());
         // b. If thisEnvRec is a Function Environment Record, then
         if let EnvironmentIndex::Function(this_env_rec) = this_env_rec {
             // i. Let F be thisEnvRec.[[FunctionObject]].
@@ -268,32 +268,36 @@ pub fn perform_eval<'gc>(
             .as_ref()
             .unwrap();
 
+        let running_context_lex_env = running_context_lex_env.bind(gc.nogc());
+        let running_context_var_env = running_context_var_env.bind(gc.nogc());
+        let running_context_private_env = running_context_private_env.bind(gc.nogc());
+
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(runningContext's LexicalEnvironment).
-            lexical_environment: EnvironmentIndex::Declarative(new_declarative_environment(
-                agent,
-                Some(running_context_lex_env),
-            )),
+            lexical_environment: EnvironmentIndex::Declarative(
+                new_declarative_environment(agent, Some(running_context_lex_env), gc.nogc())
+                    .unbind(),
+            ),
             // b. Let varEnv be runningContext's VariableEnvironment.
-            variable_environment: running_context_var_env,
+            variable_environment: running_context_var_env.unbind(),
             // c. Let privateEnv be runningContext's PrivateEnvironment.
-            private_environment: running_context_private_env,
+            private_environment: running_context_private_env.unbind(),
             is_strict_mode: strict_eval,
             // The code running inside eval is defined inside the eval source.
             source_code,
         }
     } else {
         // 17. Else,
-        let global_env = EnvironmentIndex::Global(agent[eval_realm].global_env.unwrap());
+        let global_env =
+            EnvironmentIndex::Global(agent[eval_realm].global_env.unwrap()).bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
-            lexical_environment: EnvironmentIndex::Declarative(new_declarative_environment(
-                agent,
-                Some(global_env),
-            )),
+            lexical_environment: EnvironmentIndex::Declarative(
+                new_declarative_environment(agent, Some(global_env), gc.nogc()).unbind(),
+            ),
             // b. Let varEnv be evalRealm.[[GlobalEnv]].
-            variable_environment: global_env,
+            variable_environment: global_env.unbind(),
             // c. Let privateEnv be null.
             private_environment: None,
             is_strict_mode: strict_eval,
@@ -377,6 +381,12 @@ pub fn eval_declaration_instantiation(
     strict_eval: bool,
     mut gc: GcScope,
 ) -> JsResult<()> {
+    let mut var_env = var_env.bind(gc.nogc());
+    let lex_env = lex_env.bind(gc.nogc());
+    let scoped_lex_env = lex_env.scope(agent, gc.nogc());
+    let scoped_var_env = var_env.scope(agent, gc.nogc());
+    let private_env = private_env.map(|v| v.scope(agent, gc.nogc()));
+
     // 1. Let varNames be the VarDeclaredNames of body.
     let var_names = script_var_declared_names(script);
 
@@ -409,6 +419,7 @@ pub fn eval_declaration_instantiation(
 
         // b. Let thisEnv be lexEnv.
         let mut this_env = lex_env;
+        let mut scoped_this_env = this_env.scope(agent, gc.nogc());
 
         // c. Assert: The following loop will terminate.
         // d. Repeat, while thisEnv and varEnv are not the same Environment Record,
@@ -420,14 +431,13 @@ pub fn eval_declaration_instantiation(
                 //    for var/let hoisting conflicts.
                 // 2. For each element name of varNames, do
                 for name in &var_names {
-                    let name = String::from_str(agent, name.as_str(), gc.nogc())
-                        .unbind()
-                        .scope(agent, gc.nogc());
+                    let n = String::from_str(agent, name.as_str(), gc.nogc());
                     // a. If ! thisEnv.HasBinding(name) is true, then
                     // b. NOTE: A direct eval will not hoist var declaration
                     //    over a like-named lexical declaration.
                     if this_env
-                        .has_binding(agent, name.get(agent), gc.reborrow())
+                        .unbind()
+                        .has_binding(agent, n.unbind(), gc.reborrow())
                         .unwrap()
                     {
                         // i. Throw a SyntaxError exception.
@@ -435,14 +445,18 @@ pub fn eval_declaration_instantiation(
                         //     for the above step.
                         return Err(agent.throw_exception(
                             ExceptionType::SyntaxError,
-                            format!("Redeclaration of variable '{}'", name.as_str(agent)),
+                            format!("Redeclaration of variable '{}'", name),
                             gc.nogc(),
                         ));
                     }
+                    this_env = scoped_this_env.get(agent).bind(gc.nogc());
                 }
             }
             // ii. Set thisEnv to thisEnv.[[OuterEnv]].
-            this_env = this_env.get_outer_env(agent).unwrap();
+            this_env = this_env.get_outer_env(agent, gc.nogc()).unwrap();
+            // SAFETY: scoped_this_env is not shared.
+            unsafe { scoped_this_env.replace(agent, this_env.unbind()) };
+            var_env = scoped_var_env.get(agent).bind(gc.nogc());
         }
     }
 
@@ -450,7 +464,7 @@ pub fn eval_declaration_instantiation(
     let mut private_identifiers = vec![];
 
     // 5. Let pointer be privateEnv.
-    let mut pointer = private_env;
+    let mut pointer = private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc()));
 
     // 6. Repeat, while pointer is not null,
     while let Some(index) = pointer {
@@ -467,7 +481,7 @@ pub fn eval_declaration_instantiation(
         }
 
         // b. Set pointer to pointer.[[OuterPrivateEnvironment]].
-        pointer = env.outer_private_environment;
+        pointer = env.outer_private_environment.bind(gc.nogc());
     }
 
     // TODO:
@@ -495,11 +509,12 @@ pub fn eval_declaration_instantiation(
             // iv. If declaredFunctionNames does not contain fn, then
             if declared_function_names.insert(function_name) {
                 // 1. If varEnv is a Global Environment Record, then
-                if let EnvironmentIndex::Global(var_env) = var_env {
+                if let EnvironmentIndex::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc())
+                {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
                     let function_name = String::from_str(agent, function_name.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
-                    let fn_definable = var_env.can_declare_global_function(
+                    let fn_definable = var_env.unbind().can_declare_global_function(
                         agent,
                         function_name.get(agent),
                         gc.reborrow(),
@@ -544,10 +559,15 @@ pub fn eval_declaration_instantiation(
                     let vn = String::from_str(agent, vn_string.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
                     // a. If varEnv is a Global Environment Record, then
-                    if let EnvironmentIndex::Global(var_env) = var_env {
+                    if let EnvironmentIndex::Global(var_env) =
+                        scoped_var_env.get(agent).bind(gc.nogc())
+                    {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
-                        let vn_definable =
-                            var_env.can_declare_global_var(agent, vn.get(agent), gc.reborrow())?;
+                        let vn_definable = var_env.unbind().can_declare_global_var(
+                            agent,
+                            vn.get(agent),
+                            gc.reborrow(),
+                        )?;
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
                             return Err(agent.throw_exception(
@@ -612,12 +632,19 @@ pub fn eval_declaration_instantiation(
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? lexEnv.CreateImmutableBinding(dn, true).
-            lex_env.create_immutable_binding(agent, dn, true, gc.nogc())?;
+            scoped_lex_env
+                .get(agent)
+                .create_immutable_binding(agent, dn, true, gc.nogc())?;
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
-            lex_env.create_mutable_binding(agent, dn.get(agent), false, gc.reborrow())?;
+            scoped_lex_env.get(agent).create_mutable_binding(
+                agent,
+                dn.get(agent),
+                false,
+                gc.reborrow(),
+            )?;
         }
     }
 
@@ -631,16 +658,22 @@ pub fn eval_declaration_instantiation(
         });
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
-        let fo = instantiate_function_object(agent, f, lex_env, private_env, gc.nogc())
-            .into_value()
-            .unbind();
+        let fo = instantiate_function_object(
+            agent,
+            f,
+            scoped_lex_env.get(agent).bind(gc.nogc()),
+            private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc())),
+            gc.nogc(),
+        )
+        .into_value()
+        .unbind();
 
         // c. If varEnv is a Global Environment Record, then
-        if let EnvironmentIndex::Global(var_env) = var_env {
+        if let EnvironmentIndex::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
             let function_name =
                 String::from_str(agent, function_name.unwrap().as_str(), gc.nogc()).unbind();
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
-            var_env.create_global_function_binding(
+            var_env.unbind().create_global_function_binding(
                 agent,
                 function_name.unbind(),
                 fo.unbind(),
@@ -652,7 +685,8 @@ pub fn eval_declaration_instantiation(
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
             let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc())
                 .scope(agent, gc.nogc());
-            let binding_exists = var_env
+            let binding_exists = scoped_var_env
+                .get(agent)
                 .has_binding(agent, function_name.get(agent).unbind(), gc.reborrow())
                 .unwrap();
 
@@ -660,7 +694,8 @@ pub fn eval_declaration_instantiation(
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
-                var_env
+                scoped_var_env
+                    .get(agent)
                     .create_mutable_binding(
                         agent,
                         function_name.get(agent).unbind(),
@@ -669,13 +704,15 @@ pub fn eval_declaration_instantiation(
                     )
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
-                var_env
+                scoped_var_env
+                    .get(agent)
                     .initialize_binding(agent, function_name.get(agent).unbind(), fo, gc.reborrow())
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
-                var_env
+                scoped_var_env
+                    .get(agent)
                     .set_mutable_binding(
                         agent,
                         function_name.get(agent).unbind(),
@@ -690,13 +727,19 @@ pub fn eval_declaration_instantiation(
     // 18. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. If varEnv is a Global Environment Record, then
-        if let EnvironmentIndex::Global(var_env) = var_env {
+        if let EnvironmentIndex::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-            var_env.create_global_var_binding(agent, vn.get(agent), true, gc.reborrow())?;
+            var_env.unbind().create_global_var_binding(
+                agent,
+                vn.get(agent),
+                true,
+                gc.reborrow(),
+            )?;
         } else {
             // b. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(vn).
-            let binding_exists = var_env
+            let binding_exists = scoped_var_env
+                .get(agent)
                 .has_binding(agent, vn.get(agent), gc.reborrow())
                 .unwrap();
 
@@ -704,11 +747,13 @@ pub fn eval_declaration_instantiation(
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
-                var_env
+                scoped_var_env
+                    .get(agent)
                     .create_mutable_binding(agent, vn.get(agent), true, gc.reborrow())
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
-                var_env
+                scoped_var_env
+                    .get(agent)
                     .initialize_binding(agent, vn.get(agent), Value::Undefined, gc.reborrow())
                     .unwrap();
             }

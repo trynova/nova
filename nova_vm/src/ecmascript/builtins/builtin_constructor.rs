@@ -439,8 +439,8 @@ pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) prototype: Option<Object<'a>>,
     pub(crate) prototype_property: Object<'a>,
     pub(crate) compiled_initializer_bytecode: Option<Executable>,
-    pub(crate) env: EnvironmentIndex,
-    pub(crate) private_env: Option<PrivateEnvironmentIndex>,
+    pub(crate) env: EnvironmentIndex<'a>,
+    pub(crate) private_env: Option<PrivateEnvironmentIndex<'a>>,
     pub(crate) source_code: SourceCode,
     pub(crate) source_text: Span,
 }
@@ -523,8 +523,8 @@ pub(crate) fn create_builtin_constructor<'a>(
         compiled_initializer_bytecode: args.compiled_initializer_bytecode,
         is_derived: args.is_derived,
         object_index: Some(backing_object),
-        environment: args.env,
-        private_environment: args.private_env,
+        environment: args.env.unbind(),
+        private_environment: args.private_env.unbind(),
         source_text: args.source_text,
         source_code: args.source_code,
     })

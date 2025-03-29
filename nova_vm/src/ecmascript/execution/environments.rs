@@ -43,8 +43,8 @@ pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
 use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
+use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -65,7 +65,7 @@ use super::{Agent, JsResult};
 /// nested FunctionDeclarations then the Environment Records of each of the
 /// nested functions will have as their outer Environment Record the
 /// Environment Record of the current evaluation of the surrounding function.
-pub(super) type OuterEnv = Option<EnvironmentIndex>;
+pub(super) type OuterEnv<'a> = Option<EnvironmentIndex<'a>>;
 
 macro_rules! create_environment_index {
     ($name: ident, $index: ident, $entry: ident) => {
@@ -75,15 +75,15 @@ macro_rules! create_environment_index {
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-        pub(crate) struct $index(NonZeroU32, PhantomData<$name>);
+        pub struct $index<'a>(NonZeroU32, PhantomData<$name>, PhantomData<&'a GcToken>);
 
-        impl core::fmt::Debug for $index {
+        impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 write!(f, "$index({:?})", self.0)
             }
         }
 
-        impl $index {
+        impl $index<'_> {
             /// Creates a new index from a u32.
             ///
             /// ## Panics
@@ -92,13 +92,21 @@ macro_rules! create_environment_index {
                 assert!(value != 0);
                 // SAFETY: Number is not 0 and will not overflow to zero.
                 // This check is done manually to allow const context.
-                Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+                Self(
+                    unsafe { NonZeroU32::new_unchecked(value) },
+                    PhantomData,
+                    PhantomData,
+                )
             }
 
             pub(crate) const fn from_u32_index(value: u32) -> Self {
                 // SAFETY: Number is not 0 and will not overflow to zero.
                 // This check is done manually to allow const context.
-                Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+                Self(
+                    unsafe { NonZeroU32::new_unchecked(value + 1) },
+                    PhantomData,
+                    PhantomData,
+                )
             }
 
             pub(crate) const fn into_index(self) -> usize {
@@ -118,7 +126,45 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl core::ops::Index<$index> for Agent {
+        // SAFETY: Property implemented as a lifetime transmute.
+        unsafe impl Bindable for $index<'_> {
+            type Of<'a> = $index<'a>;
+
+            #[inline(always)]
+            fn unbind(self) -> Self::Of<'static> {
+                unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+            }
+
+            #[inline(always)]
+            fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+                unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+            }
+        }
+
+        impl Rootable for $index<'_> {
+            type RootRepr = HeapRootRef;
+
+            fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+                Err(HeapRootData::$name(value.unbind()))
+            }
+
+            fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+                Err(*value)
+            }
+
+            fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+                heap_ref
+            }
+
+            fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+                match heap_data {
+                    HeapRootData::$name(object) => Some(object),
+                    _ => None,
+                }
+            }
+        }
+
+        impl core::ops::Index<$index<'_>> for Agent {
             type Output = $name;
 
             fn index(&self, index: $index) -> &Self::Output {
@@ -126,13 +172,13 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl core::ops::IndexMut<$index> for Agent {
+        impl core::ops::IndexMut<$index<'_>> for Agent {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
                 &mut self.heap.environments.$entry[index]
             }
         }
 
-        impl core::ops::Index<$index> for Vec<Option<$name>> {
+        impl core::ops::Index<$index<'_>> for Vec<Option<$name>> {
             type Output = $name;
 
             fn index(&self, index: $index) -> &Self::Output {
@@ -143,7 +189,7 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl core::ops::IndexMut<$index> for Vec<Option<$name>> {
+        impl core::ops::IndexMut<$index<'_>> for Vec<Option<$name>> {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
                 self.get_mut(index.into_index())
                     .expect("Environment out of bounds")
@@ -164,9 +210,31 @@ create_environment_index!(GlobalEnvironment, GlobalEnvironmentIndex, global);
 create_environment_index!(ObjectEnvironment, ObjectEnvironmentIndex, object);
 create_environment_index!(PrivateEnvironment, PrivateEnvironmentIndex, private);
 
+impl<'a> From<DeclarativeEnvironmentIndex<'a>> for EnvironmentIndex<'a> {
+    fn from(value: DeclarativeEnvironmentIndex<'a>) -> Self {
+        EnvironmentIndex::Declarative(value)
+    }
+}
+
+impl<'a> From<GlobalEnvironmentIndex<'a>> for EnvironmentIndex<'a> {
+    fn from(value: GlobalEnvironmentIndex<'a>) -> Self {
+        EnvironmentIndex::Global(value)
+    }
+}
+
+impl<'a> From<ObjectEnvironmentIndex<'a>> for EnvironmentIndex<'a> {
+    fn from(value: ObjectEnvironmentIndex<'a>) -> Self {
+        EnvironmentIndex::Object(value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ModuleEnvironmentIndex(NonZeroU32, PhantomData<DeclarativeEnvironment>);
-impl ModuleEnvironmentIndex {
+pub struct ModuleEnvironmentIndex<'a>(
+    NonZeroU32,
+    PhantomData<DeclarativeEnvironment>,
+    PhantomData<&'a GcToken>,
+);
+impl ModuleEnvironmentIndex<'_> {
     /// Creates a new index from a u32.
     ///
     /// ## Panics
@@ -175,7 +243,11 @@ impl ModuleEnvironmentIndex {
         assert!(value != 0);
         // SAFETY: Number is not 0 and will not overflow to zero.
         // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value) },
+            PhantomData,
+            PhantomData,
+        )
     }
 
     pub(crate) const fn into_index(self) -> usize {
@@ -191,6 +263,54 @@ impl ModuleEnvironmentIndex {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ModuleEnvironmentIndex<'_> {
+    type Of<'a> = ModuleEnvironmentIndex<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl Rootable for ModuleEnvironmentIndex<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::ModuleEnvironment(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::ModuleEnvironment(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for ModuleEnvironmentIndex<'_> {
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        todo!()
+    }
+}
+
 /// ### [9.1.1 The Environment Record Type Hierarchy](https://tc39.es/ecma262/#sec-the-environment-record-type-hierarchy)
 ///
 /// Environment Records can be thought of as existing in a simple
@@ -201,29 +321,17 @@ impl ModuleEnvironmentIndex {
 /// Environment Record.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(crate) enum EnvironmentIndex {
+pub(crate) enum EnvironmentIndex<'a> {
     // Leave 0 for None option
-    Declarative(DeclarativeEnvironmentIndex) = 1,
-    Function(FunctionEnvironmentIndex),
-    Global(GlobalEnvironmentIndex),
-    // Module(ModuleEnvironmentIndex),
-    Object(ObjectEnvironmentIndex),
+    Declarative(DeclarativeEnvironmentIndex<'a>) = 1,
+    Function(FunctionEnvironmentIndex<'a>),
+    Global(GlobalEnvironmentIndex<'a>),
+    // Module(ModuleEnvironmentIndex<'a>),
+    Object(ObjectEnvironmentIndex<'a>),
 }
 
-impl core::fmt::Debug for EnvironmentIndex {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            EnvironmentIndex::Declarative(d) => write!(f, "DeclarativeEnvironment({:?})", d.0),
-            EnvironmentIndex::Function(d) => write!(f, "FunctionEnvironment({:?})", d.0),
-            EnvironmentIndex::Global(d) => write!(f, "GlobalEnvironment({:?})", d.0),
-            EnvironmentIndex::Object(d) => write!(f, "ObjectEnvironment({:?})", d.0),
-            // EnvironmentIndex::Module(d) => {}
-        }
-    }
-}
-
-impl EnvironmentIndex {
-    pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv {
+impl EnvironmentIndex<'_> {
+    pub(crate) fn get_outer_env<'a>(self, agent: &Agent, _: NoGcScope<'a, '_>) -> OuterEnv<'a> {
         match self {
             EnvironmentIndex::Declarative(index) => agent[index].outer_env,
             EnvironmentIndex::Function(index) => {
@@ -621,7 +729,81 @@ impl EnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for EnvironmentIndex {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for EnvironmentIndex<'_> {
+    type Of<'a> = EnvironmentIndex<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl core::fmt::Debug for EnvironmentIndex<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            EnvironmentIndex::Declarative(d) => write!(f, "DeclarativeEnvironment({:?})", d.0),
+            EnvironmentIndex::Function(d) => write!(f, "FunctionEnvironment({:?})", d.0),
+            EnvironmentIndex::Global(d) => write!(f, "GlobalEnvironment({:?})", d.0),
+            EnvironmentIndex::Object(d) => write!(f, "ObjectEnvironment({:?})", d.0),
+            // EnvironmentIndex::Module(d) => {}
+        }
+    }
+}
+
+impl Rootable for EnvironmentIndex<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            EnvironmentIndex::Declarative(declarative_environment_index) => Err(
+                HeapRootData::DeclarativeEnvironment(declarative_environment_index.unbind()),
+            ),
+            EnvironmentIndex::Function(function_environment_index) => Err(
+                HeapRootData::FunctionEnvironment(function_environment_index.unbind()),
+            ),
+            EnvironmentIndex::Global(global_environment_index) => Err(
+                HeapRootData::GlobalEnvironment(global_environment_index.unbind()),
+            ),
+            EnvironmentIndex::Object(object_environment_index) => Err(
+                HeapRootData::ObjectEnvironment(object_environment_index.unbind()),
+            ),
+        }
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
+                Some(EnvironmentIndex::Declarative(declarative_environment_index))
+            }
+            HeapRootData::FunctionEnvironment(function_environment_index) => {
+                Some(EnvironmentIndex::Function(function_environment_index))
+            }
+            HeapRootData::GlobalEnvironment(global_environment_index) => {
+                Some(EnvironmentIndex::Global(global_environment_index))
+            }
+            HeapRootData::ObjectEnvironment(object_environment_index) => {
+                Some(EnvironmentIndex::Object(object_environment_index))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for EnvironmentIndex<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.mark_values(queues),
@@ -699,7 +881,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
         // a. Return the Reference Record {
         TryResult::Continue(Reference {
             // [[Base]]: env,
-            base: Base::Environment(env),
+            base: Base::Environment(env.unbind()),
             // [[ReferencedName]]: name,
             referenced_name: name.into(),
             // [[Strict]]: strict,
@@ -712,7 +894,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     // 4. Else,
     else {
         // a. Let outer be env.[[OuterEnv]].
-        let outer = env.get_outer_env(agent);
+        let outer = env.get_outer_env(agent, gc);
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
         try_get_identifier_reference(agent, outer, name, strict, gc)
@@ -732,9 +914,12 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     strict: bool,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<Reference<'a>> {
+    let env = env.bind(gc.nogc());
+    let mut name = name.bind(gc.nogc());
+
     // 1. If env is null, then
-    let Some(env) = env else {
-        let name = name.bind(gc.into_nogc());
+    let Some(mut env) = env else {
+        let name = name.unbind().bind(gc.into_nogc());
         // a. Return the Reference Record {
         return Ok(Reference {
             // [[Base]]: UNRESOLVABLE,
@@ -750,25 +935,30 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let (name, exists) =
-        if let TryResult::Continue(result) = env.try_has_binding(agent, name, gc.nogc()) {
-            (name, result)
-        } else {
-            let name_scoped = name.scope(agent, gc.nogc());
-            let result = env.has_binding(agent, name.unbind(), gc.reborrow())?;
-            let name = name_scoped.get(agent);
-            (name, result)
-        };
+    let exists = if let TryResult::Continue(result) = env.try_has_binding(agent, name, gc.nogc()) {
+        result
+    } else {
+        let env_scoped = env.scope(agent, gc.nogc());
+        let name_scoped = name.scope(agent, gc.nogc());
+        let result = env
+            .unbind()
+            .has_binding(agent, name.unbind(), gc.reborrow())?;
+        env = env_scoped.get(agent);
+        name = name_scoped.get(agent);
+        result
+    };
 
     // 3. If exists is true, then
     if exists {
-        let name = name.bind(gc.into_nogc());
+        let env = env.unbind();
+        let name = name.unbind();
+        let gc = gc.into_nogc();
         // a. Return the Reference Record {
         Ok(Reference {
             // [[Base]]: env,
-            base: Base::Environment(env),
+            base: Base::Environment(env.bind(gc)),
             // [[ReferencedName]]: name,
-            referenced_name: name.into(),
+            referenced_name: name.bind(gc).into(),
             // [[Strict]]: strict,
             strict,
             // [[ThisValue]]: EMPTY
@@ -779,42 +969,46 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     // 4. Else,
     else {
         // a. Let outer be env.[[OuterEnv]].
-        let outer = env.get_outer_env(agent);
+        let outer = env.unbind().get_outer_env(agent, gc.nogc());
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
-        get_identifier_reference(agent, outer, name, strict, gc)
+        get_identifier_reference(agent, outer.unbind(), name.unbind(), strict, gc)
     }
 }
 
 impl Environments {
-    pub(crate) fn push_declarative_environment(
+    pub(crate) fn push_declarative_environment<'a>(
         &mut self,
         env: DeclarativeEnvironment,
-    ) -> DeclarativeEnvironmentIndex {
+        _: NoGcScope<'a, '_>,
+    ) -> DeclarativeEnvironmentIndex<'a> {
         self.declarative.push(Some(env));
         DeclarativeEnvironmentIndex::from_u32(self.declarative.len() as u32)
     }
 
-    pub(crate) fn push_function_environment(
+    pub(crate) fn push_function_environment<'a>(
         &mut self,
         env: FunctionEnvironment,
-    ) -> FunctionEnvironmentIndex {
+        _: NoGcScope<'a, '_>,
+    ) -> FunctionEnvironmentIndex<'a> {
         self.function.push(Some(env));
         FunctionEnvironmentIndex::from_u32(self.function.len() as u32)
     }
 
-    pub(crate) fn push_global_environment(
+    pub(crate) fn push_global_environment<'a>(
         &mut self,
         env: GlobalEnvironment,
-    ) -> GlobalEnvironmentIndex {
+        _: NoGcScope<'a, '_>,
+    ) -> GlobalEnvironmentIndex<'a> {
         self.global.push(Some(env));
         GlobalEnvironmentIndex::from_u32(self.global.len() as u32)
     }
 
-    pub(crate) fn push_object_environment(
+    pub(crate) fn push_object_environment<'a>(
         &mut self,
         env: ObjectEnvironment,
-    ) -> ObjectEnvironmentIndex {
+        _: NoGcScope<'a, '_>,
+    ) -> ObjectEnvironmentIndex<'a> {
         self.object.push(Some(env));
         ObjectEnvironmentIndex::from_u32(self.object.len() as u32)
     }
@@ -912,14 +1106,12 @@ impl Environments {
 /// The abstract operation GetThisEnvironment takes no arguments and returns an
 /// Environment Record. It finds the Environment Record that currently supplies
 /// the binding of the keyword this.
-pub(crate) fn get_this_environment(agent: &mut Agent) -> EnvironmentIndex {
+pub(crate) fn get_this_environment<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> EnvironmentIndex<'a> {
     // 1. Let env be the running execution context's LexicalEnvironment.
-    let mut env = agent
-        .running_execution_context()
-        .ecmascript_code
-        .as_ref()
-        .unwrap()
-        .lexical_environment;
+    let mut env = agent.current_lexical_environment(gc);
     // 2. Repeat,
     loop {
         // a. Let exists be env.HasThisBinding().
@@ -930,6 +1122,6 @@ pub(crate) fn get_this_environment(agent: &mut Agent) -> EnvironmentIndex {
         // c. Let outer be env.[[OuterEnv]].
         // d. Assert: outer is not null.
         // e. Set env to outer.
-        env = env.get_outer_env(agent).unwrap();
+        env = env.get_outer_env(agent, gc).unwrap();
     }
 }

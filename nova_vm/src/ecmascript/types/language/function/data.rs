@@ -70,11 +70,11 @@ pub struct BuiltinConstructorHeapData {
     /// ### \[\[Environment]]
     ///
     /// This is required for class field initializers.
-    pub(crate) environment: EnvironmentIndex,
+    pub(crate) environment: EnvironmentIndex<'static>,
     /// ### \[\[PrivateEnvironment]]
     ///
     /// This is required for class field initializers.
-    pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) private_environment: Option<PrivateEnvironmentIndex<'static>>,
     ///  \[\[SourceText]]
     pub(crate) source_text: Span,
 

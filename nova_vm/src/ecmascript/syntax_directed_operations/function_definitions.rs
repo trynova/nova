@@ -32,10 +32,7 @@ use crate::{
             promise::Promise,
             set_function_name,
         },
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
-            PrivateEnvironmentIndex, ProtoIntrinsics,
-        },
+        execution::{Agent, EnvironmentIndex, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics},
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
             PropertyKey, String, Value,
@@ -102,8 +99,8 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 pub(crate) fn instantiate_ordinary_function_object<'a>(
     agent: &mut Agent,
     function: &ast::Function<'_>,
-    env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
+    env: EnvironmentIndex<'a>,
+    private_env: Option<PrivateEnvironmentIndex<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> ECMAScriptFunction<'a> {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
@@ -214,16 +211,9 @@ pub(crate) fn instantiate_ordinary_function_expression<'a>(
         // 1. If name is not present, set name to "".
         let name = name.map_or_else(|| String::EMPTY_STRING, |name| name);
         // 2. Let env be the LexicalEnvironment of the running execution context.
+        let env = agent.current_lexical_environment(gc);
         // 3. Let privateEnv be the running execution context's PrivateEnvironment.
-        let ECMAScriptCodeEvaluationState {
-            lexical_environment,
-            private_environment,
-            ..
-        } = *agent
-            .running_execution_context()
-            .ecmascript_code
-            .as_ref()
-            .unwrap();
+        let private_env = agent.current_private_environment(gc);
         // 4. Let sourceText be the source text matched by FunctionExpression.
         let source_text = function.expression.get().span;
         // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
@@ -237,8 +227,8 @@ pub(crate) fn instantiate_ordinary_function_expression<'a>(
             is_async: function.expression.get().r#async,
             is_generator: function.expression.get().generator,
             lexical_this: false,
-            env: lexical_environment,
-            private_env: private_environment,
+            env,
+            private_env,
         };
         let closure = ordinary_function_create(agent, params, gc);
         // 6. Perform SetFunctionName(closure, name).

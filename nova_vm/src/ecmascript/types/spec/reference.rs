@@ -603,7 +603,7 @@ pub(crate) fn get_this_value<'a>(reference: &Reference<'a>) -> Value<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Base<'a> {
     Value(Value<'a>),
-    Environment(EnvironmentIndex),
+    Environment(EnvironmentIndex<'a>),
     Unresolvable,
 }
 

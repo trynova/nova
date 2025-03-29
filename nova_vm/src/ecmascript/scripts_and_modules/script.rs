@@ -600,7 +600,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -616,7 +616,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "true", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -632,7 +632,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "-2", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -648,7 +648,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "void (2 + 2 + 6)", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -664,7 +664,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "+(54)", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -680,7 +680,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "!true", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -696,7 +696,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "~0b1111", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -793,7 +793,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "2 + 2 + 6", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -809,7 +809,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = 3;", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -823,7 +823,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = {};", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -854,7 +854,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 };", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -893,7 +893,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         agent.execution_context_stack.push(ExecutionContext {
             ecmascript_code: None,
@@ -926,7 +926,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = [ 'a', 3 ];", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -975,7 +975,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -1007,7 +1007,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "(function() {})()", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -1021,7 +1021,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text =
             String::from_static_str(&mut agent, "var f = function() {}; f();", gc.nogc());
@@ -1036,7 +1036,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "function f() {}; f();", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -1050,7 +1050,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text =
             String::from_static_str(&mut agent, "(function() { return 3 })()", gc.nogc());
@@ -1065,7 +1065,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
         let global = agent[realm].global_object;
 
         agent.execution_context_stack.push(ExecutionContext {
@@ -1122,7 +1122,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "if (true) 3", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
@@ -1141,7 +1141,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
@@ -1168,7 +1168,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text =
             String::from_static_str(&mut agent, "var foo = { a: 3 }; foo.a", gc.nogc());
@@ -1183,7 +1183,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
@@ -1201,7 +1201,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
@@ -1218,7 +1218,7 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent, gc.nogc());
-        set_realm_global_object(&mut agent, realm, None, None);
+        set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
         let source_text =
             String::from_static_str(&mut agent, "var i = 0; for (; i < 3; i++) {}", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();

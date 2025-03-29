@@ -26,8 +26,8 @@ use oxc_ast::ast;
 pub(crate) fn instantiate_function_object<'a>(
     agent: &mut Agent,
     function: &ast::Function<'_>,
-    env: EnvironmentIndex,
-    private_env: Option<PrivateEnvironmentIndex>,
+    env: EnvironmentIndex<'a>,
+    private_env: Option<PrivateEnvironmentIndex<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> ECMAScriptFunction<'a> {
     // FunctionDeclaration :

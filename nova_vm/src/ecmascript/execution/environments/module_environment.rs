@@ -20,4 +20,4 @@ use super::DeclarativeEnvironment;
 /// a ModuleEnvironment, so we treat them exactly the same way.
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub(crate) struct ModuleEnvironment(DeclarativeEnvironment);
+pub struct ModuleEnvironment(DeclarativeEnvironment);

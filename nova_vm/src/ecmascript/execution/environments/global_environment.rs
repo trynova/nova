@@ -46,7 +46,7 @@ pub struct GlobalEnvironment {
     /// bindings as well as FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings in global code for the associated realm.
-    pub(crate) object_record: ObjectEnvironmentIndex,
+    pub(crate) object_record: ObjectEnvironmentIndex<'static>,
 
     /// ### \[\[GlobalThisValue\]\]
     ///
@@ -60,7 +60,7 @@ pub struct GlobalEnvironment {
     /// associated realm code except for FunctionDeclaration,
     /// GeneratorDeclaration, AsyncFunctionDeclaration,
     /// AsyncGeneratorDeclaration, and VariableDeclaration bindings.
-    pub(crate) declarative_record: DeclarativeEnvironmentIndex,
+    pub(crate) declarative_record: DeclarativeEnvironmentIndex<'static>,
 
     /// ### \[\[VarNames\]\]
     ///
@@ -147,7 +147,7 @@ impl HeapMarkAndSweep for GlobalEnvironment {
     }
 }
 
-impl GlobalEnvironmentIndex {
+impl GlobalEnvironmentIndex<'_> {
     /// ### Try [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Global Environment Record envRec
@@ -1103,7 +1103,7 @@ impl GlobalEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for GlobalEnvironmentIndex {
+impl HeapMarkAndSweep for GlobalEnvironmentIndex<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.global_environments.push(*self);
     }

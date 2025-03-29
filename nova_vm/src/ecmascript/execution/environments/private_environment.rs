@@ -6,6 +6,7 @@ use ahash::AHashMap;
 
 use crate::{
     ecmascript::types::{Function, Value},
+    engine::context::Bindable,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -41,7 +42,7 @@ pub struct PrivateEnvironment {
     /// The PrivateEnvironment Record of the nearest containing class. null if
     /// the class with which this PrivateEnvironment Record is associated is
     /// not contained in any other class.
-    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex<'static>>,
 
     /// ### \[\[Names\]\]
     ///
@@ -70,14 +71,14 @@ pub(crate) fn new_private_environment(
     // 2. Return the PrivateEnvironment Record {
     PrivateEnvironment {
         // [[OuterPrivateEnvironment]]: outerPrivEnv,
-        outer_private_environment,
+        outer_private_environment: outer_private_environment.unbind(),
         // [[Names]]: names
         names: Default::default(),
     }
     // }.
 }
 
-impl HeapMarkAndSweep for PrivateEnvironmentIndex {
+impl HeapMarkAndSweep for PrivateEnvironmentIndex<'static> {
     fn mark_values(&self, _queues: &mut WorkQueues) {
         todo!()
     }

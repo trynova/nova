@@ -52,7 +52,7 @@ pub struct ObjectEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    pub(crate) outer_env: OuterEnv,
+    pub(crate) outer_env: OuterEnv<'static>,
 }
 
 impl ObjectEnvironment {
@@ -73,7 +73,7 @@ impl ObjectEnvironment {
             // 3. Set env.[[IsWithEnvironment]] to W.
             is_with_environment,
             // 4. Set env.[[OuterEnv]] to E.
-            outer_env,
+            outer_env: outer_env.unbind(),
         }
         // 5. Return env.
     }
@@ -101,7 +101,7 @@ impl HeapMarkAndSweep for ObjectEnvironment {
     }
 }
 
-impl ObjectEnvironmentIndex {
+impl ObjectEnvironmentIndex<'_> {
     /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec
@@ -592,7 +592,7 @@ impl ObjectEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for ObjectEnvironmentIndex {
+impl HeapMarkAndSweep for ObjectEnvironmentIndex<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.object_environments.push(*self);
     }

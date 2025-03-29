@@ -21,11 +21,11 @@ use crate::{
 /// VariableDeclarations, and Catch clauses that directly associate identifier
 /// bindings with ECMAScript language values.
 #[derive(Debug, Clone)]
-pub(crate) struct DeclarativeEnvironment {
+pub struct DeclarativeEnvironment {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    pub(crate) outer_env: OuterEnv,
+    pub(crate) outer_env: OuterEnv<'static>,
 
     /// The environment's bindings.
     pub(crate) bindings: AHashMap<String<'static>, Binding>,
@@ -51,7 +51,7 @@ impl DeclarativeEnvironment {
         // 2. Set env.[[OuterEnv]] to E.
         // 3. Return env.
         DeclarativeEnvironment {
-            outer_env,
+            outer_env: outer_env.unbind(),
             bindings: AHashMap::default(),
         }
     }
@@ -185,7 +185,7 @@ impl HeapMarkAndSweep for DeclarativeEnvironment {
     }
 }
 
-impl DeclarativeEnvironmentIndex {
+impl DeclarativeEnvironmentIndex<'_> {
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
@@ -388,7 +388,7 @@ impl DeclarativeEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
+impl HeapMarkAndSweep for DeclarativeEnvironmentIndex<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.declarative_environments.push(*self);
     }
@@ -409,16 +409,17 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
 /// The abstract operation NewDeclarativeEnvironment takes argument E (an
 /// Environment Record or null) and returns a Declarative Environment
 /// Record.
-pub(crate) fn new_declarative_environment(
+pub(crate) fn new_declarative_environment<'a>(
     agent: &mut Agent,
     outer_env: OuterEnv,
-) -> DeclarativeEnvironmentIndex {
+    gc: NoGcScope<'a, '_>,
+) -> DeclarativeEnvironmentIndex<'a> {
     // 1. Let env be a new Declarative Environment Record containing no bindings.
     // 2. Set env.[[OuterEnv]] to E.
     agent
         .heap
         .environments
-        .push_declarative_environment(DeclarativeEnvironment::new(outer_env));
+        .push_declarative_environment(DeclarativeEnvironment::new(outer_env), gc);
     // 3. Return env.
     DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative)
 }
