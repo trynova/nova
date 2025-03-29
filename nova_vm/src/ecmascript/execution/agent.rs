@@ -521,7 +521,7 @@ impl Agent {
     }
 
     /// Sets the running execution context's VariableEnvironment.
-    pub(crate) fn set_current_variable_environment<'a>(&mut self, env: Environment) {
+    pub(crate) fn set_current_variable_environment(&mut self, env: Environment) {
         self.execution_context_stack
             .last_mut()
             .unwrap()
@@ -532,7 +532,7 @@ impl Agent {
     }
 
     /// Sets the running execution context's PrivateEnvironment.
-    pub(crate) fn set_current_private_environment<'a>(&mut self, env: PrivateEnvironment) {
+    pub(crate) fn set_current_private_environment(&mut self, env: PrivateEnvironment) {
         self.execution_context_stack
             .last_mut()
             .unwrap()
