@@ -15,7 +15,7 @@ use crate::{
             },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
-                to_boolean, to_integer_or_infinity, to_object, to_string,
+                to_big_int, to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
                 try_to_integer_or_infinity, try_to_string,
             },
         },
@@ -35,8 +35,8 @@ use crate::{
         },
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            U8Clamped, Value, Viewable,
+            BUILTIN_STRING_MEMORY, BigInt, IntoObject, IntoValue, Number, Object, PropertyKey,
+            String, U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -1123,12 +1123,462 @@ impl TypedArrayPrototype {
     }
 
     fn fill<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let this_value = this_value.bind(gc.nogc());
+        let mut value = arguments.get(0).bind(gc.nogc());
+        let start = arguments.get(1).bind(gc.nogc());
+        let end = arguments.get(2).bind(gc.nogc());
+
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let mut ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let o = ta_record.object;
+        let scoped_o = o.scope(agent, gc.nogc());
+        let scoped_value = value.scope(agent, gc.nogc());
+        let start = start.scope(agent, gc.nogc());
+        let end = end.scope(agent, gc.nogc());
+        let mut len = match scoped_o.get(agent) {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        value = match scoped_o.get(agent) {
+            TypedArray::Int8Array(_) => {
+                if i8::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Uint8Array(_) => {
+                if u8::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                if U8Clamped::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Int16Array(_) => {
+                if i16::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Uint16Array(_) => {
+                if u16::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                if f16::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?;
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Int32Array(_) => {
+                if i32::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Uint32Array(_) => {
+                if u32::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Float32Array(_) => {
+                if f32::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::BigInt64Array(_) => {
+                if i64::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::BigUint64Array(_) => {
+                if u64::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+            TypedArray::Float64Array(_) => {
+                if f64::IS_BIGINT {
+                    // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+                    if let Ok(v) = BigInt::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                } else {
+                    // 5. Otherwise, set value to ? ToNumber(value).
+                    if let Ok(v) = Number::try_from(value) {
+                        v.into_value()
+                    } else {
+                        let v = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        v.into_value()
+                    }
+                }
+            }
+        };
+        let value = value.scope(agent, gc.nogc());
+        // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())?;
+        // 7. If relativeStart = -∞, let startIndex be 0.
+        let start_index = if relative_start.is_neg_infinity() {
+            0
+        } else if relative_start.is_negative() {
+            // 8. Else if relativeStart < 0, let startIndex be max(len + relativeStart, 0).
+            (len + relative_start.into_i64()).max(0)
+        } else {
+            // 9. Else, let startIndex be min(relativeStart, len).
+            len.min(relative_start.into_i64())
+        };
+        // 10. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let mut end_index = if end.get(agent).is_undefined() {
+            len
+        } else {
+            let relative_end = to_integer_or_infinity(agent, end.get(agent), gc.reborrow())?;
+            // 11. If relativeEnd = -∞, let endIndex be 0.
+            if relative_end.is_neg_infinity() {
+                0
+            } else if relative_end.is_negative() {
+                // 12. Else if relativeEnd < 0, let endIndex be max(len + relativeEnd, 0).
+                (len + relative_end.into_i64()).max(0)
+            } else {
+                // 13. Else, let endIndex be min(relativeEnd, len).
+                len.min(relative_end.into_i64())
+            }
+        };
+        // 14. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+        ta_record = make_typed_array_with_buffer_witness_record(
+            agent,
+            scoped_o.get(agent),
+            Ordering::SeqCst,
+            gc.nogc(),
+        );
+        // 15. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+        match scoped_o.get(agent) {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                if is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc.nogc()) {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Callback is not callable",
+                        gc.nogc(),
+                    ));
+                };
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                if is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc.nogc()) {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Callback is not callable",
+                        gc.nogc(),
+                    ));
+                }
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                if is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc.nogc()) {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Callback is not callable",
+                        gc.nogc(),
+                    ));
+                }
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                if is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc.nogc()) {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Callback is not callable",
+                        gc.nogc(),
+                    ));
+                }
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                if is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc()) {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Callback is not callable",
+                        gc.nogc(),
+                    ));
+                }
+            }
+        };
+        // 16. Set len to TypedArrayLength(taRecord).
+        len = match scoped_o.get(agent) {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        // 17. Set endIndex to min(endIndex, len).
+        end_index = len.min(end_index);
+        // 18. Let k be startIndex.
+        let mut k = start_index;
+        // 19. Repeat, while k < endIndex,
+        while k < end_index {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::Integer(k.try_into().unwrap());
+            // b. Perform ? Set(O, Pk, value, true).
+            set(
+                agent,
+                scoped_o.get(agent).into_object(),
+                pk,
+                value.get(agent),
+                true,
+                gc.reborrow(),
+            )?;
+            // c. Set k to k + 1.
+            k += 1;
+        }
+        // 20. Return O.
+        let o = scoped_o.get(agent);
+        Ok(o.into_value())
     }
 
     fn filter<'gc>(
