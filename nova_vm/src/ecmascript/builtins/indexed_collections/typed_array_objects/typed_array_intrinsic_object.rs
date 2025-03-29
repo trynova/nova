@@ -810,10 +810,6 @@ impl TypedArrayPrototype {
         // 1. Let O be the this value.
         let o = this_value;
 
-        let end = end.map(|e| e.scope(agent, gc.nogc()));
-        let start = start.scope(agent, gc.nogc());
-        let target = target.scope(agent, gc.nogc());
-
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let mut ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         let o = ta_record.object;
@@ -843,6 +839,11 @@ impl TypedArrayPrototype {
         }
         .to_i64()
         .unwrap();
+
+        let end = end.map(|e| e.scope(agent, gc.nogc()));
+        let start = start.scope(agent, gc.nogc());
+        let target = target.scope(agent, gc.nogc());
+
         // 4. Let relativeTarget be ? ToIntegerOrInfinity(target).
         // SAFETY: target has not been shared.
         let relative_target =
