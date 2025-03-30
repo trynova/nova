@@ -26,9 +26,7 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor,
-            array_buffer::{
-                Ordering, get_value_from_buffer, is_detached_buffer, set_value_in_buffer,
-            },
+            array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
             indexed_collections::array_objects::{
                 array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind},
                 array_prototype::find_via_predicate,
@@ -811,7 +809,7 @@ impl TypedArrayPrototype {
         let o = this_value;
 
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let mut ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         let o = ta_record.object;
         let scoped_o = o.scope(agent, gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
@@ -839,7 +837,6 @@ impl TypedArrayPrototype {
         }
         .to_i64()
         .unwrap();
-
         let end = end.map(|e| e.scope(agent, gc.nogc()));
         let start = start.scope(agent, gc.nogc());
         let target = target.scope(agent, gc.nogc());
@@ -889,180 +886,141 @@ impl TypedArrayPrototype {
                 relative_end.into_i64().min(len)
             }
         };
-        // 16. Let count be min(endIndex - startIndex, len - targetIndex).
-        let count = (end_index - start_index).min(len - target_index);
         let gc = gc.into_nogc();
         let o = scoped_o.get(agent).bind(gc);
-        // 17. If count > 0, then
-        if count > 0 {
-            // a. NOTE: The copying must be performed in a manner that preserves the bit-level encoding of the source data.
-            // b. Let buffer be O.[[ViewedArrayBuffer]].
-            let buffer = o.get_viewed_array_buffer(agent, gc);
-            // c. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-            ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
-            // d. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-            if match o {
-                TypedArray::Int8Array(_) => {
-                    is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc)
-                }
-                TypedArray::Uint8Array(_) => {
-                    is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc)
-                }
-                TypedArray::Uint8ClampedArray(_) => {
-                    is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
-                }
-                TypedArray::Int16Array(_) => {
-                    is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc)
-                }
-                TypedArray::Uint16Array(_) => {
-                    is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc)
-                }
-                TypedArray::Int32Array(_) => {
-                    is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc)
-                }
-                TypedArray::Uint32Array(_) => {
-                    is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc)
-                }
-                TypedArray::BigInt64Array(_) => {
-                    is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc)
-                }
-                TypedArray::BigUint64Array(_) => {
-                    is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
-                }
-                #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => {
-                    is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
-                }
-                TypedArray::Float32Array(_) => {
-                    is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
-                }
-                TypedArray::Float64Array(_) => {
-                    is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
-                }
-            } {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Callback is not callable",
+        match o {
+            TypedArray::Int8Array(_) => {
+                copy_within_typed_array::<i8>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
                     gc,
-                ));
+                )?;
             }
-            // e. Set len to TypedArrayLength(taRecord).
-            // f. Let elementSize be TypedArrayElementSize(O).
-            let (len, element_size) = match o {
-                TypedArray::Int8Array(_) => (
-                    typed_array_length::<i8>(agent, &ta_record, gc),
-                    core::mem::size_of::<i8>(),
-                ),
-                TypedArray::Uint8Array(_) => (
-                    typed_array_length::<u8>(agent, &ta_record, gc),
-                    core::mem::size_of::<u8>(),
-                ),
-                TypedArray::Uint8ClampedArray(_) => (
-                    typed_array_length::<U8Clamped>(agent, &ta_record, gc),
-                    core::mem::size_of::<U8Clamped>(),
-                ),
-                TypedArray::Int16Array(_) => (
-                    typed_array_length::<i16>(agent, &ta_record, gc),
-                    core::mem::size_of::<i16>(),
-                ),
-                TypedArray::Uint16Array(_) => (
-                    typed_array_length::<u16>(agent, &ta_record, gc),
-                    core::mem::size_of::<u16>(),
-                ),
-                TypedArray::Int32Array(_) => (
-                    typed_array_length::<i32>(agent, &ta_record, gc),
-                    core::mem::size_of::<i32>(),
-                ),
-                TypedArray::Uint32Array(_) => (
-                    typed_array_length::<u32>(agent, &ta_record, gc),
-                    core::mem::size_of::<u32>(),
-                ),
-                TypedArray::BigInt64Array(_) => (
-                    typed_array_length::<i64>(agent, &ta_record, gc),
-                    core::mem::size_of::<i64>(),
-                ),
-                TypedArray::BigUint64Array(_) => (
-                    typed_array_length::<u64>(agent, &ta_record, gc),
-                    core::mem::size_of::<u64>(),
-                ),
-                #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => (
-                    typed_array_length::<f16>(agent, &ta_record, gc),
-                    core::mem::size_of::<f16>(),
-                ),
-                TypedArray::Float32Array(_) => (
-                    typed_array_length::<f32>(agent, &ta_record, gc),
-                    core::mem::size_of::<f32>(),
-                ),
-                TypedArray::Float64Array(_) => (
-                    typed_array_length::<f64>(agent, &ta_record, gc),
-                    core::mem::size_of::<f64>(),
-                ),
-            };
-            // g. Let byteOffset be O.[[ByteOffset]].
-            let byte_offset = o.byte_offset(agent).to_i64().unwrap();
-            let element_size = element_size.to_i64().unwrap();
-            let len = len.to_i64().unwrap();
-            // h. Let bufferByteLimit be (len × elementSize) + byteOffset.
-            let buffer_byte_limit = (len * element_size) + byte_offset;
-            // i. Let toByteIndex be (targetIndex × elementSize) + byteOffset.
-            let to_byte_index = (target_index * element_size) + byte_offset;
-            // j. Let fromByteIndex be (startIndex × elementSize) + byteOffset.
-            let from_byte_index = (start_index * element_size) + byte_offset;
-            //  k. Let countBytes be count × elementSize.
-            let mut count_bytes = count * element_size;
-            // l. If fromByteIndex < toByteIndex and toByteIndex < fromByteIndex + countBytes, then
-            let (direction, mut from_byte_index, mut to_byte_index) =
-                if from_byte_index < to_byte_index && to_byte_index < from_byte_index + count_bytes
-                {
-                    // i. Let direction be -1.
-                    // ii. Set fromByteIndex to fromByteIndex + countBytes - 1.
-                    // iii. Set toByteIndex to toByteIndex + countBytes - 1.
-                    (
-                        -1,
-                        from_byte_index + count_bytes - 1,
-                        to_byte_index + count_bytes - 1,
-                    )
-                } else {
-                    // m. Else,
-                    // i. Let direction be 1.
-                    (1, from_byte_index, to_byte_index)
-                };
-            // n. Repeat, while countBytes > 0,
-            while count_bytes > 0 {
-                // i. If fromByteIndex < bufferByteLimit and toByteIndex < bufferByteLimit, then
-                if from_byte_index < buffer_byte_limit && to_byte_index < buffer_byte_limit {
-                    //  1. Let value be GetValueFromBuffer(buffer, fromByteIndex, uint8, true, unordered).
-                    let value = get_value_from_buffer::<u8>(
-                        agent,
-                        buffer,
-                        from_byte_index.try_into().unwrap(),
-                        true,
-                        Ordering::Unordered,
-                        None,
-                        gc,
-                    );
-                    //  2. Perform SetValueInBuffer(buffer, toByteIndex, uint8, value, true, unordered).
-                    set_value_in_buffer::<u8>(
-                        agent,
-                        buffer,
-                        to_byte_index.try_into().unwrap(),
-                        value,
-                        true,
-                        Ordering::Unordered,
-                        None,
-                    );
-                    //  3. Set fromByteIndex to fromByteIndex + direction.
-                    from_byte_index += direction;
-                    //  4. Set toByteIndex to toByteIndex + direction.
-                    to_byte_index += direction;
-                    // //  5. Set countBytes to countBytes - 1.
-                    count_bytes -= 1;
-                } else {
-                    // ii. Else,
-                    // 1. Set countBytes to 0.
-                    count_bytes = 0
-                }
+            TypedArray::Uint8Array(_) => {
+                copy_within_typed_array::<u8>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                copy_within_typed_array::<U8Clamped>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Int16Array(_) => {
+                copy_within_typed_array::<i16>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint16Array(_) => {
+                copy_within_typed_array::<u16>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                copy_within_typed_array::<f16>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Int32Array(_) => {
+                copy_within_typed_array::<i32>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint32Array(_) => {
+                copy_within_typed_array::<u32>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Float32Array(_) => {
+                copy_within_typed_array::<f32>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::BigInt64Array(_) => {
+                copy_within_typed_array::<i64>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::BigUint64Array(_) => {
+                copy_within_typed_array::<u64>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Float64Array(_) => {
+                copy_within_typed_array::<f64>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
             }
         }
         // 18. Return O.
@@ -2720,5 +2678,68 @@ fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
     }
     let slice = &mut slice[..len];
     slice.reverse();
+    Ok(())
+}
+
+fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    target_index: i64,
+    start_index: i64,
+    end_index: i64,
+    before_len: i64,
+    gc: NoGcScope<'a, 'a>,
+) -> JsResult<()> {
+    let end_bound = (end_index - start_index)
+        .max(0)
+        .min(before_len - target_index) as usize;
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
+    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Callback is not callable",
+            gc,
+        ));
+    }
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    if byte_offset > byte_slice.len() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    let start_bound = start_index as usize;
+    let target_index = target_index as usize;
+    let before_len = before_len as usize;
+    if before_len != slice.len() {
+        let end_bound = (len - target_index).max(0).min(before_len - target_index);
+        slice.copy_within(start_bound..end_bound, target_index);
+        return Ok(());
+    }
+    if end_bound > 0 {
+        slice.copy_within(start_bound..start_bound + end_bound, target_index);
+    }
     Ok(())
 }
