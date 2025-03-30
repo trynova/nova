@@ -788,13 +788,243 @@ impl TypedArrayPrototype {
         Ok(Value::try_from(o.byte_offset(agent) as i64).unwrap())
     }
 
+    /// ### [23.2.3.6 %TypedArray%.prototype.copyWithin ( target, start [ , end ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-objects)
+    /// The interpretation and use of the arguments of this method
+    /// are the same as for Array.prototype.copyWithin as defined in 23.1.3.4.
     fn copy_within<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let this_value = this_value.bind(gc.nogc());
+        let target = arguments.get(0).bind(gc.nogc());
+        let start = arguments.get(1).bind(gc.nogc());
+        let end = if arguments.len() >= 3 {
+            Some(arguments.get(2).bind(gc.nogc()))
+        } else {
+            None
+        };
+        // 1. Let O be the this value.
+        let o = this_value;
+
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let o = ta_record.object;
+        let scoped_o = o.scope(agent, gc.nogc());
+        // 3. Let len be TypedArrayLength(taRecord).
+        let len = match scoped_o.get(agent) {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        }
+        .to_i64()
+        .unwrap();
+        let end = end.map(|e| e.scope(agent, gc.nogc()));
+        let start = start.scope(agent, gc.nogc());
+        let target = target.scope(agent, gc.nogc());
+
+        // 4. Let relativeTarget be ? ToIntegerOrInfinity(target).
+        // SAFETY: target has not been shared.
+        let relative_target =
+            to_integer_or_infinity(agent, unsafe { target.take(agent) }, gc.reborrow())?;
+        // 5. If relativeTarget = -∞, let targetIndex be 0.
+        let target_index = if relative_target.is_neg_infinity() {
+            0
+        } else if relative_target.is_negative() {
+            // 6. Else if relativeTarget < 0, let targetIndex be max(len + relativeTarget, 0).
+            (len + relative_target.into_i64()).max(0)
+        } else {
+            // 7. Else, let targetIndex be min(relativeTarget, len).
+            relative_target.into_i64().min(len)
+        };
+        // 8. Let relativeStart be ? ToIntegerOrInfinity(start).
+        // SAFETY: start has not been shared.
+        let relative_start =
+            to_integer_or_infinity(agent, unsafe { start.take(agent) }, gc.reborrow())?;
+        let start_index = if relative_start.is_neg_infinity() {
+            // 9. If relativeStart = -∞, let startIndex be 0
+            0
+        } else if relative_start.is_negative() {
+            // 10. Else if relativeStart < 0, let startIndex be max(len + relativeStart, 0).
+            (len + relative_start.into_i64()).max(0)
+        } else {
+            // 11. Else, let startIndex be min(relativeStart, len).
+            relative_start.into_i64().min(len)
+        };
+        // 12. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let end = end.map(|e| unsafe { e.take(agent) }.bind(gc.nogc()));
+        let end_index = if end.is_none() || end.unwrap().is_undefined() {
+            len
+        } else {
+            let relative_end = to_integer_or_infinity(agent, end.unwrap().unbind(), gc.reborrow())?;
+            // 13. If relativeEnd = -∞, let endIndex be 0.
+            if relative_end.is_neg_infinity() {
+                0
+            } else if relative_end.is_negative() {
+                // 14. Else if relativeEnd < 0, let endIndex be max(len + relativeEnd, 0).
+                (len + relative_end.into_i64()).max(0)
+            } else {
+                // 15. Else, let endIndex be min(relativeEnd, len).
+                relative_end.into_i64().min(len)
+            }
+        };
+        let gc = gc.into_nogc();
+        let o = scoped_o.get(agent).bind(gc);
+        match o {
+            TypedArray::Int8Array(_) => {
+                copy_within_typed_array::<i8>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint8Array(_) => {
+                copy_within_typed_array::<u8>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                copy_within_typed_array::<U8Clamped>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Int16Array(_) => {
+                copy_within_typed_array::<i16>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint16Array(_) => {
+                copy_within_typed_array::<u16>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                copy_within_typed_array::<f16>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Int32Array(_) => {
+                copy_within_typed_array::<i32>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Uint32Array(_) => {
+                copy_within_typed_array::<u32>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Float32Array(_) => {
+                copy_within_typed_array::<f32>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::BigInt64Array(_) => {
+                copy_within_typed_array::<i64>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::BigUint64Array(_) => {
+                copy_within_typed_array::<u64>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+            TypedArray::Float64Array(_) => {
+                copy_within_typed_array::<f64>(
+                    agent,
+                    o,
+                    target_index,
+                    start_index,
+                    end_index,
+                    len,
+                    gc,
+                )?;
+            }
+        }
+        // 18. Return O.
+        Ok(o.into_value())
     }
 
     /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
@@ -2448,5 +2678,68 @@ fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
     }
     let slice = &mut slice[..len];
     slice.reverse();
+    Ok(())
+}
+
+fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    target_index: i64,
+    start_index: i64,
+    end_index: i64,
+    before_len: i64,
+    gc: NoGcScope<'a, 'a>,
+) -> JsResult<()> {
+    let end_bound = (end_index - start_index)
+        .max(0)
+        .min(before_len - target_index) as usize;
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
+    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Callback is not callable",
+            gc,
+        ));
+    }
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    if byte_offset > byte_slice.len() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    let start_bound = start_index as usize;
+    let target_index = target_index as usize;
+    let before_len = before_len as usize;
+    if before_len != slice.len() {
+        let end_bound = (len - target_index).max(0).min(before_len - target_index);
+        slice.copy_within(start_bound..end_bound, target_index);
+        return Ok(());
+    }
+    if end_bound > 0 {
+        slice.copy_within(start_bound..start_bound + end_bound, target_index);
+    }
     Ok(())
 }
