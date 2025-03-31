@@ -29,7 +29,7 @@ use crate::{
             array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
             indexed_collections::array_objects::{
                 array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind},
-                array_prototype::find_via_predicate,
+                array_prototype::{find_via_predicate, sort_indexed_properties},
             },
             typed_array::TypedArray,
         },
@@ -2694,13 +2694,90 @@ impl TypedArrayPrototype {
         Ok(false.into())
     }
 
+    /// ### [23.2.3.29 %TypedArray%.prototype.sort ( comparator )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.sort)
+    /// This is a distinct method that, except as described below,
+    /// implements the same requirements as those of Array.prototype.sort as defined in 23.1.3.30.
+    /// The implementation of this method may be optimized with the knowledge that
+    /// the this value is an object that has a fixed length and whose integer-indexed properties are not sparse.
+    /// This method is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
     fn sort<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        let comparator = arguments.get(0);
+        // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
+        let comparator = if comparator.is_undefined() {
+            None
+        } else if let Some(comparator) = is_callable(comparator, gc.nogc()) {
+            Some(comparator.scope(agent, gc.nogc()))
+        } else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "",
+                gc.nogc(),
+            ));
+        };
+        // 2. Let obj be the this value.
+        let obj = this_value;
+        // 3. Let taRecord be ? ValidateTypedArray(obj, seq-cst).
+        let ta_record = validate_typed_array(agent, obj, Ordering::SeqCst, gc.nogc())?;
+        let o = ta_record.object;
+        // 4. Let len be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        };
+        // 5. NOTE: The following closure performs a numeric comparison rather than the string comparison used in 23.1.3.30.
+        // 6. Let SortCompare be a new Abstract Closure with parameters (x, y) that captures comparator and performs the following steps when called:
+        //    a. Return ? CompareTypedArrayElements(x, y, comparator).
+        // 7. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare, read-through-holes).
+        let scoped_o = o.scope(agent, gc.nogc());
+        let sorted_list = sort_indexed_properties::<false, true>(
+            agent,
+            scoped_o.get(agent).into_object(),
+            len,
+            comparator,
+            gc.reborrow(),
+        )?;
+        // 8. Let j be 0.
+        let mut j = 0;
+        // 9. Repeat, while j < len,
+        while j < len {
+            // a. Perform ! Set(obj, ! ToString(𝔽(j)), sortedList[j], true).
+            unwrap_try(try_set(
+                agent,
+                scoped_o.get(agent).into_object(),
+                j.try_into().unwrap(),
+                sorted_list[j].get(agent),
+                true,
+                gc.nogc(),
+            ))?;
+            // b. Set j to j + 1.
+            j += 1;
+        }
+        // 10. Return obj.
+        let o = scoped_o.get(agent);
+        Ok(o.into_value())
     }
 
     fn subarray<'gc>(
