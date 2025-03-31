@@ -10,7 +10,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_integer_or_infinity, try_to_string,
 };
-use crate::ecmascript::types::InternalMethods;
+use crate::ecmascript::types::{BigInt, InternalMethods};
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::{Rootable, Scopable};
 use crate::engine::{Scoped, TryResult, unwrap_try};
@@ -4255,7 +4255,7 @@ fn flatten_into_array(
 /// > The above conditions are necessary and sufficient to ensure that
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
-fn sort_indexed_properties<'scope, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
+pub(crate) fn sort_indexed_properties<'scope, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
     obj: Object,
     len: usize,
@@ -4296,7 +4296,23 @@ fn sort_indexed_properties<'scope, const SKIP_HOLES: bool, const TYPED_ARRAY: bo
     // performing any further calls to SortCompare and return that Completion
     // Record.
     if TYPED_ARRAY {
-        items.sort_by(|_a, _b| compare_typed_array_elements());
+        let mut error: Option<JsError> = None;
+        items.sort_by(|a, b| {
+            let result =
+                compare_typed_array_elements(agent, a, b, comparator.clone(), gc.reborrow());
+            if error.is_some() {
+                // This is dangerous but we don't have much of a choice.
+                return Ordering::Equal;
+            }
+            let Ok(result) = result else {
+                error = Some(result.unwrap_err());
+                return Ordering::Equal;
+            };
+            result
+        });
+        if let Some(error) = error {
+            return Err(error);
+        }
     } else {
         let mut error: Option<JsError> = None;
         items.sort_by(|a, b| {
@@ -4401,6 +4417,72 @@ fn compare_array_elements(
     }
 }
 
-fn compare_typed_array_elements() -> Ordering {
-    todo!();
+/// ### [23.2.4.7 CompareTypedArrayElements ( x, y, comparator )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-comparetypedarrayelements)
+/// The abstract operation CompareTypedArrayElements takes arguments x (a
+/// Number or a BigInt), y (a Number or a BigInt), and comparator (a
+/// function object or undefined) and returns either a normal completion
+/// containing a Number or an abrupt completion.
+fn compare_typed_array_elements(
+    agent: &mut Agent,
+    scoped_x: &Scoped<'_, Value<'static>>,
+    scoped_y: &Scoped<'_, Value<'static>>,
+    comparator: Option<Scoped<'_, Function<'static>>>,
+    mut gc: GcScope,
+) -> JsResult<Ordering> {
+    let y = scoped_y.get(agent).bind(gc.nogc());
+    let x = scoped_x.get(agent).bind(gc.nogc());
+    // 1. Assert: x is a Number and y is a Number, or x is a BigInt and y is a BigInt.
+    assert!(x.is_number() && y.is_number() || x.is_bigint() && y.is_bigint());
+    // 2. If comparator is not undefined, then
+    if let Some(comparator) = comparator {
+        // a. Let v be ? ToNumber(? Call(comparator, undefined, « x, y »)).
+        let v = call_function(
+            agent,
+            comparator.get(agent),
+            Value::Undefined,
+            Some(ArgumentsList::from_mut_slice(&mut [x.unbind(), y.unbind()])),
+            gc.reborrow(),
+        )?;
+        let v = to_number(agent, v.unbind(), gc.reborrow())?;
+        // b. If v is NaN, return +0𝔽.
+        // c. Return v.
+        if v.is_nan(agent) {
+            Ok(Ordering::Equal)
+        } else if v.is_sign_positive(agent) {
+            Ok(Ordering::Greater)
+        } else if v.is_sign_negative(agent) {
+            Ok(Ordering::Less)
+        } else {
+            Ok(Ordering::Equal)
+        }
+    } else if let (Value::Integer(x), Value::Integer(y)) = (x, y) {
+        // Fast path: Avoid string conversions for numbers
+        Ok(x.into_i64().cmp(&y.into_i64()))
+    } else if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
+        // Fast path: Avoid string conversions for numbers.
+        // Note: This is probably not correct for NaN's.
+        Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
+    } else if let (Ok(x), Ok(y)) = (BigInt::try_from(x), BigInt::try_from(y)) {
+        // 6. If x < y, return -1𝔽.
+        // 7. If x > y, return 1𝔽.
+        Ok(x.to_real(agent).total_cmp(&y.to_real(agent)))
+    } else if x.is_nan(agent) && y.is_nan(agent) {
+        // 3. If x and y are both NaN, return +0𝔽.
+        Ok(Ordering::Equal)
+    } else if x.is_nan(agent) {
+        // 4. If x is NaN, return 1𝔽.
+        Ok(Ordering::Greater)
+    } else if y.is_nan(agent) {
+        // 5. If y is NaN, return -1𝔽.
+        Ok(Ordering::Less)
+    } else if x.is_neg_zero(agent) && y.is_pos_zero(agent) {
+        // 8. If x is -0𝔽 and y is +0𝔽, return -1𝔽.
+        Ok(Ordering::Less)
+    } else if x.is_pos_zero(agent) && y.is_neg_zero(agent) {
+        // 9. If x is +0𝔽 and y is -0𝔽, return 1𝔽.
+        Ok(Ordering::Greater)
+    } else {
+        // 10. Return +0𝔽.
+        Ok(Ordering::Equal)
+    }
 }
