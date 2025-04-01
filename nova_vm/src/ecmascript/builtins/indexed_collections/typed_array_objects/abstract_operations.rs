@@ -77,6 +77,19 @@ pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
     pub cached_buffer_byte_length: CachedBufferByteLength,
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for TypedArrayWithBufferWitnessRecords<'_> {
+    type Of<'a> = TypedArrayWithBufferWitnessRecords<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 /// ### [10.4.5.9 MakeTypedArrayWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-maketypedarraywithbufferwitnessrecord)
 ///
 /// The abstract operation MakeTypedArrayWithBufferWitnessRecord takes arguments
