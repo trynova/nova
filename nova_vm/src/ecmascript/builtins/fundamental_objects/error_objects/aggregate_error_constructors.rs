@@ -148,11 +148,16 @@ impl AggregateErrorConstructor {
         let error_constructor = intrinsics.error();
         let aggregate_error_prototype = intrinsics.aggregate_error_prototype();
 
+        let mut property_capacity = 1;
+        if cfg!(feature = "proposal-is-error") {
+            property_capacity += 1;
+        }
+
         let builder =
             BuiltinFunctionBuilder::new_intrinsic_constructor::<AggregateErrorConstructor>(
                 agent, realm,
             )
-            .with_property_capacity(2)
+            .with_property_capacity(property_capacity)
             .with_prototype_property(aggregate_error_prototype.into_object());
 
         #[cfg(feature = "proposal-is-error")]

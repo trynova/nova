@@ -141,9 +141,14 @@ impl ErrorConstructor {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
 
+        let mut property_capacity = 1;
+        if cfg!(feature = "proposal-is-error") {
+            property_capacity += 1;
+        }
+
         let builder =
             BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
-                .with_property_capacity(2)
+                .with_property_capacity(property_capacity)
                 .with_prototype_property(error_prototype.into_object());
 
         #[cfg(feature = "proposal-is-error")]
