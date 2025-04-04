@@ -28,7 +28,9 @@ use crate::{
     heap::IntrinsicConstructorIndexes,
 };
 
-use super::error_constructor::{get_error_cause, is_error};
+use super::error_constructor::get_error_cause;
+#[cfg(feature = "proposal-is-error")]
+use super::error_constructor::is_error;
 
 pub(crate) struct AggregateErrorConstructor;
 impl Builtin for AggregateErrorConstructor {
@@ -41,7 +43,9 @@ impl Builtin for AggregateErrorConstructor {
 impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AggregateError;
 }
+#[cfg(feature = "proposal-is-error")]
 struct AggregateErrorIsError;
+#[cfg(feature = "proposal-is-error")]
 impl Builtin for AggregateErrorIsError {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.isError;
 
@@ -129,6 +133,7 @@ impl AggregateErrorConstructor {
     }
 
     /// ### [20.5.2.1 Error.isError ( arg )](https://tc39.es/proposal-is-error/#sec-error.iserror)
+    #[cfg(feature = "proposal-is-error")]
     fn is_error<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
@@ -143,12 +148,16 @@ impl AggregateErrorConstructor {
         let error_constructor = intrinsics.error();
         let aggregate_error_prototype = intrinsics.aggregate_error_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<AggregateErrorConstructor>(
-            agent, realm,
-        )
-        .with_property_capacity(1)
-        .with_prototype(error_constructor.into_object())
-        .with_prototype_property(aggregate_error_prototype.into_object())
-        .build();
+        let builder =
+            BuiltinFunctionBuilder::new_intrinsic_constructor::<AggregateErrorConstructor>(
+                agent, realm,
+            )
+            .with_property_capacity(2)
+            .with_prototype_property(aggregate_error_prototype.into_object());
+
+        #[cfg(feature = "proposal-is-error")]
+        let builder = builder.with_builtin_function_property::<AggregateErrorIsError>();
+
+        builder.build();
     }
 }

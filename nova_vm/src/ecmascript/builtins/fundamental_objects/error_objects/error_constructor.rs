@@ -27,6 +27,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
+#[cfg(feature = "proposal-is-error")]
 use crate::engine::context::NoGcScope;
 use crate::engine::rootable::Scopable;
 use crate::heap::IntrinsicConstructorIndexes;
@@ -43,9 +44,9 @@ impl Builtin for ErrorConstructor {
 impl BuiltinIntrinsicConstructor for ErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Error;
 }
-
+#[cfg(feature = "proposal-is-error")]
 struct ErrorIsError;
-
+#[cfg(feature = "proposal-is-error")]
 impl Builtin for ErrorIsError {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.isError;
 
@@ -125,6 +126,7 @@ impl ErrorConstructor {
         Ok(o.into_value())
     }
 
+    #[cfg(feature = "proposal-is-error")]
     /// ### [20.5.2.1 Error.isError ( arg )](https://tc39.es/proposal-is-error/#sec-error.iserror)
     fn is_error<'gc>(
         _agent: &mut Agent,
@@ -139,11 +141,15 @@ impl ErrorConstructor {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
-            .with_property_capacity(2)
-            .with_builtin_function_property::<ErrorIsError>()
-            .with_prototype_property(error_prototype.into_object())
-            .build();
+        let builder =
+            BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
+                .with_property_capacity(2)
+                .with_prototype_property(error_prototype.into_object());
+
+        #[cfg(feature = "proposal-is-error")]
+        let builder = builder.with_builtin_function_property::<ErrorIsError>();
+
+        builder.build();
     }
 }
 
@@ -163,6 +169,7 @@ pub(super) fn get_error_cause<'gc>(
     }
 }
 
+#[cfg(feature = "proposal-is-error")]
 /// ### [20.5.8.2 IsError ( argument )]https://tc39.es/proposal-is-error/#sec-iserror
 /// The abstract operation IsError takes argument argument (an Ecmascript
 /// language value) and returns a Boolean. It returns a boolean indicating
