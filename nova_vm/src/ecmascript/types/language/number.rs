@@ -546,6 +546,7 @@ impl<'a> Number<'a> {
                 false
             }
             (Number::Integer(x), Number::SmallF64(y)) => {
+                println!("y: {}", y.into_f64());
                 debug_assert!(
                     y.into_f64().to_bits() == (-0.0f64).to_bits()
                         || (x.into_i64() as f64) != y.into_f64()

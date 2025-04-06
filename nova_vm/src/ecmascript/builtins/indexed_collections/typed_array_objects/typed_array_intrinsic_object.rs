@@ -15,7 +15,7 @@ use crate::{
             },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
-                to_boolean, to_integer_or_infinity, to_object, to_string,
+                to_big_int, to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
                 try_to_integer_or_infinity, try_to_string,
             },
         },
@@ -35,8 +35,8 @@ use crate::{
         },
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            U8Clamped, Value, Viewable,
+            BUILTIN_STRING_MEMORY, IntoNumeric, IntoObject, IntoValue, Number, Object, PropertyKey,
+            String, U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -49,9 +49,9 @@ use crate::{
 };
 
 use super::abstract_operations::{
-    is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
-    typed_array_byte_length, typed_array_create_from_constructor_with_length, typed_array_length,
-    validate_typed_array,
+    TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds,
+    make_typed_array_with_buffer_witness_record, typed_array_byte_length,
+    typed_array_create_from_constructor_with_length, typed_array_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -1122,13 +1122,127 @@ impl TypedArrayPrototype {
         Ok(true.into())
     }
 
+    /// ### [23.2.3.9 %TypedArray%.prototype.fill ( value [ , start [ , end ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.fill)
+    /// The interpretation and use of the arguments of this method are
+    /// the same as for Array.prototype.fill as defined in 23.1.3.7.
     fn fill<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let this_value = this_value.bind(gc.nogc());
+        let value = arguments.get(0).bind(gc.nogc());
+        let start = arguments.get(1).bind(gc.nogc());
+        let end = arguments.get(2).bind(gc.nogc());
+
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        // 3. Let len be TypedArrayLength(taRecord).
+
+        let o = match ta_record.object {
+            TypedArray::Int8Array(_) => fill_typed_array::<i8>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Uint8Array(_) => fill_typed_array::<u8>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Uint8ClampedArray(_) => fill_typed_array::<U8Clamped>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Int16Array(_) => fill_typed_array::<i16>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Uint16Array(_) => fill_typed_array::<u16>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Int32Array(_) => fill_typed_array::<i32>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Uint32Array(_) => fill_typed_array::<u32>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::BigInt64Array(_) => fill_typed_array::<i64>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::BigUint64Array(_) => fill_typed_array::<u64>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => fill_typed_array::<f16>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Float32Array(_) => fill_typed_array::<f32>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+            TypedArray::Float64Array(_) => fill_typed_array::<f64>(
+                agent,
+                ta_record.unbind(),
+                value.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            ),
+        };
+
+        o.map(|o| o.into_value())
     }
 
     fn filter<'gc>(
@@ -2742,4 +2856,126 @@ fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
         slice.copy_within(start_bound..start_bound + end_bound, target_index);
     }
     Ok(())
+}
+
+fn fill_typed_array<'a, T: Viewable>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    value: Value,
+    start: Value,
+    end: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let value = value.bind(gc.nogc());
+    let start = start.bind(gc.nogc());
+    let end = end.bind(gc.nogc());
+    let o = ta_record.object;
+    let scoped_o = o.scope(agent, gc.nogc());
+    let scoped_value = value.scope(agent, gc.nogc());
+    let start = start.scope(agent, gc.nogc());
+    let end = end.scope(agent, gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let value = if T::IS_BIGINT {
+        // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
+        to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+            .into_numeric()
+    } else {
+        // 5. Otherwise, set value to ? ToNumber(value).
+        to_number(agent, scoped_value.get(agent), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+            .into_numeric()
+    };
+    let value = value.scope(agent, gc.nogc());
+    // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
+    let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())?;
+    // 7. If relativeStart = -∞, let startIndex be 0.
+    let start_index = if relative_start.is_neg_infinity() {
+        0
+    } else if relative_start.is_negative() {
+        // 8. Else if relativeStart < 0, let startIndex be max(len + relativeStart, 0).
+        (len + relative_start.into_i64()).max(0)
+    } else {
+        // 9. Else, let startIndex be min(relativeStart, len).
+        len.min(relative_start.into_i64())
+    };
+    // 10. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+    let end_index = if end.get(agent).is_undefined() {
+        len
+    } else {
+        let relative_end = to_integer_or_infinity(agent, end.get(agent), gc.reborrow())?;
+        // 11. If relativeEnd = -∞, let endIndex be 0.
+        if relative_end.is_neg_infinity() {
+            0
+        } else if relative_end.is_negative() {
+            // 12. Else if relativeEnd < 0, let endIndex be max(len + relativeEnd, 0).
+            (len + relative_end.into_i64()).max(0)
+        } else {
+            // 13. Else, let endIndex be min(relativeEnd, len).
+            len.min(relative_end.into_i64())
+        }
+    };
+    let gc = gc.into_nogc();
+    let ta = scoped_o.get(agent).bind(gc);
+    let value = value.get(agent).bind(gc);
+    // 14. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
+    // 15. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Callback is not callable",
+            gc,
+        ));
+    };
+    // 16. Set len to TypedArrayLength(taRecord).
+    let len = typed_array_length::<T>(agent, &ta_record, gc) as i64;
+    // 17. Set endIndex to min(endIndex, len).
+    let end_index = len.min(end_index) as usize;
+    // 18. Let k be startIndex.
+    let k = start_index as usize;
+    // 19. Repeat, while k < endIndex,
+    let value = if cfg!(target_endian = "little") {
+        T::from_le_value(agent, value)
+    } else {
+        T::from_be_value(agent, value)
+    };
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(ta);
+    }
+    if byte_offset > byte_slice.len() {
+        // We shouldn't be out of bounds.
+        unreachable!();
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            // We shouldn't be out of bounds.
+            unreachable!()
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    if k >= end_index {
+        return Ok(ta);
+    }
+    let slice = &mut slice[k..end_index];
+    slice.fill(value);
+    // 20. Return O.
+    Ok(ta)
 }
