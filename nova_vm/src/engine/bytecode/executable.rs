@@ -222,33 +222,24 @@ impl<'gc> Executable<'gc> {
     /// SAFETY: The returned reference is valid until the Executable is garbage
     /// collected.
     #[inline]
-    pub(super) fn get_instructions(self, agent: &Agent) -> &'static [u8] {
+    fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
         unsafe { core::mem::transmute(&agent[self].instructions[..]) }
     }
 
     #[inline]
-    pub(super) fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
+    fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
         get_instruction(&agent[self].instructions[..], ip)
     }
 
     #[inline]
-    pub(super) fn get_constants<'a>(
-        self,
-        agent: &'a Agent,
-        _: NoGcScope<'gc, '_>,
-    ) -> &'a [Value<'gc>] {
+    fn get_constants<'a>(self, agent: &'a Agent, _: NoGcScope<'gc, '_>) -> &'a [Value<'gc>] {
         &agent[self].constants[..]
     }
 
     #[inline]
-    pub(super) fn fetch_identifier(
-        self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> String<'gc> {
+    fn fetch_identifier(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> String<'gc> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable
@@ -261,12 +252,7 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    pub(super) fn fetch_constant(
-        self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> Value<'gc> {
+    fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable
@@ -274,7 +260,7 @@ impl<'gc> Executable<'gc> {
         agent[self].constants[index].bind(gc)
     }
 
-    pub(super) fn fetch_function_expression<'a>(
+    fn fetch_function_expression<'a>(
         self,
         agent: &'a Agent,
         index: usize,
@@ -283,7 +269,7 @@ impl<'gc> Executable<'gc> {
         &agent[self].function_expressions[index]
     }
 
-    pub(super) fn fetch_arrow_function_expression(
+    fn fetch_arrow_function_expression(
         self,
         agent: &Agent,
         index: usize,
@@ -291,7 +277,7 @@ impl<'gc> Executable<'gc> {
         &agent[self].arrow_function_expressions[index]
     }
 
-    pub(super) fn fetch_class_initializer_bytecode(
+    fn fetch_class_initializer_bytecode(
         self,
         agent: &Agent,
         index: usize,
