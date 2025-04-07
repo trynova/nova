@@ -157,7 +157,7 @@ pub struct ScriptRecord {
     ///
     /// The source text is kept in the heap strings vector, through the
     /// SourceCode struct.
-    pub(crate) source_code: SourceCode,
+    pub(crate) source_code: SourceCode<'static>,
 }
 
 unsafe impl Send for ScriptRecord {}
@@ -277,7 +277,7 @@ pub fn parse_script<'a>(
         loaded_modules: (),
         // [[HostDefined]]: hostDefined,
         host_defined,
-        source_code,
+        source_code: source_code.unbind(),
     };
     // }
     let script = agent.heap.add_script(script_record, gc);

@@ -3881,6 +3881,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             }
             HeapRootData::PromiseReaction(_) => Err(()),
             HeapRootData::Script(_) => Err(()),
+            HeapRootData::SourceCode(_) => Err(()),
             HeapRootData::DeclarativeEnvironment(_) => Err(()),
             HeapRootData::FunctionEnvironment(_) => Err(()),
             HeapRootData::GlobalEnvironment(_) => Err(()),

@@ -157,7 +157,7 @@ pub(crate) struct WorkQueues {
     pub e_2_8: Vec<(ElementIndex, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
     pub embedder_objects: Vec<EmbedderObject<'static>>,
-    pub source_codes: Vec<SourceCode>,
+    pub source_codes: Vec<SourceCode<'static>>,
     pub errors: Vec<Error<'static>>,
     pub executables: Vec<Executable>,
     pub finalization_registrys: Vec<FinalizationRegistry<'static>>,

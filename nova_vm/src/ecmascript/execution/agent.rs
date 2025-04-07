@@ -457,7 +457,7 @@ impl Agent {
         self.execution_context_stack.last().unwrap()
     }
 
-    pub(crate) fn current_source_code(&self) -> SourceCode {
+    pub(crate) fn current_source_code<'a>(&self, gc: NoGcScope<'a, '_>) -> SourceCode<'a> {
         self.execution_context_stack
             .last()
             .unwrap()
@@ -465,6 +465,7 @@ impl Agent {
             .as_ref()
             .unwrap()
             .source_code
+            .bind(gc)
     }
 
     /// Returns the running execution context's LexicalEnvironment.
