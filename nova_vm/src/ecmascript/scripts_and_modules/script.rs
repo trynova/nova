@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         execution::{
@@ -344,6 +345,8 @@ pub(crate) fn global_declaration_instantiation(
     env: GlobalEnvironment,
     mut gc: GcScope,
 ) -> JsResult<()> {
+    let env = env.bind(gc.nogc());
+    let scoped_env = env.scope(agent, gc.nogc());
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
     let (lex_names, var_names, var_declarations, lex_declarations) = {
@@ -370,6 +373,7 @@ pub(crate) fn global_declaration_instantiation(
 
     // 3. For each element name of lexNames, do
     for name in lex_names {
+        let env = scoped_env.get(agent).bind(gc.nogc());
         let name = String::from_str(agent, name.as_str(), gc.nogc()).unbind();
         if
         // a. If env.HasVarDeclaration(name) is true, throw a SyntaxError exception.
@@ -378,7 +382,7 @@ pub(crate) fn global_declaration_instantiation(
             || env.has_lexical_declaration(agent, name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-            || env.has_restricted_global_property(agent, name, gc.reborrow())?
+            || env.unbind().has_restricted_global_property(agent, name, gc.reborrow())?
         {
             let error_message = format!(
                 "Redeclaration of restricted global property '{}'.",
@@ -392,6 +396,7 @@ pub(crate) fn global_declaration_instantiation(
         }
     }
 
+    let env = scoped_env.get(agent).bind(gc.nogc());
     // 4. For each element name of varNames, do
     for name in &var_names {
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
@@ -429,8 +434,11 @@ pub(crate) fn global_declaration_instantiation(
                 // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
                 let function_name =
                     String::from_str(agent, function_name.as_str(), gc.nogc()).unbind();
-                let fn_definable =
-                    env.can_declare_global_function(agent, function_name, gc.reborrow())?;
+                let fn_definable = scoped_env.get(agent).can_declare_global_function(
+                    agent,
+                    function_name,
+                    gc.reborrow(),
+                )?;
                 // 2. If fnDefinable is false, throw a TypeError exception.
                 if !fn_definable {
                     let error_message = format!(
@@ -469,7 +477,10 @@ pub(crate) fn global_declaration_instantiation(
                     // CanDeclareGlobalVar can trigger GC, but we also need to
                     // hash the strings to eliminate duplicates...
                     let vn = String::from_str(agent, vn.as_str(), gc.nogc()).unbind();
-                    let vn_definable = env.can_declare_global_var(agent, vn, gc.reborrow())?;
+                    let vn_definable =
+                        scoped_env
+                            .get(agent)
+                            .can_declare_global_var(agent, vn, gc.reborrow())?;
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
                         let error_message =
@@ -496,6 +507,7 @@ pub(crate) fn global_declaration_instantiation(
 
     // 14. Let privateEnv be null.
     let private_env = None;
+    let env = scoped_env.get(agent).bind(gc.nogc());
     // 15. For each element d of lexDeclarations, do
     for d in lex_declarations {
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
@@ -545,12 +557,13 @@ pub(crate) fn global_declaration_instantiation(
             assert!(function_name.is_none());
             function_name = Some(identifier.name);
         });
+        let env = scoped_env.get(agent).bind(gc.nogc());
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
         let fo =
             instantiate_function_object(agent, f, Environment::Global(env), private_env, gc.nogc());
         let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc());
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
-        env.create_global_function_binding(
+        env.unbind().create_global_function_binding(
             agent,
             function_name.unbind(),
             fo.into_value().unbind(),
@@ -562,7 +575,9 @@ pub(crate) fn global_declaration_instantiation(
     // 17. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. Perform ? env.CreateGlobalVarBinding(vn, false).
-        env.create_global_var_binding(agent, vn, false, gc.reborrow())?;
+        scoped_env
+            .get(agent)
+            .create_global_var_binding(agent, vn, false, gc.reborrow())?;
     }
     // 18. Return UNUSED.
     Ok(())
