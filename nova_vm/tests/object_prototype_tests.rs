@@ -4,13 +4,16 @@
 
 use std::{fs, path::PathBuf};
 
-use nova_vm::ecmascript::{
-    execution::{
-        DefaultHostHooks,
-        agent::{GcAgent, Options},
+use nova_vm::{
+    ecmascript::{
+        execution::{
+            DefaultHostHooks,
+            agent::{GcAgent, Options},
+        },
+        scripts_and_modules::script::{parse_script, script_evaluation},
+        types::String,
     },
-    scripts_and_modules::script::{parse_script, script_evaluation},
-    types::String,
+    engine::context::Bindable,
 };
 
 #[test]
@@ -31,7 +34,7 @@ fn object_prototype_tests() {
         let realm = agent.current_realm_id();
         let source_text = String::from_string(agent, contents, gc.nogc());
         let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        if let Err(err) = script_evaluation(agent, script, gc.reborrow()) {
+        if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {
             panic!(
                 "Test '{}' failed: {:?}",
                 d.display(),
