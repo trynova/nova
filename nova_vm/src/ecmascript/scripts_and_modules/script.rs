@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
+use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
         execution::{
@@ -41,21 +41,21 @@ use super::source_code::SourceCode;
 pub type HostDefined = &'static mut dyn Any;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Script(u32, PhantomData<ScriptRecord>);
+pub struct Script<'a>(u32, PhantomData<ScriptRecord>, PhantomData<&'a GcToken>);
 
-impl Script {
+impl Script<'_> {
     /// Creates a script identififer from a usize.
     ///
     /// ## Panics
     /// If the given index is greater than `u32::MAX`.
     pub(crate) const fn from_index(value: usize) -> Self {
         assert!(value <= u32::MAX as usize);
-        Self(value as u32, PhantomData)
+        Self::from_u32(value as u32)
     }
 
     /// Creates a module identififer from a u32.
     pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData)
+        Self(value, PhantomData, PhantomData)
     }
 
     pub(crate) fn last(scripts: &[Option<ScriptRecord>]) -> Self {
@@ -72,7 +72,7 @@ impl Script {
     }
 }
 
-impl Index<Script> for Agent {
+impl Index<Script<'_>> for Agent {
     type Output = ScriptRecord;
 
     fn index(&self, index: Script) -> &Self::Output {
@@ -80,13 +80,13 @@ impl Index<Script> for Agent {
     }
 }
 
-impl IndexMut<Script> for Agent {
+impl IndexMut<Script<'_>> for Agent {
     fn index_mut(&mut self, index: Script) -> &mut Self::Output {
         &mut self.heap.scripts[index]
     }
 }
 
-impl Index<Script> for Vec<Option<ScriptRecord>> {
+impl Index<Script<'_>> for Vec<Option<ScriptRecord>> {
     type Output = ScriptRecord;
 
     fn index(&self, index: Script) -> &Self::Output {
@@ -97,7 +97,7 @@ impl Index<Script> for Vec<Option<ScriptRecord>> {
     }
 }
 
-impl IndexMut<Script> for Vec<Option<ScriptRecord>> {
+impl IndexMut<Script<'_>> for Vec<Option<ScriptRecord>> {
     fn index_mut(&mut self, index: Script) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("ScriptIdentifier out of bounds")
@@ -106,7 +106,7 @@ impl IndexMut<Script> for Vec<Option<ScriptRecord>> {
     }
 }
 
-impl HeapMarkAndSweep for Script {
+impl HeapMarkAndSweep for Script<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.scripts.push(*self);
     }
@@ -163,6 +163,44 @@ pub struct ScriptRecord {
 unsafe impl Send for ScriptRecord {}
 
 pub type ScriptOrErrors = Result<ScriptRecord, Vec<OxcDiagnostic>>;
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Script<'_> {
+    type Of<'a> = Script<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl Rootable for Script<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Script(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Script(scirpt) => Some(scirpt),
+            _ => None,
+        }
+    }
+}
 
 impl HeapMarkAndSweep for ScriptRecord {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -257,7 +295,7 @@ pub fn script_evaluation<'gc>(
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.source_type.is_strict();
     let source_code = script.source_code;
-    let script = agent.heap.add_script(script);
+    let script = agent.heap.add_script(script, gc.nogc());
     let realm = agent.get_realm(realm_id);
 
     // 1. Let globalEnv be scriptRecord.[[Realm]].[[GlobalEnv]].
@@ -272,7 +310,7 @@ pub fn script_evaluation<'gc>(
         realm: realm_id,
 
         // 5. Set the ScriptOrModule of scriptContext to scriptRecord.
-        script_or_module: Some(ScriptOrModule::Script(script)),
+        script_or_module: Some(ScriptOrModule::Script(script.unbind())),
 
         ecmascript_code: Some(ECMAScriptCode {
             // 6. Set the VariableEnvironment of scriptContext to globalEnv.
@@ -299,8 +337,18 @@ pub fn script_evaluation<'gc>(
     // NOTE: We cannot define the script here due to reference safety.
 
     // 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
-    let result =
-        global_declaration_instantiation(agent, script, global_env.unwrap(), gc.reborrow());
+    let result = global_declaration_instantiation(
+        agent,
+        script.unbind(),
+        global_env.unwrap(),
+        gc.reborrow(),
+    );
+
+    let Some(ScriptOrModule::Script(script)) = agent.running_execution_context().script_or_module
+    else {
+        panic!("Expected Script");
+    };
+    let script = script.bind(gc.nogc());
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {

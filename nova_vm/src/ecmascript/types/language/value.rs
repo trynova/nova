@@ -1456,6 +1456,7 @@ impl Rootable for Value<'_> {
             HeapRootData::EmbedderObject(embedder_object) => {
                 Some(Self::EmbedderObject(embedder_object))
             }
+            HeapRootData::Script(_) => None,
             HeapRootData::PromiseReaction(_) => None,
             HeapRootData::DeclarativeEnvironment(_) => None,
             HeapRootData::FunctionEnvironment(_) => None,

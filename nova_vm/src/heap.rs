@@ -88,7 +88,11 @@ use crate::{
             StringHeapData, SymbolHeapData, bigint::HeapBigInt,
         },
     },
-    engine::{ExecutableHeapData, context::Bindable, rootable::HeapRootData},
+    engine::{
+        ExecutableHeapData,
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+    },
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -293,7 +297,11 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> Module<'static> {
+    pub(crate) fn add_module<'a>(
+        &mut self,
+        module: ModuleHeapData,
+        _: NoGcScope<'a, '_>,
+    ) -> Module<'a> {
         self.modules.push(Some(module));
         Module::last(&self.modules)
     }
@@ -303,7 +311,11 @@ impl Heap {
         RealmIdentifier::last(&self.realms)
     }
 
-    pub(crate) fn add_script(&mut self, script: ScriptRecord) -> Script {
+    pub(crate) fn add_script<'a>(
+        &mut self,
+        script: ScriptRecord,
+        _: NoGcScope<'a, '_>,
+    ) -> Script<'a> {
         self.scripts.push(Some(script));
         Script::last(&self.scripts)
     }

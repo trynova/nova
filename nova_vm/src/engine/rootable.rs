@@ -72,6 +72,7 @@ use crate::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
             ObjectEnvironment, PrivateEnvironment,
         },
+        scripts_and_modules::script::Script,
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
             ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
@@ -131,6 +132,7 @@ mod private {
             DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
             ModuleEnvironment, ObjectEnvironment, PrivateEnvironment,
         },
+        scripts_and_modules::script::Script,
         types::{
             BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
             String, Symbol, Value,
@@ -174,6 +176,7 @@ mod private {
     impl RootableSealed for Proxy<'_> {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp<'_> {}
+    impl RootableSealed for Script<'_> {}
     #[cfg(feature = "set")]
     impl RootableSealed for Set<'_> {}
     #[cfg(feature = "set")]
@@ -362,6 +365,7 @@ pub enum HeapRootData {
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
     PromiseReaction(PromiseReaction),
+    Script(Script<'static>),
     DeclarativeEnvironment(DeclarativeEnvironment<'static>),
     FunctionEnvironment(FunctionEnvironment<'static>),
     GlobalEnvironment(GlobalEnvironment<'static>),
@@ -562,6 +566,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
             HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
+            HeapRootData::Script(script) => script.mark_values(queues),
             HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
                 declarative_environment_index.mark_values(queues)
             }
@@ -677,6 +682,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::PromiseReaction(promise_reaction) => {
                 promise_reaction.sweep_values(compactions)
             }
+            HeapRootData::Script(script) => script.sweep_values(compactions),
             HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
                 declarative_environment_index.sweep_values(compactions)
             }

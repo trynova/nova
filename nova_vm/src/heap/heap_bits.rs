@@ -178,7 +178,7 @@ pub(crate) struct WorkQueues {
     pub realms: Vec<RealmIdentifier>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
-    pub scripts: Vec<Script>,
+    pub scripts: Vec<Script<'static>>,
     #[cfg(feature = "set")]
     pub sets: Vec<Set<'static>>,
     #[cfg(feature = "set")]
