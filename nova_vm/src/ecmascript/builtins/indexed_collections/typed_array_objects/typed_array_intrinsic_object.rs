@@ -2333,9 +2333,9 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback = arguments.get(0).bind(gc.nogc()).scope(agent, gc.nogc());
+        let callback = arguments.get(0).bind(gc.nogc());
         let initial_value = if arguments.len() >= 2 {
-            Some(arguments.get(1).bind(gc.nogc()).scope(agent, gc.nogc()))
+            Some(arguments.get(1).bind(gc.nogc()))
         } else {
             None
         };
@@ -2365,14 +2365,13 @@ impl TypedArrayPrototype {
             TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
         } as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
-        let Some(stack_callback_fn) = is_callable(callback.get(agent), gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not callable",
                 gc.into_nogc(),
             ));
         };
-        let scoped_callback = unsafe { callback.replace_self(agent, stack_callback_fn.unbind()) };
         // 5. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
@@ -2386,19 +2385,25 @@ impl TypedArrayPrototype {
         // 7. Let accumulator be undefined.
         // 8. If initialValue is present, then
         //    a. Set accumulator to initialValue.
-        let no_initial_value = initial_value.is_none();
-        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static(gc.nogc()));
-        let scoped_o = o.scope(agent, gc.nogc());
-        // 9. Else,
-        if no_initial_value {
+        let mut accumulator = if let Some(init) = initial_value {
+            init.scope(agent, gc.nogc())
+        } else {
+            // 9. Else,
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
             // b. Set accumulator to ! Get(O, Pk).
-            let result = unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc()));
-            unsafe { accumulator.replace(agent, result.unbind()) };
+            let result = unwrap_try(try_get(agent, o, pk, gc.nogc()));
             // c. Set k to k + 1.
             k += 1;
+            result.scope(agent, gc.nogc())
         };
+        // SAFETY: scoped_callback is not shared.
+        let scoped_callback = unsafe {
+            callback
+                .scope(agent, gc.nogc())
+                .replace_self(agent, stack_callback_fn.unbind())
+        };
+        let scoped_o = o.scope(agent, gc.nogc());
         // 10. Repeat, while k < len,
         while k < len {
             let k_int = k.try_into().unwrap();
@@ -2419,6 +2424,7 @@ impl TypedArrayPrototype {
                 ])),
                 gc.reborrow(),
             )?;
+            // SAFETY: accumulator is not shared.
             unsafe { accumulator.replace(agent, result.unbind()) };
             // d. Set k to k + 1.
             k += 1;
