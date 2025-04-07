@@ -82,7 +82,7 @@ pub struct BuiltinConstructorHeapData {
     ///
     /// Nova specific addition: This SourceCode is where \[\[SourceText]]
     /// refers to.
-    pub(crate) source_code: SourceCode,
+    pub(crate) source_code: SourceCode<'static>,
 }
 
 #[derive(Debug)]

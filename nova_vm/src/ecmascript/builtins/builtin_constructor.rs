@@ -441,7 +441,7 @@ pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: Environment<'a>,
     pub(crate) private_env: Option<PrivateEnvironment<'a>>,
-    pub(crate) source_code: SourceCode,
+    pub(crate) source_code: SourceCode<'a>,
     pub(crate) source_text: Span,
 }
 
@@ -526,7 +526,7 @@ pub(crate) fn create_builtin_constructor<'a>(
         environment: args.env.unbind(),
         private_environment: args.private_env.unbind(),
         source_text: args.source_text,
-        source_code: args.source_code,
+        source_code: args.source_code.unbind(),
     })
 }
 

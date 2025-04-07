@@ -236,13 +236,13 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     ///
     /// Nova specific addition: This SourceCode is where \[\[SourceText]]
     /// refers to.
-    pub source_code: SourceCode,
+    pub source_code: SourceCode<'static>,
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
 pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program, 'gc> {
     pub function_prototype: Option<Object<'gc>>,
-    pub source_code: Option<SourceCode>,
+    pub source_code: Option<SourceCode<'gc>>,
     pub source_text: Span,
     pub parameters_list: &'agent FormalParameters<'program>,
     pub body: &'agent FunctionBody<'program>,
@@ -895,7 +895,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     } else {
         let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
         (
-            running_ecmascript_code.source_code,
+            running_ecmascript_code.source_code.bind(gc),
             running_ecmascript_code.is_strict_mode,
         )
     };
@@ -950,7 +950,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         home_object: None,
         // 4. Set F.[[SourceText]] to sourceText.
         source_text: params.source_text,
-        source_code,
+        source_code: source_code.unbind(),
     };
 
     let mut function = ECMAScriptFunctionHeapData {

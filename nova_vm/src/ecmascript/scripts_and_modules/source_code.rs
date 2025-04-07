@@ -21,18 +21,21 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
 };
 
-type SourceCodeIndex = BaseIndex<'static, SourceCodeHeapData>;
+type SourceCodeIndex<'a> = BaseIndex<'a, SourceCodeHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct SourceCode(SourceCodeIndex);
+pub struct SourceCode<'a>(SourceCodeIndex<'a>);
 
-impl SourceCode {
+impl<'a> SourceCode<'a> {
     /// Parses the given source string as JavaScript code and returns the
     /// parsed result and a SourceCode heap reference.
     ///
@@ -44,7 +47,7 @@ impl SourceCode {
         agent: &mut Agent,
         source: String,
         source_type: SourceType,
-        gc: NoGcScope,
+        gc: NoGcScope<'a, '_>,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
         // allocate it on the heap. This makes it safe (for some definition of
@@ -134,7 +137,7 @@ impl SourceCode {
     }
 }
 
-pub(crate) struct SourceCodeHeapData {
+pub struct SourceCodeHeapData {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval
@@ -164,7 +167,7 @@ impl Drop for SourceCodeHeapData {
     }
 }
 
-impl Index<SourceCode> for Agent {
+impl Index<SourceCode<'_>> for Agent {
     type Output = SourceCodeHeapData;
 
     fn index(&self, index: SourceCode) -> &Self::Output {
@@ -177,8 +180,46 @@ impl Index<SourceCode> for Agent {
     }
 }
 
-impl CreateHeapData<SourceCodeHeapData, SourceCode> for Heap {
-    fn create(&mut self, data: SourceCodeHeapData) -> SourceCode {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SourceCode<'_> {
+    type Of<'a> = SourceCode<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl Rootable for SourceCode<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::SourceCode(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::SourceCode(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl CreateHeapData<SourceCodeHeapData, SourceCode<'static>> for Heap {
+    fn create(&mut self, data: SourceCodeHeapData) -> SourceCode<'static> {
         self.source_codes.push(Some(data));
         SourceCode(SourceCodeIndex::last(&self.source_codes))
     }
@@ -202,7 +243,7 @@ impl HeapMarkAndSweep for SourceCodeHeapData {
     }
 }
 
-impl HeapMarkAndSweep for SourceCode {
+impl HeapMarkAndSweep for SourceCode<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.source_codes.push(*self);
     }

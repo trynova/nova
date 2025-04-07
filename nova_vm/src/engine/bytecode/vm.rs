@@ -1329,7 +1329,7 @@ impl<'a> Vm {
 
                 let env = agent.current_lexical_environment(gc.nogc());
                 let private_env = agent.current_private_environment(gc.nogc());
-                let source_code = agent.current_source_code();
+                let source_code = agent.current_source_code(gc.nogc());
 
                 let function = create_builtin_constructor(
                     agent,

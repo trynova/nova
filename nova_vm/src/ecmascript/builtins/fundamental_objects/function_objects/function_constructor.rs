@@ -288,6 +288,7 @@ pub(crate) fn create_dynamic_function<'a>(
         }
     };
 
+    let source_code = source_code.scope(agent, gc.nogc());
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
@@ -297,7 +298,8 @@ pub(crate) fn create_dynamic_function<'a>(
         )?
         .map(|p| p.unbind())
         .map(|p| p.bind(gc.nogc())),
-        source_code: Some(source_code),
+        // SAFETY: source_code was not shared.
+        source_code: Some(unsafe { source_code.take(agent) }),
         source_text: function.span,
         parameters_list: &function.params,
         body: function.body.as_ref().unwrap(),
