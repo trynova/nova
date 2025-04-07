@@ -340,7 +340,7 @@ impl Scoped<'_, Executable<'static>> {
     }
 
     #[inline]
-    pub(super) fn fetch_arrow_function_expression<'a, 'gc>(
+    pub(super) fn fetch_arrow_function_expression<'a>(
         &self,
         agent: &'a Agent,
         index: usize,
