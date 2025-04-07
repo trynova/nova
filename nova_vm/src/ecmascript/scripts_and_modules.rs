@@ -4,7 +4,7 @@
 
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
-use self::script::ScriptIdentifier;
+use self::script::Script;
 
 use super::builtins::module::Module;
 
@@ -14,7 +14,7 @@ pub mod source_code;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScriptOrModule {
-    Script(ScriptIdentifier),
+    Script(Script),
     Module(Module<'static>),
 }
 

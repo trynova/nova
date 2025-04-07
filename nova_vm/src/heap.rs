@@ -71,15 +71,14 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData,
-            module::data::ModuleHeapData,
+            module::{Module, data::ModuleHeapData},
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
         scripts_and_modules::{
-            module::ModuleIdentifier,
-            script::{Script, ScriptIdentifier},
+            script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
         },
         types::{
@@ -166,7 +165,7 @@ pub struct Heap {
     #[cfg(feature = "weak-refs")]
     pub weak_sets: Vec<Option<WeakSetHeapData>>,
     pub modules: Vec<Option<ModuleHeapData>>,
-    pub scripts: Vec<Option<Script>>,
+    pub scripts: Vec<Option<ScriptRecord>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
     pub(crate) source_codes: Vec<Option<SourceCodeHeapData>>,
@@ -294,9 +293,9 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> ModuleIdentifier<'static> {
+    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> Module<'static> {
         self.modules.push(Some(module));
-        ModuleIdentifier::last(&self.modules)
+        Module::last(&self.modules)
     }
 
     pub(crate) fn add_realm(&mut self, realm: Realm) -> RealmIdentifier {
@@ -304,9 +303,9 @@ impl Heap {
         RealmIdentifier::last(&self.realms)
     }
 
-    pub(crate) fn add_script(&mut self, script: Script) -> ScriptIdentifier {
+    pub(crate) fn add_script(&mut self, script: ScriptRecord) -> Script {
         self.scripts.push(Some(script));
-        ScriptIdentifier::last(&self.scripts)
+        Script::last(&self.scripts)
     }
 
     /// Allocate a string onto the Agent heap

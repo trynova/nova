@@ -60,7 +60,7 @@ use crate::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
             ObjectEnvironment, RealmIdentifier,
         },
-        scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
+        scripts_and_modules::{script::Script, source_code::SourceCode},
         types::{
             BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol,
             bigint::HeapBigInt,
@@ -242,7 +242,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 modules.get(index).mark_values(&mut queues);
             }
         });
-        let mut script_marks: Box<[ScriptIdentifier]> = queues.scripts.drain(..).collect();
+        let mut script_marks: Box<[Script]> = queues.scripts.drain(..).collect();
         script_marks.sort();
         script_marks.iter().for_each(|&idx| {
             let index = idx.into_index();

@@ -55,7 +55,7 @@ use crate::ecmascript::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
         RealmIdentifier,
     },
-    scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
+    scripts_and_modules::{script::Script, source_code::SourceCode},
     types::{
         BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
         bigint::HeapBigInt,
@@ -178,7 +178,7 @@ pub(crate) struct WorkQueues {
     pub realms: Vec<RealmIdentifier>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
-    pub scripts: Vec<ScriptIdentifier>,
+    pub scripts: Vec<Script>,
     #[cfg(feature = "set")]
     pub sets: Vec<Set<'static>>,
     #[cfg(feature = "set")]
