@@ -112,6 +112,7 @@ enumerable
 EPSILON
 errors
 Error
+isError
 escape
 eval
 EvalError

@@ -27,6 +27,8 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
+#[cfg(feature = "proposal-is-error")]
+use crate::engine::context::NoGcScope;
 use crate::engine::rootable::Scopable;
 use crate::heap::IntrinsicConstructorIndexes;
 
@@ -41,6 +43,16 @@ impl Builtin for ErrorConstructor {
 }
 impl BuiltinIntrinsicConstructor for ErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Error;
+}
+#[cfg(feature = "proposal-is-error")]
+struct ErrorIsError;
+#[cfg(feature = "proposal-is-error")]
+impl Builtin for ErrorIsError {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isError;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ErrorConstructor::is_error);
 }
 
 impl ErrorConstructor {
@@ -114,14 +126,35 @@ impl ErrorConstructor {
         Ok(o.into_value())
     }
 
+    #[cfg(feature = "proposal-is-error")]
+    /// ### [20.5.2.1 Error.isError ( arg )](https://tc39.es/proposal-is-error/#sec-error.iserror)
+    fn is_error<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        is_error(_agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
-            .with_property_capacity(1)
-            .with_prototype_property(error_prototype.into_object())
-            .build();
+        let mut property_capacity = 1;
+        if cfg!(feature = "proposal-is-error") {
+            property_capacity += 1;
+        }
+
+        let builder =
+            BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
+                .with_property_capacity(property_capacity)
+                .with_prototype_property(error_prototype.into_object());
+
+        #[cfg(feature = "proposal-is-error")]
+        let builder = builder.with_builtin_function_property::<ErrorIsError>();
+
+        builder.build();
     }
 }
 
@@ -138,5 +171,25 @@ pub(super) fn get_error_cause<'gc>(
         Ok(Some(get(agent, options, key, gc)?))
     } else {
         Ok(None)
+    }
+}
+
+#[cfg(feature = "proposal-is-error")]
+/// ### [20.5.8.2 IsError ( argument )]https://tc39.es/proposal-is-error/#sec-iserror
+/// The abstract operation IsError takes argument argument (an Ecmascript
+/// language value) and returns a Boolean. It returns a boolean indicating
+/// whether the argument is a built-in Error instance or not.
+pub(super) fn is_error<'a>(
+    _agent: &mut Agent,
+    argument: impl IntoValue<'a>,
+    gc: NoGcScope,
+) -> JsResult<bool> {
+    let argument = argument.into_value().bind(gc);
+    match argument {
+        // 1. If argument is not an Object, return false.
+        // 2. If argument has an [[ErrorData]] internal slot, return true.
+        Value::Error(_) => Ok(true),
+        // 3. Return false.
+        _ => Ok(false),
     }
 }
