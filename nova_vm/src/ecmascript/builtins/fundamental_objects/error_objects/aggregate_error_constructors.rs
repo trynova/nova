@@ -29,8 +29,6 @@ use crate::{
 };
 
 use super::error_constructor::get_error_cause;
-#[cfg(feature = "proposal-is-error")]
-use super::error_constructor::is_error;
 
 pub(crate) struct AggregateErrorConstructor;
 impl Builtin for AggregateErrorConstructor {
@@ -42,16 +40,6 @@ impl Builtin for AggregateErrorConstructor {
 }
 impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AggregateError;
-}
-#[cfg(feature = "proposal-is-error")]
-struct AggregateErrorIsError;
-#[cfg(feature = "proposal-is-error")]
-impl Builtin for AggregateErrorIsError {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isError;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(AggregateErrorConstructor::is_error);
 }
 
 impl AggregateErrorConstructor {
@@ -132,37 +120,17 @@ impl AggregateErrorConstructor {
         Ok(o.into_value())
     }
 
-    /// ### [20.5.2.1 Error.isError ( arg )](https://tc39.es/proposal-is-error/#sec-error.iserror)
-    #[cfg(feature = "proposal-is-error")]
-    fn is_error<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        is_error(_agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
-    }
-
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_constructor = intrinsics.error();
         let aggregate_error_prototype = intrinsics.aggregate_error_prototype();
 
-        let mut property_capacity = 1;
-        if cfg!(feature = "proposal-is-error") {
-            property_capacity += 1;
-        }
-
-        let builder =
-            BuiltinFunctionBuilder::new_intrinsic_constructor::<AggregateErrorConstructor>(
-                agent, realm,
-            )
-            .with_property_capacity(property_capacity)
-            .with_prototype_property(aggregate_error_prototype.into_object());
-
-        #[cfg(feature = "proposal-is-error")]
-        let builder = builder.with_builtin_function_property::<AggregateErrorIsError>();
-
-        builder.build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<AggregateErrorConstructor>(
+            agent, realm,
+        )
+        .with_property_capacity(1)
+        .with_prototype(error_constructor.into_object())
+        .with_prototype_property(aggregate_error_prototype.into_object())
+        .build();
     }
 }
