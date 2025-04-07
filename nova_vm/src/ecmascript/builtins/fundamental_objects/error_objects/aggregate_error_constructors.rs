@@ -34,7 +34,7 @@ pub(crate) struct AggregateErrorConstructor;
 impl Builtin for AggregateErrorConstructor {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.AggregateError;
 
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
 
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
@@ -122,12 +122,14 @@ impl AggregateErrorConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
+        let error_constructor = intrinsics.error();
         let aggregate_error_prototype = intrinsics.aggregate_error_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<AggregateErrorConstructor>(
             agent, realm,
         )
         .with_property_capacity(1)
+        .with_prototype(error_constructor.into_object())
         .with_prototype_property(aggregate_error_prototype.into_object())
         .build();
     }
