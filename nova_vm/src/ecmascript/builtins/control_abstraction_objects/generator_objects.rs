@@ -5,6 +5,7 @@
 use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -89,6 +90,7 @@ impl Generator<'_> {
         else {
             unreachable!()
         };
+        let executable = executable.scope(agent, gc.nogc());
 
         // 4. Let genContext be generator.[[GeneratorContext]].
         // 5. Let methodContext be the running execution context.
@@ -104,9 +106,11 @@ impl Generator<'_> {
         // resumed computation.
         let execution_result = match vm_or_args {
             VmOrArguments::Arguments(args) => {
-                Vm::execute(agent, executable, Some(&args), gc.reborrow())
+                Vm::execute(agent, executable.clone(), Some(&args), gc.reborrow())
             }
-            VmOrArguments::Vm(vm) => vm.resume(agent, executable, value.unbind(), gc.reborrow()),
+            VmOrArguments::Vm(vm) => {
+                vm.resume(agent, executable.clone(), value.unbind(), gc.reborrow())
+            }
         };
 
         let execution_result = execution_result.unbind();
@@ -159,7 +163,7 @@ impl Generator<'_> {
                 agent[generator].generator_state =
                     Some(GeneratorState::Suspended(SuspendedGeneratorState {
                         vm_or_args: VmOrArguments::Vm(vm),
-                        executable,
+                        executable: executable.get(agent),
                         execution_context,
                     }));
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
@@ -225,6 +229,7 @@ impl Generator<'_> {
         else {
             unreachable!()
         };
+        let executable = executable.scope(agent, gc.nogc());
 
         // 5. Let genContext be generator.[[GeneratorContext]].
         // 6. Let methodContext be the running execution context.
@@ -237,7 +242,7 @@ impl Generator<'_> {
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = vm
-            .resume_throw(agent, executable, value.unbind(), gc.reborrow())
+            .resume_throw(agent, executable.clone(), value.unbind(), gc.reborrow())
             .unbind();
         let gc = gc.into_nogc();
         let execution_result = execution_result.bind(gc);
@@ -265,7 +270,7 @@ impl Generator<'_> {
                 agent[self].generator_state =
                     Some(GeneratorState::Suspended(SuspendedGeneratorState {
                         vm_or_args: VmOrArguments::Vm(vm),
-                        executable,
+                        executable: executable.get(agent),
                         execution_context,
                     }));
                 Ok(create_iter_result_object(agent, yielded_value, false, gc))
@@ -420,7 +425,7 @@ pub(crate) enum VmOrArguments {
 #[derive(Debug)]
 pub(crate) struct SuspendedGeneratorState {
     pub(crate) vm_or_args: VmOrArguments,
-    pub(crate) executable: Executable,
+    pub(crate) executable: Executable<'static>,
     pub(crate) execution_context: ExecutionContext,
 }
 

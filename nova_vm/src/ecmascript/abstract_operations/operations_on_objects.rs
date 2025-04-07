@@ -2077,6 +2077,7 @@ pub(crate) fn initialize_instance_elements(
             realm: agent[constructor].realm,
             script_or_module: None,
         });
+        let bytecode = bytecode.scope(agent, gc.nogc());
         let _ = Vm::execute(agent, bytecode, None, gc).into_js_result()?;
         agent.execution_context_stack.pop();
     }

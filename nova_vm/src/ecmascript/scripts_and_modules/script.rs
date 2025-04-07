@@ -355,14 +355,14 @@ pub fn script_evaluation<'gc>(
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
-        let bytecode = Executable::compile_script(agent, script, gc.nogc());
+        let bytecode = Executable::compile_script(agent, script, gc.nogc()).scope(agent, gc.nogc());
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).
-        let result = Vm::execute(agent, bytecode, None, gc).into_js_result();
-        // SAFETY: The bytecode is not accessible by anyone and no one will try
-        // to re-run it.
-        unsafe { bytecode.try_drop(agent) };
+        let result = Vm::execute(agent, bytecode.clone(), None, gc).into_js_result();
+        // SAFETY: The bytecode is not accessible by anyone anymore and no one
+        // will try to re-run it.
+        unsafe { bytecode.take(agent).try_drop(agent) };
         result
     } else {
         Err(result.err().unwrap())

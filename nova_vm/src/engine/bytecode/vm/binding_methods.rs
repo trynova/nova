@@ -26,7 +26,7 @@ use crate::{
 pub(super) fn execute_simple_array_binding(
     agent: &mut Agent,
     vm: &mut Vm,
-    executable: Executable,
+    executable: Scoped<'_, Executable>,
     mut iterator: VmIterator,
     environment: Option<Scoped<Environment>>,
     mut gc: GcScope,
@@ -107,7 +107,7 @@ pub(super) fn execute_simple_array_binding(
                 execute_nested_simple_binding(
                     agent,
                     vm,
-                    executable,
+                    executable.clone(),
                     value.unbind(),
                     environment.clone(),
                     gc.reborrow(),
@@ -142,7 +142,7 @@ pub(super) fn execute_simple_array_binding(
 pub(super) fn execute_simple_object_binding(
     agent: &mut Agent,
     vm: &mut Vm,
-    executable: Executable,
+    executable: Scoped<'_, Executable>,
     object: Object,
     environment: Option<Scoped<Environment>>,
     mut gc: GcScope,
@@ -214,7 +214,7 @@ pub(super) fn execute_simple_object_binding(
                 execute_nested_simple_binding(
                     agent,
                     vm,
-                    executable,
+                    executable.clone(),
                     v.unbind(),
                     environment.clone(),
                     gc.reborrow(),
@@ -260,7 +260,7 @@ pub(super) fn execute_simple_object_binding(
 pub(super) fn execute_nested_simple_binding(
     agent: &mut Agent,
     vm: &mut Vm,
-    executable: Executable,
+    executable: Scoped<'_, Executable>,
     value: Value,
     environment: Option<Scoped<Environment>>,
     mut gc: GcScope,

@@ -107,36 +107,40 @@ mod private {
     };
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-    use crate::ecmascript::{
-        builtins::{
-            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            generator_objects::Generator,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+    use crate::{
+        ecmascript::{
+            builtins::{
+                ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
+                ECMAScriptFunction,
+                async_generator_objects::AsyncGenerator,
+                bound_function::BoundFunction,
+                embedder_object::EmbedderObject,
+                error::Error,
+                finalization_registry::FinalizationRegistry,
+                generator_objects::Generator,
+                indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+                keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
+                map::Map,
+                module::Module,
+                primitive_objects::PrimitiveObject,
+                promise::Promise,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReaction,
+                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                },
+                proxy::Proxy,
             },
-            proxy::Proxy,
+            execution::{
+                DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
+                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment,
+            },
+            scripts_and_modules::{script::Script, source_code::SourceCode},
+            types::{
+                BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
+                String, Symbol, Value,
+            },
         },
-        execution::{
-            DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-            ModuleEnvironment, ObjectEnvironment, PrivateEnvironment,
-        },
-        scripts_and_modules::{script::Script, source_code::SourceCode},
-        types::{
-            BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-            String, Symbol, Value,
-        },
+        engine::Executable,
     };
 
     /// Marker trait to make Rootable not implementable outside of nova_vm.
@@ -158,6 +162,7 @@ mod private {
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
+    impl RootableSealed for Executable<'_> {}
     impl RootableSealed for FinalizationRegistry<'_> {}
     impl RootableSealed for Function<'_> {}
     impl RootableSealed for Generator<'_> {}
@@ -215,7 +220,7 @@ mod private {
 pub use global::Global;
 pub use scoped::{Scopable, Scoped, ScopedCollection};
 
-use super::context::Bindable;
+use super::{Executable, context::Bindable};
 
 pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
     type RootRepr: Sized + Clone + core::fmt::Debug;
@@ -365,6 +370,7 @@ pub enum HeapRootData {
     //
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
+    Executable(Executable<'static>),
     PromiseReaction(PromiseReaction),
     Script(Script<'static>),
     SourceCode(SourceCode<'static>),
@@ -567,6 +573,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Generator(generator) => generator.mark_values(queues),
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
+            HeapRootData::Executable(exe) => exe.mark_values(queues),
             HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
             HeapRootData::Script(script) => script.mark_values(queues),
             HeapRootData::SourceCode(source_code) => source_code.mark_values(queues),
@@ -682,6 +689,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::EmbedderObject(embedder_object) => {
                 embedder_object.sweep_values(compactions)
             }
+            HeapRootData::Executable(exe) => exe.sweep_values(compactions),
             HeapRootData::PromiseReaction(promise_reaction) => {
                 promise_reaction.sweep_values(compactions)
             }

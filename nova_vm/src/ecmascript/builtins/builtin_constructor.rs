@@ -438,7 +438,7 @@ pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) class_name: String<'a>,
     pub(crate) prototype: Option<Object<'a>>,
     pub(crate) prototype_property: Object<'a>,
-    pub(crate) compiled_initializer_bytecode: Option<Executable>,
+    pub(crate) compiled_initializer_bytecode: Option<Executable<'a>>,
     pub(crate) env: Environment<'a>,
     pub(crate) private_env: Option<PrivateEnvironment<'a>>,
     pub(crate) source_code: SourceCode<'a>,
@@ -520,7 +520,7 @@ pub(crate) fn create_builtin_constructor<'a>(
         // Skipped as length of builtin constructors is always 0.
         // 8. Set func.[[Realm]] to realm.
         realm,
-        compiled_initializer_bytecode: args.compiled_initializer_bytecode,
+        compiled_initializer_bytecode: args.compiled_initializer_bytecode.unbind(),
         is_derived: args.is_derived,
         object_index: Some(backing_object),
         environment: args.env.unbind(),

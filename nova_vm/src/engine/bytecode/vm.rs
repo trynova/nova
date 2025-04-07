@@ -56,7 +56,7 @@ use crate::{
         },
     },
     engine::{
-        TryResult,
+        Scoped, TryResult,
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
@@ -197,7 +197,7 @@ impl SuspendedVm {
     pub(crate) fn resume<'gc>(
         self,
         agent: &mut Agent,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         value: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -208,7 +208,7 @@ impl SuspendedVm {
     pub(crate) fn resume_throw<'gc>(
         self,
         agent: &mut Agent,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -265,7 +265,7 @@ impl<'a> Vm {
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute<'gc>(
         agent: &mut Agent,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         arguments: Option<&[Value<'static>]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -291,7 +291,7 @@ impl<'a> Vm {
             eprintln!("Instructions:");
             let iter = InstructionIter::new(executable.get_instructions(agent));
             for (ip, instr) in iter {
-                instr.debug_print(agent, ip, executable, gc.nogc());
+                instr.debug_print(agent, ip, executable.clone(), gc.nogc());
             }
             eprintln!();
         }
@@ -302,7 +302,7 @@ impl<'a> Vm {
     pub fn resume<'gc>(
         mut self,
         agent: &mut Agent,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         value: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -313,7 +313,7 @@ impl<'a> Vm {
     pub fn resume_throw<'gc>(
         mut self,
         agent: &mut Agent,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -328,7 +328,7 @@ impl<'a> Vm {
     fn inner_execute<'gc>(
         mut self,
         agent: &mut Agent,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         mut gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
         #[cfg(feature = "interleaved-gc")]
@@ -357,7 +357,13 @@ impl<'a> Vm {
                     );
                 }
             }
-            match Self::execute_instruction(agent, &mut self, executable, &instr, gc.reborrow()) {
+            match Self::execute_instruction(
+                agent,
+                &mut self,
+                executable.clone(),
+                &instr,
+                gc.reborrow(),
+            ) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
                     let result = self.result.unwrap_or(Value::Undefined);
@@ -403,7 +409,7 @@ impl<'a> Vm {
     fn execute_instruction(
         agent: &mut Agent,
         vm: &mut Vm,
-        executable: Executable,
+        executable: Scoped<'_, Executable>,
         instr: &Instr,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<ContinuationKind> {
@@ -609,8 +615,11 @@ impl<'a> Vm {
                 .unwrap();
             }
             Instruction::ObjectDefineMethod => {
-                let FunctionExpression { expression, .. } =
-                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } = executable.fetch_function_expression(
+                    agent,
+                    instr.args[0].unwrap() as usize,
+                    gc.nogc(),
+                );
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -706,8 +715,11 @@ impl<'a> Vm {
                 // c. Return unused.
             }
             Instruction::ObjectDefineGetter => {
-                let FunctionExpression { expression, .. } =
-                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } = executable.fetch_function_expression(
+                    agent,
+                    instr.args[0].unwrap() as usize,
+                    gc.nogc(),
+                );
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -799,8 +811,11 @@ impl<'a> Vm {
                 // c. Return unused.
             }
             Instruction::ObjectDefineSetter => {
-                let FunctionExpression { expression, .. } =
-                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } = executable.fetch_function_expression(
+                    agent,
+                    instr.args[0].unwrap() as usize,
+                    gc.nogc(),
+                );
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -1108,11 +1123,14 @@ impl<'a> Vm {
                 let FunctionExpression {
                     expression,
                     identifier,
-                    compiled_bytecode,
-                } = executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                    ..
+                } = executable.fetch_function_expression(
+                    agent,
+                    instr.args[0].unwrap() as usize,
+                    gc.nogc(),
+                );
                 let function_expression = expression.get();
                 let identifier = *identifier;
-                let compiled_bytecode = *compiled_bytecode;
 
                 let (name, env, init_binding) = if let Some(parameter) = identifier {
                     debug_assert!(function_expression.id.is_none());
@@ -1170,8 +1188,15 @@ impl<'a> Vm {
                     private_env,
                 };
                 let function = ordinary_function_create(agent, params, gc.nogc());
+                let FunctionExpression {
+                    compiled_bytecode, ..
+                } = executable.fetch_function_expression(
+                    agent,
+                    instr.args[0].unwrap() as usize,
+                    gc.nogc(),
+                );
                 if let Some(compiled_bytecode) = compiled_bytecode {
-                    agent[function].compiled_bytecode = Some(compiled_bytecode);
+                    agent[function].compiled_bytecode = Some(compiled_bytecode.unbind());
                 }
                 set_function_name(agent, function, name, None, gc.nogc());
                 if !function_expression.r#async && !function_expression.generator {
@@ -1242,7 +1267,11 @@ impl<'a> Vm {
                     expression,
                     compiled_bytecode,
                     ..
-                } = executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                } = executable.fetch_function_expression(
+                    agent,
+                    instr.args[0].unwrap() as usize,
+                    gc.nogc(),
+                );
                 let function_expression = expression.get();
                 let compiled_bytecode = *compiled_bytecode;
                 let has_constructor_parent = instr.args[1].unwrap();
@@ -1278,7 +1307,7 @@ impl<'a> Vm {
                 };
                 let function = ordinary_function_create(agent, params, gc.nogc());
                 if let Some(compiled_bytecode) = compiled_bytecode {
-                    agent[function].compiled_bytecode = Some(compiled_bytecode);
+                    agent[function].compiled_bytecode = Some(compiled_bytecode.unbind());
                 }
                 set_function_name(agent, function, class_name.into(), None, gc.nogc());
                 make_constructor(agent, function, Some(false), Some(proto), gc.nogc());
@@ -1311,6 +1340,7 @@ impl<'a> Vm {
                     .fetch_class_initializer_bytecode(
                         agent,
                         class_initializer_bytecode_index as usize,
+                        gc.nogc(),
                     );
 
                 let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();

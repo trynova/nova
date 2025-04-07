@@ -66,7 +66,7 @@ pub struct BuiltinConstructorHeapData {
     /// Base.
     pub(crate) is_derived: bool,
     /// Stores the compiled bytecode of class field initializers.
-    pub(crate) compiled_initializer_bytecode: Option<Executable>,
+    pub(crate) compiled_initializer_bytecode: Option<Executable<'static>>,
     /// ### \[\[Environment]]
     ///
     /// This is required for class field initializers.
@@ -91,7 +91,7 @@ pub struct ECMAScriptFunctionHeapData {
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     /// Stores the compiled bytecode of an ECMAScript function.
-    pub(crate) compiled_bytecode: Option<Executable>,
+    pub(crate) compiled_bytecode: Option<Executable<'static>>,
     pub(crate) name: Option<String<'static>>,
 }
 

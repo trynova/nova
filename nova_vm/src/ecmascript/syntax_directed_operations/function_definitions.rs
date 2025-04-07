@@ -288,13 +288,14 @@ pub(crate) fn evaluate_function_body<'gc>(
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
-        exe
+        exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe);
+        agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
     };
+    let exe = exe.scope(agent, gc.nogc());
     Vm::execute(agent, exe, Some(arguments_list.unbind().as_slice()), gc).into_js_result()
 }
 
@@ -319,13 +320,14 @@ pub(crate) fn evaluate_async_function_body<'a>(
     // 4. Else,
     // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
-        exe
+        exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe);
+        agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
     };
+    let exe = exe.scope(agent, gc.nogc());
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
@@ -435,7 +437,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
                 .map(|v| v.unbind())
                 .collect(),
         ),
-        executable,
+        executable: executable.unbind(),
         execution_context: agent.running_execution_context().clone(),
     }));
 
@@ -500,14 +502,14 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     // SAFETY: scoped_function_object is never shared.
     let function_object = unsafe { scoped_function_object.take(agent).bind(gc) };
     let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
-        exe
+        exe.bind(gc)
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
         let exe = Executable::compile_function_body(agent, data, gc);
-        agent[function_object].compiled_bytecode = Some(exe);
+        agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
     };
-    agent[generator].executable = Some(executable);
+    agent[generator].executable = Some(executable.unbind());
     agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
         arguments: arguments_list
             .as_slice()

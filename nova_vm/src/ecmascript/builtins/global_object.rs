@@ -342,13 +342,13 @@ pub fn perform_eval<'gc>(
 
     // 29. If result is a normal completion, then
     let result = if result.is_ok() {
-        let exe = Executable::compile_eval_body(agent, &script, gc.nogc());
+        let exe = Executable::compile_eval_body(agent, &script, gc.nogc()).scope(agent, gc.nogc());
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).
-        let result = Vm::execute(agent, exe, None, gc.reborrow()).into_js_result();
+        let result = Vm::execute(agent, exe.clone(), None, gc.reborrow()).into_js_result();
         // SAFETY: No one can access the bytecode anymore.
-        unsafe { exe.try_drop(agent) };
+        unsafe { exe.take(agent).try_drop(agent) };
         result
     } else {
         Err(result.err().unwrap())

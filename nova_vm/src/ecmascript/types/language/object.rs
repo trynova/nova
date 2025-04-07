@@ -3880,6 +3880,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
                 Ok(Self::EmbedderObject(embedder_object))
             }
             HeapRootData::PromiseReaction(_) => Err(()),
+            HeapRootData::Executable(_) => Err(()),
             HeapRootData::Script(_) => Err(()),
             HeapRootData::SourceCode(_) => Err(()),
             HeapRootData::DeclarativeEnvironment(_) => Err(()),

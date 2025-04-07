@@ -28,7 +28,7 @@ use crate::{
     engine::{
         Executable, ExecutionResult, Scoped, SuspendedVm,
         context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -58,7 +58,11 @@ impl AsyncGenerator<'_> {
         self.0.into_index()
     }
 
-    pub(crate) fn get_executable(self, agent: &Agent) -> Executable {
+    pub(crate) fn get_executable<'gc>(
+        self,
+        agent: &Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> Executable<'gc> {
         agent[self].executable.unwrap()
     }
 
@@ -185,10 +189,11 @@ impl AsyncGenerator<'_> {
         });
     }
 
-    pub(crate) fn transition_to_execution(
+    pub(crate) fn transition_to_execution<'gc>(
         self,
         agent: &mut Agent,
-    ) -> (VmOrArguments, ExecutionContext, Executable) {
+        gc: NoGcScope<'gc, '_>,
+    ) -> (VmOrArguments, ExecutionContext, Executable<'gc>) {
         let async_generator_state = &mut agent[self].async_generator_state;
         let (vm_or_args, execution_context, queue) = match async_generator_state.take().unwrap() {
             AsyncGeneratorState::SuspendedStart {
@@ -208,7 +213,11 @@ impl AsyncGenerator<'_> {
             _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::Executing(queue));
-        (vm_or_args, execution_context, self.get_executable(agent))
+        (
+            vm_or_args,
+            execution_context,
+            self.get_executable(agent, gc),
+        )
     }
 
     pub(crate) fn transition_to_suspended(
@@ -264,7 +273,7 @@ impl AsyncGenerator<'_> {
         let execution_result = match kind {
             AsyncGeneratorAwaitKind::Await => {
                 // Await only.
-                let executable = agent[self].executable.unwrap();
+                let executable = agent[self].executable.unwrap().scope(agent, gc.nogc());
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
                         vm.resume(agent, executable, value.unbind(), gc.reborrow())
@@ -279,7 +288,7 @@ impl AsyncGenerator<'_> {
                 if reaction_type == PromiseReactionType::Reject {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
-                    let executable = agent[self].executable.unwrap();
+                    let executable = agent[self].executable.unwrap().scope(agent, gc.nogc());
                     vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     async_generator_yield(
@@ -296,7 +305,7 @@ impl AsyncGenerator<'_> {
                 // 27.6.3.7 AsyncGeneratorUnwrapYieldResumption
                 // 3. If awaited is a throw completion, return ? awaited.
                 if reaction_type == PromiseReactionType::Reject {
-                    let executable = agent[self].executable.unwrap();
+                    let executable = agent[self].executable.unwrap().scope(agent, gc.nogc());
                     vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     // TODO: vm.resume_return(agent, executable, value, gc.reborrow())
@@ -438,7 +447,7 @@ impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
 pub struct AsyncGeneratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) async_generator_state: Option<AsyncGeneratorState<'static>>,
-    pub(crate) executable: Option<Executable>,
+    pub(crate) executable: Option<Executable<'static>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
