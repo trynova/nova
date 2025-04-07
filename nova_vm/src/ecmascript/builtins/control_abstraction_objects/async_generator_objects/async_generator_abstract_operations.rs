@@ -25,6 +25,7 @@ use crate::{
     engine::{
         ExecutionResult, Scoped, SuspendedVm, Vm,
         context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
         unwrap_try,
     },
 };
@@ -193,7 +194,8 @@ pub(super) fn async_generator_resume(
     // 2. Let genContext be generator.[[AsyncGeneratorContext]].
     // 5. Set generator.[[AsyncGeneratorState]] to executing.
     assert!(generator.is_suspended_start(agent) || generator.is_suspended_yield(agent));
-    let (vm_or_args, gen_context, executable) = generator.transition_to_execution(agent);
+    let (vm_or_args, gen_context, executable) = generator.transition_to_execution(agent, gc.nogc());
+    let executable = executable.scope(agent, gc.nogc());
 
     // 3. Let callerContext be the running execution context.
     // 4. Suspend callerContext.
@@ -337,18 +339,20 @@ fn async_generator_unwrap_yield_resumption(
     let resumption_value = resumption_value.bind(gc.nogc());
     // 1. If resumptionValue is not a return completion, return ? resumptionValue.
     let execution_result = match resumption_value {
-        AsyncGeneratorRequestCompletion::Ok(v) => vm.resume(
-            agent,
-            generator.get(agent).get_executable(agent),
-            v.unbind(),
-            gc.reborrow(),
-        ),
-        AsyncGeneratorRequestCompletion::Err(e) => vm.resume_throw(
-            agent,
-            generator.get(agent).get_executable(agent),
-            e.value().unbind(),
-            gc.reborrow(),
-        ),
+        AsyncGeneratorRequestCompletion::Ok(v) => {
+            let executable = generator
+                .get(agent)
+                .get_executable(agent, gc.nogc())
+                .scope(agent, gc.nogc());
+            vm.resume(agent, executable, v.unbind(), gc.reborrow())
+        }
+        AsyncGeneratorRequestCompletion::Err(e) => {
+            let executable = generator
+                .get(agent)
+                .get_executable(agent, gc.nogc())
+                .scope(agent, gc.nogc());
+            vm.resume_throw(agent, executable, e.value().unbind(), gc.reborrow())
+        }
         AsyncGeneratorRequestCompletion::Return(value) => {
             // 2. Let awaited be Completion(Await(resumptionValue.[[Value]])).
             async_generator_perform_await(

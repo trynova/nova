@@ -159,7 +159,7 @@ pub(crate) struct WorkQueues {
     pub embedder_objects: Vec<EmbedderObject<'static>>,
     pub source_codes: Vec<SourceCode<'static>>,
     pub errors: Vec<Error<'static>>,
-    pub executables: Vec<Executable>,
+    pub executables: Vec<Executable<'static>>,
     pub finalization_registrys: Vec<FinalizationRegistry<'static>>,
     pub function_environments: Vec<FunctionEnvironment<'static>>,
     pub generators: Vec<Generator<'static>>,

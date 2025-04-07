@@ -288,7 +288,7 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>
     }
 }
 
-impl ECMAScriptFunction<'_> {
+impl<'a> ECMAScriptFunction<'a> {
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
     }
@@ -297,7 +297,7 @@ impl ECMAScriptFunction<'_> {
         self.0.into_index()
     }
 
-    pub(crate) fn get_executable(self, agent: &Agent) -> Executable {
+    pub(crate) fn get_executable(self, agent: &Agent, _: NoGcScope<'a, '_>) -> Executable<'a> {
         agent[self].compiled_bytecode.unwrap()
     }
 

@@ -56,10 +56,10 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     /// Constants being built
     constants: Vec<Value<'gc>>,
     /// Function expressions being built
-    function_expressions: Vec<FunctionExpression>,
+    function_expressions: Vec<FunctionExpression<'gc>>,
     /// Arrow function expressions being built
     arrow_function_expressions: Vec<ArrowFunctionExpression>,
-    class_initializer_bytecodes: Vec<(Option<Executable>, bool)>,
+    class_initializer_bytecodes: Vec<(Option<Executable<'gc>>, bool)>,
     /// NamedEvaluation name parameter
     name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -216,13 +216,21 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         }
     }
 
-    pub(super) fn finish(self) -> Executable {
+    pub(super) fn finish(self) -> Executable<'gc> {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
             constants: self.constants.iter().map(|v| v.unbind()).collect(),
-            function_expressions: self.function_expressions.into_boxed_slice(),
+            function_expressions: self
+                .function_expressions
+                .into_iter()
+                .map(|f| f.unbind())
+                .collect(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
-            class_initializer_bytecodes: self.class_initializer_bytecodes.into_boxed_slice(),
+            class_initializer_bytecodes: self
+                .class_initializer_bytecodes
+                .into_iter()
+                .map(|(exe, b)| (exe.unbind(), b))
+                .collect(),
         })
     }
 
@@ -387,7 +395,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     fn add_instruction_with_function_expression(
         &mut self,
         instruction: Instruction,
-        function_expression: FunctionExpression,
+        function_expression: FunctionExpression<'gc>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_function_expression_index());
@@ -404,7 +412,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     fn add_instruction_with_function_expression_and_immediate(
         &mut self,
         instruction: Instruction,
-        function_expression: FunctionExpression,
+        function_expression: FunctionExpression<'gc>,
         immediate: usize,
     ) -> IndexType {
         debug_assert_eq!(instruction.argument_count(), 2);

@@ -7,7 +7,7 @@ use oxc_syntax::{number::ToJsString, operator::BinaryOperator};
 
 use crate::{
     ecmascript::{execution::Agent, types::String},
-    engine::context::NoGcScope,
+    engine::{Scoped, context::NoGcScope},
 };
 
 use super::{Executable, IndexType};
@@ -465,7 +465,13 @@ pub(crate) struct Instr {
 }
 
 impl Instr {
-    pub(crate) fn debug_print(&self, agent: &mut Agent, ip: usize, exe: Executable, gc: NoGcScope) {
+    pub(crate) fn debug_print(
+        &self,
+        agent: &mut Agent,
+        ip: usize,
+        exe: Scoped<'_, Executable>,
+        gc: NoGcScope,
+    ) {
         match self.kind.argument_count() {
             0 => {
                 eprintln!("  {}: {:?}", ip, self.kind);
@@ -497,7 +503,7 @@ impl Instr {
         agent: &mut Agent,
         kind: Instruction,
         arg: IndexType,
-        exe: Executable,
+        exe: Scoped<'_, Executable>,
         gc: NoGcScope,
     ) -> std::string::String {
         let index = arg as usize;
@@ -522,7 +528,7 @@ impl Instr {
                         .join(", ")
                 )
             } else {
-                let expr = exe.fetch_function_expression(agent, index);
+                let expr = exe.fetch_function_expression(agent, index, gc);
                 let normal_fn = expr.expression.get();
                 format!(
                     "function {}({})",
@@ -536,7 +542,7 @@ impl Instr {
                 )
             }
         } else if kind == Instruction::ClassDefineDefaultConstructor {
-            if exe.fetch_class_initializer_bytecode(agent, index).1 {
+            if exe.fetch_class_initializer_bytecode(agent, index, gc).1 {
                 "{ super() }".to_string()
             } else {
                 "{}".to_string()
@@ -552,7 +558,7 @@ impl Instr {
         kind: Instruction,
         arg0: IndexType,
         arg1: IndexType,
-        exe: Executable,
+        exe: Scoped<'_, Executable>,
         gc: NoGcScope,
     ) -> std::string::String {
         let index0 = arg0 as usize;
@@ -564,7 +570,7 @@ impl Instr {
             Instruction::BindingPatternBindNamed => {
                 format!(
                     "{{ {}: {} }}",
-                    debug_print_constant(agent, exe, index1, gc),
+                    debug_print_constant(agent, exe.clone(), index1, gc),
                     debug_print_identifier(agent, exe, index0, gc)
                 )
             }
@@ -588,7 +594,7 @@ impl Instr {
 
 fn debug_print_constant(
     agent: &mut Agent,
-    exe: Executable,
+    exe: Scoped<'_, Executable>,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
@@ -605,7 +611,7 @@ fn debug_print_constant(
 
 fn debug_print_identifier(
     agent: &Agent,
-    exe: Executable,
+    exe: Scoped<'_, Executable>,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {

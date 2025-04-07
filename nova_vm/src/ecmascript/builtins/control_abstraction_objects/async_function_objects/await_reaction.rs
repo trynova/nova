@@ -7,7 +7,10 @@ use core::{
     ops::{Index, IndexMut},
 };
 
-use crate::engine::context::{Bindable, GcScope};
+use crate::engine::{
+    context::{Bindable, GcScope},
+    rootable::Scopable,
+};
 use crate::{
     ecmascript::{
         builtins::{
@@ -72,18 +75,18 @@ impl AwaitReactionIdentifier {
         let vm = agent[self].vm.take().unwrap();
         let async_function = agent[self].async_function.unwrap();
         let execution_result = match reaction_type {
-            PromiseReactionType::Fulfill => vm.resume(
-                agent,
-                async_function.get_executable(agent),
-                value.unbind(),
-                gc.reborrow(),
-            ),
-            PromiseReactionType::Reject => vm.resume_throw(
-                agent,
-                async_function.get_executable(agent),
-                value.unbind(),
-                gc.reborrow(),
-            ),
+            PromiseReactionType::Fulfill => {
+                let executable = async_function
+                    .get_executable(agent, gc.nogc())
+                    .scope(agent, gc.nogc());
+                vm.resume(agent, executable, value.unbind(), gc.reborrow())
+            }
+            PromiseReactionType::Reject => {
+                let executable = async_function
+                    .get_executable(agent, gc.nogc())
+                    .scope(agent, gc.nogc());
+                vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
+            }
         };
 
         match execution_result {
