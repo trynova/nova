@@ -2365,7 +2365,7 @@ impl TypedArrayPrototype {
             TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
         } as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
-        let Some(stack_callback_fn) = is_callable(callback, gc.nogc()) else {
+        let Some(callback) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not callable",
@@ -2397,12 +2397,7 @@ impl TypedArrayPrototype {
             k += 1;
             result.scope(agent, gc.nogc())
         };
-        // SAFETY: scoped_callback is not shared.
-        let scoped_callback = unsafe {
-            callback
-                .scope(agent, gc.nogc())
-                .replace_self(agent, stack_callback_fn.unbind())
-        };
+        let scoped_callback = callback.scope(agent, gc.nogc());
         let scoped_o = o.scope(agent, gc.nogc());
         // 10. Repeat, while k < len,
         while k < len {
