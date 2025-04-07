@@ -13,7 +13,7 @@ use super::{
 use crate::{
     ecmascript::{
         execution::Agent,
-        scripts_and_modules::script::ScriptIdentifier,
+        scripts_and_modules::script::Script,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
@@ -108,11 +108,7 @@ pub(crate) struct ExecutableHeapData {
 }
 
 impl<'gc> Executable {
-    pub(crate) fn compile_script(
-        agent: &mut Agent,
-        script: ScriptIdentifier,
-        gc: NoGcScope,
-    ) -> Self {
+    pub(crate) fn compile_script(agent: &mut Agent, script: Script, gc: NoGcScope) -> Self {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Script ===");

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
+use std::marker::PhantomData;
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::HeapRootData;
@@ -12,7 +13,6 @@ use crate::{
         abstract_operations::testing_and_comparison::same_value,
         builtins::ordinary::ordinary_get_own_property,
         execution::{Agent, JsResult, agent::ExceptionType},
-        scripts_and_modules::module::ModuleIdentifier,
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, String, Value,
@@ -31,19 +31,7 @@ use super::ordinary::{
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Module<'a>(pub(crate) ModuleIdentifier<'a>);
-
-impl<'a> From<Module<'a>> for ModuleIdentifier<'a> {
-    fn from(val: Module<'a>) -> Self {
-        val.0
-    }
-}
-
-impl<'a> From<ModuleIdentifier<'a>> for Module<'a> {
-    fn from(value: ModuleIdentifier<'a>) -> Self {
-        Self(value)
-    }
-}
+pub struct Module<'a>(u32, PhantomData<&'a ()>);
 
 impl<'a> IntoValue<'a> for Module<'a> {
     fn into_value(self) -> Value<'a> {
@@ -105,11 +93,30 @@ impl IndexMut<Module<'_>> for Vec<Option<ModuleHeapData>> {
 
 impl Module<'_> {
     pub(crate) const fn _def() -> Self {
-        Self(ModuleIdentifier::from_u32(0))
+        Self::from_u32(0)
     }
 
     pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+        self.0 as usize
+    }
+
+    /// Creates a module identififer from a usize.
+    ///
+    /// ## Panics
+    /// If the given index is greater than `u32::MAX`.
+    pub(crate) const fn from_index(value: usize) -> Self {
+        assert!(value <= u32::MAX as usize);
+        Self(value as u32, PhantomData)
+    }
+
+    /// Creates a module identififer from a u32.
+    pub(crate) const fn from_u32(value: u32) -> Self {
+        Self(value, PhantomData)
+    }
+
+    pub(crate) fn last(modules: &[Option<ModuleHeapData>]) -> Self {
+        let index = modules.len() - 1;
+        Self::from_index(index)
     }
 }
 
@@ -681,9 +688,6 @@ impl HeapMarkAndSweep for Module<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.0.into_u32();
-        self.0 = ModuleIdentifier::from_u32(
-            self_index - compactions.modules.get_shift_for_index(self_index),
-        );
+        self.0 -= compactions.modules.get_shift_for_index(self.0);
     }
 }

@@ -569,7 +569,10 @@ impl Agent {
 /// The abstract operation GetActiveScriptOrModule takes no arguments and
 /// returns a Script Record, a Module Record, or null. It is used to determine
 /// the running script or module, based on the running execution context.
-pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrModule> {
+pub(crate) fn get_active_script_or_module<'a>(
+    agent: &mut Agent,
+    _: NoGcScope<'a, '_>,
+) -> Option<ScriptOrModule<'a>> {
     if agent.execution_context_stack.is_empty() {
         return None;
     }

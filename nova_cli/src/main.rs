@@ -193,7 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, &path, source_text)
                             }
                         };
-                        let result = script_evaluation(agent, script, gc.reborrow());
+                        let result = script_evaluation(agent, script.unbind(), gc.reborrow());
 
                         fn run_microtask_queue<'gc>(
                             agent: &mut Agent,
@@ -303,7 +303,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, "<stdin>", &placeholder);
                             }
                         };
-                    let result = script_evaluation(agent, script, gc.reborrow());
+                    let result = script_evaluation(agent, script.unbind(), gc.reborrow());
                     match result {
                         Ok(result) => {
                             println!("{:?}\n", result);

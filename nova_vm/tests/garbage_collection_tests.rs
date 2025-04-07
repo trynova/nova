@@ -89,7 +89,7 @@ fn garbage_collection_tests() {
         let realm = agent.current_realm_id();
         let source_text = String::from_string(agent, header_contents, gc.nogc());
         let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        if let Err(err) = script_evaluation(agent, script, gc.reborrow()) {
+        if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
                 d.display(),
@@ -104,7 +104,7 @@ fn garbage_collection_tests() {
             let realm = agent.current_realm_id();
             let source_text = String::from_string(agent, call_contents.clone(), gc.nogc());
             let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-            if let Err(err) = script_evaluation(agent, script, gc.reborrow()) {
+            if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {
                 println!("Error kind: {:?}", err.value());
                 panic!(
                     "Loop index run {} '{}' failed: {:?}",

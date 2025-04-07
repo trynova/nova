@@ -218,7 +218,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub realm: RealmIdentifier,
 
     /// \[\[ScriptOrModule]]
-    pub script_or_module: ScriptOrModule,
+    pub script_or_module: ScriptOrModule<'static>,
 
     /// \[\[ThisMode]]
     pub this_mode: ThisMode,
@@ -933,7 +933,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         // 16. Set F.[[Realm]] to the current Realm Record.
         realm: agent.current_realm_id(),
         // 15. Set F.[[ScriptOrModule]] to GetActiveScriptOrModule().
-        script_or_module: get_active_script_or_module(agent).unwrap(),
+        script_or_module: get_active_script_or_module(agent, gc).unwrap().unbind(),
         // 9. If thisMode is LEXICAL-THIS, set F.[[ThisMode]] to LEXICAL.
         // 10. Else if Strict is true, set F.[[ThisMode]] to STRICT.
         // 11. Else, set F.[[ThisMode]] to GLOBAL.

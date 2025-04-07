@@ -88,7 +88,7 @@ pub(crate) struct ExecutionContext {
     /// originates. If there is no originating script or module, as is the case
     /// for the original execution context created in
     /// InitializeHostDefinedRealm, the value is null.
-    pub script_or_module: Option<ScriptOrModule>,
+    pub script_or_module: Option<ScriptOrModule<'static>>,
 }
 
 impl ExecutionContext {
