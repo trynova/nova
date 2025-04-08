@@ -2706,7 +2706,8 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let comparator = arguments.get(0);
+        let this_value = this_value.bind(gc.nogc());
+        let comparator = arguments.get(0).bind(gc.nogc());
         // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
         let comparator = if comparator.is_undefined() {
             None
