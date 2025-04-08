@@ -172,7 +172,7 @@ pub(crate) struct WorkQueues {
     pub objects: Vec<OrdinaryObject<'static>>,
     pub primitive_objects: Vec<PrimitiveObject<'static>>,
     pub promises: Vec<Promise<'static>>,
-    pub promise_reaction_records: Vec<PromiseReaction>,
+    pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub proxys: Vec<Proxy<'static>>,
     pub realms: Vec<RealmIdentifier>,

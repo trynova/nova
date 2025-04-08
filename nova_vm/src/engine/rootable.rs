@@ -176,7 +176,7 @@ mod private {
     impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject<'_> {}
     impl RootableSealed for Promise<'_> {}
-    impl RootableSealed for PromiseReaction {}
+    impl RootableSealed for PromiseReaction<'_> {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy<'_> {}
     #[cfg(feature = "regexp")]
@@ -371,7 +371,7 @@ pub enum HeapRootData {
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
     Executable(Executable<'static>),
-    PromiseReaction(PromiseReaction),
+    PromiseReaction(PromiseReaction<'static>),
     Script(Script<'static>),
     SourceCode(SourceCode<'static>),
     DeclarativeEnvironment(DeclarativeEnvironment<'static>),

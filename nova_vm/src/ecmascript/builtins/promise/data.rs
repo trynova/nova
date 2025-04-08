@@ -16,28 +16,28 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct PromiseHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) promise_state: PromiseState,
+    pub(crate) promise_state: PromiseState<'static>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum PromiseState {
+pub(crate) enum PromiseState<'a> {
     Pending {
-        fulfill_reactions: Option<PromiseReactions>,
-        reject_reactions: Option<PromiseReactions>,
+        fulfill_reactions: Option<PromiseReactions<'a>>,
+        reject_reactions: Option<PromiseReactions<'a>>,
         /// True if the resolution state of this promise depends on another
         /// promise or thenable that hasn't fulfilled or rejected yet.
         is_resolved: bool,
     },
     Fulfilled {
-        promise_result: Value<'static>,
+        promise_result: Value<'a>,
     },
     Rejected {
-        promise_result: Value<'static>,
+        promise_result: Value<'a>,
         is_handled: bool,
     },
 }
 
-impl Default for PromiseState {
+impl Default for PromiseState<'_> {
     fn default() -> Self {
         Self::Pending {
             fulfill_reactions: None,
@@ -48,12 +48,12 @@ impl Default for PromiseState {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum PromiseReactions {
-    One(PromiseReaction),
-    Many(Vec<PromiseReaction>),
+pub(crate) enum PromiseReactions<'a> {
+    One(PromiseReaction<'a>),
+    Many(Vec<PromiseReaction<'a>>),
 }
 
-impl PromiseReactions {
+impl PromiseReactions<'_> {
     /// ### [27.2.1.8 TriggerPromiseReactions ( reactions, argument )](https://tc39.es/ecma262/#sec-triggerpromisereactions)
     pub(crate) fn trigger(&self, agent: &mut Agent, argument: Value) {
         match self {
@@ -71,7 +71,7 @@ impl PromiseReactions {
     }
 }
 
-impl HeapMarkAndSweep for PromiseReactions {
+impl HeapMarkAndSweep for PromiseReactions<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             PromiseReactions::One(reaction) => reaction.mark_values(queues),
@@ -111,7 +111,7 @@ impl HeapMarkAndSweep for PromiseHeapData {
     }
 }
 
-impl HeapMarkAndSweep for PromiseState {
+impl HeapMarkAndSweep for PromiseState<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             PromiseState::Pending {
