@@ -4298,12 +4298,12 @@ pub(crate) fn sort_indexed_properties<'scope, const SKIP_HOLES: bool, const TYPE
     if TYPED_ARRAY {
         let mut error: Option<JsError> = None;
         items.sort_by(|a, b| {
-            let result =
-                compare_typed_array_elements(agent, a, b, comparator.clone(), gc.reborrow());
             if error.is_some() {
                 // This is dangerous but we don't have much of a choice.
                 return Ordering::Equal;
             }
+            let result =
+                compare_typed_array_elements(agent, a, b, comparator.clone(), gc.reborrow());
             let Ok(result) = result else {
                 error = Some(result.unwrap_err());
                 return Ordering::Equal;
