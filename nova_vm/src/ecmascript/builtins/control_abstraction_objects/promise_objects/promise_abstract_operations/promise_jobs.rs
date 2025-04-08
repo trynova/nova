@@ -114,7 +114,7 @@ pub(crate) fn new_promise_resolve_thenable_job(
 
 #[derive(Debug)]
 pub(crate) struct PromiseReactionJob {
-    reaction: Global<PromiseReaction>,
+    reaction: Global<PromiseReaction<'static>>,
     argument: Global<Value<'static>>,
 }
 impl PromiseReactionJob {
@@ -217,7 +217,7 @@ pub(crate) fn new_promise_reaction_job(
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
-    let reaction = Global::new(agent, reaction);
+    let reaction = Global::new(agent, reaction.unbind());
     let argument = Global::new(agent, argument.unbind());
     Job {
         realm: handler_realm,

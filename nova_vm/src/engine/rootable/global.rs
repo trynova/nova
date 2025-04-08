@@ -14,7 +14,7 @@ use crate::{
 /// pointer to a heap allocation in system programming languages. As long as
 /// the pointer lives, the memory on the heap will not be released.
 #[derive(Debug, PartialEq)]
-pub struct Global<T: Rootable>(T::RootRepr, PhantomData<T>);
+pub struct Global<T: 'static + Rootable>(T::RootRepr, PhantomData<T>);
 
 impl<T: Rootable> Global<T> {
     /// Root the given value into a Global, keeping it from being garbage

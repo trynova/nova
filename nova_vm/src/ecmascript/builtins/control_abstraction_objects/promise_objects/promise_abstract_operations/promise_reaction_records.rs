@@ -13,7 +13,10 @@ use crate::{
         execution::Agent,
         types::Function,
     },
-    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{CreateHeapData, Heap, HeapMarkAndSweep, indexes::BaseIndex},
 };
 
@@ -71,15 +74,15 @@ pub struct PromiseReactionRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseReaction(BaseIndex<'static, PromiseReactionRecord>);
+pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord>);
 
-impl PromiseReaction {
+impl PromiseReaction<'_> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
 }
 
-impl Index<PromiseReaction> for Agent {
+impl Index<PromiseReaction<'_>> for Agent {
     type Output = PromiseReactionRecord;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
@@ -87,13 +90,13 @@ impl Index<PromiseReaction> for Agent {
     }
 }
 
-impl IndexMut<PromiseReaction> for Agent {
+impl IndexMut<PromiseReaction<'_>> for Agent {
     fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
         &mut self.heap.promise_reaction_records[index]
     }
 }
 
-impl Index<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
+impl Index<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord>> {
     type Output = PromiseReactionRecord;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
@@ -104,7 +107,7 @@ impl Index<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
     }
 }
 
-impl IndexMut<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
+impl IndexMut<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord>> {
     fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PromiseReaction out of bounds")
@@ -113,7 +116,21 @@ impl IndexMut<PromiseReaction> for Vec<Option<PromiseReactionRecord>> {
     }
 }
 
-impl HeapMarkAndSweep for PromiseReaction {
+unsafe impl Bindable for PromiseReaction<'_> {
+    type Of<'a> = PromiseReaction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for PromiseReaction<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.promise_reaction_records.push(*self);
     }
@@ -125,11 +142,11 @@ impl HeapMarkAndSweep for PromiseReaction {
     }
 }
 
-impl Rootable for PromiseReaction {
+impl Rootable for PromiseReaction<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PromiseReaction(value))
+        Err(HeapRootData::PromiseReaction(value.unbind()))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
@@ -165,8 +182,8 @@ impl HeapMarkAndSweep for PromiseReactionRecord {
     }
 }
 
-impl CreateHeapData<PromiseReactionRecord, PromiseReaction> for Heap {
-    fn create(&mut self, data: PromiseReactionRecord) -> PromiseReaction {
+impl CreateHeapData<PromiseReactionRecord, PromiseReaction<'static>> for Heap {
+    fn create(&mut self, data: PromiseReactionRecord) -> PromiseReaction<'static> {
         self.promise_reaction_records.push(Some(data));
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }
