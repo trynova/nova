@@ -2724,9 +2724,9 @@ impl TypedArrayPrototype {
         let obj = this_value;
         // 3. Let taRecord be ? ValidateTypedArray(obj, seq-cst).
         let ta_record = validate_typed_array(agent, obj, Ordering::SeqCst, gc.nogc())?;
-        let o = ta_record.object;
+        let obj = ta_record.object;
         // 4. Let len be TypedArrayLength(taRecord).
-        let len = match o {
+        let len = match obj {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -2752,50 +2752,55 @@ impl TypedArrayPrototype {
         // 6. Let SortCompare be a new Abstract Closure with parameters (x, y) that captures comparator and performs the following steps when called:
         //    a. Return ? CompareTypedArrayElements(x, y, comparator).
         // 7. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare, read-through-holes).
-        let scoped_o = o.scope(agent, gc.nogc());
+        let scoped_obj = obj.scope(agent, gc.nogc());
         if comparator.is_none() {
             let gc = gc.nogc();
-            match o {
+            match scoped_obj.get(agent) {
                 TypedArray::Int8Array(_) => {
-                    sort_partial_cmp_typed_array::<i8>(agent, scoped_o.get(agent), len, gc)?
+                    sort_partial_cmp_typed_array::<i8>(agent, scoped_obj.get(agent), len, gc)?
                 }
-                TypedArray::Uint8Array(_) => sort_partial_cmp_typed_array::<u8>(agent, o, len, gc)?,
-                TypedArray::Uint8ClampedArray(_) => {
-                    sort_partial_cmp_typed_array::<U8Clamped>(agent, o, len, gc)?
+                TypedArray::Uint8Array(_) => {
+                    sort_partial_cmp_typed_array::<u8>(agent, scoped_obj.get(agent), len, gc)?
                 }
+                TypedArray::Uint8ClampedArray(_) => sort_partial_cmp_typed_array::<U8Clamped>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    gc,
+                )?,
                 TypedArray::Int16Array(_) => {
-                    sort_partial_cmp_typed_array::<i16>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<i16>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::Uint16Array(_) => {
-                    sort_partial_cmp_typed_array::<u16>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<u16>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::Int32Array(_) => {
-                    sort_partial_cmp_typed_array::<i32>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<i32>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::Uint32Array(_) => {
-                    sort_partial_cmp_typed_array::<u32>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<u32>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::BigInt64Array(_) => {
-                    sort_partial_cmp_typed_array::<i64>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<i64>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::BigUint64Array(_) => {
-                    sort_partial_cmp_typed_array::<u64>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<u64>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => {
-                    sort_partial_cmp_typed_array::<f16>(agent, o, len, gc)?
+                    sort_partial_cmp_typed_array::<f16>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::Float32Array(_) => {
-                    sort_total_cmp_typed_array::<f32>(agent, o, len, gc)?
+                    sort_total_cmp_typed_array::<f32>(agent, scoped_obj.get(agent), len, gc)?
                 }
                 TypedArray::Float64Array(_) => {
-                    sort_total_cmp_typed_array::<f64>(agent, o, len, gc)?
+                    sort_total_cmp_typed_array::<f64>(agent, scoped_obj.get(agent), len, gc)?
                 }
             };
         } else {
             let sorted_list = sort_indexed_properties::<false, true>(
                 agent,
-                scoped_o.get(agent).into_object(),
+                scoped_obj.get(agent).into_object(),
                 len,
                 comparator,
                 gc.reborrow(),
@@ -2807,7 +2812,7 @@ impl TypedArrayPrototype {
                 // a. Perform ! Set(obj, ! ToString(𝔽(j)), sortedList[j], true).
                 unwrap_try(try_set(
                     agent,
-                    scoped_o.get(agent).into_object(),
+                    scoped_obj.get(agent).into_object(),
                     j.try_into().unwrap(),
                     sorted_list[j].get(agent),
                     true,
@@ -2818,9 +2823,8 @@ impl TypedArrayPrototype {
             }
         };
         // 10. Return obj.
-        let o = scoped_o.get(agent);
-        println!("o: {:?}", o.into_value());
-        Ok(o.into_value())
+        let obj = scoped_obj.get(agent);
+        Ok(obj.into_value())
     }
 
     fn subarray<'gc>(
