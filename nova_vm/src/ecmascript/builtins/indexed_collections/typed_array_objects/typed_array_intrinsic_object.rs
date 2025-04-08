@@ -2429,16 +2429,111 @@ impl TypedArrayPrototype {
         Ok(accumulator.get(agent))
     }
 
+    /// ### [23.2.3.24 %TypedArray%.prototype.reduceRight ( callback [ , initialValue ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduceright)
+    /// The interpretation and use of the arguments of this method
+    /// are the same as for Array.prototype.reduceRight as defined in 23.1.3.25.
     fn reduce_right<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let callback = arguments.get(0).bind(gc.nogc());
+        let initial_value = if arguments.len() >= 2 {
+            Some(arguments.get(1).bind(gc.nogc()))
+        } else {
+            None
+        };
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let o = ta_record.object;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
+            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
+            TypedArray::BigUint64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
+        } as i64;
+        // 4. If IsCallable(callback) is false, throw a TypeError exception.
+        let Some(callback) = is_callable(callback, gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc.into_nogc(),
+            ));
+        };
+        // 5. If len = 0 and initialValue is not present, throw a TypeError exception.
+        if len == 0 && initial_value.is_none() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Array length is 0 and no initial value provided",
+                gc.nogc(),
+            ));
+        };
+        // 6. Let k be len - 1.
+        let mut k = len - 1;
+        // 7. Let accumulator be undefined.
+        // 8. If initialValue is present, then
+        //    a. Set accumulator to initialValue.
+        let mut accumulator = if let Some(init) = initial_value {
+            init.scope(agent, gc.nogc())
+        } else {
+            // 9. Else,
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::try_from(k).unwrap();
+            // b. Set accumulator to ! Get(O, Pk).
+            let result = unwrap_try(try_get(agent, o, pk, gc.nogc()));
+            // c. Set k to k - 1.
+            k -= 1;
+            result.scope(agent, gc.nogc())
+        };
+        let scoped_callback = callback.scope(agent, gc.nogc());
+        let scoped_o = o.scope(agent, gc.nogc());
+        // 10. Repeat, while k < len,
+        while k >= 0 {
+            let k_int = k.try_into().unwrap();
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::Integer(k_int);
+            // b. Let kValue be ! Get(O, Pk).
+            let k_value = unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc()));
+            // c. Set accumulator to ? Call(callback, undefined, « accumulator, kValue, 𝔽(k), O »).
+            let result = call_function(
+                agent,
+                scoped_callback.get(agent),
+                Value::Undefined,
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    accumulator.get(agent),
+                    k_value.unbind(),
+                    Number::from(k_int).into_value(),
+                    scoped_o.get(agent).into_value(),
+                ])),
+                gc.reborrow(),
+            )?;
+            // SAFETY: accumulator is not shared.
+            unsafe { accumulator.replace(agent, result.unbind()) };
+            // d. Set k to k - 1.
+            k -= 1;
+        }
+        // 11. Return accumulator.
+        Ok(accumulator.get(agent))
     }
 
-    /// ### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.map)
+    /// ### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reverse)
     /// The interpretation and use of the arguments of this method are the same as for Array.prototype.reverse as defined in 23.1.3.26.
     fn reverse<'gc>(
         agent: &mut Agent,
