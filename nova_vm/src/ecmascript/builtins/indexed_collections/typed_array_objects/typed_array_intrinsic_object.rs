@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive, float::TotalOrder};
 
 use crate::{
     SmallInteger,
@@ -2752,31 +2752,73 @@ impl TypedArrayPrototype {
         //    a. Return ? CompareTypedArrayElements(x, y, comparator).
         // 7. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare, read-through-holes).
         let scoped_o = o.scope(agent, gc.nogc());
-        let sorted_list = sort_indexed_properties::<false, true>(
-            agent,
-            scoped_o.get(agent).into_object(),
-            len,
-            comparator,
-            gc.reborrow(),
-        )?;
-        // 8. Let j be 0.
-        let mut j = 0;
-        // 9. Repeat, while j < len,
-        while j < len {
-            // a. Perform ! Set(obj, ! ToString(𝔽(j)), sortedList[j], true).
-            unwrap_try(try_set(
+        if comparator.is_none() {
+            let gc = gc.nogc();
+            match o {
+                TypedArray::Int8Array(_) => {
+                    sort_partial_cmp_typed_array::<i8>(agent, scoped_o.get(agent), len, gc)?
+                }
+                TypedArray::Uint8Array(_) => sort_partial_cmp_typed_array::<u8>(agent, o, len, gc)?,
+                TypedArray::Uint8ClampedArray(_) => {
+                    sort_partial_cmp_typed_array::<U8Clamped>(agent, o, len, gc)?
+                }
+                TypedArray::Int16Array(_) => {
+                    sort_partial_cmp_typed_array::<i16>(agent, o, len, gc)?
+                }
+                TypedArray::Uint16Array(_) => {
+                    sort_partial_cmp_typed_array::<u16>(agent, o, len, gc)?
+                }
+                TypedArray::Int32Array(_) => {
+                    sort_partial_cmp_typed_array::<i32>(agent, o, len, gc)?
+                }
+                TypedArray::Uint32Array(_) => {
+                    sort_partial_cmp_typed_array::<u32>(agent, o, len, gc)?
+                }
+                TypedArray::BigInt64Array(_) => {
+                    sort_partial_cmp_typed_array::<i64>(agent, o, len, gc)?
+                }
+                TypedArray::BigUint64Array(_) => {
+                    sort_partial_cmp_typed_array::<u64>(agent, o, len, gc)?
+                }
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => {
+                    sort_partial_cmp_typed_array::<f16>(agent, o, len, gc)?
+                }
+                TypedArray::Float32Array(_) => {
+                    sort_total_cmp_typed_array::<f32>(agent, o, len, gc)?
+                }
+                TypedArray::Float64Array(_) => {
+                    sort_total_cmp_typed_array::<f64>(agent, o, len, gc)?
+                }
+            };
+        } else {
+            let sorted_list = sort_indexed_properties::<false, true>(
                 agent,
                 scoped_o.get(agent).into_object(),
-                j.try_into().unwrap(),
-                sorted_list[j].get(agent),
-                true,
-                gc.nogc(),
-            ))?;
-            // b. Set j to j + 1.
-            j += 1;
-        }
+                len,
+                comparator,
+                gc.reborrow(),
+            )?;
+            // 8. Let j be 0.
+            let mut j = 0;
+            // 9. Repeat, while j < len,
+            while j < len {
+                // a. Perform ! Set(obj, ! ToString(𝔽(j)), sortedList[j], true).
+                unwrap_try(try_set(
+                    agent,
+                    scoped_o.get(agent).into_object(),
+                    j.try_into().unwrap(),
+                    sorted_list[j].get(agent),
+                    true,
+                    gc.nogc(),
+                ))?;
+                // b. Set j to j + 1.
+                j += 1;
+            }
+        };
         // 10. Return obj.
         let o = scoped_o.get(agent);
+        println!("o: {:?}", o.into_value());
         Ok(o.into_value())
     }
 
@@ -3306,4 +3348,74 @@ fn fill_typed_array<'a, T: Viewable>(
     slice.fill(value);
     // 20. Return O.
     Ok(ta)
+}
+
+fn sort_partial_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + PartialOrd>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    gc: NoGcScope<'_, '_>,
+) -> JsResult<()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    Ok(())
+}
+
+fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + 'static>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    gc: NoGcScope<'_, '_>,
+) -> JsResult<()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    slice.sort_by(|a, b| a.total_cmp(b));
+    Ok(())
 }
