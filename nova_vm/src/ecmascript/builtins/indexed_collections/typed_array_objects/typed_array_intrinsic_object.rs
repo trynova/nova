@@ -2715,7 +2715,7 @@ impl TypedArrayPrototype {
         } else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "",
+                "The comparison function must be either a function or undefined",
                 gc.nogc(),
             ));
         };
