@@ -10,8 +10,8 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
             operations_on_objects::{
-                call_function, get, get_method, length_of_array_like, set, throw_not_callable,
-                try_get, try_set,
+                call, call_function, get, get_method, length_of_array_like, set,
+                throw_not_callable, try_get, try_set,
             },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
@@ -33,14 +33,17 @@ use crate::{
             },
             typed_array::TypedArray,
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, RealmIdentifier,
+            agent::{ExceptionType, JsError},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, IntoNumeric, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, U8Clamped, Value, Viewable,
+            BUILTIN_STRING_MEMORY, Function, IntoNumeric, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, U8Clamped, Value, Viewable,
         },
     },
     engine::{
-        TryResult,
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -3422,5 +3425,83 @@ fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + '
     }
     let slice = &mut slice[..len];
     slice.sort_by(|a, b| a.total_cmp(b));
+    Ok(())
+}
+
+fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    comparator: Scoped<'_, Function<'static>>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() || len == 0 {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc.nogc(),
+        ));
+    }
+    let slice = &mut slice[..len];
+    let mut items: Vec<T> = slice.to_vec();
+    let mut error: Option<JsError> = None;
+    items.sort_by(|a, b| {
+        if error.is_some() {
+            return std::cmp::Ordering::Equal;
+        }
+        let a_value = a.into_le_value(agent, gc.nogc()).into_value();
+        let b_value = b.into_le_value(agent, gc.nogc()).into_value();
+        let result = match call_function(
+            agent,
+            comparator.get(agent).unbind(),
+            Value::Undefined,
+            Some(ArgumentsList::from_mut_slice(&mut [
+                a_value.unbind(),
+                b_value.unbind(),
+            ])),
+            gc.reborrow(),
+        ) {
+            Ok(v) => match to_number(agent, v.unbind(), gc.reborrow()) {
+                Ok(num) => {
+                    if num.is_nan(agent) {
+                        Ok(std::cmp::Ordering::Equal)
+                    } else if num.is_sign_positive(agent) {
+                        Ok(std::cmp::Ordering::Greater)
+                    } else if num.is_sign_negative(agent) {
+                        Ok(std::cmp::Ordering::Less)
+                    } else {
+                        Ok(std::cmp::Ordering::Equal)
+                    }
+                }
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        };
+        match result {
+            Ok(ord) => ord,
+            Err(e) => {
+                error = Some(e);
+                std::cmp::Ordering::Equal
+            }
+        }
+    });
+    slice.copy_from_slice(&items);
     Ok(())
 }
