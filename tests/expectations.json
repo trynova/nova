@@ -9057,8 +9057,6 @@
   "built-ins/TypedArray/prototype/slice/this-is-not-typedarray-instance.js": "CRASH",
   "built-ins/TypedArray/prototype/slice/tointeger-end.js": "CRASH",
   "built-ins/TypedArray/prototype/slice/tointeger-start.js": "CRASH",
-  "built-ins/TypedArray/prototype/sort/BigInt/comparefn-call-throws.js": "CRASH",
-  "built-ins/TypedArray/prototype/sort/comparefn-call-throws.js": "CRASH",
   "built-ins/TypedArray/prototype/subarray/BigInt/detached-buffer.js": "CRASH",
   "built-ins/TypedArray/prototype/subarray/BigInt/infinity.js": "CRASH",
   "built-ins/TypedArray/prototype/subarray/BigInt/minus-zero.js": "CRASH",
