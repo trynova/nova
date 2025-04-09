@@ -1329,3 +1329,47 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
         gc.into_nogc(),
     )
 }
+
+/// ### [23.2.4.3 TypedArrayCreateSameType ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-create-same-type)
+/// The abstract operation TypedArrayCreateSameType takes arguments exemplar (a TypedArray)
+/// and argumentList (a List of ECMAScript language values) and returns either
+/// a normal completion containing a TypedArray or a throw completion.
+/// It is used to specify the creation of a new TypedArray using a constructor function that is derived from exemplar.
+/// Unlike TypedArraySpeciesCreate, which can construct custom TypedArray subclasses through the use of %Symbol.species%,
+/// this operation always uses one of the built-in TypedArray constructors.
+pub(crate) fn typed_array_create_same_type<'a>(
+    agent: &mut Agent,
+    exemplar: TypedArray,
+    length: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    // 1. Let constructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+    let constructor_value = match exemplar {
+        TypedArray::Int8Array(_) => agent.current_realm().intrinsics().int8_array(),
+        TypedArray::Uint8Array(_) => agent.current_realm().intrinsics().uint8_array(),
+        TypedArray::Uint8ClampedArray(_) => {
+            agent.current_realm().intrinsics().uint8_clamped_array()
+        }
+        TypedArray::Int16Array(_) => agent.current_realm().intrinsics().int16_array(),
+        TypedArray::Uint16Array(_) => agent.current_realm().intrinsics().uint16_array(),
+        TypedArray::Int32Array(_) => agent.current_realm().intrinsics().int32_array(),
+        TypedArray::Uint32Array(_) => agent.current_realm().intrinsics().uint32_array(),
+        TypedArray::BigInt64Array(_) => agent.current_realm().intrinsics().big_int64_array(),
+        TypedArray::BigUint64Array(_) => agent.current_realm().intrinsics().big_uint64_array(),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => agent.current_realm().intrinsics().float16_array(),
+        TypedArray::Float32Array(_) => agent.current_realm().intrinsics().float32_array(),
+        TypedArray::Float64Array(_) => agent.current_realm().intrinsics().float64_array(),
+    };
+    // 2. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
+    let result = typed_array_create_from_constructor_with_length(
+        agent,
+        constructor_value.into_function(),
+        length,
+        gc.reborrow(),
+    )?;
+    // 3. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
+    // 4. Assert: result.[[ContentType]] is exemplar.[[ContentType]].
+    // 5. Return result.
+    Ok(result.unbind())
+}

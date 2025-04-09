@@ -11,7 +11,7 @@ use crate::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
             operations_on_objects::{
                 call_function, get, get_method, length_of_array_like, set, throw_not_callable,
-                try_get,
+                try_get, try_set,
             },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
@@ -51,7 +51,8 @@ use crate::{
 use super::abstract_operations::{
     TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds,
     make_typed_array_with_buffer_witness_record, typed_array_byte_length,
-    typed_array_create_from_constructor_with_length, typed_array_length, validate_typed_array,
+    typed_array_create_from_constructor_with_length, typed_array_create_same_type,
+    typed_array_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -2624,13 +2625,72 @@ impl TypedArrayPrototype {
         todo!();
     }
 
+    /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tospliced)
     fn to_reversed<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let o = ta_record.object;
+        // 3. Let length be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        let scoped_o = o.scope(agent, gc.nogc());
+        // 4. Let A be ? TypedArrayCreateSameType(O, « 𝔽(length) »).
+        let a = typed_array_create_same_type(agent, scoped_o.get(agent), len, gc.reborrow())
+            .unbind()
+            .bind(gc.nogc())?;
+        let scope_a = a.scope(agent, gc.nogc());
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Repeat, while k < length,
+        while k < len {
+            // a. Let from be ! ToString(𝔽(length - k - 1)).
+            let from = PropertyKey::Integer((len - k - 1).try_into().unwrap());
+            // b. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::try_from(k).unwrap();
+            // c. Let fromValue be ! Get(O, from).
+            let from_value = get(agent, scoped_o.get(agent), from, gc.reborrow())?;
+            // d. Perform ! Set(A, Pk, fromValue, true).
+            unwrap_try(try_set(
+                agent,
+                scope_a.get(agent).into_object(),
+                pk,
+                from_value.unbind(),
+                true,
+                gc.nogc(),
+            ))
+            .unwrap();
+            // . Set k to k + 1.
+            k += 1;
+        }
+        // 7. Return A.
+        Ok(scope_a.get(agent).into_value())
     }
 
     fn to_sorted<'gc>(
