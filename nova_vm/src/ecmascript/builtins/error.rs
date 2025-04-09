@@ -176,7 +176,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
             };
             Some(
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .get_intrinsic_default_proto(intrinsic),
             )

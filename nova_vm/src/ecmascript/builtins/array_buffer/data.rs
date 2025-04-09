@@ -146,13 +146,13 @@ impl InternalBuffer {
 }
 
 #[derive(Debug)]
-pub struct ArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct ArrayBufferHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(super) buffer: InternalBuffer,
     // detach_key
 }
 
-impl Default for ArrayBufferHeapData {
+impl Default for ArrayBufferHeapData<'_> {
     #[inline(always)]
     fn default() -> Self {
         Self {
@@ -162,9 +162,9 @@ impl Default for ArrayBufferHeapData {
     }
 }
 
-unsafe impl Send for ArrayBufferHeapData {}
+unsafe impl Send for ArrayBufferHeapData<'_> {}
 
-impl ArrayBufferHeapData {
+impl ArrayBufferHeapData<'_> {
     pub(crate) fn new_resizable(db: DataBlock, cap: usize) -> Self {
         Self {
             object_index: None,
@@ -228,7 +228,7 @@ impl ArrayBufferHeapData {
     }
 }
 
-impl HeapMarkAndSweep for ArrayBufferHeapData {
+impl HeapMarkAndSweep for ArrayBufferHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

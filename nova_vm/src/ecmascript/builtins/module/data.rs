@@ -9,34 +9,35 @@ use crate::{
         execution::{ModuleEnvironment, RealmIdentifier},
         types::{HeapString, OrdinaryObject, PropertyKey, String},
     },
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Module;
 
 #[derive(Debug, Clone)]
-pub struct ModuleHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) module: ModuleRecord,
-    pub(crate) exports: Box<[String<'static>]>,
+pub struct ModuleHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) module: ModuleRecord<'a>,
+    pub(crate) exports: Box<[String<'a>]>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ModuleRecord {
+pub(crate) struct ModuleRecord<'a> {
     /// \[\[Realm]]
     ///
     /// The Realm within which this module was created.
-    realm: RealmIdentifier,
+    realm: RealmIdentifier<'a>,
     /// \[\[Environment]]
     ///
     /// The Environment Record containing the top level bindings for this
     /// module. This field is set when the module is linked.
-    pub(super) environment: Option<ModuleEnvironment<'static>>,
+    pub(super) environment: Option<ModuleEnvironment<'a>>,
     /// \[\[Namespace]]
     ///
     /// The Module Namespace Object (28.3) if one has been created for this
     /// module.
-    namespace: Option<Module<'static>>,
+    namespace: Option<Module<'a>>,
     /// \[\[HostDefined]]
     ///
     /// Field reserved for use by host environments that need to associate
@@ -65,7 +66,7 @@ pub(crate) enum ResolveExportResult {
     Resolved(ResolvedBinding),
 }
 
-impl ModuleRecord {
+impl ModuleRecord<'_> {
     /// Return the binding of a name exported by this module. Bindings are
     /// represented by a ResolvedBinding Record, of the form { \[\[Module]]:
     /// Module Record, \[\[BindingName]]: String | NAMESPACE }. If the export
@@ -83,7 +84,22 @@ impl ModuleRecord {
     }
 }
 
-impl HeapMarkAndSweep for ModuleHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ModuleHeapData<'_> {
+    type Of<'a> = ModuleHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ModuleHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

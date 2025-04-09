@@ -269,7 +269,11 @@ impl Intrinsics {
         }
     }
 
-    pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
+    pub(crate) fn create_intrinsics(
+        agent: &mut Agent,
+        realm: RealmIdentifier<'static>,
+        gc: NoGcScope,
+    ) {
         GlobalObject::create_intrinsic(agent, realm);
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);

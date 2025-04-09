@@ -3762,9 +3762,9 @@ impl HeapMarkAndSweep for Object<'static> {
     }
 }
 
-impl CreateHeapData<ObjectHeapData, OrdinaryObject<'static>> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject<'static> {
-        self.objects.push(Some(data));
+impl<'a> CreateHeapData<ObjectHeapData<'a>, OrdinaryObject<'a>> for Heap {
+    fn create(&mut self, data: ObjectHeapData<'a>) -> OrdinaryObject<'a> {
+        self.objects.push(Some(data.unbind()));
         OrdinaryObject(ObjectIndex::last(&self.objects))
     }
 }
@@ -3879,16 +3879,17 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::EmbedderObject(embedder_object) => {
                 Ok(Self::EmbedderObject(embedder_object))
             }
-            HeapRootData::PromiseReaction(_) => Err(()),
-            HeapRootData::Executable(_) => Err(()),
-            HeapRootData::Script(_) => Err(()),
-            HeapRootData::SourceCode(_) => Err(()),
-            HeapRootData::DeclarativeEnvironment(_) => Err(()),
-            HeapRootData::FunctionEnvironment(_) => Err(()),
-            HeapRootData::GlobalEnvironment(_) => Err(()),
-            HeapRootData::ModuleEnvironment(_) => Err(()),
-            HeapRootData::ObjectEnvironment(_) => Err(()),
-            HeapRootData::PrivateEnvironment(_) => Err(()),
+            HeapRootData::PromiseReaction(_)
+            | HeapRootData::Executable(_)
+            | HeapRootData::Realm(_)
+            | HeapRootData::Script(_)
+            | HeapRootData::SourceCode(_)
+            | HeapRootData::DeclarativeEnvironment(_)
+            | HeapRootData::FunctionEnvironment(_)
+            | HeapRootData::GlobalEnvironment(_)
+            | HeapRootData::ModuleEnvironment(_)
+            | HeapRootData::ObjectEnvironment(_)
+            | HeapRootData::PrivateEnvironment(_) => Err(()),
         }
     }
 }

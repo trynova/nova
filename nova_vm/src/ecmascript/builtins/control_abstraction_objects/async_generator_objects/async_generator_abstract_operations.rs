@@ -143,7 +143,7 @@ fn async_generator_complete_step(
         // 6. If completion is a throw completion, then
         // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « value »).
         AsyncGeneratorRequestCompletion::Err(err) => {
-            promise_capability.reject(agent, err.value());
+            promise_capability.reject(agent, err.value(), gc);
             // 8. Return unused.
             return;
         }
@@ -154,17 +154,17 @@ fn async_generator_complete_step(
     // b. If realm is present, then
     let iterator_result = if let Some(realm) = realm {
         // i. Let oldRealm be the running execution context's Realm.
-        let old_realm = agent.running_execution_context().realm;
+        let old_realm = agent.current_realm(gc);
         let set_realm = realm != old_realm;
         // ii. Set the running execution context's Realm to realm.
         if set_realm {
-            agent.running_execution_context_mut().realm = realm;
+            agent.set_current_realm(realm);
         }
         // iii. Let iteratorResult be CreateIteratorResultObject(value, done).
         let iterator_result = create_iter_result_object(agent, value, done, gc);
         // iv. Set the running execution context's Realm to oldRealm.
         if set_realm {
-            agent.running_execution_context_mut().realm = old_realm;
+            agent.set_current_realm(old_realm);
         }
         iterator_result
     } else {
@@ -307,7 +307,7 @@ fn async_generator_perform_await(
     vm: SuspendedVm,
     awaited_value: Value,
     kind: AsyncGeneratorAwaitKind,
-    gc: GcScope,
+    mut gc: GcScope,
 ) {
     // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
     let execution_context = agent.execution_context_stack.pop().unwrap();
@@ -318,10 +318,12 @@ fn async_generator_perform_await(
     //    execution context stack as the running execution context.
     let handler = PromiseReactionHandler::AsyncGenerator(generator.unbind());
     // 2. Let promise be ? PromiseResolve(%Promise%, value).
-    let promise = Promise::resolve(agent, awaited_value, gc);
+    let promise = Promise::resolve(agent, awaited_value, gc.reborrow())
+        .unbind()
+        .bind(gc.nogc());
 
     // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-    inner_promise_then(agent, promise, handler, handler, None);
+    inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
 }
 
 /// ### [27.6.3.7 AsyncGeneratorUnwrapYieldResumption ( resumptionValue )](https://tc39.es/ecma262/#sec-asyncgeneratorunwrapyieldresumption)
@@ -379,7 +381,7 @@ pub(super) fn async_generator_yield(
     value: Value,
     generator: Scoped<'_, AsyncGenerator>,
     vm: SuspendedVm,
-    gc: GcScope,
+    mut gc: GcScope,
 ) {
     // 1. Let genContext be the running execution context.
     let gen_context = agent.running_execution_context();
@@ -445,10 +447,12 @@ pub(super) fn async_generator_yield(
         //    execution context stack as the running execution context.
         let handler = PromiseReactionHandler::AsyncGenerator(generator.unbind());
         // 2. Let promise be ? PromiseResolve(%Promise%, value).
-        let promise = Promise::resolve(agent, value, gc);
+        let promise = Promise::resolve(agent, value, gc.reborrow())
+            .unbind()
+            .bind(gc.nogc());
 
         // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-        inner_promise_then(agent, promise, handler, handler, None);
+        inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
     }
 }
 
@@ -482,14 +486,17 @@ pub(super) fn async_generator_await_return(
     //         c. Return unused.
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow());
+    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
+        .unbind()
+        .bind(gc.nogc());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
     // 14. Let onRejected be CreateBuiltinFunction(rejectedClosure, 1, "", « »).
     // 15. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-    let handler = PromiseReactionHandler::AsyncGenerator(scoped_generator.get(agent));
-    inner_promise_then(agent, promise, handler, handler, None);
+    let handler =
+        PromiseReactionHandler::AsyncGenerator(scoped_generator.get(agent).bind(gc.nogc()));
+    inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
     // 16. Return unused.
 }
 

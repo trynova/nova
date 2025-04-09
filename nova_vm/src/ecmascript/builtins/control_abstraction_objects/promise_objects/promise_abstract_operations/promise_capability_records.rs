@@ -7,6 +7,7 @@
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -40,32 +41,32 @@ use super::promise_jobs::new_promise_resolve_thenable_job;
 /// `must_be_unresolved` is false, the promise counts as already resolved if its
 /// state is Fulfilled or Rejected. If true, it also counts as already resolved
 /// if it's Pending but `is_resolved` is set to true.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PromiseCapability {
-    promise: Promise<'static>,
-    must_be_unresolved: bool,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PromiseCapability<'a> {
+    pub(crate) promise: Promise<'a>,
+    pub(crate) must_be_unresolved: bool,
 }
 
-impl PromiseCapability {
+impl<'a> PromiseCapability<'a> {
     /// [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
-    pub fn new(agent: &mut Agent) -> Self {
-        Self::from_promise(agent.heap.create(PromiseHeapData::default()), true)
+    pub fn new(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
+        Self::from_promise(agent.heap.create(PromiseHeapData::default()), true).bind(gc)
     }
 
-    pub fn from_promise(promise: Promise, must_be_unresolved: bool) -> Self {
+    pub fn from_promise(promise: Promise<'a>, must_be_unresolved: bool) -> Self {
         Self {
-            promise: promise.unbind(),
+            promise,
             must_be_unresolved,
         }
     }
 
-    pub fn promise(&self) -> Promise<'static> {
+    pub fn promise(&self) -> Promise<'a> {
         self.promise
     }
 
-    fn is_already_resolved(self, agent: &Agent) -> bool {
+    fn is_already_resolved(&self, agent: &Agent) -> bool {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
@@ -82,7 +83,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
-    fn internal_fulfill(self, agent: &mut Agent, value: Value) {
+    fn internal_fulfill(self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -101,12 +102,12 @@ impl PromiseCapability {
         };
         // 7. Perform TriggerPromiseReactions(reactions, value)
         if let Some(reactions) = reactions {
-            reactions.trigger(agent, value);
+            reactions.trigger(agent, value, gc);
         }
     }
 
     /// [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
-    fn internal_reject(self, agent: &mut Agent, reason: Value) {
+    fn internal_reject(self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -134,7 +135,7 @@ impl PromiseCapability {
 
         // 8. Perform TriggerPromiseReactions(reactions, reason)
         if let Some(reactions) = reactions {
-            reactions.trigger(agent, reason);
+            reactions.trigger(agent, reason, gc);
         }
     }
 
@@ -148,14 +149,13 @@ impl PromiseCapability {
         if self.is_already_resolved(agent) {
             return;
         }
+        let PromiseCapability { promise, .. } = self;
+        let promise = promise.bind(gc.nogc());
         // 6. Set alreadyResolved.[[Value]] to true.
-        match &mut agent[self.promise].promise_state {
-            PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
-            _ => unreachable!(),
-        };
+        promise.set_already_resolved(agent);
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == self.promise.into_value() {
+        if resolution == promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -165,7 +165,7 @@ impl PromiseCapability {
                     gc.nogc(),
                 )
                 .unbind();
-            self.internal_reject(agent, exception);
+            self.internal_reject(agent, exception, gc.nogc());
             // c. Return undefined.
             return;
         }
@@ -173,11 +173,12 @@ impl PromiseCapability {
         // 8. If resolution is not an Object, then
         let Ok(resolution) = Object::try_from(resolution) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution);
+            self.internal_fulfill(agent, resolution, gc.nogc());
             // b. Return undefined.
             return;
         };
 
+        let promise = promise.scope(agent, gc.nogc());
         // 9. Let then be Completion(Get(resolution, "then")).
         let then_action = match get(
             agent,
@@ -186,11 +187,11 @@ impl PromiseCapability {
             gc.reborrow(),
         ) {
             // 11. Let thenAction be then.[[Value]].
-            Ok(then_action) => then_action,
+            Ok(then_action) => then_action.unbind().bind(gc.nogc()),
             // 10. If then is an abrupt completion, then
             Err(err) => {
                 // a. Perform RejectPromise(promise, then.[[Value]]).
-                self.internal_reject(agent, err.value());
+                self.internal_reject(agent, err.value(), gc.nogc());
                 // b. Return undefined.
                 return;
             }
@@ -200,16 +201,24 @@ impl PromiseCapability {
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value());
+            self.internal_fulfill(agent, resolution.into_value(), gc.nogc());
             // b. Return undefined.
             return;
         };
+        // SAFETY: Promise is not shared.
+        let promise = unsafe { promise.take(agent) }.bind(gc.nogc());
 
         // 13. Let thenJobCallback be HostMakeJobCallback(thenAction).
         // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
         // implementations other than browsers, [[HostDefine]] must be EMPTY.
         // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
-        let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
+        let job = new_promise_resolve_thenable_job(
+            agent,
+            promise.unbind(),
+            resolution.unbind(),
+            then_action.unbind(),
+            gc.into_nogc(),
+        );
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
         agent.host_hooks.enqueue_promise_job(job);
         // 16. Return undefined.
@@ -242,7 +251,7 @@ impl PromiseCapability {
                     gc,
                 )
                 .unbind();
-            self.internal_reject(agent, exception);
+            self.internal_reject(agent, exception, gc);
             // c. Return undefined.
             return TryResult::Continue(());
         }
@@ -250,7 +259,7 @@ impl PromiseCapability {
         // 8. If resolution is not an Object, then
         let Ok(resolution) = Object::try_from(resolution) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution);
+            self.internal_fulfill(agent, resolution, gc);
             // b. Return undefined.
             return TryResult::Continue(());
         };
@@ -266,7 +275,7 @@ impl PromiseCapability {
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value());
+            self.internal_fulfill(agent, resolution.into_value(), gc);
             // b. Return undefined.
             return TryResult::Continue(());
         };
@@ -275,7 +284,8 @@ impl PromiseCapability {
         // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
         // implementations other than browsers, [[HostDefine]] must be EMPTY.
         // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
-        let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
+        let job =
+            new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action, gc);
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
         agent.host_hooks.enqueue_promise_job(job);
         // 16. Return undefined.
@@ -283,7 +293,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
-    pub fn reject(self, agent: &mut Agent, reason: Value) {
+    pub fn reject(self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -293,18 +303,35 @@ impl PromiseCapability {
             return;
         }
 
+        let promise = self.promise();
+
         // 7. Perform RejectPromise(promise, reason).
-        self.internal_reject(agent, reason);
+        self.internal_reject(agent, reason, gc);
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
-            agent[self.promise].promise_state,
+            agent[promise].promise_state,
             PromiseState::Rejected { .. }
         ));
     }
 }
 
-impl HeapMarkAndSweep for PromiseCapability {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PromiseCapability<'_> {
+    type Of<'a> = PromiseCapability<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for PromiseCapability<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             promise,
@@ -348,10 +375,11 @@ pub(crate) fn if_abrupt_reject_promise<'gc, T: 'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> Result<T, Promise<'gc>> {
     value.map_err(|err| {
-        capability.reject(agent, err.value());
+        let promise = capability.promise().bind(gc);
+        capability.reject(agent, err.value(), gc);
 
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator
-        capability.promise().bind(gc)
+        promise
     })
 }

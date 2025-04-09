@@ -215,7 +215,7 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
                 // variant
                 Some(
                     agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .get_intrinsic_default_proto(intrinsic_default_proto),
                 )

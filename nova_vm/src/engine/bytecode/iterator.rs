@@ -161,7 +161,7 @@ impl VmIterator {
             Value::Array(array)
                 if method
                     == agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .array_prototype_values()
                         .into() =>

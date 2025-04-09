@@ -296,7 +296,7 @@ impl ArrayBufferPrototype {
         // 14. Let newLen be max(final - first, 0).
         let new_len = (final_end as isize - first as isize).max(0) as usize;
         // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
-        let ctor = agent.current_realm().intrinsics().array_buffer();
+        let ctor = agent.current_realm_record().intrinsics().array_buffer();
         // 16. Let new be ? Construct(ctor, « 𝔽(newLen) »).
         let Object::ArrayBuffer(new) = construct(
             agent,
@@ -391,8 +391,8 @@ impl ArrayBufferPrototype {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_buffer_prototype();
         let array_buffer_constructor = intrinsics.array_buffer();

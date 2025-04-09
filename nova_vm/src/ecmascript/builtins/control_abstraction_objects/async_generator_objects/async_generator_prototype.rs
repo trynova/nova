@@ -63,17 +63,18 @@ impl AsyncGeneratorPrototype {
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        let promise_capability = PromiseCapability::new(agent);
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
+        let promise = promise_capability.promise().scope(agent, gc.nogc());
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = match if_abrupt_reject_promise(agent, result, promise_capability, gc.nogc())
-        {
-            Ok(g) => g,
-            Err(p) => {
-                return Ok(p.into_value().unbind());
-            }
-        };
+        let generator =
+            match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
+                Ok(g) => g,
+                Err(p) => {
+                    return Ok(p.into_value().unbind());
+                }
+            };
         // 5. Let state be generator.[[AsyncGeneratorState]].
         let state = agent[generator].async_generator_state.as_ref().unwrap();
         // 6. If state is completed, then
@@ -82,9 +83,12 @@ impl AsyncGeneratorPrototype {
             let iterator_result =
                 create_iter_result_object(agent, Value::Undefined, true, gc.nogc());
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
-            promise_capability.resolve(agent, iterator_result.into_value().unbind(), gc);
+            promise_capability
+                .unbind()
+                .resolve(agent, iterator_result.into_value().unbind(), gc);
             // c. Return promiseCapability.[[Promise]].
-            return Ok(promise_capability.promise().into_value());
+            // SAFETY: Promise has not been shared.
+            return Ok(unsafe { promise.take(agent).into_value() });
         }
         let state_is_suspended = state.is_suspended();
         let state_is_executing_or_draining = state.is_active();
@@ -102,7 +106,7 @@ impl AsyncGeneratorPrototype {
             assert!(state_is_executing_or_draining);
         }
         // 11. Return promiseCapability.[[Promise]].
-        Ok(promise_capability.promise().into_value())
+        Ok(unsafe { promise.take(agent).into_value() })
     }
 
     /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
@@ -116,18 +120,18 @@ impl AsyncGeneratorPrototype {
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        let promise_capability = PromiseCapability::new(agent);
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
         let promise = promise_capability.promise().bind(gc.nogc());
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = match if_abrupt_reject_promise(agent, result, promise_capability, gc.nogc())
-        {
-            Ok(g) => g,
-            Err(p) => {
-                return Ok(p.into_value().unbind());
-            }
-        };
+        let generator =
+            match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
+                Ok(g) => g,
+                Err(p) => {
+                    return Ok(p.into_value().unbind());
+                }
+            };
         // 5. Let completion be ReturnCompletion(value).
         let completion = AsyncGeneratorRequestCompletion::Return(value);
         // 6. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
@@ -175,18 +179,18 @@ impl AsyncGeneratorPrototype {
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        let promise_capability = PromiseCapability::new(agent);
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
         let mut promise = promise_capability.promise().bind(gc.nogc());
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = match if_abrupt_reject_promise(agent, result, promise_capability, gc.nogc())
-        {
-            Ok(g) => g,
-            Err(p) => {
-                return Ok(p.into_value().unbind());
-            }
-        };
+        let generator =
+            match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
+                Ok(g) => g,
+                Err(p) => {
+                    return Ok(p.into_value().unbind());
+                }
+            };
         // 5. Let state be generator.[[AsyncGeneratorState]].
         // 6. If state is suspended-start, then
         let mut completed = false;
@@ -199,7 +203,7 @@ impl AsyncGeneratorPrototype {
         // 7. If state is completed, then
         if completed || generator.is_completed(agent) {
             // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
-            promise_capability.reject(agent, exception);
+            promise_capability.reject(agent, exception, gc.nogc());
             // b. Return promiseCapability.[[Promise]].
             return Ok(promise.into_value().unbind());
         }
@@ -228,8 +232,8 @@ impl AsyncGeneratorPrototype {
         Ok(promise.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();
         let this = intrinsics.async_generator_prototype();

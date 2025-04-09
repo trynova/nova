@@ -7,8 +7,8 @@ mod intrinsics;
 use super::{
     Agent, ExecutionContext, GlobalEnvironmentRecord, JsResult, environments::GlobalEnvironment,
 };
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
+use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -29,26 +29,31 @@ pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RealmIdentifier(NonZeroU32, PhantomData<Realm>);
+pub struct RealmIdentifier<'a>(
+    NonZeroU32,
+    PhantomData<Realm<'static>>,
+    PhantomData<&'a GcToken>,
+);
 
-impl RealmIdentifier {
+impl RealmIdentifier<'_> {
     /// Creates a realm identififer from a usize.
     ///
     /// ## Panics
     /// If the given index is greater than `u32::MAX - 1`.
     pub(crate) const fn from_index(value: usize) -> Self {
         assert!(value < u32::MAX as usize);
-        // SAFETY: Not u32::MAX, so addition cannot overflow to 0.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value as u32 + 1) },
-            PhantomData,
-        )
+        Self::from_u32(value as u32)
     }
 
     /// Creates a module identififer from a u32.
     pub(crate) const fn from_u32(value: u32) -> Self {
+        assert!(value < u32::MAX);
         // SAFETY: Not u32::MAX, so addition cannot overflow to 0.
-        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value + 1) },
+            PhantomData,
+            PhantomData,
+        )
     }
 
     pub(crate) fn last(realms: &[Option<Realm>]) -> Self {
@@ -69,22 +74,22 @@ impl RealmIdentifier {
     }
 }
 
-impl Index<RealmIdentifier> for Agent {
-    type Output = Realm;
+impl Index<RealmIdentifier<'_>> for Agent {
+    type Output = Realm<'static>;
 
     fn index(&self, index: RealmIdentifier) -> &Self::Output {
         &self.heap.realms[index]
     }
 }
 
-impl IndexMut<RealmIdentifier> for Agent {
+impl IndexMut<RealmIdentifier<'_>> for Agent {
     fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
         &mut self.heap.realms[index]
     }
 }
 
-impl Index<RealmIdentifier> for Vec<Option<Realm>> {
-    type Output = Realm;
+impl Index<RealmIdentifier<'_>> for Vec<Option<Realm<'static>>> {
+    type Output = Realm<'static>;
 
     fn index(&self, index: RealmIdentifier) -> &Self::Output {
         self.get(index.into_index())
@@ -94,7 +99,7 @@ impl Index<RealmIdentifier> for Vec<Option<Realm>> {
     }
 }
 
-impl IndexMut<RealmIdentifier> for Vec<Option<Realm>> {
+impl IndexMut<RealmIdentifier<'_>> for Vec<Option<Realm<'static>>> {
     fn index_mut(&mut self, index: RealmIdentifier) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("RealmIdentifier out of bounds")
@@ -103,7 +108,45 @@ impl IndexMut<RealmIdentifier> for Vec<Option<Realm>> {
     }
 }
 
-impl HeapMarkAndSweep for RealmIdentifier {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for RealmIdentifier<'_> {
+    type Of<'a> = RealmIdentifier<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl Rootable for RealmIdentifier<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Realm(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Realm(realm) => Some(realm),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for RealmIdentifier<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.realms.push(*self);
     }
@@ -122,7 +165,7 @@ impl HeapMarkAndSweep for RealmIdentifier {
 /// within the scope of that global environment, and other associated state and
 /// resources.
 #[derive(Debug)]
-pub struct Realm {
+pub struct Realm<'a> {
     /// ### \[\[AgentSignifier]]
     ///
     /// The agent that owns this realm
@@ -136,12 +179,12 @@ pub struct Realm {
     /// ### \[\[GlobalObject]]
     ///
     /// The global object for this realm.
-    pub(crate) global_object: Object<'static>,
+    pub(crate) global_object: Object<'a>,
 
     /// ### \[\[GlobalEnv]]
     ///
     /// The global environment for this realm.
-    pub(crate) global_env: Option<GlobalEnvironment<'static>>,
+    pub(crate) global_env: Option<GlobalEnvironment<'a>>,
 
     /// ### \[\[TemplateMap]]
     ///
@@ -167,9 +210,9 @@ pub struct Realm {
     pub(crate) host_defined: Option<&'static dyn Any>,
 }
 
-unsafe impl Send for Realm {}
+unsafe impl Send for Realm<'_> {}
 
-impl Realm {
+impl Realm<'_> {
     pub(crate) fn intrinsics(&self) -> &Intrinsics {
         &self.intrinsics
     }
@@ -179,7 +222,22 @@ impl Realm {
     }
 }
 
-impl HeapMarkAndSweep for Realm {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Realm<'_> {
+    type Of<'a> = Realm<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for Realm<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             agent_signifier: _,
@@ -215,7 +273,7 @@ impl HeapMarkAndSweep for Realm {
 ///
 /// The abstract operation CreateRealm takes no arguments and returns a Realm
 /// Record.
-pub(crate) fn create_realm(agent: &mut Agent, gc: NoGcScope) -> RealmIdentifier {
+pub(crate) fn create_realm<'gc>(agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> RealmIdentifier<'gc> {
     // 1. Let realmRec be a new Realm Record.
     let realm_rec = Realm {
         // 2. Perform CreateIntrinsics(realmRec).
@@ -239,8 +297,8 @@ pub(crate) fn create_realm(agent: &mut Agent, gc: NoGcScope) -> RealmIdentifier 
     };
 
     // 7. Return realmRec.
-    let realm = agent.heap.add_realm(realm_rec);
-    Intrinsics::create_intrinsics(agent, realm, gc);
+    let realm = agent.heap.add_realm(realm_rec, gc);
+    Intrinsics::create_intrinsics(agent, realm.unbind(), gc);
     realm
 }
 
@@ -287,7 +345,7 @@ pub(crate) fn set_realm_global_object(
     // 1. If globalObj is undefined, then
     let global_object = global_object.unwrap_or_else(|| {
         // a. Let intrinsics be realmRec.[[Intrinsics]].
-        let intrinsics = &agent.get_realm(realm_id).intrinsics;
+        let intrinsics = &agent.get_realm_record_by_id(realm_id).intrinsics;
         // b. Set globalObj to OrdinaryObjectCreate(intrinsics.[[%Object.prototype%]]).
         Object::Object(
             agent
@@ -337,7 +395,11 @@ pub(crate) fn set_default_global_bindings<'a>(
     macro_rules! define_property {
         (intrinsic $name:ident, $value:ident) => {
             // most of the properties have this configuration
-            let value = agent.get_realm(realm_id).intrinsics().$value().into_value();
+            let value = agent
+                .get_realm_record_by_id(realm_id)
+                .intrinsics()
+                .$value()
+                .into_value();
             define_property!($name, value, Some(true), Some(false), Some(true));
         };
         ($name:ident, $value:ident, $writable:expr, $enumerable:expr, $configurable:expr) => {
@@ -615,7 +677,7 @@ pub(crate) fn initialize_host_defined_realm(
         function: None,
 
         // 4. Set the Realm of newContext to realm.
-        realm,
+        realm: realm.unbind(),
 
         // 5. Set the ScriptOrModule of newContext to null.
         script_or_module: None,
@@ -641,17 +703,18 @@ pub(crate) fn initialize_host_defined_realm(
     // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
     set_realm_global_object(
         agent,
-        realm,
+        agent.current_realm_id_internal(),
         global.map(|g| g.get(agent)),
         this_value.unbind(),
         gc.nogc(),
     );
 
     // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
-    let global_object = set_default_global_bindings(agent, realm, gc.reborrow())
-        .unwrap()
-        .unbind()
-        .bind(gc.nogc());
+    let global_object =
+        set_default_global_bindings(agent, agent.current_realm_id_internal(), gc.reborrow())
+            .unwrap()
+            .unbind()
+            .bind(gc.nogc());
 
     // 11. Create any host-defined global object properties on globalObj.
     if let Some(initialize_global_object) = initialize_global_object {
@@ -740,12 +803,12 @@ mod test {
         let gc = GcScope::new(&mut gc, &mut scope);
         initialize_default_realm(&mut agent, gc);
         assert_eq!(
-            agent.current_realm().intrinsics().object_index_base,
+            agent.current_realm_record().intrinsics().object_index_base,
             ObjectIndex::from_index(0)
         );
         assert_eq!(
             agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .builtin_function_index_base,
             BuiltinFunctionIndex::from_index(0)

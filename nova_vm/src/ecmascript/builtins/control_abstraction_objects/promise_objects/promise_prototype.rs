@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, GcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::invoke,
@@ -108,7 +108,8 @@ impl PromisePrototype {
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
         // 4. Let resultCapability be ? NewPromiseCapability(C).
         // NOTE: We're ignoring species and subclasses.
-        let result_capability = PromiseCapability::new(agent);
+        let result_capability = PromiseCapability::new(agent, gc);
+        let result_capability_promise = result_capability.promise();
 
         // 5. Return PerformPromiseThen(promise, onFulfilled, onRejected, resultCapability).
         perform_promise_then(
@@ -117,12 +118,13 @@ impl PromisePrototype {
             on_fulfilled,
             on_rejected,
             Some(result_capability),
+            gc,
         );
-        Ok(result_capability.promise().into_value())
+        Ok(result_capability_promise.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.promise_prototype();
         let promise_constructor = intrinsics.promise();
@@ -153,6 +155,7 @@ pub(crate) fn perform_promise_then(
     on_fulfilled: Value,
     on_rejected: Value,
     result_capability: Option<PromiseCapability>,
+    gc: NoGcScope,
 ) {
     // 3. If IsCallable(onFulfilled) is false, then
     //     a. Let onFulfilledJobCallback be empty.
@@ -179,6 +182,7 @@ pub(crate) fn perform_promise_then(
         on_fulfilled_job_callback,
         on_rejected_job_callback,
         result_capability,
+        gc,
     )
 }
 
@@ -190,10 +194,11 @@ pub(crate) fn inner_promise_then(
     on_fulfilled: PromiseReactionHandler,
     on_rejected: PromiseReactionHandler,
     result_capability: Option<PromiseCapability>,
+    gc: NoGcScope,
 ) {
     // 7. Let fulfillReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: fulfill, [[Handler]]: onFulfilledJobCallback }.
     let fulfill_reaction = agent.heap.create(PromiseReactionRecord {
-        capability: result_capability,
+        capability: result_capability.clone(),
         reaction_type: PromiseReactionType::Fulfill,
         handler: on_fulfilled,
     });
@@ -213,21 +218,29 @@ pub(crate) fn inner_promise_then(
         } => {
             // a. Append fulfillReaction to promise.[[PromiseFulfillReactions]].
             match fulfill_reactions {
-                Some(PromiseReactions::Many(reaction_vec)) => reaction_vec.push(fulfill_reaction),
-                Some(PromiseReactions::One(reaction)) => {
-                    *fulfill_reactions =
-                        Some(PromiseReactions::Many(vec![*reaction, fulfill_reaction]))
+                Some(PromiseReactions::Many(reaction_vec)) => {
+                    reaction_vec.push(fulfill_reaction.unbind())
                 }
-                None => *fulfill_reactions = Some(PromiseReactions::One(fulfill_reaction)),
+                Some(PromiseReactions::One(reaction)) => {
+                    *fulfill_reactions = Some(PromiseReactions::Many(vec![
+                        *reaction,
+                        fulfill_reaction.unbind(),
+                    ]))
+                }
+                None => *fulfill_reactions = Some(PromiseReactions::One(fulfill_reaction.unbind())),
             };
             // b. Append rejectReaction to promise.[[PromiseRejectReactions]].
             match reject_reactions {
-                Some(PromiseReactions::Many(reaction_vec)) => reaction_vec.push(reject_reaction),
-                Some(PromiseReactions::One(reaction)) => {
-                    *reject_reactions =
-                        Some(PromiseReactions::Many(vec![*reaction, reject_reaction]))
+                Some(PromiseReactions::Many(reaction_vec)) => {
+                    reaction_vec.push(reject_reaction.unbind())
                 }
-                None => *reject_reactions = Some(PromiseReactions::One(reject_reaction)),
+                Some(PromiseReactions::One(reaction)) => {
+                    *reject_reactions = Some(PromiseReactions::Many(vec![
+                        *reaction,
+                        reject_reaction.unbind(),
+                    ]))
+                }
+                None => *reject_reactions = Some(PromiseReactions::One(reject_reaction.unbind())),
             };
         }
         // 10. Else if promise.[[PromiseState]] is fulfilled, then
@@ -235,7 +248,7 @@ pub(crate) fn inner_promise_then(
             let promise_result = *promise_result;
             // a. Let value be promise.[[PromiseResult]].
             // b. Let fulfillJob be NewPromiseReactionJob(fulfillReaction, value).
-            let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result);
+            let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result, gc);
             // c. Perform HostEnqueuePromiseJob(fulfillJob.[[Job]], fulfillJob.[[Realm]]).
             agent.host_hooks.enqueue_promise_job(fulfill_job);
         }
@@ -259,7 +272,7 @@ pub(crate) fn inner_promise_then(
                     .promise_rejection_tracker(promise, PromiseRejectionTrackerOperation::Handle);
             }
             // d. Let rejectJob be NewPromiseReactionJob(rejectReaction, reason).
-            let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result);
+            let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result, gc);
             // e. Perform HostEnqueuePromiseJob(rejectJob.[[Job]], rejectJob.[[Realm]]).
             agent.host_hooks.enqueue_promise_job(reject_job);
         }

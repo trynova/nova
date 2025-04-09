@@ -80,7 +80,7 @@ pub(crate) struct ExecutionContext {
     ///
     /// The Realm Record from which associated code accesses ECMAScript
     /// resources.
-    pub realm: RealmIdentifier,
+    pub realm: RealmIdentifier<'static>,
 
     /// ### ScriptOrModule
     ///
@@ -162,7 +162,7 @@ impl HeapMarkAndSweep for ExecutionContext {
 /// execution context.
 pub(crate) fn get_global_object<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
     // 1. Let currentRealm be the current Realm Record.
-    let current_realm = agent.current_realm();
+    let current_realm = agent.current_realm_record();
     // 2. Return currentRealm.[[GlobalObject]].
     current_realm.global_object.bind(gc)
 }

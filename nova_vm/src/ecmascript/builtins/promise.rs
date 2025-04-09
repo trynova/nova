@@ -4,8 +4,10 @@
 
 use core::ops::{Index, IndexMut};
 
+use data::PromiseState;
+
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -38,6 +40,13 @@ impl<'a> Promise<'a> {
         self.0.into_index()
     }
 
+    pub(crate) fn set_already_resolved(self, agent: &mut Agent) {
+        match &mut agent[self].promise_state {
+            PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
+            _ => unreachable!(),
+        };
+    }
+
     /// [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
     pub fn resolve(agent: &mut Agent, x: Value, mut gc: GcScope<'a, '_>) -> Self {
         // 1. If IsPromise(x) is true, then
@@ -48,11 +57,13 @@ impl<'a> Promise<'a> {
             promise.unbind()
         } else {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
-            let promise_capability = PromiseCapability::new(agent);
+            let promise_capability = PromiseCapability::new(agent, gc.nogc());
+            let promise = promise_capability.promise().scope(agent, gc.nogc());
             // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
-            promise_capability.resolve(agent, x, gc.reborrow());
+            promise_capability.unbind().resolve(agent, x, gc.reborrow());
             // 4. Return promiseCapability.[[Promise]].
-            promise_capability.promise().bind(gc.into_nogc())
+            // SAFETY: Not shared.
+            unsafe { promise.take(agent) }
         }
     }
 }

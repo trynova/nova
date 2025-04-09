@@ -307,8 +307,8 @@ impl TypedArrayConstructors {
         typed_array_constructor::<f64>(agent, arguments, new_target, gc)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let typed_array_constructor = intrinsics.typed_array().into_object();
 
         let int8_array_prototype = intrinsics.int8_array_prototype();
@@ -502,8 +502,8 @@ impl TypedArrayConstructors {
 
 pub(crate) struct TypedArrayPrototypes;
 impl TypedArrayPrototypes {
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let typed_array_prototype = intrinsics.typed_array_prototype();
 
         let int8_array_constructor = intrinsics.int8_array();

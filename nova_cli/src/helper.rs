@@ -68,7 +68,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(print),
-        BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
+        BuiltinFunctionArgs::new(1, "print"),
         gc.nogc(),
     );
     let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc()).unbind();
@@ -91,7 +91,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(read_text_file),
-        BuiltinFunctionArgs::new(1, "readTextFile", agent.current_realm_id()),
+        BuiltinFunctionArgs::new(1, "readTextFile"),
         gc.nogc(),
     );
     let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc()).unbind();
@@ -136,7 +136,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         agent: &mut Agent,
         _this: Value,
         _args: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
             None;
@@ -147,6 +147,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             create_global_object,
             create_global_this_value,
             Some(initialize_global_object_with_internals),
+            gc,
         );
         Ok(realm.global_object(agent).into_value().unbind())
     }
@@ -173,7 +174,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(detach_array_buffer),
-        BuiltinFunctionArgs::new(1, "detachArrayBuffer", agent.current_realm_id()),
+        BuiltinFunctionArgs::new(1, "detachArrayBuffer"),
         gc.nogc(),
     );
     let property_key = PropertyKey::from_static_str(agent, "detachArrayBuffer", gc.nogc()).unbind();
@@ -196,7 +197,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(create_realm),
-        BuiltinFunctionArgs::new(1, "createRealm", agent.current_realm_id()),
+        BuiltinFunctionArgs::new(1, "createRealm"),
         gc.nogc(),
     );
     let property_key = PropertyKey::from_static_str(agent, "createRealm", gc.nogc()).unbind();

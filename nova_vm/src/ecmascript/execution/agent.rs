@@ -10,13 +10,13 @@
 use ahash::AHashMap;
 
 use super::{
-    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, PrivateEnvironment, Realm, RealmIdentifier
+    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, Realm, RealmIdentifier
 };
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
-        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+        scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule},
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
@@ -82,19 +82,19 @@ pub(crate) enum InnerJob {
 }
 
 pub struct Job {
-    pub(crate) realm: Option<RealmIdentifier>,
+    pub(crate) realm: Option<RealmIdentifier<'static>>,
     pub(crate) inner: InnerJob,
 }
 
 impl Job {
-    pub fn realm(&self) -> Option<RealmIdentifier> {
+    fn realm(&self) -> Option<RealmIdentifier<'static>> {
         self.realm
     }
 
     pub fn run(self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
-            if agent.current_realm_id() != realm {
+            if agent.current_realm(gc.nogc()) != realm {
                 agent.execution_context_stack.push(ExecutionContext {
                     ecmascript_code: None,
                     function: None,
@@ -160,7 +160,7 @@ pub trait HostHooks: core::fmt::Debug {
 /// collection on the Agent heap.
 pub struct GcAgent {
     agent: Agent,
-    realm_roots: Vec<Option<RealmIdentifier>>,
+    realm_roots: Vec<Option<RealmIdentifier<'static>>>,
 }
 
 /// ECMAScript Realm root
@@ -183,7 +183,7 @@ impl GcAgent {
         }
     }
 
-    fn root_realm(&mut self, identifier: RealmIdentifier) -> RealmRoot {
+    fn root_realm(&mut self, identifier: RealmIdentifier<'static>) -> RealmRoot {
         let index = if let Some((index, deleted_entry)) = self
             .realm_roots
             .iter_mut()
@@ -218,17 +218,17 @@ impl GcAgent {
         >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
     ) -> RealmRoot {
-        let realm = self.agent.create_realm(
+        let realm = self.agent.create_realm_internal(
             create_global_object,
             create_global_this_value,
             initialize_global_object,
         );
-        self.root_realm(realm)
+        self.root_realm(realm.unbind())
     }
 
     /// Creates a default realm suitable for basic testing only.
     pub fn create_default_realm(&mut self) -> RealmRoot {
-        let realm = self.agent.create_default_realm();
+        let realm = self.agent.create_default_realm().unbind();
         self.root_realm(realm)
     }
 
@@ -315,17 +315,17 @@ impl Agent {
         }
     }
 
-    fn get_created_realm_root(&mut self) -> RealmIdentifier {
+    fn get_created_realm_root(&mut self) -> RealmIdentifier<'static> {
         assert!(!self.execution_context_stack.is_empty());
-        let identifier = self.current_realm_id();
+        let identifier = self.current_realm_id_internal();
         let _ = self.execution_context_stack.pop();
-        identifier
+        identifier.unbind()
     }
 
     /// Creates a new Realm
     ///
     /// This is intended for usage within BuiltinFunction calls.
-    pub fn create_realm(
+    pub fn create_realm<'gc>(
         &mut self,
         create_global_object: Option<
             impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
@@ -334,7 +334,28 @@ impl Agent {
             impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
         >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
-    ) -> RealmIdentifier {
+        gc: GcScope<'gc, '_>,
+    ) -> RealmIdentifier<'gc> {
+        initialize_host_defined_realm(
+            self,
+            create_global_object,
+            create_global_this_value,
+            initialize_global_object,
+            gc,
+        );
+        self.get_created_realm_root()
+    }
+
+    fn create_realm_internal(
+        &mut self,
+        create_global_object: Option<
+            impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+        >,
+        create_global_this_value: Option<
+            impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+        >,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
+    ) -> RealmIdentifier<'static> {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -351,7 +372,7 @@ impl Agent {
     /// Creates a default realm suitable for basic testing only.
     ///
     /// This is intended for usage within BuiltinFunction calls.
-    pub fn create_default_realm(&mut self) -> RealmIdentifier {
+    fn create_default_realm(&mut self) -> RealmIdentifier {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -367,7 +388,7 @@ impl Agent {
         self.execution_context_stack.push(ExecutionContext {
             ecmascript_code: None,
             function: None,
-            realm,
+            realm: realm.unbind(),
             script_or_module: None,
         });
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
@@ -382,23 +403,40 @@ impl Agent {
         result
     }
 
-    pub fn current_realm_id(&self) -> RealmIdentifier {
+    /// Get current Realm's global environment.
+    pub fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
+        let realm = self.current_realm(gc);
+        self[realm].global_env.unwrap().bind(gc)
+    }
+
+    /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
+    pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> RealmIdentifier<'a> {
+        self.current_realm_id_internal().bind(gc)
+    }
+
+    /// Set the current executiono context's Realm.
+    pub(crate) fn set_current_realm(&mut self, realm: RealmIdentifier) {
+        self.execution_context_stack.last_mut().unwrap().realm = realm.unbind();
+    }
+
+    /// Internal method to get current Realm's identifier without binding.
+    pub(crate) fn current_realm_id_internal(&self) -> RealmIdentifier<'static> {
         self.execution_context_stack.last().unwrap().realm
     }
 
-    pub fn current_realm(&self) -> &Realm {
-        self.get_realm(self.current_realm_id())
+    pub(crate) fn current_realm_record(&self) -> &Realm {
+        self.get_realm_record_by_id(self.current_realm_id_internal())
     }
 
-    pub fn current_realm_mut(&mut self) -> &mut Realm {
-        self.get_realm_mut(self.current_realm_id())
+    pub(crate) fn current_realm_record_mut(&mut self) -> &mut Realm<'static> {
+        self.get_realm_record_by_id_mut(self.current_realm_id_internal())
     }
 
-    pub fn get_realm(&self, id: RealmIdentifier) -> &Realm {
+    pub(crate) fn get_realm_record_by_id(&self, id: RealmIdentifier) -> &Realm {
         &self[id]
     }
 
-    pub fn get_realm_mut(&mut self, id: RealmIdentifier) -> &mut Realm {
+    fn get_realm_record_by_id_mut(&mut self, id: RealmIdentifier) -> &mut Realm<'static> {
         &mut self[id]
     }
 
@@ -563,6 +601,24 @@ impl Agent {
     pub fn get_host_data(&self) -> &dyn Any {
         self.host_hooks.get_host_data()
     }
+
+    /// Run a script in the current Realm.
+    pub fn run_script<'gc>(
+        &mut self,
+        source_text: String,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let realm = self.current_realm(gc.nogc());
+        let script = match parse_script(self, source_text, realm, false, None, gc.nogc()) {
+            Ok(script) => script,
+            Err(err) => {
+                let message =
+                    String::from_string(self, err.first().unwrap().message.to_string(), gc.nogc());
+                return Err(self.throw_exception_with_message(ExceptionType::SyntaxError, message));
+            }
+        };
+        script_evaluation(self, script.unbind(), gc)
+    }
 }
 
 /// ### [9.4.1 GetActiveScriptOrModule ()](https://tc39.es/ecma262/#sec-getactivescriptormodule)
@@ -658,7 +714,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     get_identifier_reference(agent, Some(env.unbind()), name.unbind(), strict, gc)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExceptionType {
     Error,
     AggregateError,

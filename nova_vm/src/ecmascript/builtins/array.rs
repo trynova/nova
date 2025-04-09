@@ -75,15 +75,18 @@ impl<'a> Array<'a> {
         self.0.into_index()
     }
 
-    pub fn len(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData>) -> u32 {
+    pub fn len(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> u32 {
         agent[*self].elements.len()
     }
 
-    pub fn length_writable(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData>) -> bool {
+    pub fn length_writable(
+        &self,
+        agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>,
+    ) -> bool {
         agent[*self].elements.len_writable
     }
 
-    pub fn is_empty(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData>) -> bool {
+    pub fn is_empty(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> bool {
         agent[*self].elements.len() == 0
     }
 
@@ -270,7 +273,7 @@ impl<'a> InternalSlots<'a> for Array<'a> {
             object_index.internal_set_prototype(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
-            let current = agent.current_realm().intrinsics().array_prototype();
+            let current = agent.current_realm_record().intrinsics().array_prototype();
             if prototype == Some(current.into_object()) {
                 return;
             }
@@ -692,7 +695,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
 }
 
 impl Index<Array<'_>> for Agent {
-    type Output = ArrayHeapData;
+    type Output = ArrayHeapData<'static>;
 
     fn index(&self, index: Array) -> &Self::Output {
         &self.heap.arrays[index]
@@ -705,8 +708,8 @@ impl IndexMut<Array<'_>> for Agent {
     }
 }
 
-impl Index<Array<'_>> for Vec<Option<ArrayHeapData>> {
-    type Output = ArrayHeapData;
+impl Index<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
+    type Output = ArrayHeapData<'static>;
 
     fn index(&self, index: Array) -> &Self::Output {
         self.get(index.get_index())
@@ -716,7 +719,7 @@ impl Index<Array<'_>> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData>> {
+impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
     fn index_mut(&mut self, index: Array) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Array out of bounds")
@@ -748,8 +751,8 @@ impl Rootable for Array<'_> {
     }
 }
 
-impl CreateHeapData<ArrayHeapData, Array<'static>> for Heap {
-    fn create(&mut self, data: ArrayHeapData) -> Array<'static> {
+impl CreateHeapData<ArrayHeapData<'static>, Array<'static>> for Heap {
+    fn create(&mut self, data: ArrayHeapData<'static>) -> Array<'static> {
         self.arrays.push(Some(data));
         Array::from(ArrayIndex::last(&self.arrays))
     }
@@ -1032,22 +1035,22 @@ fn ordinary_define_own_property_for_array(
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
-    arrays: &'a Vec<Option<ArrayHeapData>>,
+    arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
 }
 
 impl ArrayHeap<'_> {
     pub(crate) fn new<'a>(
         elements: &'a ElementArrays,
-        arrays: &'a Vec<Option<ArrayHeapData>>,
+        arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }
 }
 
 impl Index<Array<'_>> for ArrayHeap<'_> {
-    type Output = ArrayHeapData;
+    type Output = ArrayHeapData<'static>;
 
-    fn index(&self, index: Array) -> &ArrayHeapData {
+    fn index(&self, index: Array) -> &ArrayHeapData<'static> {
         self.arrays.index(index)
     }
 }
@@ -1060,7 +1063,7 @@ impl AsRef<ElementArrays> for ArrayHeap<'_> {
 
 /// Helper trait for array indexing.
 pub(crate) trait ArrayHeapIndexable<'a>:
-    Index<Array<'a>, Output = ArrayHeapData> + AsRef<ElementArrays>
+    Index<Array<'a>, Output = ArrayHeapData<'static>> + AsRef<ElementArrays>
 {
 }
 impl ArrayHeapIndexable<'_> for ArrayHeap<'_> {}

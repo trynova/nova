@@ -125,7 +125,11 @@ impl PromiseConstructor {
         // We currently don't support Promise subclassing.
         assert_eq!(
             new_target,
-            agent.current_realm().intrinsics().promise().into_object()
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_object()
         );
 
         // 2. If IsCallable(executor) is false, throw a TypeError exception.
@@ -162,7 +166,7 @@ impl PromiseConstructor {
             .heap
             .create(PromiseResolvingFunctionHeapData {
                 object_index: None,
-                promise_capability,
+                promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Resolve,
             })
             .into_value();
@@ -170,7 +174,7 @@ impl PromiseConstructor {
             .heap
             .create(PromiseResolvingFunctionHeapData {
                 object_index: None,
-                promise_capability,
+                promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Reject,
             })
             .into_value();
@@ -182,13 +186,15 @@ impl PromiseConstructor {
             executor.get(agent),
             Value::Undefined,
             Some(ArgumentsList::from_mut_slice(&mut [
-                resolve_function,
-                reject_function,
+                resolve_function.unbind(),
+                reject_function.unbind(),
             ])),
             gc.reborrow(),
         ) {
             // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
-            promise_capability.reject(agent, err.value());
+            let promise_capability =
+                PromiseCapability::from_promise(scoped_promise.get(agent), true);
+            promise_capability.reject(agent, err.value(), gc.nogc());
         }
 
         // 11. Return promise.
@@ -239,7 +245,11 @@ impl PromiseConstructor {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
-            agent.current_realm().intrinsics().promise().into_value()
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
         );
 
         // 1. Let C be the this value.
@@ -267,7 +277,11 @@ impl PromiseConstructor {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
-            agent.current_realm().intrinsics().promise().into_value()
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
         );
 
         // 3. Return ? PromiseResolve(C, x).
@@ -297,7 +311,11 @@ impl PromiseConstructor {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
-            agent.current_realm().intrinsics().promise().into_value()
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
         );
 
         // 3. Let promiseCapability be ? NewPromiseCapability(C).
@@ -349,17 +367,21 @@ impl PromiseConstructor {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
-            agent.current_realm().intrinsics().promise().into_value()
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
         );
 
         // 1. Let C be the this value.
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
-        let promise_capability = PromiseCapability::new(agent);
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
         let resolve_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {
                 object_index: None,
-                promise_capability,
+                promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Resolve,
             })
             .into_value();
@@ -367,7 +389,7 @@ impl PromiseConstructor {
             .heap
             .create(PromiseResolvingFunctionHeapData {
                 object_index: None,
-                promise_capability,
+                promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Reject,
             })
             .into_value();
@@ -378,7 +400,7 @@ impl PromiseConstructor {
         // 6. Perform ! CreateDataPropertyOrThrow(obj, "reject", promiseCapability.[[Reject]]).
         let obj = agent.heap.create_object_with_prototype(
             agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .object_prototype()
                 .into_object(),
@@ -411,8 +433,8 @@ impl PromiseConstructor {
         Ok(this_value.unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let promise_prototype = intrinsics.promise_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<PromiseConstructor>(agent, realm)

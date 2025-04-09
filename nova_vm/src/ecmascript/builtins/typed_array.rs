@@ -323,7 +323,7 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_prototype(agent)
         } else {
-            let intrinsics = agent.current_realm().intrinsics();
+            let intrinsics = agent.current_realm_record().intrinsics();
             let default_proto = match self {
                 TypedArray::Int8Array(_) => intrinsics.int8_array_prototype(),
                 TypedArray::Uint8Array(_) => intrinsics.uint8_array_prototype(),

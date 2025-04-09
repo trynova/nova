@@ -70,7 +70,7 @@ use crate::{
         },
         execution::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-            ObjectEnvironment, PrivateEnvironment,
+            ObjectEnvironment, PrivateEnvironment, RealmIdentifier,
         },
         scripts_and_modules::{script::Script, source_code::SourceCode},
         types::{
@@ -132,7 +132,7 @@ mod private {
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment,
+                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, RealmIdentifier,
             },
             scripts_and_modules::{script::Script, source_code::SourceCode},
             types::{
@@ -179,6 +179,7 @@ mod private {
     impl RootableSealed for PromiseReaction<'_> {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy<'_> {}
+    impl RootableSealed for RealmIdentifier<'_> {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp<'_> {}
     impl RootableSealed for Script<'_> {}
@@ -372,6 +373,7 @@ pub enum HeapRootData {
     // these in alphabetical order.
     Executable(Executable<'static>),
     PromiseReaction(PromiseReaction<'static>),
+    Realm(RealmIdentifier<'static>),
     Script(Script<'static>),
     SourceCode(SourceCode<'static>),
     DeclarativeEnvironment(DeclarativeEnvironment<'static>),
@@ -575,6 +577,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
             HeapRootData::Executable(exe) => exe.mark_values(queues),
             HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
+            HeapRootData::Realm(realm) => realm.mark_values(queues),
             HeapRootData::Script(script) => script.mark_values(queues),
             HeapRootData::SourceCode(source_code) => source_code.mark_values(queues),
             HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
@@ -693,6 +696,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::PromiseReaction(promise_reaction) => {
                 promise_reaction.sweep_values(compactions)
             }
+            HeapRootData::Realm(realm) => realm.sweep_values(compactions),
             HeapRootData::Script(script) => script.sweep_values(compactions),
             HeapRootData::SourceCode(source_code) => source_code.sweep_values(compactions),
             HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {

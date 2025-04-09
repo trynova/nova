@@ -3563,7 +3563,7 @@ impl ArrayPrototype {
         // 3. If IsCallable(func) is false, set func to the intrinsic function %Object.prototype.toString%.
         let func = is_callable(func, gc.nogc()).unwrap_or_else(|| {
             agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .object_prototype_to_string()
                 .into_function()
@@ -3817,8 +3817,8 @@ impl ArrayPrototype {
         Ok(a.get(agent).bind(gc.into_nogc()).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
         let this_base_object = intrinsics.array_prototype_base_object();

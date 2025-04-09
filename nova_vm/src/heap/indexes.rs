@@ -188,19 +188,19 @@ impl<T> Default for BaseIndex<'_, T> {
 }
 
 #[cfg(feature = "array-buffer")]
-pub type ArrayBufferIndex<'a> = BaseIndex<'a, ArrayBufferHeapData>;
-pub type ArrayIndex<'a> = BaseIndex<'a, ArrayHeapData>;
-pub type ArrayIteratorIndex<'a> = BaseIndex<'a, ArrayIteratorHeapData>;
-pub type AsyncGeneratorIndex<'a> = BaseIndex<'a, AsyncGeneratorHeapData>;
+pub type ArrayBufferIndex<'a> = BaseIndex<'a, ArrayBufferHeapData<'static>>;
+pub type ArrayIndex<'a> = BaseIndex<'a, ArrayHeapData<'static>>;
+pub type ArrayIteratorIndex<'a> = BaseIndex<'a, ArrayIteratorHeapData<'static>>;
+pub type AsyncGeneratorIndex<'a> = BaseIndex<'a, AsyncGeneratorHeapData<'static>>;
 pub type BigIntIndex<'a> = BaseIndex<'a, BigIntHeapData>;
-pub type BoundFunctionIndex<'a> = BaseIndex<'a, BoundFunctionHeapData>;
-pub type BuiltinFunctionIndex<'a> = BaseIndex<'a, BuiltinFunctionHeapData>;
-pub type BuiltinConstructorIndex<'a> = BaseIndex<'a, BuiltinConstructorHeapData>;
+pub type BoundFunctionIndex<'a> = BaseIndex<'a, BoundFunctionHeapData<'static>>;
+pub type BuiltinFunctionIndex<'a> = BaseIndex<'a, BuiltinFunctionHeapData<'static>>;
+pub type BuiltinConstructorIndex<'a> = BaseIndex<'a, BuiltinConstructorHeapData<'static>>;
 #[cfg(feature = "array-buffer")]
 pub type DataViewIndex<'a> = BaseIndex<'a, DataViewHeapData>;
 #[cfg(feature = "date")]
 pub type DateIndex<'a> = BaseIndex<'a, DateHeapData>;
-pub type ECMAScriptFunctionIndex<'a> = BaseIndex<'a, ECMAScriptFunctionHeapData>;
+pub type ECMAScriptFunctionIndex<'a> = BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>;
 pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
 pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
 pub type ErrorIndex<'a> = BaseIndex<'a, ErrorHeapData>;
@@ -209,7 +209,7 @@ pub type GeneratorIndex<'a> = BaseIndex<'a, GeneratorHeapData>;
 pub type MapIndex<'a> = BaseIndex<'a, MapHeapData>;
 pub type MapIteratorIndex<'a> = BaseIndex<'a, MapIteratorHeapData>;
 pub type NumberIndex<'a> = BaseIndex<'a, NumberHeapData>;
-pub type ObjectIndex<'a> = BaseIndex<'a, ObjectHeapData>;
+pub type ObjectIndex<'a> = BaseIndex<'a, ObjectHeapData<'static>>;
 pub type PrimitiveObjectIndex<'a> = BaseIndex<'a, PrimitiveObjectHeapData>;
 pub type PromiseIndex<'a> = BaseIndex<'a, PromiseHeapData>;
 pub type ProxyIndex<'a> = BaseIndex<'a, ProxyHeapData>;

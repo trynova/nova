@@ -174,7 +174,7 @@ impl<'a> InternalSlots<'a> for BoundFunction<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        agent[self].object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -196,7 +196,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope,
+        _: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
@@ -397,7 +397,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
 }
 
 impl<'a> Index<BoundFunction<'a>> for Agent {
-    type Output = BoundFunctionHeapData;
+    type Output = BoundFunctionHeapData<'static>;
 
     fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
         &self.heap.bound_functions[index]
@@ -410,8 +410,8 @@ impl<'a> IndexMut<BoundFunction<'a>> for Agent {
     }
 }
 
-impl<'a> Index<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData>> {
-    type Output = BoundFunctionHeapData;
+impl<'a> Index<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'static>>> {
+    type Output = BoundFunctionHeapData<'static>;
 
     fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
         self.get(index.get_index())
@@ -421,7 +421,7 @@ impl<'a> Index<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData>> {
     }
 }
 
-impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData>> {
+impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'static>>> {
     fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BoundFunction out of bounds")
@@ -430,9 +430,9 @@ impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData>> {
     }
 }
 
-impl CreateHeapData<BoundFunctionHeapData, BoundFunction<'static>> for Heap {
-    fn create(&mut self, data: BoundFunctionHeapData) -> BoundFunction<'static> {
-        self.bound_functions.push(Some(data));
+impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
+    fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
+        self.bound_functions.push(Some(data.unbind()));
         BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
     }
 }
@@ -470,7 +470,22 @@ impl HeapMarkAndSweep for BoundFunction<'static> {
     }
 }
 
-impl HeapMarkAndSweep for BoundFunctionHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BoundFunctionHeapData<'_> {
+    type Of<'a> = BoundFunctionHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for BoundFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

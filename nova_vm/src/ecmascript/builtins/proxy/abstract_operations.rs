@@ -7,7 +7,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::Object,
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
 };
 
 use super::{Proxy, data::ProxyHeapData};
@@ -21,8 +21,9 @@ pub(crate) struct NonRevokedProxy<'a> {
 /// ### [10.5.14 ValidateNonRevokedProxy ( proxy )](https://tc39.es/ecma262/#sec-validatenonrevokedproxy)
 ///
 /// The abstract operation ValidateNonRevokedProxy takes argument
-/// proxy (a Proxy exotic object) and returns either a normal completion containing unused or a throw completion.
-/// It throws a TypeError exception if proxy has been revoked.
+/// proxy (a Proxy exotic object) and returns either a normal completion
+/// containing unused or a throw completion. It throws a TypeError exception if
+/// proxy has been revoked.
 pub(crate) fn validate_non_revoked_proxy<'a>(
     agent: &mut Agent,
     proxy: Proxy,
@@ -43,5 +44,37 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     };
 
     // 3. Return unused.
-    Ok(NonRevokedProxy { target, handler })
+    Ok(NonRevokedProxy {
+        target: target.bind(gc),
+        handler: handler.bind(gc),
+    })
+}
+
+/// ### [10.5.14 ValidateNonRevokedProxy ( proxy )](https://tc39.es/ecma262/#sec-validatenonrevokedproxy)
+///
+/// The abstract operation ValidateNonRevokedProxy takes argument
+/// proxy (a Proxy exotic object) and returns either a normal completion
+/// containing unused or a throw completion.
+///
+/// NOTE: This method returns None if the proxy has been revoked.
+pub(crate) fn try_validate_non_revoked_proxy<'a>(
+    agent: &Agent,
+    proxy: Proxy,
+    gc: NoGcScope<'a, '_>,
+) -> Option<NonRevokedProxy<'a>> {
+    let ProxyHeapData::NonRevoked {
+        proxy_handler: handler,
+        proxy_target: target,
+    } = agent[proxy]
+    else {
+        // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
+        // 2. Assert: proxy.[[ProxyHandler]] is not null.
+        return None;
+    };
+
+    // 3. Return unused.
+    Some(NonRevokedProxy {
+        target: target.bind(gc),
+        handler: handler.bind(gc),
+    })
 }

@@ -31,7 +31,7 @@ fn object_prototype_tests() {
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
     let realm = agent.create_default_realm();
     agent.run_in_realm(&realm, |agent, mut gc| {
-        let realm = agent.current_realm_id();
+        let realm = agent.current_realm(gc.nogc());
         let source_text = String::from_string(agent, contents, gc.nogc());
         let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
         if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {

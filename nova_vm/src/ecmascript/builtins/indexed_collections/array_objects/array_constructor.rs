@@ -540,7 +540,12 @@ impl ArrayConstructor {
         // 4. If IsConstructor(C) is true, then
         if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « lenNumber »).
-            if c != agent.current_realm().intrinsics().array().into_function() {
+            if c != agent
+                .current_realm_record()
+                .intrinsics()
+                .array()
+                .into_function()
+            {
                 let arguments = arguments
                     .iter()
                     .map(|v| v.scope(agent, gc.nogc()))
@@ -595,8 +600,8 @@ impl ArrayConstructor {
         Ok(this_value.bind(gc.into_nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype().into_object();
         let array_prototype = intrinsics.array_prototype();
 

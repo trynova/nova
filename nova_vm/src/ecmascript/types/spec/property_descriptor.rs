@@ -214,7 +214,7 @@ impl PropertyDescriptor {
         // 3. Assert: obj is an extensible ordinary object with no own properties.
         let obj = agent.heap.create_object_with_prototype(
             agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .object_prototype()
                 .into_object(),

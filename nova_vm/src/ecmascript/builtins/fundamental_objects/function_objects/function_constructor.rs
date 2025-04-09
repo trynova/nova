@@ -82,8 +82,8 @@ impl FunctionConstructor {
         Ok(f.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype().into_object();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionConstructor>(agent, realm)
@@ -144,7 +144,7 @@ pub(crate) fn create_dynamic_function<'a>(
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
-        .host_ensure_can_compile_strings(agent.current_realm_mut())?;
+        .host_ensure_can_compile_strings(agent.current_realm_record_mut())?;
 
     let source_string = {
         let parameter_strings_vec;
@@ -307,7 +307,14 @@ pub(crate) fn create_dynamic_function<'a>(
         is_async: function.r#async,
         is_generator: function.generator,
         lexical_this: false,
-        env: Environment::Global(agent.current_realm().global_env.unwrap()),
+        env: Environment::Global(
+            agent
+                .current_realm_record()
+                .global_env
+                .unwrap()
+                .unbind()
+                .bind(gc.nogc()),
+        ),
         private_env: None,
     };
     let f = ordinary_function_create(agent, params, gc.nogc()).unbind();

@@ -264,13 +264,21 @@ pub trait BuiltinGetter: Builtin {}
 pub struct BuiltinFunctionArgs<'a> {
     pub length: u32,
     pub name: &'static str,
-    pub realm: Option<RealmIdentifier>,
+    pub realm: Option<RealmIdentifier<'a>>,
     pub prototype: Option<Object<'a>>,
     pub prefix: Option<&'static str>,
 }
 
-impl BuiltinFunctionArgs<'static> {
-    pub fn new(length: u32, name: &'static str, realm: RealmIdentifier) -> Self {
+impl<'a> BuiltinFunctionArgs<'a> {
+    pub fn new(length: u32, name: &'static str) -> Self {
+        Self {
+            length,
+            name,
+            ..Default::default()
+        }
+    }
+
+    pub fn new_with_realm(length: u32, name: &'static str, realm: RealmIdentifier<'a>) -> Self {
         Self {
             length,
             name,
@@ -365,7 +373,7 @@ impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
 }
 
 impl Index<BuiltinFunction<'_>> for Agent {
-    type Output = BuiltinFunctionHeapData;
+    type Output = BuiltinFunctionHeapData<'static>;
 
     fn index(&self, index: BuiltinFunction) -> &Self::Output {
         &self.heap.builtin_functions[index]
@@ -378,8 +386,8 @@ impl IndexMut<BuiltinFunction<'_>> for Agent {
     }
 }
 
-impl Index<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData>> {
-    type Output = BuiltinFunctionHeapData;
+impl Index<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData<'static>>> {
+    type Output = BuiltinFunctionHeapData<'static>;
 
     fn index(&self, index: BuiltinFunction) -> &Self::Output {
         self.get(index.get_index())
@@ -389,7 +397,7 @@ impl Index<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData>> {
     }
 }
 
-impl IndexMut<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData>> {
+impl IndexMut<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData<'static>>> {
     fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinFunction out of bounds")
@@ -680,7 +688,7 @@ pub fn create_builtin_function<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> BuiltinFunction<'a> {
     // 1. If realm is not present, set realm to the current Realm Record.
-    let realm = args.realm.unwrap_or(agent.current_realm_id());
+    let realm = args.realm.unwrap_or(agent.current_realm(gc));
 
     // 9. Set func.[[InitialName]] to null.
     // Note: SetFunctionName inlined here: We know name is a string
@@ -714,7 +722,7 @@ pub fn create_builtin_function<'a>(
     let object_index = if let Some(prototype) = args.prototype {
         // If a prototype is set, then check that it is not the %Function.prototype%
         let realm_function_prototype = agent
-            .get_realm(realm)
+            .get_realm_record_by_id(realm)
             .intrinsics()
             .get_intrinsic_default_proto(BuiltinFunction::DEFAULT_PROTOTYPE);
         if prototype == realm_function_prototype {
@@ -754,20 +762,23 @@ pub fn create_builtin_function<'a>(
     };
 
     // 13. Return func.
-    agent.heap.create(BuiltinFunctionHeapData {
-        behaviour,
-        initial_name: Some(initial_name.unbind()),
-        // 10. Perform SetFunctionLength(func, length).
-        length: args.length as u8,
-        // 8. Set func.[[Realm]] to realm.
-        realm,
-        object_index,
-    })
+    agent
+        .heap
+        .create(BuiltinFunctionHeapData {
+            behaviour,
+            initial_name: Some(initial_name),
+            // 10. Perform SetFunctionLength(func, length).
+            length: args.length as u8,
+            // 8. Set func.[[Realm]] to realm.
+            realm,
+            object_index,
+        })
+        .bind(gc)
 }
 
-impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction<'static>> for Heap {
-    fn create(&mut self, data: BuiltinFunctionHeapData) -> BuiltinFunction<'static> {
-        self.builtin_functions.push(Some(data));
+impl<'a> CreateHeapData<BuiltinFunctionHeapData<'a>, BuiltinFunction<'a>> for Heap {
+    fn create(&mut self, data: BuiltinFunctionHeapData<'a>) -> BuiltinFunction<'a> {
+        self.builtin_functions.push(Some(data.unbind()));
         BuiltinFunctionIndex::last(&self.builtin_functions).into()
     }
 }
@@ -805,7 +816,22 @@ impl HeapMarkAndSweep for BuiltinFunction<'static> {
     }
 }
 
-impl HeapMarkAndSweep for BuiltinFunctionHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BuiltinFunctionHeapData<'_> {
+    type Of<'a> = BuiltinFunctionHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for BuiltinFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

@@ -63,7 +63,7 @@ pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction<'static>,
     object_index: Option<OrdinaryObject<'static>>,
-    realm: RealmIdentifier,
+    realm: RealmIdentifier<'static>,
     prototype: P,
     length: L,
     name: N,
@@ -77,7 +77,7 @@ impl<'agent>
     #[must_use]
     pub fn new<T: Builtin>(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier,
+        realm: RealmIdentifier<'static>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -105,7 +105,7 @@ impl<'agent>
     #[must_use]
     pub(crate) fn new_intrinsic_constructor<T: BuiltinIntrinsicConstructor>(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier,
+        realm: RealmIdentifier<'static>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -114,7 +114,7 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
         let object_index = Some(OrdinaryObject(
             intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX),
@@ -136,7 +136,7 @@ impl<'agent>
     #[must_use]
     pub(crate) fn new_intrinsic_function<T: BuiltinIntrinsic>(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier,
+        realm: RealmIdentifier<'static>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -147,7 +147,7 @@ impl<'agent>
     > {
         let name = T::NAME;
         let this = agent
-            .get_realm(realm)
+            .get_realm_record_by_id(realm)
             .intrinsics()
             .intrinsic_function_index_to_builtin_function(T::INDEX);
         BuiltinFunctionBuilder {
@@ -193,7 +193,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
         let object_index = if prototype
             != self
                 .agent
-                .get_realm(self.realm)
+                .get_realm_record_by_id(self.realm)
                 .intrinsics()
                 .function_prototype()
                 .into_object()
@@ -599,7 +599,7 @@ impl
 
         let prototype = Some(
             agent
-                .get_realm(realm)
+                .get_realm_record_by_id(realm)
                 .intrinsics()
                 .function_prototype()
                 .into_object(),

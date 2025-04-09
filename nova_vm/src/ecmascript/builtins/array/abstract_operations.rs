@@ -46,7 +46,7 @@ pub(crate) fn array_create<'a>(
     let object_index = if let Some(proto) = proto {
         if proto
             == agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .array_prototype()
                 .into_object()
@@ -118,13 +118,17 @@ pub(crate) fn array_species_create<'a>(
     // 4. If IsConstructor(C) is true, then
     if let Some(c_func) = is_constructor(agent, c) {
         // a. Let thisRealm be the current Realm Record.
-        let this_realm = agent.current_realm_id();
+        let this_realm = agent.current_realm(gc.nogc());
         // b. Let realmC be ? GetFunctionRealm(C).
-        let realm_c = get_function_realm(agent, c_func)?;
+        let realm_c = get_function_realm(agent, c_func, gc.nogc())?;
         // c. If thisRealm and realmC are not the same Realm Record, then
         if this_realm != realm_c {
             // i. If SameValue(C, realmC.[[Intrinsics]].[[%Array%]]) is true, set C to undefined.
-            if same_value(agent, c, agent.get_realm(realm_c).intrinsics().array()) {
+            if same_value(
+                agent,
+                c,
+                agent.get_realm_record_by_id(realm_c).intrinsics().array(),
+            ) {
                 c = Value::Undefined;
             }
         }

@@ -84,7 +84,7 @@ where
         } else {
             Some(
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE),
             )

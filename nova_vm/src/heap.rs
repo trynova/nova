@@ -103,17 +103,17 @@ use wtf8::Wtf8;
 #[derive(Debug)]
 pub struct Heap {
     #[cfg(feature = "array-buffer")]
-    pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
+    pub array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
-    pub arrays: Vec<Option<ArrayHeapData>>,
-    pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
-    pub async_generators: Vec<Option<AsyncGeneratorHeapData>>,
-    pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
+    pub arrays: Vec<Option<ArrayHeapData<'static>>>,
+    pub array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
+    pub async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
+    pub(crate) await_reactions: Vec<Option<AwaitReaction<'static>>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
-    pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
-    pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData>>,
-    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
+    pub bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
+    pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,
+    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
     #[cfg(feature = "array-buffer")]
@@ -122,7 +122,7 @@ pub struct Heap {
     pub data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
+    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
@@ -138,13 +138,13 @@ pub struct Heap {
     pub maps: Vec<Option<MapHeapData>>,
     pub map_iterators: Vec<Option<MapIteratorHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
-    pub objects: Vec<Option<ObjectHeapData>>,
+    pub objects: Vec<Option<ObjectHeapData<'static>>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
-    pub promise_reaction_records: Vec<Option<PromiseReactionRecord>>,
-    pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData>>,
+    pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
+    pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
     pub promises: Vec<Option<PromiseHeapData>>,
     pub proxys: Vec<Option<ProxyHeapData>>,
-    pub realms: Vec<Option<Realm>>,
+    pub realms: Vec<Option<Realm<'static>>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData>>,
     #[cfg(feature = "set")]
@@ -168,7 +168,7 @@ pub struct Heap {
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
     #[cfg(feature = "weak-refs")]
     pub weak_sets: Vec<Option<WeakSetHeapData>>,
-    pub modules: Vec<Option<ModuleHeapData>>,
+    pub modules: Vec<Option<ModuleHeapData<'static>>>,
     pub scripts: Vec<Option<ScriptRecord>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
@@ -302,12 +302,16 @@ impl Heap {
         module: ModuleHeapData,
         _: NoGcScope<'a, '_>,
     ) -> Module<'a> {
-        self.modules.push(Some(module));
+        self.modules.push(Some(module.unbind()));
         Module::last(&self.modules)
     }
 
-    pub(crate) fn add_realm(&mut self, realm: Realm) -> RealmIdentifier {
-        self.realms.push(Some(realm));
+    pub(crate) fn add_realm<'a>(
+        &mut self,
+        realm: Realm,
+        _: NoGcScope<'a, '_>,
+    ) -> RealmIdentifier<'a> {
+        self.realms.push(Some(realm.unbind()));
         RealmIdentifier::last(&self.realms)
     }
 

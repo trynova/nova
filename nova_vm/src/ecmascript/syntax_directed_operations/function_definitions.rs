@@ -153,13 +153,13 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             Some(ProtoIntrinsics::Object),
             Some(if function.r#async {
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .async_generator_prototype()
                     .into_object()
             } else {
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .generator_prototype()
                     .into_object()
@@ -310,7 +310,11 @@ pub(crate) fn evaluate_async_function_body<'a>(
     let function_object = function_object.bind(gc.nogc());
     let scoped_function_object = function_object.scope(agent, gc.nogc());
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-    let promise_capability = PromiseCapability::new(agent);
+    let PromiseCapability {
+        promise,
+        must_be_unresolved,
+    } = PromiseCapability::new(agent, gc.nogc());
+    let promise = promise.scope(agent, gc.nogc());
     // 2. Let declResult be Completion(FunctionDeclarationInstantiation(functionObject, argumentsList)).
     // 3. If declResult is an abrupt completion, then
     //if let Err(err) = function_declaration_instantiation(agent, function_object, arguments_list) {
@@ -334,23 +338,38 @@ pub(crate) fn evaluate_async_function_body<'a>(
     let arguments_list: &[Value<'static>] = &arguments_list.unbind();
     match Vm::execute(agent, exe, Some(arguments_list), gc.reborrow()) {
         ExecutionResult::Return(result) => {
+            let result = result.unbind().bind(gc.nogc());
+            let promise = promise.get(agent).bind(gc.nogc());
+            let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability.resolve(agent, result.unbind(), gc.reborrow());
+            promise_capability
+                .unbind()
+                .resolve(agent, result.unbind(), gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
+            let promise = promise.get(agent).bind(gc.nogc());
+            let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. g. i. Assert: result is a throw completion.
             //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
-            promise_capability.reject(agent, err.value());
+            promise_capability.reject(agent, err.value(), gc.nogc());
         }
         ExecutionResult::Await { vm, awaited_value } => {
             // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
             // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
             // which resume execution of the function.
+            // 2. Let promise be ? PromiseResolve(%Promise%, value).
+            let resolve_promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
+                .unbind()
+                .bind(gc.nogc());
+
+            let promise = promise.get(agent).bind(gc.nogc());
+            let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
+
             // NOTE: the execution context has to be cloned because it will be popped when we
             // return to `ECMAScriptFunction::internal_call`. Popping it here rather than
             // cloning it would mess up the execution context stack.
@@ -360,17 +379,23 @@ pub(crate) fn evaluate_async_function_body<'a>(
                 execution_context: Some(agent.running_execution_context().clone()),
                 return_promise_capability: promise_capability,
             }));
-            // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow());
+
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-            inner_promise_then(agent, promise.unbind(), handler, handler, None);
+            inner_promise_then(
+                agent,
+                resolve_promise.unbind(),
+                handler,
+                handler,
+                None,
+                gc.nogc(),
+            );
         }
         ExecutionResult::Yield { .. } => unreachable!(),
     }
     //}
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
-    promise_capability.promise().bind(gc.into_nogc())
+    promise.get(agent).bind(gc.into_nogc())
 }
 
 /// ### [15.5.2 Runtime Semantics: EvaluateGeneratorBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluategeneratorbody)

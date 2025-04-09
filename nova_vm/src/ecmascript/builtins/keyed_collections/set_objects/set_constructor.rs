@@ -128,7 +128,7 @@ impl SetConstructor {
                     gc.reborrow(),
                 )? == Some(
                     agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .array_prototype_values()
                         .into_function(),
@@ -249,8 +249,8 @@ impl SetConstructor {
         Ok(this_value.unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let set_prototype = intrinsics.set_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<SetConstructor>(agent, realm)

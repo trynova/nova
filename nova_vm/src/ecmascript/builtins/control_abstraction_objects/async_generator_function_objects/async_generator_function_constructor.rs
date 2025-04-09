@@ -62,8 +62,8 @@ impl AsyncGeneratorFunctionConstructor {
         Ok(f.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_constructor = intrinsics.function();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();
 

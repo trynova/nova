@@ -8,7 +8,7 @@ use core::{
 };
 
 use crate::engine::{
-    context::{Bindable, GcScope},
+    context::{Bindable, GcScope, GcToken, NoGcScope},
     rootable::Scopable,
 };
 use crate::{
@@ -32,16 +32,21 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct AwaitReactionIdentifier(u32, PhantomData<AwaitReaction>);
+#[repr(transparent)]
+pub(crate) struct AwaitReactionIdentifier<'a>(
+    u32,
+    PhantomData<AwaitReaction<'static>>,
+    PhantomData<&'a GcToken>,
+);
 
-impl AwaitReactionIdentifier {
+impl AwaitReactionIdentifier<'_> {
     pub(crate) const fn from_index(value: usize) -> Self {
         assert!(value <= u32::MAX as usize);
-        Self(value as u32, PhantomData)
+        Self::from_u32(value as u32)
     }
 
     pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData)
+        Self(value, PhantomData, PhantomData)
     }
 
     pub(crate) fn last(scripts: &[Option<AwaitReaction>]) -> Self {
@@ -100,6 +105,7 @@ impl AwaitReactionIdentifier {
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
                 agent[self]
                     .return_promise_capability
+                    .clone()
                     .resolve(agent, result.unbind(), gc);
             }
             ExecutionResult::Throw(err) => {
@@ -110,7 +116,8 @@ impl AwaitReactionIdentifier {
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
                 agent[self]
                     .return_promise_capability
-                    .reject(agent, err.value());
+                    .clone()
+                    .reject(agent, err.value(), gc.nogc());
             }
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
@@ -126,29 +133,29 @@ impl AwaitReactionIdentifier {
                     .unbind()
                     .bind(gc.nogc());
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-                inner_promise_then(agent, promise, handler, handler, None);
+                inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
             }
             ExecutionResult::Yield { .. } => unreachable!(),
         }
     }
 }
 
-impl Index<AwaitReactionIdentifier> for Agent {
-    type Output = AwaitReaction;
+impl Index<AwaitReactionIdentifier<'_>> for Agent {
+    type Output = AwaitReaction<'static>;
 
     fn index(&self, index: AwaitReactionIdentifier) -> &Self::Output {
         &self.heap.await_reactions[index]
     }
 }
 
-impl IndexMut<AwaitReactionIdentifier> for Agent {
+impl IndexMut<AwaitReactionIdentifier<'_>> for Agent {
     fn index_mut(&mut self, index: AwaitReactionIdentifier) -> &mut Self::Output {
         &mut self.heap.await_reactions[index]
     }
 }
 
-impl Index<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
-    type Output = AwaitReaction;
+impl Index<AwaitReactionIdentifier<'_>> for Vec<Option<AwaitReaction<'static>>> {
+    type Output = AwaitReaction<'static>;
 
     fn index(&self, index: AwaitReactionIdentifier) -> &Self::Output {
         self.get(index.into_index())
@@ -158,7 +165,7 @@ impl Index<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
     }
 }
 
-impl IndexMut<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
+impl IndexMut<AwaitReactionIdentifier<'_>> for Vec<Option<AwaitReaction<'static>>> {
     fn index_mut(&mut self, index: AwaitReactionIdentifier) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
@@ -167,7 +174,7 @@ impl IndexMut<AwaitReactionIdentifier> for Vec<Option<AwaitReaction>> {
     }
 }
 
-impl HeapMarkAndSweep for AwaitReactionIdentifier {
+impl HeapMarkAndSweep for AwaitReactionIdentifier<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.await_reactions.push(*self);
     }
@@ -181,21 +188,36 @@ impl HeapMarkAndSweep for AwaitReactionIdentifier {
 }
 
 #[derive(Debug)]
-pub(crate) struct AwaitReaction {
+pub(crate) struct AwaitReaction<'a> {
     pub(crate) vm: Option<SuspendedVm>,
-    pub(crate) async_function: Option<ECMAScriptFunction<'static>>,
+    pub(crate) async_function: Option<ECMAScriptFunction<'a>>,
     pub(crate) execution_context: Option<ExecutionContext>,
-    pub(crate) return_promise_capability: PromiseCapability,
+    pub(crate) return_promise_capability: PromiseCapability<'a>,
 }
 
-impl CreateHeapData<AwaitReaction, AwaitReactionIdentifier> for Heap {
-    fn create(&mut self, data: AwaitReaction) -> AwaitReactionIdentifier {
-        self.await_reactions.push(Some(data));
+impl<'a> CreateHeapData<AwaitReaction<'a>, AwaitReactionIdentifier<'a>> for Heap {
+    fn create(&mut self, data: AwaitReaction<'a>) -> AwaitReactionIdentifier<'a> {
+        self.await_reactions.push(Some(data.unbind()));
         AwaitReactionIdentifier::last(&self.await_reactions)
     }
 }
 
-impl HeapMarkAndSweep for AwaitReaction {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AwaitReaction<'_> {
+    type Of<'a> = AwaitReaction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for AwaitReaction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             vm,

@@ -186,7 +186,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -210,7 +210,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -239,7 +239,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -269,7 +269,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 

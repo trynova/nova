@@ -66,8 +66,8 @@ impl IteratorConstructor {
         .map(Into::into)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let iterator_prototype = intrinsics.iterator_prototype();
         let function_prototype = intrinsics.function_prototype();
 

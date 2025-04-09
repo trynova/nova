@@ -175,7 +175,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
-                        let realm = agent.current_realm_id();
+                        let realm = agent.current_realm(gc.nogc());
                         let file = std::fs::read_to_string(&path)?;
                         let source_text = JsString::from_string(agent, file, gc.nogc());
                         let script = match parse_script(
@@ -294,7 +294,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 placeholder = input.to_string();
                 agent.run_in_realm(&realm, |agent, mut gc| {
-                    let realm = agent.current_realm_id();
+                    let realm = agent.current_realm(gc.nogc());
                     let source_text = JsString::from_string(agent, input, gc.nogc());
                     let script =
                         match parse_script(agent, source_text, realm, true, None, gc.nogc()) {

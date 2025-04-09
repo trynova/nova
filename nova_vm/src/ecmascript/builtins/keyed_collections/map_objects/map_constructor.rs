@@ -256,8 +256,8 @@ impl MapConstructor {
         Ok(this_value.unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let map_prototype = intrinsics.map_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<MapConstructor>(agent, realm)
@@ -304,7 +304,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                 if using_iterator
                     == Some(
                         agent
-                            .current_realm()
+                            .current_realm_record()
                             .intrinsics()
                             .array_prototype_values()
                             .into_function(),

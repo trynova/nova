@@ -10,6 +10,7 @@ use crate::{
         execution::Agent,
         types::{OrdinaryObject, Value},
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -55,15 +56,15 @@ pub(crate) enum PromiseReactions<'a> {
 
 impl PromiseReactions<'_> {
     /// ### [27.2.1.8 TriggerPromiseReactions ( reactions, argument )](https://tc39.es/ecma262/#sec-triggerpromisereactions)
-    pub(crate) fn trigger(&self, agent: &mut Agent, argument: Value) {
+    pub(crate) fn trigger(&self, agent: &mut Agent, argument: Value, gc: NoGcScope) {
         match self {
             PromiseReactions::One(reaction) => {
-                let job = new_promise_reaction_job(agent, *reaction, argument);
+                let job = new_promise_reaction_job(agent, *reaction, argument, gc);
                 agent.host_hooks.enqueue_promise_job(job);
             }
             PromiseReactions::Many(vec) => {
                 for reaction in vec {
-                    let job = new_promise_reaction_job(agent, *reaction, argument);
+                    let job = new_promise_reaction_job(agent, *reaction, argument, gc);
                     agent.host_hooks.enqueue_promise_job(job);
                 }
             }

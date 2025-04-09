@@ -137,7 +137,7 @@ pub(crate) struct WorkQueues {
     pub arrays: Vec<Array<'static>>,
     pub array_iterators: Vec<ArrayIterator<'static>>,
     pub async_generators: Vec<AsyncGenerator<'static>>,
-    pub await_reactions: Vec<AwaitReactionIdentifier>,
+    pub await_reactions: Vec<AwaitReactionIdentifier<'static>>,
     pub bigints: Vec<HeapBigInt<'static>>,
     pub bound_functions: Vec<BoundFunction<'static>>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction<'static>>,
@@ -175,7 +175,7 @@ pub(crate) struct WorkQueues {
     pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub proxys: Vec<Proxy<'static>>,
-    pub realms: Vec<RealmIdentifier>,
+    pub realms: Vec<RealmIdentifier<'static>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
     pub scripts: Vec<Script<'static>>,

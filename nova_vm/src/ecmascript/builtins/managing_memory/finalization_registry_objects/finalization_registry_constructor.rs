@@ -36,8 +36,8 @@ impl FinalizationRegistryConstructor {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let finalization_registry_prototype = intrinsics.finalization_registry_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FinalizationRegistryConstructor>(

@@ -1213,13 +1213,13 @@ impl<'a> Vm {
                         Some(ProtoIntrinsics::Object),
                         Some(if function_expression.r#async {
                             agent
-                                .current_realm()
+                                .current_realm_record()
                                 .intrinsics()
                                 .async_generator_prototype()
                                 .into_object()
                         } else {
                             agent
-                                .current_realm()
+                                .current_realm_record()
                                 .intrinsics()
                                 .generator_prototype()
                                 .into_object()
@@ -1349,7 +1349,7 @@ impl<'a> Vm {
                 } else {
                     Some(
                         agent
-                            .current_realm()
+                            .current_realm_record()
                             .intrinsics()
                             .function_prototype()
                             .into_object(),
@@ -1419,7 +1419,13 @@ impl<'a> Vm {
                 let args = vm.get_call_args(instr, gc.nogc());
 
                 // a. If SameValue(func, %eval%) is true, then
-                let result = if func == agent.current_realm().intrinsics().eval().into_value() {
+                let result = if func
+                    == agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .eval()
+                        .into_value()
+                {
                     // i. Let argList be ? ArgumentListEvaluation of arguments.
                     // ii. If argList has no elements, return undefined.
                     if args.is_empty() {

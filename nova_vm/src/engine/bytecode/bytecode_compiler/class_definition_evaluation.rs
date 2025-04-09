@@ -134,7 +134,10 @@ impl CompileEvaluation for ast::Class<'_> {
                 // ii. Let constructorParent be %Function.prototype%.
                 ctx.add_instruction_with_constant(
                     Instruction::LoadConstant,
-                    ctx.agent.current_realm().intrinsics().function_prototype(),
+                    ctx.agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .function_prototype(),
                 );
 
                 // Note: constructorParent is now at the top of the stack, and

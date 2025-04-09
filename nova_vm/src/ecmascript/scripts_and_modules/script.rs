@@ -127,7 +127,7 @@ pub struct ScriptRecord {
     /// The realm within which this script was created. undefined if not yet
     /// assigned.
     // TODO: This should be able to be undefined sometimes.
-    pub(crate) realm: RealmIdentifier,
+    pub(crate) realm: RealmIdentifier<'static>,
 
     /// ### \[\[ECMAScriptCode]]
     ///
@@ -270,7 +270,7 @@ pub fn parse_script<'a>(
     // 3. Return Script Record {
     let script_record = ScriptRecord {
         // [[Realm]]: realm,
-        realm,
+        realm: realm.unbind(),
         // [[ECMAScriptCode]]: script,
         ecmascript_code: ManuallyDrop::new(program),
         // [[LoadedModules]]: « »,
@@ -299,10 +299,10 @@ pub fn script_evaluation<'gc>(
     let realm_id = script_record.realm;
     let is_strict_mode = script_record.ecmascript_code.source_type.is_strict();
     let source_code = script_record.source_code;
-    let realm = agent.get_realm(realm_id);
+    let realm = agent.get_realm_record_by_id(realm_id);
 
     // 1. Let globalEnv be scriptRecord.[[Realm]].[[GlobalEnv]].
-    let global_env = realm.global_env;
+    let global_env = realm.global_env.unwrap().bind(gc.nogc());
 
     // 2. Let scriptContext be a new ECMAScript code execution context.
     let script_context = ExecutionContext {
@@ -317,10 +317,10 @@ pub fn script_evaluation<'gc>(
 
         ecmascript_code: Some(ECMAScriptCode {
             // 6. Set the VariableEnvironment of scriptContext to globalEnv.
-            variable_environment: Environment::Global(global_env.unwrap()),
+            variable_environment: Environment::Global(global_env.unbind()),
 
             // 7. Set the LexicalEnvironment of scriptContext to globalEnv.
-            lexical_environment: Environment::Global(global_env.unwrap()),
+            lexical_environment: Environment::Global(global_env.unbind()),
 
             // 8. Set the PrivateEnvironment of scriptContext to null.
             private_environment: None,
@@ -343,7 +343,7 @@ pub fn script_evaluation<'gc>(
     let result = global_declaration_instantiation(
         agent,
         script.unbind(),
-        global_env.unwrap(),
+        global_env.unbind(),
         gc.reborrow(),
     );
 
@@ -637,6 +637,7 @@ pub(crate) fn global_declaration_instantiation(
 #[cfg(test)]
 mod test {
     use crate::ecmascript::builtins::Array;
+    use crate::ecmascript::execution::agent::ExceptionType;
     use crate::engine::context::{Bindable, GcScope};
     use crate::engine::rootable::Scopable;
     use crate::engine::unwrap_try;
@@ -773,75 +774,84 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "typeof undefined", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "undefined", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof null", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "object", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof \"string\"", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "string", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof Symbol()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "symbol", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof true", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "boolean", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof 3", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "number", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof 3n", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "bigint", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof {}", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "object", gc.nogc())
         );
 
         let source_text = String::from_static_str(&mut agent, "typeof (function() {})", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "function", gc.nogc())
@@ -873,8 +883,9 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = 3;", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Undefined);
     }
 
@@ -883,22 +894,25 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = {};", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo", gc.nogc()).unbind();
-        let foo = agent
-            .get_realm(realm)
-            .global_object
-            .internal_get_own_property(&mut agent, key, gc.reborrow())
-            .unwrap()
-            .unwrap()
-            .value
-            .unwrap();
+        let foo = unwrap_try(
+            agent
+                .get_realm_record_by_id(realm)
+                .global_object
+                .unbind()
+                .try_get_own_property(&mut agent, key, gc.nogc()),
+        )
+        .unwrap()
+        .value
+        .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         assert!(
@@ -914,22 +928,25 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 };", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo", gc.nogc()).unbind();
-        let foo = agent
-            .get_realm(realm)
-            .global_object
-            .internal_get_own_property(&mut agent, key, gc.reborrow())
-            .unwrap()
-            .unwrap()
-            .value
-            .unwrap();
+        let foo = unwrap_try(
+            agent
+                .get_realm_record_by_id(realm)
+                .global_object
+                .unbind()
+                .try_get_own_property(&mut agent, key, gc.nogc()),
+        )
+        .unwrap()
+        .value
+        .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_static_str(&mut agent, "a", gc.nogc()).unbind();
@@ -953,7 +970,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         agent.execution_context_stack.push(ExecutionContext {
@@ -964,15 +981,17 @@ mod test {
         });
 
         let source_text = String::from_static_str(&mut agent, "var foo = [];", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo", gc.nogc()).unbind();
         let foo = unwrap_try(
             agent
-                .get_realm(realm)
+                .get_realm_record_by_id(realm)
                 .global_env
                 .unwrap()
+                .unbind()
                 .try_get_binding_value(&mut agent, foo_key, true, gc.nogc()),
         )
         .unwrap();
@@ -986,19 +1005,21 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "var foo = [ 'a', 3 ];", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo", gc.nogc()).unbind();
         let foo = unwrap_try(
             agent
-                .get_realm(realm)
+                .get_realm_record_by_id(realm)
                 .global_env
                 .unwrap()
+                .unbind()
                 .try_get_binding_value(&mut agent, foo_key, true, gc.nogc()),
         )
         .unwrap();
@@ -1035,28 +1056,33 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
         let source_text =
             String::from_static_str(&mut agent, "let i = 0; const a = 'foo'; i = 3;", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
 
-        let global_env = agent.get_realm(realm).global_env.unwrap();
+        let global_env = agent
+            .get_realm_record_by_id(realm)
+            .global_env
+            .unwrap()
+            .bind(gc.nogc());
         let foo_key = String::from_static_str(&mut agent, "foo", gc.nogc()).unbind();
+        assert!(unwrap_try(global_env.try_has_binding(
+            &mut agent,
+            foo_key,
+            gc.nogc()
+        )));
         assert!(
-            global_env
-                .has_binding(&mut agent, foo_key, gc.reborrow())
-                .unwrap()
-        );
-        assert!(
-            global_env
-                .get_binding_value(&mut agent, foo_key, true, gc.reborrow())
+            unwrap_try(global_env.try_get_binding_value(&mut agent, foo_key, true, gc.nogc()))
                 .unwrap()
                 .is_function(),
         );
@@ -1071,8 +1097,9 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "(function() {})()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
     }
 
@@ -1086,8 +1113,9 @@ mod test {
 
         let source_text =
             String::from_static_str(&mut agent, "var f = function() {}; f();", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
     }
 
@@ -1100,8 +1128,9 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "function f() {}; f();", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_undefined());
     }
 
@@ -1115,8 +1144,9 @@ mod test {
 
         let source_text =
             String::from_static_str(&mut agent, "(function() { return 3 })()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
@@ -1125,7 +1155,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
         let global = agent[realm].global_object;
 
@@ -1162,18 +1192,21 @@ mod test {
             .unwrap();
 
         let source_text = String::from_static_str(&mut agent, "test(true)", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::from(3));
 
         let source_text = String::from_static_str(&mut agent, "test()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Null);
 
         let source_text = String::from_static_str(&mut agent, "test({})", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Null);
     }
 
@@ -1186,13 +1219,15 @@ mod test {
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "if (true) 3", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
         let source_text = String::from_static_str(&mut agent, "if (false) 3", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Undefined);
     }
 
@@ -1209,8 +1244,9 @@ mod test {
             "var foo = function() { if (true) { return 3; } else { return 5; } }; foo()",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
         let source_text = String::from_static_str(
@@ -1218,8 +1254,9 @@ mod test {
             "var bar = function() { if (false) { return 3; } else { return 5; } }; bar()",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(5).into_value());
     }
 
@@ -1233,8 +1270,9 @@ mod test {
 
         let source_text =
             String::from_static_str(&mut agent, "var foo = { a: 3 }; foo.a", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
@@ -1251,8 +1289,9 @@ mod test {
             "var fn = function() { return 3; }; var foo = { a: { b: fn } }; foo.a.b()",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
@@ -1269,8 +1308,9 @@ mod test {
             "var foo = { a: 3 }; var prop = 'a'; foo[prop]",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
     #[test]
@@ -1278,17 +1318,19 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent, gc.nogc());
+        let realm = create_realm(&mut agent, gc.nogc()).unbind();
         set_realm_global_object(&mut agent, realm, None, None, gc.nogc());
         let source_text =
             String::from_static_str(&mut agent, "var i = 0; for (; i < 3; i++) {}", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Undefined);
         let key = PropertyKey::from_static_str(&mut agent, "i", gc.nogc()).unbind();
         let i: Value = agent
-            .get_realm(realm)
+            .get_realm_record_by_id(realm)
             .global_object
+            .unbind()
             .internal_get_own_property(&mut agent, key, gc)
             .unwrap()
             .unwrap()
@@ -1303,35 +1345,38 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
 
         let source_text =
             String::from_static_str(&mut agent, "let i = 0; const a = 'foo'; i = 3;", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
 
-        let global_env = agent.get_realm(realm).global_env.unwrap();
+        let realm = agent.current_realm(gc.nogc());
+        let global_env = agent
+            .get_realm_record_by_id(realm)
+            .global_env
+            .unwrap()
+            .bind(gc.nogc());
         let a_key = String::from_static_str(&mut agent, "a", gc.nogc()).unbind();
         let i_key = String::from_static_str(&mut agent, "i", gc.nogc()).unbind();
-        assert!(
-            global_env
-                .has_binding(&mut agent, a_key, gc.reborrow())
-                .unwrap()
-        );
-        assert!(
-            global_env
-                .has_binding(&mut agent, i_key, gc.reborrow())
-                .unwrap()
-        );
+        assert!(unwrap_try(global_env.try_has_binding(
+            &mut agent,
+            a_key,
+            gc.nogc()
+        )));
+        assert!(unwrap_try(global_env.try_has_binding(
+            &mut agent,
+            i_key,
+            gc.nogc()
+        )));
         assert_eq!(
-            global_env
-                .get_binding_value(&mut agent, a_key, true, gc.reborrow())
+            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, true, gc.nogc()))
                 .unwrap(),
             String::from_small_string("foo").into_value()
         );
         assert_eq!(
-            global_env
-                .get_binding_value(&mut agent, i_key, true, gc.reborrow())
+            unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, true, gc.nogc()))
                 .unwrap(),
             Value::from(3)
         );
@@ -1343,20 +1388,25 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
             &mut agent,
             "{ let i = 0; const a = 'foo'; i = 3; }",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Undefined);
 
+        let realm = agent.current_realm(gc.nogc());
         let a_key = String::from_static_str(&mut agent, "a", gc.nogc());
         let i_key = String::from_static_str(&mut agent, "i", gc.nogc());
-        let global_env = agent.get_realm(realm).global_env.unwrap();
+        let global_env = agent
+            .get_realm_record_by_id(realm)
+            .global_env
+            .unwrap()
+            .bind(gc.nogc());
         assert!(!global_env.has_lexical_declaration(&agent, a_key));
         assert!(!global_env.has_lexical_declaration(&agent, i_key));
     }
@@ -1367,12 +1417,12 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
 
         let source_text =
             String::from_static_str(&mut agent, "var foo = {}; foo.a = 42; foo", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         let object = Object::try_from(result).unwrap().unbind().bind(gc.nogc());
 
         let pk = PropertyKey::from_static_str(&mut agent, "a", gc.nogc());
@@ -1391,15 +1441,15 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
             &mut agent,
             "let a = 0; try { a++; } catch { a = 500; }; a++; a",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(2)));
     }
 
@@ -1409,15 +1459,16 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
             "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(2)));
     }
 
@@ -1427,15 +1478,16 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
             "let err; try { throw 'thrown'; } catch(e) { err = e; }; err",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "thrown", gc.nogc())
@@ -1448,15 +1500,16 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
             "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
     }
 
@@ -1466,15 +1519,16 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
             "const foo = function (a) { return a + 10; }; foo(32)",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
     }
 
@@ -1484,16 +1538,19 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "true && true", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Boolean(true));
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "true && false && true", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Boolean(false));
     }
 
@@ -1503,16 +1560,19 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "false || false", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Boolean(false));
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "true || false || true", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Boolean(true));
     }
 
@@ -1522,24 +1582,29 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "null ?? 42", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "'foo' ?? 12", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "foo", gc.nogc())
         );
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "undefined ?? null", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Null);
     }
 
@@ -1549,32 +1614,37 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "'foo' + '' + 'bar'", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "foobar", gc.nogc())
         );
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text =
             String::from_static_str(&mut agent, "'foo' + ' a heap string'", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "foo a heap string", gc.nogc())
         );
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(
             &mut agent,
             "'Concatenating ' + 'two heap strings'",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "Concatenating two heap strings", gc.nogc())
@@ -1587,35 +1657,41 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
 
         let source_text =
             String::from_static_str(&mut agent, "function foo() {}; foo.bar", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Undefined);
 
         let source_text = String::from_static_str(&mut agent, "foo.bar = 42; foo.bar", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
         let source_text = String::from_static_str(&mut agent, "foo.name", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "foo", gc.nogc())
         );
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "foo.length", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::zero()));
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "foo.prototype", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert!(result.is_object())
     }
 
@@ -1625,19 +1701,22 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "TypeError.name", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
             result.unbind(),
             Value::from_static_str(&mut agent, "TypeError", gc.nogc())
         );
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "TypeError.length", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(1)));
     }
 
@@ -1647,26 +1726,23 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text =
             String::from_static_str(&mut agent, "function foo() {}; foo.prototype", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         let foo_prototype = Object::try_from(result)
             .unwrap()
             .unbind()
             .scope(&mut agent, gc.nogc());
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "new foo()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = match script_evaluation(&mut agent, script.unbind(), gc.reborrow()) {
-            Ok(result) => result,
-            Err(err) => panic!(
-                "{}",
-                err.to_string(&mut agent, gc.reborrow()).as_str(&agent)
-            ),
-        };
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         let instance = Object::try_from(result).unwrap();
         assert_eq!(
             unwrap_try(
@@ -1685,24 +1761,27 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(
             &mut agent,
             "function foo() { this.bar = 42; }; new foo().bar",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(
             &mut agent,
             "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()",
             gc.nogc(),
         );
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(52)));
     }
 
@@ -1712,24 +1791,37 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "+Symbol()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert!(script_evaluation(&mut agent, script.unbind(), gc.reborrow()).is_err());
+        let result = agent.run_script(source_text.unbind(), gc.reborrow());
+        assert!(result.is_err());
+        let result = result.unwrap_err().value();
+        let Value::Error(result) = result else {
+            unreachable!()
+        };
+        assert_eq!(agent[result].kind, ExceptionType::TypeError);
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "+Symbol('foo')", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert!(script_evaluation(&mut agent, script.unbind(), gc.reborrow()).is_err());
+        let result = agent.run_script(source_text.unbind(), gc.reborrow());
+        assert!(result.is_err());
+        let result = result.unwrap_err().value();
+        let Value::Error(result) = result else {
+            unreachable!()
+        };
+        assert_eq!(agent[result].kind, ExceptionType::TypeError);
 
         let source_text = String::from_static_str(&mut agent, "String(Symbol())", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let value = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(
-            value.unbind(),
+            result.unbind(),
             Value::from_static_str(&mut agent, "Symbol()", gc.nogc())
         );
 
+        let realm = agent.current_realm(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "String(Symbol('foo'))", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
         let value = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
@@ -1745,49 +1837,48 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text = String::from_static_str(&mut agent, "3 instanceof Number", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert_eq!(
-            script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap(),
-            false.into()
-        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, false.into());
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "'foo' instanceof String", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert_eq!(
-            script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap(),
-            false.into()
-        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, false.into());
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "({}) instanceof Object", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert_eq!(
-            script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap(),
-            true.into()
-        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, true.into());
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "({}) instanceof Array", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert_eq!(
-            script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap(),
-            false.into()
-        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, false.into());
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "([]) instanceof Object", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert_eq!(
-            script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap(),
-            true.into()
-        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, true.into());
 
+        // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "([]) instanceof Array", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        assert_eq!(
-            script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap(),
-            true.into()
-        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, true.into());
     }
 
     #[test]
@@ -1796,34 +1887,37 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
 
         let source_text =
             String::from_static_str(&mut agent, "const [a, b, , c] = [1, 2, 3, 4];", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         let a_key = String::from_static_str(&mut agent, "a", gc.nogc()).unbind();
         let b_key = String::from_static_str(&mut agent, "b", gc.nogc()).unbind();
         let c_key = String::from_static_str(&mut agent, "c", gc.nogc()).unbind();
-        let global_env = agent.get_realm(realm).global_env.unwrap();
+
+        let realm = agent.current_realm(gc.nogc());
+        let global_env = agent
+            .get_realm_record_by_id(realm)
+            .global_env
+            .unwrap()
+            .bind(gc.nogc());
         assert!(global_env.has_lexical_declaration(&agent, a_key));
         assert!(global_env.has_lexical_declaration(&agent, b_key));
         assert!(global_env.has_lexical_declaration(&agent, c_key));
         assert_eq!(
-            global_env
-                .get_binding_value(&mut agent, a_key, true, gc.reborrow())
+            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, true, gc.nogc()))
                 .unwrap(),
             1.into()
         );
         assert_eq!(
-            global_env
-                .get_binding_value(&mut agent, b_key, true, gc.reborrow())
+            unwrap_try(global_env.try_get_binding_value(&mut agent, b_key, true, gc.nogc()))
                 .unwrap(),
             2.into()
         );
         assert_eq!(
-            global_env
-                .get_binding_value(&mut agent, c_key, true, gc)
+            unwrap_try(global_env.try_get_binding_value(&mut agent, c_key, true, gc.nogc()))
                 .unwrap(),
             4.into()
         );
@@ -1835,21 +1929,31 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text =
             String::from_static_str(&mut agent, "let i = 0; do { i++ } while(i < 10)", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
 
+        let realm = agent.current_realm(gc.nogc());
         let i_key = String::from_static_str(&mut agent, "i", gc.nogc());
-        let global_env = agent.get_realm(realm).global_env.unwrap();
+        let global_env = agent
+            .get_realm_record_by_id(realm)
+            .global_env
+            .unwrap()
+            .bind(gc.nogc());
         assert!(global_env.has_lexical_declaration(&agent, i_key));
 
         assert_eq!(
-            global_env
-                .get_binding_value(&mut agent, i_key.unbind(), true, gc)
-                .unwrap(),
+            unwrap_try(global_env.try_get_binding_value(
+                &mut agent,
+                i_key.unbind(),
+                true,
+                gc.nogc()
+            ))
+            .unwrap(),
             10.into()
         );
     }
@@ -1860,12 +1964,13 @@ mod test {
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
-        let realm = agent.current_realm_id();
+        // let realm = agent.current_realm_id(gc.nogc());
 
         let source_text =
             String::from_static_str(&mut agent, "function foo() { 42; }; foo()", gc.nogc());
-        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let result = script_evaluation(&mut agent, script.unbind(), gc.reborrow()).unwrap();
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
         assert_eq!(result, Value::Undefined);
     }
 }
