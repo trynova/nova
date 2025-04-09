@@ -1339,12 +1339,12 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
 /// this operation always uses one of the built-in TypedArray constructors.
 pub(crate) fn typed_array_create_same_type<'a>(
     agent: &mut Agent,
-    ecampler: TypedArray,
+    exemplar: TypedArray,
     length: i64,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
     // 1. Let constructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let constructor_value = match ecampler {
+    let constructor_value = match exemplar {
         TypedArray::Int8Array(_) => agent.current_realm().intrinsics().int8_array(),
         TypedArray::Uint8Array(_) => agent.current_realm().intrinsics().uint8_array(),
         TypedArray::Uint8ClampedArray(_) => {
