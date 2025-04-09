@@ -29,7 +29,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let args = args.bind(gc.nogc());
-        if args.len() == 0 {
+        if args.is_empty() {
             println!();
         } else {
             println!("{}", args[0].unbind().to_string(agent, gc)?.as_str(agent));

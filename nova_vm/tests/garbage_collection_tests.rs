@@ -26,7 +26,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        if args.len() == 0 {
+        if args.is_empty() {
             println!();
         } else {
             println!("{}", args[0].to_string(agent, gc)?.as_str(agent));

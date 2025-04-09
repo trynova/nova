@@ -87,7 +87,7 @@ impl<'a> Array<'a> {
     }
 
     pub fn is_empty(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> bool {
-        agent[*self].elements.len() == 0
+        agent[*self].elements.is_empty()
     }
 
     pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
