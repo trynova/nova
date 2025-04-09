@@ -4,6 +4,7 @@
 
 use crate::{
     ecmascript::types::{OrdinaryObject, Value},
+    engine::context::{Bindable, NoGcScope},
     heap::{
         CompactionLists, HeapMarkAndSweep, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays, ElementDescriptor, ElementsVector},
@@ -12,15 +13,15 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct SealableElementsVector {
-    pub(crate) elements_index: ElementIndex,
+pub struct SealableElementsVector<'a> {
+    pub(crate) elements_index: ElementIndex<'a>,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
     /// Array length property can be set to unwritable
     pub(crate) len_writable: bool,
 }
 
-impl SealableElementsVector {
+impl<'a> SealableElementsVector<'a> {
     #[inline(always)]
     pub fn cap(&self) -> u32 {
         self.cap.cap()
@@ -59,7 +60,7 @@ impl SealableElementsVector {
         elements_vector.is_dense(agent)
     }
 
-    pub(crate) fn from_elements_vector(elements: ElementsVector) -> Self {
+    pub(crate) fn from_elements_vector(elements: ElementsVector<'a>) -> Self {
         Self {
             elements_index: elements.elements_index,
             cap: elements.cap,
@@ -89,7 +90,7 @@ impl SealableElementsVector {
     }
 }
 
-impl Default for SealableElementsVector {
+impl Default for SealableElementsVector<'static> {
     fn default() -> Self {
         Self {
             elements_index: ElementIndex::from_u32_index(0),
@@ -100,9 +101,9 @@ impl Default for SealableElementsVector {
     }
 }
 
-impl From<SealableElementsVector> for ElementsVector {
+impl<'a> From<SealableElementsVector<'a>> for ElementsVector<'a> {
     #[inline(always)]
-    fn from(value: SealableElementsVector) -> Self {
+    fn from(value: SealableElementsVector<'a>) -> Self {
         Self {
             elements_index: value.elements_index,
             cap: value.cap,
@@ -122,10 +123,25 @@ pub struct ArrayHeapData {
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.
-    pub elements: SealableElementsVector,
+    pub elements: SealableElementsVector<'static>,
 }
 
-impl HeapMarkAndSweep for SealableElementsVector {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SealableElementsVector<'_> {
+    type Of<'a> = SealableElementsVector<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for SealableElementsVector<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let elements: ElementsVector = (*self).into();
         elements.mark_values(queues)
