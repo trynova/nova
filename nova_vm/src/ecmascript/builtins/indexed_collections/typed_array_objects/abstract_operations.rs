@@ -1345,21 +1345,24 @@ pub(crate) fn typed_array_create_same_type<'a>(
 ) -> JsResult<TypedArray<'a>> {
     // 1. Let constructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
     let constructor_value = match exemplar {
-        TypedArray::Int8Array(_) => agent.current_realm().intrinsics().int8_array(),
-        TypedArray::Uint8Array(_) => agent.current_realm().intrinsics().uint8_array(),
-        TypedArray::Uint8ClampedArray(_) => {
-            agent.current_realm().intrinsics().uint8_clamped_array()
+        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
+        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
+        TypedArray::Uint8ClampedArray(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .uint8_clamped_array(),
+        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
+        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
+        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
+        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
+        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
+        TypedArray::BigUint64Array(_) => {
+            agent.current_realm_record().intrinsics().big_uint64_array()
         }
-        TypedArray::Int16Array(_) => agent.current_realm().intrinsics().int16_array(),
-        TypedArray::Uint16Array(_) => agent.current_realm().intrinsics().uint16_array(),
-        TypedArray::Int32Array(_) => agent.current_realm().intrinsics().int32_array(),
-        TypedArray::Uint32Array(_) => agent.current_realm().intrinsics().uint32_array(),
-        TypedArray::BigInt64Array(_) => agent.current_realm().intrinsics().big_int64_array(),
-        TypedArray::BigUint64Array(_) => agent.current_realm().intrinsics().big_uint64_array(),
         #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => agent.current_realm().intrinsics().float16_array(),
-        TypedArray::Float32Array(_) => agent.current_realm().intrinsics().float32_array(),
-        TypedArray::Float64Array(_) => agent.current_realm().intrinsics().float64_array(),
+        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
+        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
+        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
     };
     // 2. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     let result = typed_array_create_from_constructor_with_length(
