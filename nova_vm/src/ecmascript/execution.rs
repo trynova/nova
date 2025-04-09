@@ -21,5 +21,3 @@ pub(crate) use realm::{
     ProtoIntrinsics, Realm, RealmIdentifier, initialize_default_realm,
     initialize_host_defined_realm,
 };
-#[cfg(test)]
-pub(crate) use realm::{create_realm, set_realm_global_object};

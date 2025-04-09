@@ -409,6 +409,12 @@ impl Agent {
         self[realm].global_env.unwrap().bind(gc)
     }
 
+    /// Get current Realm's global object.
+    pub fn current_global_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Object<'a> {
+        let realm = self.current_realm(gc);
+        self[realm].global_object.bind(gc)
+    }
+
     /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
     pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> RealmIdentifier<'a> {
         self.current_realm_id_internal().bind(gc)
