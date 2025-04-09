@@ -1197,7 +1197,7 @@ impl IndexMut<ElementsVector<'_>> for Agent {
     }
 }
 
-impl<'a> Index<SealableElementsVector<'a>> for ElementArrays {
+impl Index<SealableElementsVector<'_>> for ElementArrays {
     type Output = [Option<Value<'static>>];
 
     fn index(&self, index: SealableElementsVector) -> &Self::Output {
@@ -1205,13 +1205,13 @@ impl<'a> Index<SealableElementsVector<'a>> for ElementArrays {
     }
 }
 
-impl<'a> IndexMut<SealableElementsVector<'a>> for ElementArrays {
+impl IndexMut<SealableElementsVector<'_>> for ElementArrays {
     fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
         self.get_mut(index.into())
     }
 }
 
-impl<'a> Index<SealableElementsVector<'a>> for Agent {
+impl Index<SealableElementsVector<'_>> for Agent {
     type Output = [Option<Value<'static>>];
 
     fn index(&self, index: SealableElementsVector) -> &Self::Output {
@@ -1219,7 +1219,7 @@ impl<'a> Index<SealableElementsVector<'a>> for Agent {
     }
 }
 
-impl<'a> IndexMut<SealableElementsVector<'a>> for Agent {
+impl IndexMut<SealableElementsVector<'_>> for Agent {
     fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
         &mut self.heap.elements[index]
     }
