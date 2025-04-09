@@ -328,7 +328,7 @@ impl FunctionPrototype {
             ));
         };
         // TODO: PrepareForTailCall
-        let args = if args.len() > 0 {
+        let args = if !args.is_empty() {
             args.slice_from(1)
         } else {
             args

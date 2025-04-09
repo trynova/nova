@@ -120,7 +120,7 @@ impl ArrayConstructor {
             |new_target| Function::try_from(new_target).unwrap(),
         );
 
-        let arguments = if arguments.len() == 0 {
+        let arguments = if arguments.is_empty() {
             None
         } else if arguments.len() == 1 {
             Some(BoundArgs::Length(arguments.get(0).scope(agent, gc.nogc())))

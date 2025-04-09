@@ -825,7 +825,7 @@ impl GlobalObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        if arguments.len() == 0 {
+        if arguments.is_empty() {
             return Ok(Value::nan());
         }
 

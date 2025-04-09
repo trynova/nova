@@ -3128,7 +3128,7 @@ impl ArrayPrototype {
         // 7. Let itemCount be the number of elements in items.
         let item_count = items.len();
         // 8. If start is not present, then
-        let actual_delete_count = if arguments.len() == 0 {
+        let actual_delete_count = if arguments.is_empty() {
             // a. Let actualDeleteCount be 0.
             0
         } else if arguments.len() == 1 {
@@ -3450,7 +3450,7 @@ impl ArrayPrototype {
         // 7. Let insertCount be the number of elements in items.
         let insert_count = items.len();
         // 8. If start is not present, then
-        let actual_skip_count = if arguments.len() == 0 {
+        let actual_skip_count = if arguments.is_empty() {
             // a. Let actualSkipCount be 0.
             0
         } else if arguments.len() == 1 {
