@@ -4,6 +4,7 @@
 
 use crate::{
     ecmascript::types::{DataBlock, OrdinaryObject},
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -225,6 +226,21 @@ impl ArrayBufferHeapData<'_> {
         } else {
             unreachable!();
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayBufferHeapData<'_> {
+    type Of<'a> = ArrayBufferHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

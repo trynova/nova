@@ -346,15 +346,15 @@ impl<'a> InternalSlots<'a> for Generator<'a> {
 
 impl<'a> InternalMethods<'a> for Generator<'a> {}
 
-impl CreateHeapData<GeneratorHeapData, Generator<'static>> for Heap {
-    fn create(&mut self, data: GeneratorHeapData) -> Generator<'static> {
-        self.generators.push(Some(data));
+impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
+    fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
+        self.generators.push(Some(data.unbind()));
         Generator(GeneratorIndex::last(&self.generators))
     }
 }
 
 impl Index<Generator<'_>> for Agent {
-    type Output = GeneratorHeapData;
+    type Output = GeneratorHeapData<'static>;
 
     fn index(&self, index: Generator) -> &Self::Output {
         &self.heap.generators[index]
@@ -367,8 +367,8 @@ impl IndexMut<Generator<'_>> for Agent {
     }
 }
 
-impl Index<Generator<'_>> for Vec<Option<GeneratorHeapData>> {
-    type Output = GeneratorHeapData;
+impl Index<Generator<'_>> for Vec<Option<GeneratorHeapData<'static>>> {
+    type Output = GeneratorHeapData<'static>;
 
     fn index(&self, index: Generator) -> &Self::Output {
         self.get(index.get_index())
@@ -378,7 +378,7 @@ impl Index<Generator<'_>> for Vec<Option<GeneratorHeapData>> {
     }
 }
 
-impl IndexMut<Generator<'_>> for Vec<Option<GeneratorHeapData>> {
+impl IndexMut<Generator<'_>> for Vec<Option<GeneratorHeapData<'static>>> {
     fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Generator out of bounds")
@@ -411,8 +411,8 @@ impl HeapMarkAndSweep for Generator<'static> {
 }
 
 #[derive(Debug, Default)]
-pub struct GeneratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct GeneratorHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) generator_state: Option<GeneratorState>,
 }
 
@@ -467,7 +467,22 @@ impl HeapMarkAndSweep for SuspendedGeneratorState {
     }
 }
 
-impl HeapMarkAndSweep for GeneratorHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for GeneratorHeapData<'_> {
+    type Of<'a> = GeneratorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for GeneratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

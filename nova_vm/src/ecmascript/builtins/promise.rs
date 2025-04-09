@@ -127,15 +127,30 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
 
 impl<'a> InternalMethods<'a> for Promise<'a> {}
 
-impl CreateHeapData<PromiseHeapData, Promise<'static>> for Heap {
-    fn create(&mut self, data: PromiseHeapData) -> Promise<'static> {
-        self.promises.push(Some(data));
+impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
+    fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
+        self.promises.push(Some(data.unbind()));
         Promise(PromiseIndex::last(&self.promises))
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PromiseHeapData<'_> {
+    type Of<'a> = PromiseHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl Index<Promise<'_>> for Agent {
-    type Output = PromiseHeapData;
+    type Output = PromiseHeapData<'static>;
 
     fn index(&self, index: Promise) -> &Self::Output {
         &self.heap.promises[index]
@@ -148,8 +163,8 @@ impl IndexMut<Promise<'_>> for Agent {
     }
 }
 
-impl Index<Promise<'_>> for Vec<Option<PromiseHeapData>> {
-    type Output = PromiseHeapData;
+impl Index<Promise<'_>> for Vec<Option<PromiseHeapData<'static>>> {
+    type Output = PromiseHeapData<'static>;
 
     fn index(&self, index: Promise) -> &Self::Output {
         self.get(index.get_index())
@@ -159,7 +174,7 @@ impl Index<Promise<'_>> for Vec<Option<PromiseHeapData>> {
     }
 }
 
-impl IndexMut<Promise<'_>> for Vec<Option<PromiseHeapData>> {
+impl IndexMut<Promise<'_>> for Vec<Option<PromiseHeapData<'static>>> {
     fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Promise out of bounds")

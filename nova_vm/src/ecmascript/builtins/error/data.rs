@@ -7,23 +7,24 @@ use crate::{
         execution::agent::ExceptionType,
         types::{OrdinaryObject, String, Value},
     },
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct ErrorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct ErrorHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) kind: ExceptionType,
-    pub(crate) message: Option<String<'static>>,
-    pub(crate) cause: Option<Value<'static>>,
+    pub(crate) message: Option<String<'a>>,
+    pub(crate) cause: Option<Value<'a>>,
     // TODO: stack? name?
 }
 
-impl ErrorHeapData {
+impl<'a> ErrorHeapData<'a> {
     pub(crate) fn new(
         kind: ExceptionType,
-        message: Option<String<'static>>,
-        cause: Option<Value<'static>>,
+        message: Option<String<'a>>,
+        cause: Option<Value<'a>>,
     ) -> Self {
         Self {
             object_index: None,
@@ -34,7 +35,22 @@ impl ErrorHeapData {
     }
 }
 
-impl HeapMarkAndSweep for ErrorHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ErrorHeapData<'_> {
+    type Of<'a> = ErrorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ErrorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

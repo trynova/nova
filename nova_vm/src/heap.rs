@@ -115,13 +115,13 @@ pub struct Heap {
     pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub data_views: Vec<Option<DataViewHeapData>>,
+    pub data_views: Vec<Option<DataViewHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub data_view_byte_lengths: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "array-buffer")]
     pub data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "date")]
-    pub dates: Vec<Option<DateHeapData>>,
+    pub dates: Vec<Option<DateHeapData<'static>>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
     /// ElementsArrays is where all element arrays live;
     /// Element arrays are static arrays of Values plus
@@ -129,33 +129,33 @@ pub struct Heap {
     pub elements: ElementArrays,
     pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
     pub environments: Environments,
-    pub errors: Vec<Option<ErrorHeapData>>,
+    pub errors: Vec<Option<ErrorHeapData<'static>>>,
     /// Stores compiled bytecodes
-    pub(crate) executables: Vec<ExecutableHeapData>,
-    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
-    pub generators: Vec<Option<GeneratorHeapData>>,
+    pub(crate) executables: Vec<ExecutableHeapData<'static>>,
+    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData<'static>>>,
+    pub generators: Vec<Option<GeneratorHeapData<'static>>>,
     pub(crate) globals: RefCell<Vec<Option<HeapRootData>>>,
-    pub maps: Vec<Option<MapHeapData>>,
-    pub map_iterators: Vec<Option<MapIteratorHeapData>>,
+    pub maps: Vec<Option<MapHeapData<'static>>>,
+    pub map_iterators: Vec<Option<MapIteratorHeapData<'static>>>,
     pub numbers: Vec<Option<NumberHeapData>>,
     pub objects: Vec<Option<ObjectHeapData<'static>>>,
-    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData>>,
+    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
     pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
-    pub promises: Vec<Option<PromiseHeapData>>,
-    pub proxys: Vec<Option<ProxyHeapData>>,
+    pub promises: Vec<Option<PromiseHeapData<'static>>>,
+    pub proxys: Vec<Option<ProxyHeapData<'static>>>,
     pub realms: Vec<Option<Realm<'static>>>,
     #[cfg(feature = "regexp")]
-    pub regexps: Vec<Option<RegExpHeapData>>,
+    pub regexps: Vec<Option<RegExpHeapData<'static>>>,
     #[cfg(feature = "set")]
-    pub sets: Vec<Option<SetHeapData>>,
+    pub sets: Vec<Option<SetHeapData<'static>>>,
     #[cfg(feature = "set")]
-    pub set_iterators: Vec<Option<SetIteratorHeapData>>,
+    pub set_iterators: Vec<Option<SetIteratorHeapData<'static>>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
+    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData<'static>>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
+    pub typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub typed_array_byte_lengths: AHashMap<TypedArray<'static>, usize>,
     #[cfg(feature = "array-buffer")]
@@ -163,16 +163,16 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub typed_array_array_lengths: AHashMap<TypedArray<'static>, usize>,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: Vec<Option<WeakMapHeapData>>,
+    pub weak_maps: Vec<Option<WeakMapHeapData<'static>>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: Vec<Option<WeakRefHeapData>>,
+    pub weak_refs: Vec<Option<WeakRefHeapData<'static>>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: Vec<Option<WeakSetHeapData>>,
+    pub weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
     pub modules: Vec<Option<ModuleHeapData<'static>>>,
     pub scripts: Vec<Option<ScriptRecord>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
-    pub(crate) source_codes: Vec<Option<SourceCodeHeapData>>,
+    pub(crate) source_codes: Vec<Option<SourceCodeHeapData<'static>>>,
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,

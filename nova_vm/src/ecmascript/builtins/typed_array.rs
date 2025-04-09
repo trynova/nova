@@ -155,7 +155,7 @@ impl<'a> From<TypedArrayIndex<'a>> for TypedArray<'a> {
     }
 }
 
-impl<'a> IntoBaseIndex<'a, TypedArrayHeapData> for TypedArray<'a> {
+impl<'a> IntoBaseIndex<'a, TypedArrayHeapData<'static>> for TypedArray<'a> {
     fn into_base_index(self) -> TypedArrayIndex<'a> {
         match self {
             TypedArray::Int8Array(i)
@@ -271,7 +271,7 @@ impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
 }
 
 impl Index<TypedArray<'_>> for Agent {
-    type Output = TypedArrayHeapData;
+    type Output = TypedArrayHeapData<'static>;
 
     fn index(&self, index: TypedArray) -> &Self::Output {
         &self.heap.typed_arrays[index]
@@ -284,8 +284,8 @@ impl IndexMut<TypedArray<'_>> for Agent {
     }
 }
 
-impl Index<TypedArray<'_>> for Vec<Option<TypedArrayHeapData>> {
-    type Output = TypedArrayHeapData;
+impl Index<TypedArray<'_>> for Vec<Option<TypedArrayHeapData<'static>>> {
+    type Output = TypedArrayHeapData<'static>;
 
     fn index(&self, index: TypedArray) -> &Self::Output {
         self.get(index.get_index())
@@ -295,7 +295,7 @@ impl Index<TypedArray<'_>> for Vec<Option<TypedArrayHeapData>> {
     }
 }
 
-impl IndexMut<TypedArray<'_>> for Vec<Option<TypedArrayHeapData>> {
+impl IndexMut<TypedArray<'_>> for Vec<Option<TypedArrayHeapData<'static>>> {
     fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("TypedArray out of bounds")
@@ -833,9 +833,9 @@ impl TryFrom<HeapRootData> for TypedArray<'_> {
     }
 }
 
-impl CreateHeapData<TypedArrayHeapData, TypedArray<'static>> for Heap {
-    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray<'static> {
-        self.typed_arrays.push(Some(data));
+impl<'a> CreateHeapData<TypedArrayHeapData<'a>, TypedArray<'a>> for Heap {
+    fn create(&mut self, data: TypedArrayHeapData<'a>) -> TypedArray<'a> {
+        self.typed_arrays.push(Some(data.unbind()));
         // TODO: The type should be checked based on data or something equally stupid
         TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
     }

@@ -15,9 +15,9 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct PromiseHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) promise_state: PromiseState<'static>,
+pub struct PromiseHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) promise_state: PromiseState<'a>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +92,7 @@ impl HeapMarkAndSweep for PromiseReactions<'static> {
     }
 }
 
-impl HeapMarkAndSweep for PromiseHeapData {
+impl HeapMarkAndSweep for PromiseHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

@@ -570,8 +570,8 @@ impl Scoped<'_, String<'static>> {
     }
 }
 
-impl CreateHeapData<(StringHeapData, u64), String<'static>> for Heap {
-    fn create(&mut self, (data, hash): (StringHeapData, u64)) -> String<'static> {
+impl<'a> CreateHeapData<(StringHeapData, u64), String<'a>> for Heap {
+    fn create(&mut self, (data, hash): (StringHeapData, u64)) -> String<'a> {
         self.strings.push(Some(data));
         let index = StringIndex::last(&self.strings);
         let heap_string = HeapString(index);

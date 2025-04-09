@@ -111,7 +111,7 @@ pub(crate) struct ArrowFunctionExpression {
 #[repr(transparent)]
 pub struct Executable<'a>(
     NonZeroU32,
-    PhantomData<ExecutableHeapData>,
+    PhantomData<ExecutableHeapData<'static>>,
     PhantomData<&'a GcToken>,
 );
 
@@ -123,12 +123,12 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone)]
-pub struct ExecutableHeapData {
+pub struct ExecutableHeapData<'a> {
     pub(crate) instructions: Box<[u8]>,
-    pub(crate) constants: Box<[Value<'static>]>,
-    pub(crate) function_expressions: Box<[FunctionExpression<'static>]>,
+    pub(crate) constants: Box<[Value<'a>]>,
+    pub(crate) function_expressions: Box<[FunctionExpression<'a>]>,
     pub(crate) arrow_function_expressions: Box<[ArrowFunctionExpression]>,
-    pub(crate) class_initializer_bytecodes: Box<[(Option<Executable<'static>>, bool)]>,
+    pub(crate) class_initializer_bytecodes: Box<[(Option<Executable<'a>>, bool)]>,
 }
 
 impl<'gc> Executable<'gc> {
@@ -406,7 +406,7 @@ pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Ins
 }
 
 impl Index<Executable<'_>> for Agent {
-    type Output = ExecutableHeapData;
+    type Output = ExecutableHeapData<'static>;
 
     fn index(&self, index: Executable) -> &Self::Output {
         self.heap
@@ -463,9 +463,9 @@ impl Rootable for Executable<'_> {
     }
 }
 
-impl CreateHeapData<ExecutableHeapData, Executable<'static>> for Heap {
-    fn create(&mut self, data: ExecutableHeapData) -> Executable<'static> {
-        self.executables.push(data);
+impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
+    fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
+        self.executables.push(data.unbind());
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         // SAFETY: After pushing to executables, the vector cannot be empty.
         Executable(
@@ -473,6 +473,21 @@ impl CreateHeapData<ExecutableHeapData, Executable<'static>> for Heap {
             PhantomData,
             PhantomData,
         )
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ExecutableHeapData<'_> {
+    type Of<'a> = ExecutableHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -488,7 +503,7 @@ impl HeapMarkAndSweep for Executable<'static> {
     }
 }
 
-impl HeapMarkAndSweep for ExecutableHeapData {
+impl HeapMarkAndSweep for ExecutableHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             instructions: _,

@@ -99,7 +99,7 @@ impl<'a> InternalSlots<'a> for WeakRef<'a> {
 impl<'a> InternalMethods<'a> for WeakRef<'a> {}
 
 impl Index<WeakRef<'_>> for Agent {
-    type Output = WeakRefHeapData;
+    type Output = WeakRefHeapData<'static>;
 
     fn index(&self, index: WeakRef) -> &Self::Output {
         &self.heap.weak_refs[index]
@@ -112,8 +112,8 @@ impl IndexMut<WeakRef<'_>> for Agent {
     }
 }
 
-impl Index<WeakRef<'_>> for Vec<Option<WeakRefHeapData>> {
-    type Output = WeakRefHeapData;
+impl Index<WeakRef<'_>> for Vec<Option<WeakRefHeapData<'static>>> {
+    type Output = WeakRefHeapData<'static>;
 
     fn index(&self, index: WeakRef) -> &Self::Output {
         self.get(index.get_index())
@@ -123,7 +123,7 @@ impl Index<WeakRef<'_>> for Vec<Option<WeakRefHeapData>> {
     }
 }
 
-impl IndexMut<WeakRef<'_>> for Vec<Option<WeakRefHeapData>> {
+impl IndexMut<WeakRef<'_>> for Vec<Option<WeakRefHeapData<'static>>> {
     fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakRef out of bounds")
@@ -145,9 +145,9 @@ impl TryFrom<HeapRootData> for WeakRef<'_> {
     }
 }
 
-impl CreateHeapData<WeakRefHeapData, WeakRef<'static>> for Heap {
-    fn create(&mut self, data: WeakRefHeapData) -> WeakRef<'static> {
-        self.weak_refs.push(Some(data));
+impl<'a> CreateHeapData<WeakRefHeapData<'a>, WeakRef<'a>> for Heap {
+    fn create(&mut self, data: WeakRefHeapData<'a>) -> WeakRef<'a> {
+        self.weak_refs.push(Some(data.unbind()));
         // TODO: The type should be checked based on data or something equally stupid
         WeakRef(WeakRefIndex::last(&self.weak_refs))
     }

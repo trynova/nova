@@ -154,6 +154,21 @@ impl HeapMarkAndSweep for SealableElementsVector<'static> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayHeapData<'_> {
+    type Of<'a> = ArrayHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl HeapMarkAndSweep for ArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {

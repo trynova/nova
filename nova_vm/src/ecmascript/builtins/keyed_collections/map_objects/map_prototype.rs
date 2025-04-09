@@ -335,7 +335,7 @@ impl MapPrototype {
             found_key == key || same_value(agent, found_key, key)
         });
         if let Some(index) = found {
-            Ok(values[*index as usize].unwrap())
+            Ok(values[*index as usize].unwrap().unbind().bind(gc))
         } else {
             // 5. Return undefined.
             Ok(Value::Undefined)

@@ -94,7 +94,7 @@ impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
 }
 
 impl Index<PrimitiveObject<'_>> for Agent {
-    type Output = PrimitiveObjectHeapData;
+    type Output = PrimitiveObjectHeapData<'static>;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
         &self.heap.primitive_objects[index]
@@ -107,8 +107,8 @@ impl IndexMut<PrimitiveObject<'_>> for Agent {
     }
 }
 
-impl Index<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
-    type Output = PrimitiveObjectHeapData;
+impl Index<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData<'static>>> {
+    type Output = PrimitiveObjectHeapData<'static>;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
         self.get(index.get_index())
@@ -118,7 +118,7 @@ impl Index<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
+impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData<'static>>> {
     fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PrimitiveObject out of bounds")
@@ -545,22 +545,22 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub(crate) enum PrimitiveObjectData {
+pub(crate) enum PrimitiveObjectData<'a> {
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
-    String(HeapString<'static>) = STRING_DISCRIMINANT,
+    String(HeapString<'a>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
-    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
+    Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
+    Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(SmallF64) = FLOAT_DISCRIMINANT,
-    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl TryFrom<PrimitiveObjectData> for BigInt<'_> {
+impl<'a> TryFrom<PrimitiveObjectData<'a>> for BigInt<'a> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'a>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::BigInt(data) => Ok(BigInt::BigInt(data)),
             PrimitiveObjectData::SmallBigInt(data) => Ok(BigInt::SmallBigInt(data)),
@@ -569,10 +569,10 @@ impl TryFrom<PrimitiveObjectData> for BigInt<'_> {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for Number<'static> {
+impl<'a> TryFrom<PrimitiveObjectData<'a>> for Number<'a> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'a>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
             PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
@@ -582,10 +582,10 @@ impl TryFrom<PrimitiveObjectData> for Number<'static> {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for String<'static> {
+impl<'a> TryFrom<PrimitiveObjectData<'a>> for String<'a> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'a>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::String(data) => Ok(String::String(data)),
             PrimitiveObjectData::SmallString(data) => Ok(String::SmallString(data)),
@@ -594,10 +594,10 @@ impl TryFrom<PrimitiveObjectData> for String<'static> {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for Symbol<'_> {
+impl<'a> TryFrom<PrimitiveObjectData<'a>> for Symbol<'a> {
     type Error = ();
 
-    fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
+    fn try_from(value: PrimitiveObjectData<'a>) -> Result<Self, Self::Error> {
         match value {
             PrimitiveObjectData::Symbol(data) => Ok(data),
             _ => Err(()),
@@ -606,13 +606,13 @@ impl TryFrom<PrimitiveObjectData> for Symbol<'_> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PrimitiveObjectHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) data: PrimitiveObjectData,
+pub struct PrimitiveObjectHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) data: PrimitiveObjectData<'a>,
 }
 
-impl PrimitiveObjectHeapData {
-    pub(crate) fn new_big_int_object(big_int: BigInt) -> Self {
+impl<'a> PrimitiveObjectHeapData<'a> {
+    pub(crate) fn new_big_int_object(big_int: BigInt<'a>) -> Self {
         let data = match big_int {
             BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data.unbind()),
             BigInt::SmallBigInt(data) => PrimitiveObjectData::SmallBigInt(data),
@@ -630,7 +630,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_number_object(number: Number<'_>) -> Self {
+    pub(crate) fn new_number_object(number: Number<'a>) -> Self {
         let data = match number {
             Number::Number(data) => PrimitiveObjectData::Number(data.unbind()),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
@@ -642,7 +642,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_string_object(string: String<'static>) -> Self {
+    pub(crate) fn new_string_object(string: String<'a>) -> Self {
         let data = match string {
             String::String(data) => PrimitiveObjectData::String(data),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
@@ -653,7 +653,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_symbol_object(symbol: Symbol) -> Self {
+    pub(crate) fn new_symbol_object(symbol: Symbol<'a>) -> Self {
         Self {
             object_index: None,
             data: PrimitiveObjectData::Symbol(symbol.unbind()),
@@ -684,7 +684,22 @@ impl Rootable for PrimitiveObject<'_> {
     }
 }
 
-impl HeapMarkAndSweep for PrimitiveObjectHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PrimitiveObjectHeapData<'_> {
+    type Of<'a> = PrimitiveObjectHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for PrimitiveObjectHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self { object_index, data } = self;
         object_index.mark_values(queues);
@@ -720,9 +735,9 @@ impl HeapMarkAndSweep for PrimitiveObject<'static> {
     }
 }
 
-impl CreateHeapData<PrimitiveObjectHeapData, PrimitiveObject<'static>> for Heap {
-    fn create(&mut self, data: PrimitiveObjectHeapData) -> PrimitiveObject<'static> {
-        self.primitive_objects.push(Some(data));
+impl<'a> CreateHeapData<PrimitiveObjectHeapData<'a>, PrimitiveObject<'a>> for Heap {
+    fn create(&mut self, data: PrimitiveObjectHeapData<'a>) -> PrimitiveObject<'a> {
+        self.primitive_objects.push(Some(data.unbind()));
         PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
     }
 }

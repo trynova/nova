@@ -306,9 +306,9 @@ impl HeapMarkAndSweep for ArrayBuffer<'static> {
     }
 }
 
-impl CreateHeapData<ArrayBufferHeapData<'static>, ArrayBuffer<'static>> for Heap {
-    fn create(&mut self, data: ArrayBufferHeapData<'static>) -> ArrayBuffer<'static> {
-        self.array_buffers.push(Some(data));
+impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
+        self.array_buffers.push(Some(data.unbind()));
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }
 }

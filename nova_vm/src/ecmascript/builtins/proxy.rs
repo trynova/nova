@@ -1756,7 +1756,7 @@ pub(crate) fn proxy_create<'a>(
 }
 
 impl Index<Proxy<'_>> for Agent {
-    type Output = ProxyHeapData;
+    type Output = ProxyHeapData<'static>;
 
     fn index(&self, index: Proxy) -> &Self::Output {
         &self.heap.proxys[index]
@@ -1769,8 +1769,8 @@ impl IndexMut<Proxy<'_>> for Agent {
     }
 }
 
-impl Index<Proxy<'_>> for Vec<Option<ProxyHeapData>> {
-    type Output = ProxyHeapData;
+impl Index<Proxy<'_>> for Vec<Option<ProxyHeapData<'static>>> {
+    type Output = ProxyHeapData<'static>;
 
     fn index(&self, index: Proxy) -> &Self::Output {
         self.get(index.get_index())
@@ -1780,7 +1780,7 @@ impl Index<Proxy<'_>> for Vec<Option<ProxyHeapData>> {
     }
 }
 
-impl IndexMut<Proxy<'_>> for Vec<Option<ProxyHeapData>> {
+impl IndexMut<Proxy<'_>> for Vec<Option<ProxyHeapData<'static>>> {
     fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Proxy out of bounds")
@@ -1802,9 +1802,9 @@ impl TryFrom<HeapRootData> for Proxy<'_> {
     }
 }
 
-impl CreateHeapData<ProxyHeapData, Proxy<'static>> for Heap {
-    fn create(&mut self, data: ProxyHeapData) -> Proxy<'static> {
-        self.proxys.push(Some(data));
+impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
+    fn create(&mut self, data: ProxyHeapData<'a>) -> Proxy<'a> {
+        self.proxys.push(Some(data.unbind()));
         Proxy(ProxyIndex::last(&self.proxys))
     }
 }

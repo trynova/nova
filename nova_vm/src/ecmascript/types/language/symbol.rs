@@ -170,8 +170,8 @@ impl HeapMarkAndSweep for Symbol<'static> {
     }
 }
 
-impl CreateHeapData<SymbolHeapData, Symbol<'static>> for Heap {
-    fn create(&mut self, data: SymbolHeapData) -> Symbol<'static> {
+impl<'a> CreateHeapData<SymbolHeapData, Symbol<'a>> for Heap {
+    fn create(&mut self, data: SymbolHeapData) -> Symbol<'a> {
         self.symbols.push(Some(data));
         Symbol(SymbolIndex::last(&self.symbols))
     }

@@ -100,7 +100,7 @@ impl<'a> InternalSlots<'a> for WeakMap<'a> {
 impl<'a> InternalMethods<'a> for WeakMap<'a> {}
 
 impl Index<WeakMap<'_>> for Agent {
-    type Output = WeakMapHeapData;
+    type Output = WeakMapHeapData<'static>;
 
     fn index(&self, index: WeakMap) -> &Self::Output {
         &self.heap.weak_maps[index]
@@ -113,8 +113,8 @@ impl IndexMut<WeakMap<'_>> for Agent {
     }
 }
 
-impl Index<WeakMap<'_>> for Vec<Option<WeakMapHeapData>> {
-    type Output = WeakMapHeapData;
+impl Index<WeakMap<'_>> for Vec<Option<WeakMapHeapData<'static>>> {
+    type Output = WeakMapHeapData<'static>;
 
     fn index(&self, index: WeakMap) -> &Self::Output {
         self.get(index.get_index())
@@ -124,7 +124,7 @@ impl Index<WeakMap<'_>> for Vec<Option<WeakMapHeapData>> {
     }
 }
 
-impl IndexMut<WeakMap<'_>> for Vec<Option<WeakMapHeapData>> {
+impl IndexMut<WeakMap<'_>> for Vec<Option<WeakMapHeapData<'static>>> {
     fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakMap out of bounds")
@@ -146,9 +146,9 @@ impl TryFrom<HeapRootData> for WeakMap<'_> {
     }
 }
 
-impl CreateHeapData<WeakMapHeapData, WeakMap<'static>> for Heap {
-    fn create(&mut self, data: WeakMapHeapData) -> WeakMap<'static> {
-        self.weak_maps.push(Some(data));
+impl<'a> CreateHeapData<WeakMapHeapData<'a>, WeakMap<'a>> for Heap {
+    fn create(&mut self, data: WeakMapHeapData<'a>) -> WeakMap<'a> {
+        self.weak_maps.push(Some(data.unbind()));
         // TODO: The type should be checked based on data or something equally stupid
         WeakMap(WeakMapIndex::last(&self.weak_maps))
     }

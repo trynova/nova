@@ -751,9 +751,9 @@ impl Rootable for Array<'_> {
     }
 }
 
-impl CreateHeapData<ArrayHeapData<'static>, Array<'static>> for Heap {
-    fn create(&mut self, data: ArrayHeapData<'static>) -> Array<'static> {
-        self.arrays.push(Some(data));
+impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
+    fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
+        self.arrays.push(Some(data.unbind()));
         Array::from(ArrayIndex::last(&self.arrays))
     }
 }

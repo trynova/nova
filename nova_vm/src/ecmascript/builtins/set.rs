@@ -134,7 +134,7 @@ impl HeapMarkAndSweep for Set<'static> {
 }
 
 impl Index<Set<'_>> for Agent {
-    type Output = SetHeapData;
+    type Output = SetHeapData<'static>;
 
     fn index(&self, index: Set) -> &Self::Output {
         &self.heap.sets[index]
@@ -147,8 +147,8 @@ impl IndexMut<Set<'_>> for Agent {
     }
 }
 
-impl Index<Set<'_>> for Vec<Option<SetHeapData>> {
-    type Output = SetHeapData;
+impl Index<Set<'_>> for Vec<Option<SetHeapData<'static>>> {
+    type Output = SetHeapData<'static>;
 
     fn index(&self, index: Set) -> &Self::Output {
         self.get(index.get_index())
@@ -158,7 +158,7 @@ impl Index<Set<'_>> for Vec<Option<SetHeapData>> {
     }
 }
 
-impl IndexMut<Set<'_>> for Vec<Option<SetHeapData>> {
+impl IndexMut<Set<'_>> for Vec<Option<SetHeapData<'static>>> {
     fn index_mut(&mut self, index: Set) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Set out of bounds")
@@ -180,9 +180,9 @@ impl TryFrom<HeapRootData> for Set<'_> {
     }
 }
 
-impl CreateHeapData<SetHeapData, Set<'static>> for Heap {
-    fn create(&mut self, data: SetHeapData) -> Set<'static> {
-        self.sets.push(Some(data));
+impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
+    fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
+        self.sets.push(Some(data.unbind()));
         Set(SetIndex::last(&self.sets))
     }
 }

@@ -4,17 +4,18 @@
 
 use crate::{
     ecmascript::types::Object,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone)]
-pub enum ProxyHeapData {
+pub enum ProxyHeapData<'a> {
     /// Proxy has not been revoked.
     NonRevoked {
         /// [[ProxyTarget]]
-        proxy_target: Object<'static>,
+        proxy_target: Object<'a>,
         /// [[ProxyHandler]]
-        proxy_handler: Object<'static>,
+        proxy_handler: Object<'a>,
     },
     /// A callable Proxy was revoked.
     RevokedCallable,
@@ -22,7 +23,22 @@ pub enum ProxyHeapData {
     Revoked,
 }
 
-impl HeapMarkAndSweep for ProxyHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ProxyHeapData<'_> {
+    type Of<'a> = ProxyHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ProxyHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self::NonRevoked {
             proxy_target,

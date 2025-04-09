@@ -4,15 +4,31 @@
 
 use crate::{
     ecmascript::types::OrdinaryObject,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct SharedArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct SharedArrayBufferHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
 }
 
-impl HeapMarkAndSweep for SharedArrayBufferHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SharedArrayBufferHeapData<'_> {
+    type Of<'a> = SharedArrayBufferHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for SharedArrayBufferHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.object_index.mark_values(queues);
     }

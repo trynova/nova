@@ -177,9 +177,9 @@ impl TryFrom<HeapRootData> for ArrayIterator<'_> {
     }
 }
 
-impl CreateHeapData<ArrayIteratorHeapData<'static>, ArrayIterator<'static>> for Heap {
-    fn create(&mut self, data: ArrayIteratorHeapData<'static>) -> ArrayIterator<'static> {
-        self.array_iterators.push(Some(data));
+impl<'a> CreateHeapData<ArrayIteratorHeapData<'a>, ArrayIterator<'a>> for Heap {
+    fn create(&mut self, data: ArrayIteratorHeapData<'a>) -> ArrayIterator<'a> {
+        self.array_iterators.push(Some(data.unbind()));
         ArrayIterator(ArrayIteratorIndex::last(&self.array_iterators))
     }
 }
@@ -208,6 +208,21 @@ pub struct ArrayIteratorHeapData<'a> {
     pub(crate) array: Option<Object<'a>>,
     pub(crate) next_index: i64,
     pub(crate) kind: CollectionIteratorKind,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayIteratorHeapData<'_> {
+    type Of<'a> = ArrayIteratorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 impl HeapMarkAndSweep for ArrayIteratorHeapData<'static> {

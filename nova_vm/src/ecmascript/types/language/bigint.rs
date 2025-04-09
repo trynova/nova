@@ -780,8 +780,8 @@ impl IndexMut<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
     }
 }
 
-impl CreateHeapData<BigIntHeapData, BigInt<'static>> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt<'static> {
+impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
+    fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
         self.bigints.push(Some(data));
         BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
     }

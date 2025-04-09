@@ -463,15 +463,15 @@ impl HeapMarkAndSweep for Error<'static> {
     }
 }
 
-impl CreateHeapData<ErrorHeapData, Error<'static>> for Heap {
-    fn create(&mut self, data: ErrorHeapData) -> Error<'static> {
-        self.errors.push(Some(data));
+impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
+    fn create(&mut self, data: ErrorHeapData<'a>) -> Error<'a> {
+        self.errors.push(Some(data.unbind()));
         Error(ErrorIndex::last(&self.errors))
     }
 }
 
 impl Index<Error<'_>> for Agent {
-    type Output = ErrorHeapData;
+    type Output = ErrorHeapData<'static>;
 
     fn index(&self, index: Error) -> &Self::Output {
         &self.heap.errors[index]
@@ -484,8 +484,8 @@ impl IndexMut<Error<'_>> for Agent {
     }
 }
 
-impl Index<Error<'_>> for Vec<Option<ErrorHeapData>> {
-    type Output = ErrorHeapData;
+impl Index<Error<'_>> for Vec<Option<ErrorHeapData<'static>>> {
+    type Output = ErrorHeapData<'static>;
 
     fn index(&self, index: Error) -> &Self::Output {
         self.get(index.get_index())
@@ -495,7 +495,7 @@ impl Index<Error<'_>> for Vec<Option<ErrorHeapData>> {
     }
 }
 
-impl IndexMut<Error<'_>> for Vec<Option<ErrorHeapData>> {
+impl IndexMut<Error<'_>> for Vec<Option<ErrorHeapData<'static>>> {
     fn index_mut(&mut self, index: Error) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Error out of bounds")
