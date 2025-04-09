@@ -4,15 +4,31 @@
 
 use crate::{
     ecmascript::types::String,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolHeapData {
-    pub(crate) descriptor: Option<String<'static>>,
+pub struct SymbolHeapData<'a> {
+    pub(crate) descriptor: Option<String<'a>>,
 }
 
-impl HeapMarkAndSweep for SymbolHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SymbolHeapData<'_> {
+    type Of<'a> = SymbolHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for SymbolHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self { descriptor } = self;
         descriptor.mark_values(queues);

@@ -41,7 +41,11 @@ use super::source_code::SourceCode;
 pub type HostDefined = &'static mut dyn Any;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Script<'a>(u32, PhantomData<ScriptRecord>, PhantomData<&'a GcToken>);
+pub struct Script<'a>(
+    u32,
+    PhantomData<ScriptRecord<'static>>,
+    PhantomData<&'a GcToken>,
+);
 
 impl Script<'_> {
     /// Creates a script identififer from a usize.
@@ -73,7 +77,7 @@ impl Script<'_> {
 }
 
 impl Index<Script<'_>> for Agent {
-    type Output = ScriptRecord;
+    type Output = ScriptRecord<'static>;
 
     fn index(&self, index: Script) -> &Self::Output {
         &self.heap.scripts[index]
@@ -86,8 +90,8 @@ impl IndexMut<Script<'_>> for Agent {
     }
 }
 
-impl Index<Script<'_>> for Vec<Option<ScriptRecord>> {
-    type Output = ScriptRecord;
+impl Index<Script<'_>> for Vec<Option<ScriptRecord<'static>>> {
+    type Output = ScriptRecord<'static>;
 
     fn index(&self, index: Script) -> &Self::Output {
         self.get(index.into_index())
@@ -97,7 +101,7 @@ impl Index<Script<'_>> for Vec<Option<ScriptRecord>> {
     }
 }
 
-impl IndexMut<Script<'_>> for Vec<Option<ScriptRecord>> {
+impl IndexMut<Script<'_>> for Vec<Option<ScriptRecord<'static>>> {
     fn index_mut(&mut self, index: Script) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("ScriptIdentifier out of bounds")
@@ -121,13 +125,13 @@ impl HeapMarkAndSweep for Script<'static> {
 ///
 /// A Script Record encapsulates information about a script being evaluated.
 #[derive(Debug)]
-pub struct ScriptRecord {
+pub struct ScriptRecord<'a> {
     /// ### \[\[Realm]]
     ///
     /// The realm within which this script was created. undefined if not yet
     /// assigned.
     // TODO: This should be able to be undefined sometimes.
-    pub(crate) realm: RealmIdentifier<'static>,
+    pub(crate) realm: RealmIdentifier<'a>,
 
     /// ### \[\[ECMAScriptCode]]
     ///
@@ -157,10 +161,10 @@ pub struct ScriptRecord {
     ///
     /// The source text is kept in the heap strings vector, through the
     /// SourceCode struct.
-    pub(crate) source_code: SourceCode<'static>,
+    pub(crate) source_code: SourceCode<'a>,
 }
 
-unsafe impl Send for ScriptRecord {}
+unsafe impl Send for ScriptRecord<'_> {}
 
 pub type ScriptOrErrors<'a> = Result<Script<'a>, Vec<OxcDiagnostic>>;
 
@@ -202,7 +206,22 @@ impl Rootable for Script<'_> {
     }
 }
 
-impl HeapMarkAndSweep for ScriptRecord {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ScriptRecord<'_> {
+    type Of<'a> = ScriptRecord<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ScriptRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             realm,

@@ -127,7 +127,7 @@ impl<'a> TryFrom<Primitive<'a>> for Symbol<'a> {
 }
 
 impl Index<Symbol<'_>> for Agent {
-    type Output = SymbolHeapData;
+    type Output = SymbolHeapData<'static>;
 
     fn index(&self, index: Symbol<'_>) -> &Self::Output {
         &self.heap.symbols[index]
@@ -140,8 +140,8 @@ impl IndexMut<Symbol<'_>> for Agent {
     }
 }
 
-impl Index<Symbol<'_>> for Vec<Option<SymbolHeapData>> {
-    type Output = SymbolHeapData;
+impl Index<Symbol<'_>> for Vec<Option<SymbolHeapData<'static>>> {
+    type Output = SymbolHeapData<'static>;
 
     fn index(&self, index: Symbol<'_>) -> &Self::Output {
         self.get(index.get_index())
@@ -151,7 +151,7 @@ impl Index<Symbol<'_>> for Vec<Option<SymbolHeapData>> {
     }
 }
 
-impl IndexMut<Symbol<'_>> for Vec<Option<SymbolHeapData>> {
+impl IndexMut<Symbol<'_>> for Vec<Option<SymbolHeapData<'static>>> {
     fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Symbol out of bounds")
@@ -170,9 +170,9 @@ impl HeapMarkAndSweep for Symbol<'static> {
     }
 }
 
-impl<'a> CreateHeapData<SymbolHeapData, Symbol<'a>> for Heap {
-    fn create(&mut self, data: SymbolHeapData) -> Symbol<'a> {
-        self.symbols.push(Some(data));
+impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
+    fn create(&mut self, data: SymbolHeapData<'a>) -> Symbol<'a> {
+        self.symbols.push(Some(data.unbind()));
         Symbol(SymbolIndex::last(&self.symbols))
     }
 }

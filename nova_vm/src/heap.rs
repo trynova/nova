@@ -153,7 +153,7 @@ pub struct Heap {
     pub set_iterators: Vec<Option<SetIteratorHeapData<'static>>>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData<'static>>>,
-    pub symbols: Vec<Option<SymbolHeapData>>,
+    pub symbols: Vec<Option<SymbolHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
@@ -169,7 +169,7 @@ pub struct Heap {
     #[cfg(feature = "weak-refs")]
     pub weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
     pub modules: Vec<Option<ModuleHeapData<'static>>>,
-    pub scripts: Vec<Option<ScriptRecord>>,
+    pub scripts: Vec<Option<ScriptRecord<'static>>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
     pub(crate) source_codes: Vec<Option<SourceCodeHeapData<'static>>>,
@@ -320,7 +320,7 @@ impl Heap {
         script: ScriptRecord,
         _: NoGcScope<'a, '_>,
     ) -> Script<'a> {
-        self.scripts.push(Some(script));
+        self.scripts.push(Some(script.unbind()));
         Script::last(&self.scripts)
     }
 
