@@ -13,8 +13,8 @@ use crate::{
 pub struct ObjectHeapData {
     pub extensible: bool,
     pub prototype: Option<Object<'static>>,
-    pub keys: ElementsVector,
-    pub values: ElementsVector,
+    pub keys: ElementsVector<'static>,
+    pub values: ElementsVector<'static>,
 }
 
 impl ObjectHeapData {
@@ -39,8 +39,8 @@ impl ObjectHeapData {
             // Number objects etc the field is Some(Value).
             // TODO: Move prototype and key vector into shapes
             prototype,
-            keys,
-            values,
+            keys: keys.unbind(),
+            values: values.unbind(),
         }
     }
 

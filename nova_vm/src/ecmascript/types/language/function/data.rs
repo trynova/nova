@@ -34,7 +34,7 @@ pub struct BoundFunctionHeapData {
     ///
     /// A list of values whose elements are used as the first arguments to any
     /// call to the wrapped function.
-    pub(crate) bound_arguments: ElementsVector,
+    pub(crate) bound_arguments: ElementsVector<'static>,
     pub(crate) name: Option<String<'static>>,
 }
 

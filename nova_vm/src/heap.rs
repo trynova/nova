@@ -426,8 +426,8 @@ impl Heap {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
-            keys,
-            values,
+            keys: keys.unbind(),
+            values: values.unbind(),
             prototype: None,
         };
         self.objects.push(Some(object_data));
@@ -442,8 +442,8 @@ impl Heap {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
-            keys,
-            values,
+            keys: keys.unbind(),
+            values: values.unbind(),
             prototype: Some(prototype.unbind()),
         };
         self.objects.push(Some(object_data));

@@ -201,7 +201,7 @@ pub type DataViewIndex<'a> = BaseIndex<'a, DataViewHeapData>;
 #[cfg(feature = "date")]
 pub type DateIndex<'a> = BaseIndex<'a, DateHeapData>;
 pub type ECMAScriptFunctionIndex<'a> = BaseIndex<'a, ECMAScriptFunctionHeapData>;
-pub type ElementIndex = BaseIndex<'static, [Option<Value<'static>>]>;
+pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
 pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
 pub type ErrorIndex<'a> = BaseIndex<'a, ErrorHeapData>;
 pub type FinalizationRegistryIndex<'a> = BaseIndex<'a, FinalizationRegistryHeapData>;
@@ -249,7 +249,7 @@ unsafe impl Bindable for TypedArrayIndex<'_> {
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.
-impl Default for ElementIndex {
+impl Default for ElementIndex<'static> {
     fn default() -> Self {
         Self(
             unsafe { NonZeroU32::new_unchecked(1) },
@@ -259,14 +259,29 @@ impl Default for ElementIndex {
     }
 }
 
-impl ElementIndex {
+impl ElementIndex<'_> {
     pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value>; N]>]) -> Self {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
 }
 
-impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value<'static>>; N]>> {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ElementIndex<'_> {
+    type Of<'a> = ElementIndex<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<const N: usize> Index<ElementIndex<'_>> for Vec<Option<[Option<Value<'static>>; N]>> {
     type Output = [Option<Value<'static>>; N];
 
     fn index(&self, index: ElementIndex) -> &Self::Output {
@@ -277,8 +292,8 @@ impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value<'static>>;
     }
 }
 
-impl<const N: usize> IndexMut<ElementIndex> for Vec<Option<[Option<Value<'static>>; N]>> {
-    fn index_mut(&mut self, index: ElementIndex) -> &mut Self::Output {
+impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<Option<[Option<Value<'static>>; N]>> {
+    fn index_mut(&mut self, index: ElementIndex<'_>) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("Invalid ElementsVector: No item at index")
             .as_mut()

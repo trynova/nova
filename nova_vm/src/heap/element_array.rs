@@ -109,13 +109,13 @@ impl From<usize> for ElementArrayKey {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct ElementsVector {
-    pub(crate) elements_index: ElementIndex,
+pub struct ElementsVector<'a> {
+    pub(crate) elements_index: ElementIndex<'a>,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
 }
 
-impl ElementsVector {
+impl ElementsVector<'_> {
     pub fn cap(&self) -> u32 {
         self.cap.cap()
     }
@@ -235,7 +235,7 @@ impl ElementsVector {
                 ElementArrayKey::E32 => &mut elements.e2pow32.descriptors,
             };
             descriptors_map
-                .entry(self.elements_index)
+                .entry(self.elements_index.unbind())
                 .or_default()
                 .insert(self.len, descriptor);
         }
@@ -245,40 +245,41 @@ impl ElementsVector {
     pub fn remove(&mut self, elements: &mut ElementArrays, index: usize) {
         let len = usize::try_from(self.len()).unwrap();
         assert!(index < len);
+        let elements_index = self.elements_index.unbind();
 
         let (values, descriptors) = match self.cap {
             ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => (
-                &mut elements.e2pow4.values[self.elements_index][..],
-                elements.e2pow4.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow4.values[elements_index][..],
+                elements.e2pow4.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E6 => (
-                &mut elements.e2pow6.values[self.elements_index][..],
-                elements.e2pow6.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow6.values[elements_index][..],
+                elements.e2pow6.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E8 => (
-                &mut elements.e2pow8.values[self.elements_index][..],
-                elements.e2pow8.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow8.values[elements_index][..],
+                elements.e2pow8.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E10 => (
-                &mut elements.e2pow10.values[self.elements_index][..],
-                elements.e2pow10.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow10.values[elements_index][..],
+                elements.e2pow10.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E12 => (
-                &mut elements.e2pow12.values[self.elements_index][..],
-                elements.e2pow12.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow12.values[elements_index][..],
+                elements.e2pow12.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E16 => (
-                &mut elements.e2pow16.values[self.elements_index][..],
-                elements.e2pow16.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow16.values[elements_index][..],
+                elements.e2pow16.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E24 => (
-                &mut elements.e2pow24.values[self.elements_index][..],
-                elements.e2pow24.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow24.values[elements_index][..],
+                elements.e2pow24.descriptors.get_mut(&elements_index),
             ),
             ElementArrayKey::E32 => (
-                &mut elements.e2pow32.values[self.elements_index][..],
-                elements.e2pow32.descriptors.get_mut(&self.elements_index),
+                &mut elements.e2pow32.values[elements_index][..],
+                elements.e2pow32.descriptors.get_mut(&elements_index),
             ),
         };
 
@@ -304,7 +305,22 @@ impl ElementsVector {
     }
 }
 
-impl HeapMarkAndSweep for ElementsVector {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ElementsVector<'_> {
+    type Of<'a> = ElementsVector<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ElementsVector<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self.cap {
             ElementArrayKey::Empty => {}
@@ -1009,7 +1025,7 @@ impl ElementDescriptor {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow4 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 4)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow4 {
@@ -1025,7 +1041,7 @@ impl ElementArray2Pow4 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow6 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 6)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow6 {
@@ -1041,7 +1057,7 @@ impl ElementArray2Pow6 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow8 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 8)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow8 {
@@ -1057,7 +1073,7 @@ impl ElementArray2Pow8 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow10 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 10)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow10 {
@@ -1073,7 +1089,7 @@ impl ElementArray2Pow10 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow12 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 12)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow12 {
@@ -1089,7 +1105,7 @@ impl ElementArray2Pow12 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow16 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 16)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow16 {
@@ -1105,7 +1121,7 @@ impl ElementArray2Pow16 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow24 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 24)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow24 {
@@ -1121,7 +1137,7 @@ impl ElementArray2Pow24 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow32 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 32)]>>,
-    pub descriptors: AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
 }
 
 impl ElementArray2Pow32 {
@@ -1153,21 +1169,21 @@ pub struct ElementArrays {
     pub e2pow32: ElementArray2Pow32,
 }
 
-impl Index<ElementsVector> for ElementArrays {
+impl Index<ElementsVector<'_>> for ElementArrays {
     type Output = [Option<Value<'static>>];
 
     fn index(&self, index: ElementsVector) -> &Self::Output {
-        self.get(index)
+        self.get(index.unbind())
     }
 }
 
-impl IndexMut<ElementsVector> for ElementArrays {
+impl IndexMut<ElementsVector<'_>> for ElementArrays {
     fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
         self.get_mut(index)
     }
 }
 
-impl Index<ElementsVector> for Agent {
+impl Index<ElementsVector<'_>> for Agent {
     type Output = [Option<Value<'static>>];
 
     fn index(&self, index: ElementsVector) -> &Self::Output {
@@ -1175,27 +1191,27 @@ impl Index<ElementsVector> for Agent {
     }
 }
 
-impl IndexMut<ElementsVector> for Agent {
+impl IndexMut<ElementsVector<'_>> for Agent {
     fn index_mut(&mut self, index: ElementsVector) -> &mut Self::Output {
         &mut self.heap.elements[index]
     }
 }
 
-impl Index<SealableElementsVector> for ElementArrays {
+impl<'a> Index<SealableElementsVector<'a>> for ElementArrays {
     type Output = [Option<Value<'static>>];
 
     fn index(&self, index: SealableElementsVector) -> &Self::Output {
-        self.get(index.into())
+        self.get(index.unbind().into())
     }
 }
 
-impl IndexMut<SealableElementsVector> for ElementArrays {
+impl<'a> IndexMut<SealableElementsVector<'a>> for ElementArrays {
     fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
         self.get_mut(index.into())
     }
 }
 
-impl Index<SealableElementsVector> for Agent {
+impl<'a> Index<SealableElementsVector<'a>> for Agent {
     type Output = [Option<Value<'static>>];
 
     fn index(&self, index: SealableElementsVector) -> &Self::Output {
@@ -1203,7 +1219,7 @@ impl Index<SealableElementsVector> for Agent {
     }
 }
 
-impl IndexMut<SealableElementsVector> for Agent {
+impl<'a> IndexMut<SealableElementsVector<'a>> for Agent {
     fn index_mut(&mut self, index: SealableElementsVector) -> &mut Self::Output {
         &mut self.heap.elements[index]
     }
@@ -1215,7 +1231,7 @@ impl ElementArrays {
         key: ElementArrayKey,
         vector: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor>>,
-    ) -> ElementIndex {
+    ) -> ElementIndex<'static> {
         debug_assert_eq!(
             core::mem::size_of::<Option<[Option<Value>; 1]>>(),
             core::mem::size_of::<[Option<Value>; 1]>()
@@ -1866,7 +1882,7 @@ impl ElementArrays {
         elements_vector.elements_index = new_index;
     }
 
-    pub fn allocate_elements_with_capacity(&mut self, capacity: usize) -> ElementsVector {
+    pub fn allocate_elements_with_capacity(&mut self, capacity: usize) -> ElementsVector<'static> {
         let cap = ElementArrayKey::from(capacity);
         ElementsVector {
             elements_index: self.push_with_key(cap, &[], None),
@@ -1875,14 +1891,14 @@ impl ElementArrays {
         }
     }
 
-    pub(crate) fn create_with_stuff(
+    pub(crate) fn create_with_stuff<'a>(
         &mut self,
         mut entries: Vec<(
-            PropertyKey<'static>,
+            PropertyKey<'a>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'a>>,
         )>,
-    ) -> (ElementsVector, ElementsVector) {
+    ) -> (ElementsVector<'a>, ElementsVector<'a>) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
@@ -1925,10 +1941,10 @@ impl ElementArrays {
         )
     }
 
-    pub(crate) fn create_object_entries(
+    pub(crate) fn create_object_entries<'a>(
         &mut self,
-        entries: &[ObjectEntry<'_>],
-    ) -> (ElementsVector, ElementsVector) {
+        entries: &[ObjectEntry<'a>],
+    ) -> (ElementsVector<'a>, ElementsVector<'a>) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
@@ -1973,7 +1989,7 @@ impl ElementArrays {
         )
     }
 
-    pub fn get(&self, vector: ElementsVector) -> &[Option<Value<'static>>] {
+    pub fn get<'a>(&self, vector: ElementsVector) -> &[Option<Value<'a>>] {
         match vector.cap {
             ElementArrayKey::Empty => &[],
             ElementArrayKey::E4 => {
@@ -2032,6 +2048,7 @@ impl ElementArrays {
         Option<&AHashMap<u32, ElementDescriptor>>,
         &[Option<Value<'static>>],
     ) {
+        let vector = vector.unbind();
         let usize_index = vector.elements_index.into_index();
         match vector.cap {
             ElementArrayKey::Empty => (None, &[]),
@@ -2149,6 +2166,7 @@ impl ElementArrays {
         Option<&mut AHashMap<u32, ElementDescriptor>>,
         &mut [Option<Value<'static>>],
     ) {
+        let vector = vector.unbind();
         let usize_index = vector.elements_index.into_index();
         match vector.cap {
             ElementArrayKey::Empty => (None, &mut []),
@@ -2290,6 +2308,7 @@ impl ElementArrays {
         index: usize,
         descriptor: Option<ElementDescriptor>,
     ) {
+        let vector = vector.unbind();
         let index: u32 = index.try_into().unwrap();
         assert!(index < vector.len);
         let descriptors = match vector.cap {
@@ -2348,7 +2367,10 @@ impl ElementArrays {
 
     /// This method creates a "shallow clone" of the elements of a trivial/dense array.
     /// It does not do anything with descriptors and assumes there is a previous validation in place.
-    pub fn shallow_clone(&mut self, elements_vector: ElementsVector) -> SealableElementsVector {
+    pub fn shallow_clone<'a>(
+        &mut self,
+        elements_vector: ElementsVector<'a>,
+    ) -> SealableElementsVector<'a> {
         let index = elements_vector.elements_index.into_index();
         let ElementArrays {
             e2pow4,
