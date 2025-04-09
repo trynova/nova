@@ -251,9 +251,9 @@ impl ObjectPrototype {
         to_object(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
         // The Object prototype object:
-        let intrinsics = agent.get_realm(realm).intrinsics();
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         // is %Object.prototype%.
         let this = intrinsics.object_prototype();
         let _to_string_index = intrinsics.object_prototype_to_string();

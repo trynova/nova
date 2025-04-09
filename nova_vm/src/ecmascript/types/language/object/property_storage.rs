@@ -173,11 +173,11 @@ impl<'a> PropertyStorage<'a> {
 
 #[derive(Debug)]
 pub struct Entries<'a> {
-    pub realm: Ref<'a, Realm>,
+    pub realm: Ref<'a, Realm<'static>>,
 }
 
 impl<'a> Entries<'a> {
-    fn new(realm: Ref<'a, Realm>) -> Self {
+    fn new(realm: Ref<'a, Realm<'static>>) -> Self {
         Self { realm }
     }
 }

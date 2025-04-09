@@ -131,7 +131,7 @@ impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
 impl<'a> InternalMethods<'a> for ArrayIterator<'a> {}
 
 impl Index<ArrayIterator<'_>> for Agent {
-    type Output = ArrayIteratorHeapData;
+    type Output = ArrayIteratorHeapData<'static>;
 
     fn index(&self, index: ArrayIterator) -> &Self::Output {
         &self.heap.array_iterators[index]
@@ -144,8 +144,8 @@ impl IndexMut<ArrayIterator<'_>> for Agent {
     }
 }
 
-impl Index<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData>> {
-    type Output = ArrayIteratorHeapData;
+impl Index<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData<'static>>> {
+    type Output = ArrayIteratorHeapData<'static>;
 
     fn index(&self, index: ArrayIterator) -> &Self::Output {
         self.get(index.get_index())
@@ -155,7 +155,7 @@ impl Index<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData>> {
     }
 }
 
-impl IndexMut<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData>> {
+impl IndexMut<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData<'static>>> {
     fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ArrayIterator out of bounds")
@@ -177,9 +177,9 @@ impl TryFrom<HeapRootData> for ArrayIterator<'_> {
     }
 }
 
-impl CreateHeapData<ArrayIteratorHeapData, ArrayIterator<'static>> for Heap {
-    fn create(&mut self, data: ArrayIteratorHeapData) -> ArrayIterator<'static> {
-        self.array_iterators.push(Some(data));
+impl<'a> CreateHeapData<ArrayIteratorHeapData<'a>, ArrayIterator<'a>> for Heap {
+    fn create(&mut self, data: ArrayIteratorHeapData<'a>) -> ArrayIterator<'a> {
+        self.array_iterators.push(Some(data.unbind()));
         ArrayIterator(ArrayIteratorIndex::last(&self.array_iterators))
     }
 }
@@ -203,14 +203,29 @@ pub(crate) enum CollectionIteratorKind {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArrayIteratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) array: Option<Object<'static>>,
+pub struct ArrayIteratorHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) array: Option<Object<'a>>,
     pub(crate) next_index: i64,
     pub(crate) kind: CollectionIteratorKind,
 }
 
-impl HeapMarkAndSweep for ArrayIteratorHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayIteratorHeapData<'_> {
+    type Of<'a> = ArrayIteratorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ArrayIteratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

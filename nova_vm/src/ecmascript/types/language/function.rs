@@ -245,7 +245,7 @@ impl<'a> InternalSlots<'a> for Function<'a> {
         } else if prototype
             != Some(
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .function_prototype()
                     .into(),

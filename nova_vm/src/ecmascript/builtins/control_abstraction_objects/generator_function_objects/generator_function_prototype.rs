@@ -14,8 +14,8 @@ use crate::{
 pub(crate) struct GeneratorFunctionPrototype;
 
 impl GeneratorFunctionPrototype {
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype();
         let generator_prototype = intrinsics.generator_prototype();
         let this = intrinsics.generator_function_prototype();

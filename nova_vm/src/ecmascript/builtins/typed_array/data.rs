@@ -10,7 +10,7 @@ use crate::{
         },
         types::OrdinaryObject,
     },
-    engine::context::Bindable,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -59,10 +59,10 @@ impl From<Option<usize>> for TypedArrayArrayLength {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypedArrayHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct TypedArrayHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
-    pub(crate) viewed_array_buffer: ArrayBuffer<'static>,
+    pub(crate) viewed_array_buffer: ArrayBuffer<'a>,
     /// ### [\[\[ByteLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) byte_length: ViewedArrayBufferByteLength,
     /// ### [\[\[ByteOffset\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
@@ -71,10 +71,10 @@ pub struct TypedArrayHeapData {
     pub(crate) array_length: TypedArrayArrayLength,
 }
 
-impl TypedArrayHeapData {
-    pub fn new(object_index: Option<OrdinaryObject<'_>>) -> Self {
+impl<'a> TypedArrayHeapData<'a> {
+    pub fn new(object_index: Option<OrdinaryObject<'a>>) -> Self {
         Self {
-            object_index: object_index.unbind(),
+            object_index,
             viewed_array_buffer: ArrayBuffer::_def(),
             byte_length: Default::default(),
             byte_offset: Default::default(),
@@ -83,7 +83,7 @@ impl TypedArrayHeapData {
     }
 }
 
-impl Default for TypedArrayHeapData {
+impl Default for TypedArrayHeapData<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
@@ -95,7 +95,22 @@ impl Default for TypedArrayHeapData {
     }
 }
 
-impl HeapMarkAndSweep for TypedArrayHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for TypedArrayHeapData<'_> {
+    type Of<'a> = TypedArrayHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for TypedArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.object_index.mark_values(queues);
     }

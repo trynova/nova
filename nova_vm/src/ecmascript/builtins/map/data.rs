@@ -19,20 +19,20 @@ use core::{
 use hashbrown::{HashTable, hash_table::Entry};
 
 #[derive(Debug, Default)]
-pub struct MapHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    map_data: MapData,
+pub struct MapHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    map_data: MapData<'a>,
     // TODO: When an non-terminal (start or end) iterator exists for the Map,
     // the items in the map cannot be compacted.
     // pub(crate) observed: bool;
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct MapData {
+pub(crate) struct MapData<'a> {
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
     // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    pub(crate) keys: Vec<Option<Value<'static>>>,
-    pub(crate) values: Vec<Option<Value<'static>>>,
+    pub(crate) keys: Vec<Option<Value<'a>>>,
+    pub(crate) values: Vec<Option<Value<'a>>>,
     /// Low-level hash table pointing to keys-values indexes.
     pub(crate) map_data: RefCell<HashTable<u32>>,
     /// Flag that lets the Map know if it needs to rehash its primitive keys.
@@ -45,7 +45,7 @@ pub(crate) struct MapData {
     pub(crate) needs_primitive_rehashing: AtomicBool,
 }
 
-impl MapHeapData {
+impl<'a> MapHeapData<'a> {
     /// ### [24.2.1.5 MapDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
     ///
     /// The abstract operation MapDataSize takes argument setData (a List of either
@@ -59,11 +59,11 @@ impl MapHeapData {
         self.map_data.map_data.borrow().len() as u32
     }
 
-    pub fn keys<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
+    pub fn keys(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.map_data.keys
     }
 
-    pub fn values<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
+    pub fn values(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.map_data.values
     }
 
@@ -81,7 +81,7 @@ impl MapHeapData {
         &self.map_data
     }
 
-    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut MapData {
+    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut MapData<'a> {
         self.map_data.rehash_if_needed_mut(arena);
         &mut self.map_data
     }
@@ -99,7 +99,7 @@ impl MapHeapData {
     }
 }
 
-impl MapData {
+impl MapData<'_> {
     fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
         if !*self.needs_primitive_rehashing.get_mut() {
             return;
@@ -180,7 +180,22 @@ fn rehash_map_data(
     }
 }
 
-impl HeapMarkAndSweep for MapHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for MapHeapData<'_> {
+    type Of<'a> = MapHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for MapHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

@@ -43,22 +43,22 @@ pub(crate) enum PromiseReactionType {
 /// \[\[Handler\]\] is empty, a function that depends on the value of
 /// \[\[Type\]\] will be used instead.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum PromiseReactionHandler {
-    JobCallback(Function<'static>),
-    Await(AwaitReactionIdentifier),
-    AsyncGenerator(AsyncGenerator<'static>),
+pub(crate) enum PromiseReactionHandler<'a> {
+    JobCallback(Function<'a>),
+    Await(AwaitReactionIdentifier<'a>),
+    AsyncGenerator(AsyncGenerator<'a>),
     Empty,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PromiseReactionRecord {
+#[derive(Debug, Clone)]
+pub struct PromiseReactionRecord<'a> {
     /// \[\[Capability\]\]
     ///
     /// a PromiseCapability Record or undefined
     ///
     /// The capabilities of the promise for which this record provides a
     /// reaction handler.
-    pub(crate) capability: Option<PromiseCapability>,
+    pub(crate) capability: Option<PromiseCapability<'a>>,
     /// \[\[Type\]\]
     pub(crate) reaction_type: PromiseReactionType,
     /// \[\[Handler\]\]
@@ -69,12 +69,12 @@ pub struct PromiseReactionRecord {
     /// return value will govern what happens to the derived promise. If
     /// \[\[Handler\]\] is empty, a function that depends on the value of
     /// \[\[Type\]\] will be used instead.
-    pub(crate) handler: PromiseReactionHandler,
+    pub(crate) handler: PromiseReactionHandler<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord>);
+pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord<'static>>);
 
 impl PromiseReaction<'_> {
     pub(crate) const fn get_index(self) -> usize {
@@ -83,7 +83,7 @@ impl PromiseReaction<'_> {
 }
 
 impl Index<PromiseReaction<'_>> for Agent {
-    type Output = PromiseReactionRecord;
+    type Output = PromiseReactionRecord<'static>;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
         &self.heap.promise_reaction_records[index]
@@ -96,8 +96,8 @@ impl IndexMut<PromiseReaction<'_>> for Agent {
     }
 }
 
-impl Index<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord>> {
-    type Output = PromiseReactionRecord;
+impl Index<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord<'static>>> {
+    type Output = PromiseReactionRecord<'static>;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
         self.get(index.get_index())
@@ -107,7 +107,7 @@ impl Index<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord>> {
     }
 }
 
-impl IndexMut<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord>> {
+impl IndexMut<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord<'static>>> {
     fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PromiseReaction out of bounds")
@@ -166,7 +166,22 @@ impl Rootable for PromiseReaction<'_> {
     }
 }
 
-impl HeapMarkAndSweep for PromiseReactionRecord {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PromiseReactionRecord<'_> {
+    type Of<'a> = PromiseReactionRecord<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         self.capability.mark_values(queues);
         if let PromiseReactionHandler::JobCallback(_) = self.handler {
@@ -182,9 +197,9 @@ impl HeapMarkAndSweep for PromiseReactionRecord {
     }
 }
 
-impl CreateHeapData<PromiseReactionRecord, PromiseReaction<'static>> for Heap {
-    fn create(&mut self, data: PromiseReactionRecord) -> PromiseReaction<'static> {
-        self.promise_reaction_records.push(Some(data));
+impl<'a> CreateHeapData<PromiseReactionRecord<'a>, PromiseReaction<'a>> for Heap {
+    fn create(&mut self, data: PromiseReactionRecord<'a>) -> PromiseReaction<'a> {
+        self.promise_reaction_records.push(Some(data.unbind()));
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }
 }

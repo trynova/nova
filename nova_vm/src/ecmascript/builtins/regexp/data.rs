@@ -6,6 +6,7 @@ use oxc_ast::ast::RegExpFlags;
 
 use crate::{
     ecmascript::types::{OrdinaryObject, PropertyDescriptor, String, Value},
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -99,15 +100,15 @@ impl RegExpLastIndex {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct RegExpHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct RegExpHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // _regex: RegExp,
-    pub(crate) original_source: String<'static>,
+    pub(crate) original_source: String<'a>,
     pub(crate) original_flags: RegExpFlags,
     pub(crate) last_index: RegExpLastIndex,
 }
 
-impl Default for RegExpHeapData {
+impl Default for RegExpHeapData<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
@@ -118,7 +119,22 @@ impl Default for RegExpHeapData {
     }
 }
 
-impl HeapMarkAndSweep for RegExpHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for RegExpHeapData<'_> {
+    type Of<'a> = RegExpHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for RegExpHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

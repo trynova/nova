@@ -4,8 +4,10 @@
 
 use core::ops::{Index, IndexMut};
 
+use data::PromiseState;
+
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -38,6 +40,13 @@ impl<'a> Promise<'a> {
         self.0.into_index()
     }
 
+    pub(crate) fn set_already_resolved(self, agent: &mut Agent) {
+        match &mut agent[self].promise_state {
+            PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
+            _ => unreachable!(),
+        };
+    }
+
     /// [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
     pub fn resolve(agent: &mut Agent, x: Value, mut gc: GcScope<'a, '_>) -> Self {
         // 1. If IsPromise(x) is true, then
@@ -48,11 +57,13 @@ impl<'a> Promise<'a> {
             promise.unbind()
         } else {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
-            let promise_capability = PromiseCapability::new(agent);
+            let promise_capability = PromiseCapability::new(agent, gc.nogc());
+            let promise = promise_capability.promise().scope(agent, gc.nogc());
             // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
-            promise_capability.resolve(agent, x, gc.reborrow());
+            promise_capability.unbind().resolve(agent, x, gc.reborrow());
             // 4. Return promiseCapability.[[Promise]].
-            promise_capability.promise().bind(gc.into_nogc())
+            // SAFETY: Not shared.
+            unsafe { promise.take(agent) }
         }
     }
 }
@@ -116,15 +127,30 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
 
 impl<'a> InternalMethods<'a> for Promise<'a> {}
 
-impl CreateHeapData<PromiseHeapData, Promise<'static>> for Heap {
-    fn create(&mut self, data: PromiseHeapData) -> Promise<'static> {
-        self.promises.push(Some(data));
+impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
+    fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
+        self.promises.push(Some(data.unbind()));
         Promise(PromiseIndex::last(&self.promises))
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PromiseHeapData<'_> {
+    type Of<'a> = PromiseHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl Index<Promise<'_>> for Agent {
-    type Output = PromiseHeapData;
+    type Output = PromiseHeapData<'static>;
 
     fn index(&self, index: Promise) -> &Self::Output {
         &self.heap.promises[index]
@@ -137,8 +163,8 @@ impl IndexMut<Promise<'_>> for Agent {
     }
 }
 
-impl Index<Promise<'_>> for Vec<Option<PromiseHeapData>> {
-    type Output = PromiseHeapData;
+impl Index<Promise<'_>> for Vec<Option<PromiseHeapData<'static>>> {
+    type Output = PromiseHeapData<'static>;
 
     fn index(&self, index: Promise) -> &Self::Output {
         self.get(index.get_index())
@@ -148,7 +174,7 @@ impl Index<Promise<'_>> for Vec<Option<PromiseHeapData>> {
     }
 }
 
-impl IndexMut<Promise<'_>> for Vec<Option<PromiseHeapData>> {
+impl IndexMut<Promise<'_>> for Vec<Option<PromiseHeapData<'static>>> {
     fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Promise out of bounds")

@@ -19,15 +19,15 @@ use core::{
 use hashbrown::{HashTable, hash_table::Entry};
 
 #[derive(Debug, Default)]
-pub struct SetHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    set_data: SetData,
+pub struct SetHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    set_data: SetData<'a>,
     // TODO: When an non-terminal (start or end) iterator exists for the Set,
     // the items in the set cannot be compacted.
     // pub(crate) observed: bool;
 }
 
-impl SetHeapData {
+impl<'a> SetHeapData<'a> {
     /// ### [24.2.1.5 SetDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
     ///
     /// The abstract operation SetDataSize takes argument setData (a List of either
@@ -41,7 +41,7 @@ impl SetHeapData {
         self.set_data.set_data.borrow().len() as u32
     }
 
-    pub fn values<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
+    pub fn values(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.set_data.values
     }
 
@@ -53,20 +53,20 @@ impl SetHeapData {
         self.set_data.values.fill(None);
     }
 
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &SetData {
+    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &SetData<'a> {
         self.set_data.rehash_if_needed(arena);
         &self.set_data
     }
 
-    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut SetData {
+    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut SetData<'a> {
         self.set_data.rehash_if_needed(arena);
         &mut self.set_data
     }
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct SetData {
-    pub(crate) values: Vec<Option<Value<'static>>>,
+pub(crate) struct SetData<'a> {
+    pub(crate) values: Vec<Option<Value<'a>>>,
     /// Low-level hash table pointing to value indexes.
     pub(crate) set_data: RefCell<HashTable<u32>>,
     /// Flag that lets the Set know if it needs to rehash its primitive keys.
@@ -79,7 +79,7 @@ pub(crate) struct SetData {
     pub(crate) needs_primitive_rehashing: AtomicBool,
 }
 
-impl SetData {
+impl SetData<'_> {
     fn rehash_if_needed(&self, arena: &impl PrimitiveHeapIndexable) {
         if !self.needs_primitive_rehashing.load(Ordering::Relaxed) {
             return;
@@ -167,7 +167,22 @@ fn rehash_set_data(
     }
 }
 
-impl HeapMarkAndSweep for SetHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SetHeapData<'_> {
+    type Of<'a> = SetHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for SetHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

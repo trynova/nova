@@ -120,7 +120,7 @@ impl HeapMarkAndSweep for Map<'static> {
 }
 
 impl Index<Map<'_>> for Agent {
-    type Output = MapHeapData;
+    type Output = MapHeapData<'static>;
 
     fn index(&self, index: Map) -> &Self::Output {
         &self.heap.maps[index]
@@ -133,8 +133,8 @@ impl IndexMut<Map<'_>> for Agent {
     }
 }
 
-impl Index<Map<'_>> for Vec<Option<MapHeapData>> {
-    type Output = MapHeapData;
+impl Index<Map<'_>> for Vec<Option<MapHeapData<'static>>> {
+    type Output = MapHeapData<'static>;
 
     fn index(&self, index: Map) -> &Self::Output {
         self.get(index.get_index())
@@ -144,7 +144,7 @@ impl Index<Map<'_>> for Vec<Option<MapHeapData>> {
     }
 }
 
-impl IndexMut<Map<'_>> for Vec<Option<MapHeapData>> {
+impl IndexMut<Map<'_>> for Vec<Option<MapHeapData<'static>>> {
     fn index_mut(&mut self, index: Map) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Map out of bounds")
@@ -176,9 +176,9 @@ impl Rootable for Map<'_> {
     }
 }
 
-impl CreateHeapData<MapHeapData, Map<'static>> for Heap {
-    fn create(&mut self, data: MapHeapData) -> Map<'static> {
-        self.maps.push(Some(data));
+impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
+    fn create(&mut self, data: MapHeapData<'a>) -> Map<'a> {
+        self.maps.push(Some(data.unbind()));
         Map(MapIndex::last(&self.maps))
     }
 }

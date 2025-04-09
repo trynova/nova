@@ -180,24 +180,24 @@ pub enum ThisMode {
 
 /// ### [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
 #[derive(Debug)]
-pub(crate) struct ECMAScriptFunctionObjectHeapData {
+pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
     /// \[\[Environment]]
-    pub environment: Environment<'static>,
+    pub environment: Environment<'a>,
 
     /// \[\[PrivateEnvironment]]
-    pub private_environment: Option<PrivateEnvironment<'static>>,
+    pub private_environment: Option<PrivateEnvironment<'a>>,
 
     /// \[\[FormalParameters]]
     ///
     /// SAFETY: SourceCode owns the Allocator into which this refers to.
     /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub formal_parameters: NonNull<FormalParameters<'static>>,
+    pub formal_parameters: NonNull<FormalParameters<'a>>,
 
     /// \[\[ECMAScriptCode]]
     ///
     /// SAFETY: SourceCode owns the Allocator into which this refers to.
     /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub ecmascript_code: NonNull<FunctionBody<'static>>,
+    pub ecmascript_code: NonNull<FunctionBody<'a>>,
 
     /// True if the function body is a ConciseBody (can only be true for arrow
     /// functions).
@@ -215,10 +215,10 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
-    pub realm: RealmIdentifier,
+    pub realm: RealmIdentifier<'a>,
 
     /// \[\[ScriptOrModule]]
-    pub script_or_module: ScriptOrModule<'static>,
+    pub script_or_module: ScriptOrModule<'a>,
 
     /// \[\[ThisMode]]
     pub this_mode: ThisMode,
@@ -227,7 +227,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub strict: bool,
 
     /// \[\[HomeObject]]
-    pub home_object: Option<Object<'static>>,
+    pub home_object: Option<Object<'a>>,
 
     ///  \[\[SourceText]]
     pub source_text: Span,
@@ -236,7 +236,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     ///
     /// Nova specific addition: This SourceCode is where \[\[SourceText]]
     /// refers to.
-    pub source_code: SourceCode<'static>,
+    pub source_code: SourceCode<'a>,
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
@@ -255,7 +255,7 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program, 'gc> {
 }
 
 impl Index<ECMAScriptFunction<'_>> for Agent {
-    type Output = ECMAScriptFunctionHeapData;
+    type Output = ECMAScriptFunctionHeapData<'static>;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
         &self.heap.ecmascript_functions[index]
@@ -268,8 +268,8 @@ impl IndexMut<ECMAScriptFunction<'_>> for Agent {
     }
 }
 
-impl Index<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>> {
-    type Output = ECMAScriptFunctionHeapData;
+impl Index<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData<'static>>> {
+    type Output = ECMAScriptFunctionHeapData<'static>;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
         self.get(index.get_index())
@@ -279,7 +279,7 @@ impl Index<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>> {
     }
 }
 
-impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>> {
+impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData<'static>>> {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
@@ -763,7 +763,7 @@ pub(crate) fn ordinary_call_bind_this(
         // a. If thisArgument is either undefined or null, then
         if this_argument == Value::Undefined || this_argument == Value::Null {
             // i. Let globalEnv be calleeRealm.[[GlobalEnv]].
-            let global_env = agent.get_realm(callee_realm).global_env;
+            let global_env = agent.get_realm_record_by_id(callee_realm).global_env;
             // ii. Assert: globalEnv is a Global Environment Record.
             let global_env = global_env.unwrap();
             // iii. Let thisValue be globalEnv.[[GlobalThisValue]].
@@ -931,7 +931,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         // 12. Set F.[[IsClassConstructor]] to false.
         constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.
-        realm: agent.current_realm_id(),
+        realm: agent.current_realm(gc),
         // 15. Set F.[[ScriptOrModule]] to GetActiveScriptOrModule().
         script_or_module: get_active_script_or_module(agent, gc).unwrap().unbind(),
         // 9. If thisMode is LEXICAL-THIS, set F.[[ThisMode]] to LEXICAL.
@@ -963,7 +963,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     if let Some(function_prototype) = params.function_prototype {
         if function_prototype
             != agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .function_prototype()
                 .into_object()
@@ -1206,14 +1206,29 @@ impl HeapMarkAndSweep for ECMAScriptFunction<'static> {
     }
 }
 
-impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction<'static>> for Heap {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> ECMAScriptFunction<'static> {
-        self.ecmascript_functions.push(Some(data));
+impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> for Heap {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData<'a>) -> ECMAScriptFunction<'a> {
+        self.ecmascript_functions.push(Some(data.unbind()));
         ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }
 
-impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ECMAScriptFunctionHeapData<'_> {
+    type Of<'a> = ECMAScriptFunctionHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

@@ -328,7 +328,7 @@ impl FunctionPrototype {
             ));
         };
         // TODO: PrepareForTailCall
-        let args = if args.len() > 0 {
+        let args = if !args.is_empty() {
             args.slice_from(1)
         } else {
             args
@@ -423,10 +423,10 @@ impl FunctionPrototype {
         ordinary_has_instance(agent, f, v, gc).map(|result| result.into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
         ThrowTypeError::create_intrinsic(agent, realm);
 
-        let intrinsics = agent.get_realm(realm).intrinsics();
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype().into_object();
         let throw_type_error = intrinsics.throw_type_error().into_function();
         let function_constructor = intrinsics.function();
@@ -489,7 +489,7 @@ impl ThrowTypeError {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
         let throw_type_error =
             BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
         let backing_object = create_throw_type_error_backing_object(agent, realm);
@@ -502,7 +502,7 @@ fn create_throw_type_error_backing_object(
     realm: RealmIdentifier,
 ) -> OrdinaryObject<'static> {
     let prototype = agent
-        .get_realm(realm)
+        .get_realm_record_by_id(realm)
         .intrinsics()
         .get_intrinsic_default_proto(BuiltinFunction::DEFAULT_PROTOTYPE);
 

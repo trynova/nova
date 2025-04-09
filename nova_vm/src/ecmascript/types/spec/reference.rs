@@ -170,7 +170,7 @@ pub(crate) fn get_value<'gc>(
                         ))
                     }
                     Value::Boolean(_) => agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .boolean_prototype()
                         .internal_get(agent, referenced_name.unbind(), value, gc),
@@ -182,24 +182,24 @@ pub(crate) fn get_value<'gc>(
                             Ok(prop_desc.value.unwrap())
                         } else {
                             agent
-                                .current_realm()
+                                .current_realm_record()
                                 .intrinsics()
                                 .string_prototype()
                                 .internal_get(agent, referenced_name.unbind(), value, gc)
                         }
                     }
                     Value::Symbol(_) => agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .symbol_prototype()
                         .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .number_prototype()
                         .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::BigInt(_) | Value::SmallBigInt(_) => agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .big_int_prototype()
                         .internal_get(agent, referenced_name.unbind(), value, gc),
@@ -285,7 +285,7 @@ pub(crate) fn try_get_value<'gc>(
                         )))
                     }
                     Value::Boolean(_) => TryResult::Continue(Ok(agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .boolean_prototype()
                         .try_get(agent, referenced_name.unbind(), value, gc)?)),
@@ -297,26 +297,26 @@ pub(crate) fn try_get_value<'gc>(
                             TryResult::Continue(Ok(prop_desc.value.unwrap()))
                         } else {
                             TryResult::Continue(Ok(agent
-                                .current_realm()
+                                .current_realm_record()
                                 .intrinsics()
                                 .string_prototype()
                                 .try_get(agent, referenced_name.unbind(), value, gc)?))
                         }
                     }
                     Value::Symbol(_) => TryResult::Continue(Ok(agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .symbol_prototype()
                         .try_get(agent, referenced_name.unbind(), value, gc)?)),
                     Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
                         TryResult::Continue(Ok(agent
-                            .current_realm()
+                            .current_realm_record()
                             .intrinsics()
                             .number_prototype()
                             .try_get(agent, referenced_name.unbind(), value, gc)?))
                     }
                     Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
-                        .current_realm()
+                        .current_realm_record()
                         .intrinsics()
                         .big_int_prototype()
                         .try_get(agent, referenced_name.unbind(), value, gc)?)),

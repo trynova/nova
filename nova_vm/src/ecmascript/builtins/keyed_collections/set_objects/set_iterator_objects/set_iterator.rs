@@ -131,7 +131,7 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 impl<'a> InternalMethods<'a> for SetIterator<'a> {}
 
 impl Index<SetIterator<'_>> for Agent {
-    type Output = SetIteratorHeapData;
+    type Output = SetIteratorHeapData<'static>;
 
     fn index(&self, index: SetIterator) -> &Self::Output {
         &self.heap.set_iterators[index]
@@ -144,8 +144,8 @@ impl IndexMut<SetIterator<'_>> for Agent {
     }
 }
 
-impl Index<SetIterator<'_>> for Vec<Option<SetIteratorHeapData>> {
-    type Output = SetIteratorHeapData;
+impl Index<SetIterator<'_>> for Vec<Option<SetIteratorHeapData<'static>>> {
+    type Output = SetIteratorHeapData<'static>;
 
     fn index(&self, index: SetIterator) -> &Self::Output {
         self.get(index.get_index())
@@ -155,7 +155,7 @@ impl Index<SetIterator<'_>> for Vec<Option<SetIteratorHeapData>> {
     }
 }
 
-impl IndexMut<SetIterator<'_>> for Vec<Option<SetIteratorHeapData>> {
+impl IndexMut<SetIterator<'_>> for Vec<Option<SetIteratorHeapData<'static>>> {
     fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("SetIterator out of bounds")
@@ -177,9 +177,9 @@ impl TryFrom<HeapRootData> for SetIterator<'_> {
     }
 }
 
-impl CreateHeapData<SetIteratorHeapData, SetIterator<'static>> for Heap {
-    fn create(&mut self, data: SetIteratorHeapData) -> SetIterator<'static> {
-        self.set_iterators.push(Some(data));
+impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
+    fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
+        self.set_iterators.push(Some(data.unbind()));
         SetIterator(SetIteratorIndex::last(&self.set_iterators))
     }
 }
@@ -194,15 +194,30 @@ impl HeapMarkAndSweep for SetIterator<'static> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SetIteratorHeapData<'_> {
+    type Of<'a> = SetIteratorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SetIteratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) set: Option<Set<'static>>,
+pub struct SetIteratorHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) set: Option<Set<'a>>,
     pub(crate) next_index: usize,
     pub(crate) kind: CollectionIteratorKind,
 }
 
-impl HeapMarkAndSweep for SetIteratorHeapData {
+impl HeapMarkAndSweep for SetIteratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

@@ -102,7 +102,7 @@ impl<'a> From<DataViewIndex<'a>> for DataView<'a> {
     }
 }
 
-impl<'a> IntoBaseIndex<'a, DataViewHeapData> for DataView<'a> {
+impl<'a> IntoBaseIndex<'a, DataViewHeapData<'a>> for DataView<'a> {
     fn into_base_index(self) -> DataViewIndex<'a> {
         self.0
     }
@@ -144,7 +144,7 @@ impl<'a> TryFrom<Object<'a>> for DataView<'a> {
 }
 
 impl Index<DataView<'_>> for Agent {
-    type Output = DataViewHeapData;
+    type Output = DataViewHeapData<'static>;
 
     fn index(&self, index: DataView) -> &Self::Output {
         &self.heap.data_views[index]
@@ -157,8 +157,8 @@ impl IndexMut<DataView<'_>> for Agent {
     }
 }
 
-impl Index<DataView<'_>> for Vec<Option<DataViewHeapData>> {
-    type Output = DataViewHeapData;
+impl Index<DataView<'_>> for Vec<Option<DataViewHeapData<'static>>> {
+    type Output = DataViewHeapData<'static>;
 
     fn index(&self, index: DataView) -> &Self::Output {
         self.get(index.get_index())
@@ -168,7 +168,7 @@ impl Index<DataView<'_>> for Vec<Option<DataViewHeapData>> {
     }
 }
 
-impl IndexMut<DataView<'_>> for Vec<Option<DataViewHeapData>> {
+impl IndexMut<DataView<'_>> for Vec<Option<DataViewHeapData<'static>>> {
     fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("DataView out of bounds")
@@ -215,9 +215,9 @@ impl Rootable for DataView<'_> {
     }
 }
 
-impl CreateHeapData<DataViewHeapData, DataView<'static>> for Heap {
-    fn create(&mut self, data: DataViewHeapData) -> DataView<'static> {
-        self.data_views.push(Some(data));
+impl<'a> CreateHeapData<DataViewHeapData<'a>, DataView<'a>> for Heap {
+    fn create(&mut self, data: DataViewHeapData<'a>) -> DataView<'a> {
+        self.data_views.push(Some(data.unbind()));
         DataView::from(DataViewIndex::last(&self.data_views))
     }
 }

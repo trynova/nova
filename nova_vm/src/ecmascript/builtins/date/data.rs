@@ -7,6 +7,7 @@ use std::time::SystemTime;
 use crate::{
     SmallInteger,
     ecmascript::types::{IntoValue, OrdinaryObject, Value},
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -83,12 +84,12 @@ impl<'a> IntoValue<'a> for DateValue {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct DateHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct DateHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) date: DateValue,
 }
 
-impl DateHeapData {
+impl DateHeapData<'_> {
     pub(crate) fn new_invalid() -> Self {
         Self {
             object_index: None,
@@ -97,7 +98,22 @@ impl DateHeapData {
     }
 }
 
-impl HeapMarkAndSweep for DateHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for DateHeapData<'_> {
+    type Of<'a> = DateHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for DateHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

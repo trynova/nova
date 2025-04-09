@@ -3128,7 +3128,7 @@ impl ArrayPrototype {
         // 7. Let itemCount be the number of elements in items.
         let item_count = items.len();
         // 8. If start is not present, then
-        let actual_delete_count = if arguments.len() == 0 {
+        let actual_delete_count = if arguments.is_empty() {
             // a. Let actualDeleteCount be 0.
             0
         } else if arguments.len() == 1 {
@@ -3450,7 +3450,7 @@ impl ArrayPrototype {
         // 7. Let insertCount be the number of elements in items.
         let insert_count = items.len();
         // 8. If start is not present, then
-        let actual_skip_count = if arguments.len() == 0 {
+        let actual_skip_count = if arguments.is_empty() {
             // a. Let actualSkipCount be 0.
             0
         } else if arguments.len() == 1 {
@@ -3563,7 +3563,7 @@ impl ArrayPrototype {
         // 3. If IsCallable(func) is false, set func to the intrinsic function %Object.prototype.toString%.
         let func = is_callable(func, gc.nogc()).unwrap_or_else(|| {
             agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .object_prototype_to_string()
                 .into_function()
@@ -3817,8 +3817,8 @@ impl ArrayPrototype {
         Ok(a.get(agent).bind(gc.into_nogc()).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
         let this_base_object = intrinsics.array_prototype_base_object();

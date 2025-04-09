@@ -59,8 +59,8 @@ impl BooleanPrototype {
         this_boolean_value(agent, this_value, gc.nogc()).map(|result| result.into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.boolean_prototype();
         let this_base_object = intrinsics.boolean_prototype_base_object().into();

@@ -120,8 +120,8 @@ impl AggregateErrorConstructor {
         Ok(o.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let error_constructor = intrinsics.error();
         let aggregate_error_prototype = intrinsics.aggregate_error_prototype();
 

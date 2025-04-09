@@ -807,7 +807,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
     } else {
         // 12. Else,
         // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-        let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
+        let array_buffer_constructor = agent.current_realm_record().intrinsics().array_buffer();
         let data = allocate_array_buffer(
             agent,
             array_buffer_constructor.into_function(),
@@ -1131,7 +1131,7 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
     let byte_length = element_size * length;
 
     // 4. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-    let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
+    let array_buffer_constructor = agent.current_realm_record().intrinsics().array_buffer();
     let data = allocate_array_buffer(
         agent,
         array_buffer_constructor.into_function(),

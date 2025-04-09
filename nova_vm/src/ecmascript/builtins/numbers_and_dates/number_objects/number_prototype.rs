@@ -456,8 +456,8 @@ impl NumberPrototype {
         this_number_value(agent, this_value, gc.nogc()).map(|result| result.unbind().into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.number_prototype();
         let this_base_object = intrinsics.number_prototype_base_object().into();

@@ -131,7 +131,7 @@ impl<'a> InternalSlots<'a> for MapIterator<'a> {
 impl<'a> InternalMethods<'a> for MapIterator<'a> {}
 
 impl Index<MapIterator<'_>> for Agent {
-    type Output = MapIteratorHeapData;
+    type Output = MapIteratorHeapData<'static>;
 
     fn index(&self, index: MapIterator) -> &Self::Output {
         &self.heap.map_iterators[index]
@@ -144,8 +144,8 @@ impl IndexMut<MapIterator<'_>> for Agent {
     }
 }
 
-impl Index<MapIterator<'_>> for Vec<Option<MapIteratorHeapData>> {
-    type Output = MapIteratorHeapData;
+impl Index<MapIterator<'_>> for Vec<Option<MapIteratorHeapData<'static>>> {
+    type Output = MapIteratorHeapData<'static>;
 
     fn index(&self, index: MapIterator) -> &Self::Output {
         self.get(index.get_index())
@@ -155,7 +155,7 @@ impl Index<MapIterator<'_>> for Vec<Option<MapIteratorHeapData>> {
     }
 }
 
-impl IndexMut<MapIterator<'_>> for Vec<Option<MapIteratorHeapData>> {
+impl IndexMut<MapIterator<'_>> for Vec<Option<MapIteratorHeapData<'static>>> {
     fn index_mut(&mut self, index: MapIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("MapIterator out of bounds")
@@ -177,9 +177,9 @@ impl TryFrom<HeapRootData> for MapIterator<'_> {
     }
 }
 
-impl CreateHeapData<MapIteratorHeapData, MapIterator<'static>> for Heap {
-    fn create(&mut self, data: MapIteratorHeapData) -> MapIterator<'static> {
-        self.map_iterators.push(Some(data));
+impl<'a> CreateHeapData<MapIteratorHeapData<'a>, MapIterator<'a>> for Heap {
+    fn create(&mut self, data: MapIteratorHeapData<'a>) -> MapIterator<'a> {
+        self.map_iterators.push(Some(data.unbind()));
         MapIterator(MapIteratorIndex::last(&self.map_iterators))
     }
 }
@@ -195,14 +195,29 @@ impl HeapMarkAndSweep for MapIterator<'static> {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct MapIteratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) map: Option<Map<'static>>,
+pub struct MapIteratorHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) map: Option<Map<'a>>,
     pub(crate) next_index: usize,
     pub(crate) kind: CollectionIteratorKind,
 }
 
-impl HeapMarkAndSweep for MapIteratorHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for MapIteratorHeapData<'_> {
+    type Of<'a> = MapIteratorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for MapIteratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

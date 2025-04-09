@@ -14,8 +14,8 @@ use crate::{
 pub(crate) struct AsyncFunctionPrototype;
 
 impl AsyncFunctionPrototype {
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype();
         let this = intrinsics.async_function_prototype();
         let async_function_constructor = intrinsics.async_function();

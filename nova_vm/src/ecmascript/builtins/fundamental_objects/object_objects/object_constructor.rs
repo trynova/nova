@@ -562,9 +562,9 @@ impl ObjectConstructor {
         let mut iterable = arguments.get(0).bind(gc.nogc());
         // Fast path: Simple, dense array of N simple, dense arrays.
         if matches!(iterable, Value::Array(_)) {
-            let array_prototype = agent.current_realm().intrinsics().array_prototype();
+            let array_prototype = agent.current_realm_record().intrinsics().array_prototype();
             let intrinsic_array_iterator = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .array_prototype_values()
                 .into_function()
@@ -650,7 +650,7 @@ impl ObjectConstructor {
                 if valid {
                     let object = agent.heap.create_object_with_prototype(
                         agent
-                            .current_realm()
+                            .current_realm_record()
                             .intrinsics()
                             .object_prototype()
                             .into_object(),
@@ -761,7 +761,7 @@ impl ObjectConstructor {
             .heap
             .create_object_with_prototype(
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
@@ -1089,8 +1089,8 @@ impl ObjectConstructor {
         )
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ObjectConstructor>(agent, realm)

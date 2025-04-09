@@ -222,8 +222,8 @@ impl NativeErrorConstructors {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let error_constructor = intrinsics.error().into_object();
         let eval_error_prototype = intrinsics.eval_error_prototype();
         let range_error_prototype = intrinsics.range_error_prototype();

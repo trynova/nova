@@ -33,15 +33,15 @@ pub(crate) enum PromiseResolvingFunctionType {
 /// \[\[Promise\]\] and \[\[AlreadyResolved\]\] internal slots.
 ///
 /// The "length" property of a promise reject function is 1𝔽.
-#[derive(Debug, Clone, Copy)]
-pub struct PromiseResolvingFunctionHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) promise_capability: PromiseCapability,
+#[derive(Debug, Clone)]
+pub struct PromiseResolvingFunctionHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) promise_capability: PromiseCapability<'a>,
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
 pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
-    BaseIndex<'a, PromiseResolvingFunctionHeapData>;
+    BaseIndex<'a, PromiseResolvingFunctionHeapData<'static>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
@@ -257,13 +257,13 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let arguments_list = arguments_list.get(0).bind(gc.nogc());
-        let promise_capability = agent[self].promise_capability;
+        let promise_capability = agent[self].promise_capability.clone();
         match agent[self].resolve_type {
             PromiseResolvingFunctionType::Resolve => {
                 promise_capability.resolve(agent, arguments_list.unbind(), gc)
             }
             PromiseResolvingFunctionType::Reject => {
-                promise_capability.reject(agent, arguments_list)
+                promise_capability.reject(agent, arguments_list, gc.nogc())
             }
         };
         Ok(Value::Undefined)
@@ -271,7 +271,7 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
 }
 
 impl Index<BuiltinPromiseResolvingFunction<'_>> for Agent {
-    type Output = PromiseResolvingFunctionHeapData;
+    type Output = PromiseResolvingFunctionHeapData<'static>;
 
     fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
         &self.heap.promise_resolving_functions[index]
@@ -284,8 +284,10 @@ impl IndexMut<BuiltinPromiseResolvingFunction<'_>> for Agent {
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction<'_>> for Vec<Option<PromiseResolvingFunctionHeapData>> {
-    type Output = PromiseResolvingFunctionHeapData;
+impl Index<BuiltinPromiseResolvingFunction<'_>>
+    for Vec<Option<PromiseResolvingFunctionHeapData<'static>>>
+{
+    type Output = PromiseResolvingFunctionHeapData<'static>;
 
     fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
         self.get(index.get_index())
@@ -296,7 +298,7 @@ impl Index<BuiltinPromiseResolvingFunction<'_>> for Vec<Option<PromiseResolvingF
 }
 
 impl IndexMut<BuiltinPromiseResolvingFunction<'_>>
-    for Vec<Option<PromiseResolvingFunctionHeapData>>
+    for Vec<Option<PromiseResolvingFunctionHeapData<'static>>>
 {
     fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
@@ -331,14 +333,14 @@ impl Rootable for BuiltinPromiseResolvingFunction<'_> {
     }
 }
 
-impl CreateHeapData<PromiseResolvingFunctionHeapData, BuiltinPromiseResolvingFunction<'static>>
+impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseResolvingFunction<'a>>
     for Heap
 {
     fn create(
         &mut self,
-        data: PromiseResolvingFunctionHeapData,
-    ) -> BuiltinPromiseResolvingFunction<'static> {
-        self.promise_resolving_functions.push(Some(data));
+        data: PromiseResolvingFunctionHeapData<'a>,
+    ) -> BuiltinPromiseResolvingFunction<'a> {
+        self.promise_resolving_functions.push(Some(data.unbind()));
         BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
 }
@@ -355,7 +357,22 @@ impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction<'static> {
     }
 }
 
-impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PromiseResolvingFunctionHeapData<'_> {
+    type Of<'a> = PromiseResolvingFunctionHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         self.object_index.mark_values(queues);
         self.promise_capability.mark_values(queues);

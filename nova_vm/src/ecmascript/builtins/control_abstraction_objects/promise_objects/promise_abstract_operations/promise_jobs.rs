@@ -5,7 +5,7 @@
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
 use crate::engine::Global;
-use crate::engine::context::{Bindable, GcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{call_function, get_function_realm},
@@ -40,13 +40,15 @@ impl PromiseResolveThenableJob {
         } = self;
         // The following are substeps of point 1 in NewPromiseResolveThenableJob.
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
-        let promise_capability =
-            PromiseCapability::from_promise(promise_to_resolve.take(agent), false);
+        // Note: We do not take the Promise from the Global yet. It must be taken
+        // out later, lest we start leaking memory here.
+        let promise = promise_to_resolve.get(agent, gc.nogc()).bind(gc.nogc());
+        let promise_capability = PromiseCapability::from_promise(promise, false);
         let resolve_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {
                 object_index: None,
-                promise_capability,
+                promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Resolve,
             })
             .into_value();
@@ -54,7 +56,7 @@ impl PromiseResolveThenableJob {
             .heap
             .create(PromiseResolvingFunctionHeapData {
                 object_index: None,
-                promise_capability,
+                promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Reject,
             })
             .into_value();
@@ -70,16 +72,22 @@ impl PromiseResolveThenableJob {
             then.unbind(),
             thenable.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                resolve_function,
-                reject_function,
+                resolve_function.unbind(),
+                reject_function.unbind(),
             ])),
             gc.reborrow(),
-        );
+        )
+        .unbind()
+        .bind(gc.nogc());
+
+        // Note: Now we must take the Promise from the Global.
+        let promise = promise_to_resolve.take(agent).bind(gc.nogc());
+        let promise_capability = PromiseCapability::from_promise(promise, false);
 
         // c. If thenCallResult is an abrupt completion, then
         if let Err(err) = then_call_result {
             // i. Return ? Call(resolvingFunctions.[[Reject]], undefined, « thenCallResult.[[Value]] »).
-            promise_capability.reject(agent, err.value());
+            promise_capability.reject(agent, err.value(), gc.nogc());
         }
         // d. Return ? thenCallResult.
         Ok(())
@@ -92,18 +100,19 @@ pub(crate) fn new_promise_resolve_thenable_job(
     promise_to_resolve: Promise,
     thenable: Object,
     then: Function,
+    gc: NoGcScope,
 ) -> Job {
     // 2. Let getThenRealmResult be Completion(GetFunctionRealm(then.[[Callback]])).
     // 5. NOTE: thenRealm is never null. When then.[[Callback]] is a revoked Proxy and no code runs, thenRealm is used to create error objects.
-    let then_realm = match get_function_realm(agent, then) {
+    let then_realm = match get_function_realm(agent, then, gc) {
         // 3. If getThenRealmResult is a normal completion, let thenRealm be getThenRealmResult.[[Value]].
         Ok(realm) => realm,
         // 4. Else, let thenRealm be the current Realm Record.
-        Err(_) => agent.current_realm_id(),
+        Err(_) => agent.current_realm(gc),
     };
     // 6. Return the Record { [[Job]]: job, [[Realm]]: thenRealm }.
     Job {
-        realm: Some(then_realm),
+        realm: Some(then_realm.unbind()),
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
             promise_to_resolve: Global::new(agent, promise_to_resolve.unbind()),
             thenable: Global::new(agent, thenable.unbind()),
@@ -162,17 +171,18 @@ impl PromiseReactionJob {
         };
 
         // f. If promiseCapability is undefined, then
-        let Some(promise_capability) = agent[reaction].capability else {
+        let Some(promise_capability) = &agent[reaction].capability else {
             // i. Assert: handlerResult is not an abrupt completion.
             handler_result.unwrap();
             // ii. Return empty.
             return Ok(());
         };
+        let promise_capability = promise_capability.clone();
         match handler_result {
             // h. If handlerResult is an abrupt completion, then
             Err(err) => {
                 // i. Return ? Call(promiseCapability.[[Reject]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.reject(agent, err.value())
+                promise_capability.reject(agent, err.value(), gc.nogc())
             }
             // i. Else,
             Ok(value) => {
@@ -189,17 +199,18 @@ pub(crate) fn new_promise_reaction_job(
     agent: &mut Agent,
     reaction: PromiseReaction,
     argument: Value,
+    gc: NoGcScope,
 ) -> Job {
     let handler_realm = match agent[reaction].handler {
         // 3. If reaction.[[Handler]] is not empty, then
         PromiseReactionHandler::JobCallback(callback) => {
             // a. Let getHandlerRealmResult be Completion(GetFunctionRealm(reaction.[[Handler]].[[Callback]])).
             // d. NOTE: handlerRealm is never null unless the handler is undefined. When the handler is a revoked Proxy and no ECMAScript code runs, handlerRealm is used to create error objects.
-            match get_function_realm(agent, callback) {
+            match get_function_realm(agent, callback, gc) {
                 // b. If getHandlerRealmResult is a normal completion, set handlerRealm to getHandlerRealmResult.[[Value]].
                 Ok(realm) => Some(realm),
                 // c. Else, set handlerRealm to the current Realm Record.
-                Err(_) => Some(agent.current_realm_id()),
+                Err(_) => Some(agent.current_realm(gc)),
             }
         }
         // In the spec, await continuations are JS functions created in the `Await()` spec
@@ -220,7 +231,7 @@ pub(crate) fn new_promise_reaction_job(
     let reaction = Global::new(agent, reaction.unbind());
     let argument = Global::new(agent, argument.unbind());
     Job {
-        realm: handler_realm,
+        realm: handler_realm.unbind(),
         inner: InnerJob::PromiseReaction(PromiseReactionJob { reaction, argument }),
     }
 }

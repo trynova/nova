@@ -17,7 +17,7 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+        CreateHeapData, HeapMarkAndSweep,
         indexes::{BaseIndex, WeakSetIndex},
     },
 };
@@ -99,18 +99,8 @@ impl<'a> InternalSlots<'a> for WeakSet<'a> {
 
 impl<'a> InternalMethods<'a> for WeakSet<'a> {}
 
-impl HeapMarkAndSweep for WeakSetHeapData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-    }
-}
-
 impl Index<WeakSet<'_>> for Agent {
-    type Output = WeakSetHeapData;
+    type Output = WeakSetHeapData<'static>;
 
     fn index(&self, index: WeakSet) -> &Self::Output {
         &self.heap.weak_sets[index]
@@ -123,8 +113,8 @@ impl IndexMut<WeakSet<'_>> for Agent {
     }
 }
 
-impl Index<WeakSet<'_>> for Vec<Option<WeakSetHeapData>> {
-    type Output = WeakSetHeapData;
+impl Index<WeakSet<'_>> for Vec<Option<WeakSetHeapData<'static>>> {
+    type Output = WeakSetHeapData<'static>;
 
     fn index(&self, index: WeakSet) -> &Self::Output {
         self.get(index.get_index())
@@ -134,7 +124,7 @@ impl Index<WeakSet<'_>> for Vec<Option<WeakSetHeapData>> {
     }
 }
 
-impl IndexMut<WeakSet<'_>> for Vec<Option<WeakSetHeapData>> {
+impl IndexMut<WeakSet<'_>> for Vec<Option<WeakSetHeapData<'static>>> {
     fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakSet out of bounds")
@@ -156,9 +146,9 @@ impl TryFrom<HeapRootData> for WeakSet<'_> {
     }
 }
 
-impl CreateHeapData<WeakSetHeapData, WeakSet<'static>> for Heap {
-    fn create(&mut self, data: WeakSetHeapData) -> WeakSet<'static> {
-        self.weak_sets.push(Some(data));
+impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
+    fn create(&mut self, data: WeakSetHeapData<'a>) -> WeakSet<'a> {
+        self.weak_sets.push(Some(data.unbind()));
         // TODO: The type should be checked based on data or something equally stupid
         WeakSet(WeakSetIndex::last(&self.weak_sets))
     }

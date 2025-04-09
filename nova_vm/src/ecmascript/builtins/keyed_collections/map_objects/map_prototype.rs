@@ -335,7 +335,7 @@ impl MapPrototype {
             found_key == key || same_value(agent, found_key, key)
         });
         if let Some(index) = found {
-            Ok(values[*index as usize].unwrap())
+            Ok(values[*index as usize].unwrap().unbind().bind(gc))
         } else {
             // 5. Return undefined.
             Ok(Value::Undefined)
@@ -502,8 +502,8 @@ impl MapPrototype {
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
         let map_constructor = intrinsics.map();

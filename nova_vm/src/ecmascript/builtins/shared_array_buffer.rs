@@ -79,7 +79,7 @@ impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
 }
 
 impl Index<SharedArrayBuffer<'_>> for Agent {
-    type Output = SharedArrayBufferHeapData;
+    type Output = SharedArrayBufferHeapData<'static>;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
         &self.heap.shared_array_buffers[index]
@@ -92,8 +92,8 @@ impl IndexMut<SharedArrayBuffer<'_>> for Agent {
     }
 }
 
-impl Index<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData>> {
-    type Output = SharedArrayBufferHeapData;
+impl Index<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData<'static>>> {
+    type Output = SharedArrayBufferHeapData<'static>;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
         self.get(index.get_index())
@@ -103,7 +103,7 @@ impl Index<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData>> {
     }
 }
 
-impl IndexMut<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData>> {
+impl IndexMut<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData<'static>>> {
     fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("SharedArrayBuffer out of bounds")
@@ -155,9 +155,9 @@ impl HeapMarkAndSweep for SharedArrayBuffer<'static> {
     }
 }
 
-impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer<'static>> for Heap {
-    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer<'static> {
-        self.shared_array_buffers.push(Some(data));
+impl<'a> CreateHeapData<SharedArrayBufferHeapData<'a>, SharedArrayBuffer<'a>> for Heap {
+    fn create(&mut self, data: SharedArrayBufferHeapData<'a>) -> SharedArrayBuffer<'a> {
+        self.shared_array_buffers.push(Some(data.unbind()));
         SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }
 }

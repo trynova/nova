@@ -40,7 +40,7 @@ pub struct CreatorProperties(
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: OrdinaryObject<'static>,
-    realm: RealmIdentifier,
+    realm: RealmIdentifier<'static>,
     prototype: P,
     extensible: bool,
     properties: Pr,
@@ -48,7 +48,7 @@ pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     #[must_use]
-    pub fn new(agent: &'agent mut Agent, realm: RealmIdentifier) -> Self {
+    pub fn new(agent: &'agent mut Agent, realm: RealmIdentifier<'static>) -> Self {
         agent.heap.objects.push(None);
         let this = ObjectIndex::last(&agent.heap.objects).into();
         Self {
@@ -64,7 +64,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     #[must_use]
     pub(crate) fn new_intrinsic_object(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier,
+        realm: RealmIdentifier<'static>,
         this: OrdinaryObject<'static>,
     ) -> Self {
         Self {

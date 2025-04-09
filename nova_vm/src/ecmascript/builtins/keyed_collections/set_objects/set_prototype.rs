@@ -430,8 +430,8 @@ impl SetPrototype {
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.set_prototype();
         let set_constructor = intrinsics.set();

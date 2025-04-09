@@ -30,7 +30,7 @@ use crate::{
     },
 };
 
-type SourceCodeIndex<'a> = BaseIndex<'a, SourceCodeHeapData>;
+type SourceCodeIndex<'a> = BaseIndex<'a, SourceCodeHeapData<'static>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SourceCode<'a>(SourceCodeIndex<'a>);
@@ -137,20 +137,20 @@ impl<'a> SourceCode<'a> {
     }
 }
 
-pub struct SourceCodeHeapData {
+pub struct SourceCodeHeapData<'a> {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
-    source: HeapString<'static>,
+    source: HeapString<'a>,
     /// The arena that contains the parsed data of the eval source.
     allocator: NonNull<Allocator>,
 }
 
-unsafe impl Send for SourceCodeHeapData {}
+unsafe impl Send for SourceCodeHeapData<'_> {}
 
-impl Debug for SourceCodeHeapData {
+impl Debug for SourceCodeHeapData<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("SourceCodeHeapData")
             .field("source", &self.source)
@@ -159,7 +159,7 @@ impl Debug for SourceCodeHeapData {
     }
 }
 
-impl Drop for SourceCodeHeapData {
+impl Drop for SourceCodeHeapData<'_> {
     fn drop(&mut self) {
         // SAFETY: All references to this SourceCode should have been dropped
         // before we drop this.
@@ -168,7 +168,7 @@ impl Drop for SourceCodeHeapData {
 }
 
 impl Index<SourceCode<'_>> for Agent {
-    type Output = SourceCodeHeapData;
+    type Output = SourceCodeHeapData<'static>;
 
     fn index(&self, index: SourceCode) -> &Self::Output {
         self.heap
@@ -218,14 +218,29 @@ impl Rootable for SourceCode<'_> {
     }
 }
 
-impl CreateHeapData<SourceCodeHeapData, SourceCode<'static>> for Heap {
-    fn create(&mut self, data: SourceCodeHeapData) -> SourceCode<'static> {
-        self.source_codes.push(Some(data));
+impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
+    fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
+        self.source_codes.push(Some(data.unbind()));
         SourceCode(SourceCodeIndex::last(&self.source_codes))
     }
 }
 
-impl HeapMarkAndSweep for SourceCodeHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SourceCodeHeapData<'_> {
+    type Of<'a> = SourceCodeHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for SourceCodeHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             source,

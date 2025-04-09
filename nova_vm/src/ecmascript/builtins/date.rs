@@ -138,7 +138,7 @@ impl<'a> InternalSlots<'a> for Date<'a> {
 impl<'a> InternalMethods<'a> for Date<'a> {}
 
 impl Index<Date<'_>> for Agent {
-    type Output = DateHeapData;
+    type Output = DateHeapData<'static>;
 
     fn index(&self, index: Date) -> &Self::Output {
         &self.heap.dates[index]
@@ -151,8 +151,8 @@ impl IndexMut<Date<'_>> for Agent {
     }
 }
 
-impl Index<Date<'_>> for Vec<Option<DateHeapData>> {
-    type Output = DateHeapData;
+impl Index<Date<'_>> for Vec<Option<DateHeapData<'static>>> {
+    type Output = DateHeapData<'static>;
 
     fn index(&self, index: Date) -> &Self::Output {
         self.get(index.get_index())
@@ -162,7 +162,7 @@ impl Index<Date<'_>> for Vec<Option<DateHeapData>> {
     }
 }
 
-impl IndexMut<Date<'_>> for Vec<Option<DateHeapData>> {
+impl IndexMut<Date<'_>> for Vec<Option<DateHeapData<'static>>> {
     fn index_mut(&mut self, index: Date) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Date out of bounds")
@@ -204,9 +204,9 @@ impl HeapMarkAndSweep for Date<'static> {
     }
 }
 
-impl CreateHeapData<DateHeapData, Date<'static>> for Heap {
-    fn create(&mut self, data: DateHeapData) -> Date<'static> {
-        self.dates.push(Some(data));
+impl<'a> CreateHeapData<DateHeapData<'a>, Date<'a>> for Heap {
+    fn create(&mut self, data: DateHeapData<'a>) -> Date<'a> {
+        self.dates.push(Some(data.unbind()));
         Date(DateIndex::last(&self.dates))
     }
 }

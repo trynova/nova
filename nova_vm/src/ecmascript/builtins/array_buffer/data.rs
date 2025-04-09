@@ -4,6 +4,7 @@
 
 use crate::{
     ecmascript::types::{DataBlock, OrdinaryObject},
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -146,13 +147,13 @@ impl InternalBuffer {
 }
 
 #[derive(Debug)]
-pub struct ArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
+pub struct ArrayBufferHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(super) buffer: InternalBuffer,
     // detach_key
 }
 
-impl Default for ArrayBufferHeapData {
+impl Default for ArrayBufferHeapData<'_> {
     #[inline(always)]
     fn default() -> Self {
         Self {
@@ -162,9 +163,9 @@ impl Default for ArrayBufferHeapData {
     }
 }
 
-unsafe impl Send for ArrayBufferHeapData {}
+unsafe impl Send for ArrayBufferHeapData<'_> {}
 
-impl ArrayBufferHeapData {
+impl ArrayBufferHeapData<'_> {
     pub(crate) fn new_resizable(db: DataBlock, cap: usize) -> Self {
         Self {
             object_index: None,
@@ -228,7 +229,22 @@ impl ArrayBufferHeapData {
     }
 }
 
-impl HeapMarkAndSweep for ArrayBufferHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayBufferHeapData<'_> {
+    type Of<'a> = ArrayBufferHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ArrayBufferHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

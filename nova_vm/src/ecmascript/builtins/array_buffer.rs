@@ -201,7 +201,7 @@ impl<'a> From<ArrayBufferIndex<'a>> for ArrayBuffer<'a> {
     }
 }
 
-impl IntoBaseIndex<'_, ArrayBufferHeapData> for ArrayBuffer<'static> {
+impl IntoBaseIndex<'_, ArrayBufferHeapData<'_>> for ArrayBuffer<'static> {
     fn into_base_index(self) -> ArrayBufferIndex<'static> {
         self.0
     }
@@ -220,7 +220,7 @@ impl<'a> From<ArrayBuffer<'a>> for Value<'a> {
 }
 
 impl Index<ArrayBuffer<'_>> for Agent {
-    type Output = ArrayBufferHeapData;
+    type Output = ArrayBufferHeapData<'static>;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
         &self.heap.array_buffers[index]
@@ -233,8 +233,8 @@ impl IndexMut<ArrayBuffer<'_>> for Agent {
     }
 }
 
-impl Index<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
-    type Output = ArrayBufferHeapData;
+impl Index<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData<'static>>> {
+    type Output = ArrayBufferHeapData<'static>;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
         self.get(index.get_index())
@@ -244,7 +244,7 @@ impl Index<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
     }
 }
 
-impl IndexMut<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
+impl IndexMut<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData<'static>>> {
     fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ArrayBuffer out of bounds")
@@ -306,9 +306,9 @@ impl HeapMarkAndSweep for ArrayBuffer<'static> {
     }
 }
 
-impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer<'static>> for Heap {
-    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer<'static> {
-        self.array_buffers.push(Some(data));
+impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
+        self.array_buffers.push(Some(data.unbind()));
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }
 }

@@ -6,7 +6,9 @@ use core::ops::{Index, IndexMut};
 use std::vec;
 
 use crate::{
-    ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
+    ecmascript::abstract_operations::operations_on_objects::{
+        try_create_data_property, try_get, try_get_function_realm,
+    },
     engine::{
         Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
@@ -62,7 +64,7 @@ use super::{
 };
 
 impl Index<OrdinaryObject<'_>> for Agent {
-    type Output = ObjectHeapData;
+    type Output = ObjectHeapData<'static>;
 
     fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
         &self.heap.objects[index]
@@ -75,8 +77,8 @@ impl IndexMut<OrdinaryObject<'_>> for Agent {
     }
 }
 
-impl Index<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
-    type Output = ObjectHeapData;
+impl Index<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
+    type Output = ObjectHeapData<'static>;
 
     fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
         self.get(index.get_index())
@@ -86,7 +88,7 @@ impl Index<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
     }
 }
 
-impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
+impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
     fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Object out of bounds")
@@ -1224,7 +1226,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create_object_with_prototype(
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
@@ -1336,7 +1338,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create_object_with_prototype(
                 agent
-                    .current_realm()
+                    .current_realm_record()
                     .intrinsics()
                     .iterator_prototype()
                     .into_object(),
@@ -1461,15 +1463,17 @@ pub(crate) fn get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    gc: GcScope<'a, '_>,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<Option<Object<'a>>> {
-    let constructor = constructor.bind(gc.nogc());
-    let function_realm = get_function_realm(agent, constructor);
+    let mut constructor = constructor.bind(gc.nogc());
+    let mut function_realm = try_get_function_realm(agent, constructor, gc.nogc());
     // NOTE: %Constructor%.prototype is an immutable property; we can thus
     // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
     // return None because we know %Constructor%.prototype corresponds to the
     // ProtoIntrinsic.
-    if let Ok(intrinsics) = function_realm.map(|realm| agent.get_realm(realm).intrinsics()) {
+    if let Some(intrinsics) =
+        function_realm.map(|realm| agent.get_realm_record_by_id(realm).intrinsics())
+    {
         let intrinsic_constructor = match intrinsic_default_proto {
             ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
             ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
@@ -1566,27 +1570,50 @@ pub(crate) fn get_prototype_from_constructor<'a>(
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
     let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
-    let proto = get(agent, constructor.unbind(), prototype_key, gc)?;
-    // 3. If proto is not an Object, then
-    //   a. Let realm be ? GetFunctionRealm(constructor).
-    //   b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
-    // 4. Return proto.
+    let proto =
+        if let TryResult::Continue(proto) = try_get(agent, constructor, prototype_key, gc.nogc()) {
+            proto
+        } else {
+            let scoped_realm = function_realm.map(|r| r.scope(agent, gc.nogc()));
+            let scoped_constructor = constructor.scope(agent, gc.nogc());
+            let proto = get(agent, constructor.unbind(), prototype_key, gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            // SAFETY: scoped_constructor is not shared.
+            constructor = unsafe { scoped_constructor.take(agent) }.bind(gc.nogc());
+            // SAFETY: scoped_realm is not shared.
+            function_realm = scoped_realm.map(|r| unsafe { r.take(agent) }.bind(gc.nogc()));
+            proto
+        };
     match Object::try_from(proto) {
+        // 3. If proto is not an Object, then
         Err(_) => {
-            function_realm?;
+            // a. Let realm be ? GetFunctionRealm(constructor).
+            // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
+            // Note: We signify using the default proto by returning None.
+            // We only need to call the get_function_realm function if it would
+            // throw an error.
+            if function_realm.is_none() {
+                let err = get_function_realm(agent, constructor.unbind(), gc.nogc()).unwrap_err();
+                return Err(err);
+            }
             Ok(None)
         }
         Ok(proto) => {
-            if let Ok(realm) = function_realm {
+            // 4. Return proto.
+            // Note: We should still check if the proto is the default proto.
+            // It's possible that a user's custom constructor object has
+            // prototype property set to the default.
+            if let Some(realm) = function_realm {
                 let default_proto = agent
-                    .get_realm(realm)
+                    .get_realm_record_by_id(realm)
                     .intrinsics()
                     .get_intrinsic_default_proto(intrinsic_default_proto);
                 if proto == default_proto {
                     return Ok(None);
                 }
             }
-            Ok(Some(proto))
+            Ok(Some(proto.unbind().bind(gc.into_nogc())))
         }
     }
 }

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{cmp::max, iter::repeat, str::FromStr};
+use core::{cmp::max, iter::repeat_n, str::FromStr};
 use small_string::SmallString;
 use std::collections::VecDeque;
 use unicode_normalization::{
@@ -2381,8 +2381,8 @@ impl StringPrototype {
         create_html(agent, this_value, "sup", None, gc).map(Value::from)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.string_prototype();
         let this_base_object = intrinsics.string_prototype_base_object().into();
@@ -2613,7 +2613,7 @@ fn string_pad<'gc>(
     } else if fill_len % fill_string_len == 0 {
         let fill_count = (fill_len / fill_string_len) as usize;
         let mut vec = VecDeque::with_capacity(fill_count + 1);
-        vec.extend(repeat(fill_string).take(fill_count));
+        vec.extend(repeat_n(fill_string, fill_count));
         vec
     } else if fill_len < fill_string_len {
         let mut vec = VecDeque::with_capacity(2);
@@ -2630,7 +2630,7 @@ fn string_pad<'gc>(
     } else {
         let fill_count = (fill_len / fill_string_len) as usize;
         let mut vec = VecDeque::with_capacity(fill_count + 2);
-        vec.extend(repeat(fill_string).take(fill_count));
+        vec.extend(repeat_n(fill_string, fill_count));
         let sub_string_len = (fill_len % fill_string_len) as usize;
         let mut sub_string = vec![0; sub_string_len];
         for i in 0..sub_string_len {

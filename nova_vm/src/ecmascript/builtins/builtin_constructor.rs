@@ -155,7 +155,7 @@ impl<'a> TryFrom<Function<'a>> for BuiltinConstructorFunction<'a> {
 }
 
 impl Index<BuiltinConstructorFunction<'_>> for Agent {
-    type Output = BuiltinConstructorHeapData;
+    type Output = BuiltinConstructorHeapData<'static>;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
         &self.heap.builtin_constructors[index]
@@ -168,8 +168,8 @@ impl IndexMut<BuiltinConstructorFunction<'_>> for Agent {
     }
 }
 
-impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData>> {
-    type Output = BuiltinConstructorHeapData;
+impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData<'static>>> {
+    type Output = BuiltinConstructorHeapData<'static>;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
         self.get(index.get_index())
@@ -179,7 +179,7 @@ impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeap
     }
 }
 
-impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData>> {
+impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData<'static>>> {
     fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinConstructorFunction out of bounds")
@@ -460,10 +460,10 @@ pub(crate) struct BuiltinConstructorArgs<'a> {
 pub(crate) fn create_builtin_constructor<'a>(
     agent: &mut Agent,
     args: BuiltinConstructorArgs,
-    _: NoGcScope<'a, '_>,
+    gc: NoGcScope<'a, '_>,
 ) -> BuiltinConstructorFunction<'a> {
     // 1. If realm is not present, set realm to the current Realm Record.
-    let realm = agent.current_realm_id();
+    let realm = agent.current_realm(gc);
 
     // 9. Set func.[[InitialName]] to null.
 
@@ -515,19 +515,22 @@ pub(crate) fn create_builtin_constructor<'a>(
     };
 
     // 13. Return func.
-    agent.heap.create(BuiltinConstructorHeapData {
-        // 10. Perform SetFunctionLength(func, length).
-        // Skipped as length of builtin constructors is always 0.
-        // 8. Set func.[[Realm]] to realm.
-        realm,
-        compiled_initializer_bytecode: args.compiled_initializer_bytecode.unbind(),
-        is_derived: args.is_derived,
-        object_index: Some(backing_object),
-        environment: args.env.unbind(),
-        private_environment: args.private_env.unbind(),
-        source_text: args.source_text,
-        source_code: args.source_code.unbind(),
-    })
+    agent
+        .heap
+        .create(BuiltinConstructorHeapData {
+            // 10. Perform SetFunctionLength(func, length).
+            // Skipped as length of builtin constructors is always 0.
+            // 8. Set func.[[Realm]] to realm.
+            realm,
+            compiled_initializer_bytecode: args.compiled_initializer_bytecode,
+            is_derived: args.is_derived,
+            object_index: Some(backing_object),
+            environment: args.env,
+            private_environment: args.private_env,
+            source_text: args.source_text,
+            source_code: args.source_code,
+        })
+        .bind(gc)
 }
 
 impl Rootable for BuiltinConstructorFunction<'_> {
@@ -553,9 +556,9 @@ impl Rootable for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl CreateHeapData<BuiltinConstructorHeapData, BuiltinConstructorFunction<'static>> for Heap {
-    fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction<'static> {
-        self.builtin_constructors.push(Some(data));
+impl<'a> CreateHeapData<BuiltinConstructorHeapData<'a>, BuiltinConstructorFunction<'a>> for Heap {
+    fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction<'a> {
+        self.builtin_constructors.push(Some(data.unbind()));
         BuiltinConstructorIndex::last(&self.builtin_constructors).into()
     }
 }
@@ -570,7 +573,22 @@ impl HeapMarkAndSweep for BuiltinConstructorFunction<'static> {
     }
 }
 
-impl HeapMarkAndSweep for BuiltinConstructorHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BuiltinConstructorHeapData<'_> {
+    type Of<'a> = BuiltinConstructorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

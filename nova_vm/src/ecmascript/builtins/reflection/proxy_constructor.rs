@@ -70,7 +70,7 @@ impl ProxyConstructor {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ProxyConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_builtin_function_property::<ProxyRevocable>()

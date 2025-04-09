@@ -402,15 +402,15 @@ impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
 
 impl<'a> InternalMethods<'a> for AsyncGenerator<'a> {}
 
-impl CreateHeapData<AsyncGeneratorHeapData, AsyncGenerator<'static>> for Heap {
-    fn create(&mut self, data: AsyncGeneratorHeapData) -> AsyncGenerator<'static> {
-        self.async_generators.push(Some(data));
+impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap {
+    fn create(&mut self, data: AsyncGeneratorHeapData<'a>) -> AsyncGenerator<'a> {
+        self.async_generators.push(Some(data.unbind()));
         AsyncGenerator(AsyncGeneratorIndex::last(&self.async_generators))
     }
 }
 
 impl Index<AsyncGenerator<'_>> for Agent {
-    type Output = AsyncGeneratorHeapData;
+    type Output = AsyncGeneratorHeapData<'static>;
 
     fn index(&self, index: AsyncGenerator) -> &Self::Output {
         &self.heap.async_generators[index]
@@ -423,8 +423,8 @@ impl IndexMut<AsyncGenerator<'_>> for Agent {
     }
 }
 
-impl Index<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
-    type Output = AsyncGeneratorHeapData;
+impl Index<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData<'static>>> {
+    type Output = AsyncGeneratorHeapData<'static>;
 
     fn index(&self, index: AsyncGenerator) -> &Self::Output {
         self.get(index.get_index())
@@ -434,7 +434,7 @@ impl Index<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
     }
 }
 
-impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
+impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData<'static>>> {
     fn index_mut(&mut self, index: AsyncGenerator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("AsyncGenerator out of bounds")
@@ -444,10 +444,10 @@ impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
 }
 
 #[derive(Debug, Default)]
-pub struct AsyncGeneratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) async_generator_state: Option<AsyncGeneratorState<'static>>,
-    pub(crate) executable: Option<Executable<'static>>,
+pub struct AsyncGeneratorHeapData<'a> {
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub(crate) async_generator_state: Option<AsyncGeneratorState<'a>>,
+    pub(crate) executable: Option<Executable<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -529,7 +529,7 @@ pub(crate) struct AsyncGeneratorRequest<'a> {
     /// \[\[Completion]]
     pub(crate) completion: AsyncGeneratorRequestCompletion<'a>,
     /// \[\[Capability]]
-    pub(crate) capability: PromiseCapability,
+    pub(crate) capability: PromiseCapability<'a>,
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
@@ -628,7 +628,22 @@ impl HeapMarkAndSweep for AsyncGeneratorRequest<'static> {
     }
 }
 
-impl HeapMarkAndSweep for AsyncGeneratorHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGeneratorHeapData<'_> {
+    type Of<'a> = AsyncGeneratorHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

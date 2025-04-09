@@ -186,7 +186,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -210,7 +210,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -239,7 +239,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -269,7 +269,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
             let parent = agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
@@ -381,7 +381,7 @@ impl HeapMarkAndSweep for RegExp<'static> {
 }
 
 impl Index<RegExp<'_>> for Agent {
-    type Output = RegExpHeapData;
+    type Output = RegExpHeapData<'static>;
 
     fn index(&self, index: RegExp) -> &Self::Output {
         &self.heap.regexps[index]
@@ -394,8 +394,8 @@ impl IndexMut<RegExp<'_>> for Agent {
     }
 }
 
-impl Index<RegExp<'_>> for Vec<Option<RegExpHeapData>> {
-    type Output = RegExpHeapData;
+impl Index<RegExp<'_>> for Vec<Option<RegExpHeapData<'static>>> {
+    type Output = RegExpHeapData<'static>;
 
     fn index(&self, index: RegExp) -> &Self::Output {
         self.get(index.get_index())
@@ -405,7 +405,7 @@ impl Index<RegExp<'_>> for Vec<Option<RegExpHeapData>> {
     }
 }
 
-impl IndexMut<RegExp<'_>> for Vec<Option<RegExpHeapData>> {
+impl IndexMut<RegExp<'_>> for Vec<Option<RegExpHeapData<'static>>> {
     fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("RegExp out of bounds")
@@ -427,9 +427,9 @@ impl TryFrom<HeapRootData> for RegExp<'_> {
     }
 }
 
-impl CreateHeapData<RegExpHeapData, RegExp<'static>> for Heap {
-    fn create(&mut self, data: RegExpHeapData) -> RegExp<'static> {
-        self.regexps.push(Some(data));
+impl<'a> CreateHeapData<RegExpHeapData<'a>, RegExp<'a>> for Heap {
+    fn create(&mut self, data: RegExpHeapData<'a>) -> RegExp<'a> {
+        self.regexps.push(Some(data.unbind()));
         RegExp(RegExpIndex::last(&self.regexps))
     }
 }

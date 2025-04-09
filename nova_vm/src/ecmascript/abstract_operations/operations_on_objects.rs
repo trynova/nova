@@ -22,6 +22,9 @@ use crate::{
         builtins::{
             ArgumentsList, Array, BuiltinConstructorFunction, array_create,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
+            proxy::abstract_operations::{
+                try_validate_non_revoked_proxy, validate_non_revoked_proxy,
+            },
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
@@ -1662,10 +1665,11 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
 /// The abstract operation GetFunctionRealm takes argument obj (a function
 /// object) and returns either a normal completion containing a Realm Record or
 /// a throw completion.
-pub(crate) fn get_function_realm<'a>(
-    agent: &Agent,
+pub(crate) fn get_function_realm<'a, 'gc>(
+    agent: &mut Agent,
     obj: impl IntoObject<'a>,
-) -> JsResult<RealmIdentifier> {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<RealmIdentifier<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();
@@ -1676,17 +1680,62 @@ pub(crate) fn get_function_realm<'a>(
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, agent[idx].bound_target_function)
+            get_function_realm(agent, agent[idx].bound_target_function, gc)
         }
         // 3. If obj is a Proxy exotic object, then
-        // a. Perform ? ValidateNonRevokedProxy(obj).
-        // b. Let proxyTarget be obj.[[ProxyTarget]].
-        // c. Return ? GetFunctionRealm(proxyTarget).
-        // Object::Proxy(idx) => {},
+        Object::Proxy(obj) => {
+            // a. Perform ? ValidateNonRevokedProxy(obj).
+            let obj = validate_non_revoked_proxy(agent, obj, gc)?;
+            // b. Let proxyTarget be obj.[[ProxyTarget]].
+            let proxy_target = obj.target;
+            // c. Return ? GetFunctionRealm(proxyTarget).
+            get_function_realm(agent, proxy_target, gc)
+        }
         // 4. Return the current Realm Record.
         // NOTE: Step 4 will only be reached if obj is a non-standard function
         // exotic object that does not have a [[Realm]] internal slot.
-        _ => Ok(agent.current_realm_id()),
+        _ => Ok(agent.current_realm_id_internal()),
+    }
+}
+
+/// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)
+///
+/// The abstract operation GetFunctionRealm takes argument obj (a function
+/// object) and returns either a normal completion containing a Realm Record or
+/// a throw completion.
+///
+/// NOTE: This method returns None for revoked Proxies, instead of throwing an
+/// error.
+pub(crate) fn try_get_function_realm<'a, 'gc>(
+    agent: &Agent,
+    obj: impl IntoObject<'a>,
+    gc: NoGcScope<'gc, '_>,
+) -> Option<RealmIdentifier<'gc>> {
+    // 1. If obj has a [[Realm]] internal slot, then
+    // a. Return obj.[[Realm]].
+    let obj = obj.into_object();
+    match obj {
+        Object::BuiltinFunction(idx) => Some(agent[idx].realm),
+        Object::ECMAScriptFunction(idx) => Some(agent[idx].ecmascript_function.realm),
+        Object::BoundFunction(idx) => {
+            // 2. If obj is a bound function exotic object, then
+            // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
+            // b. Return ? GetFunctionRealm(boundTargetFunction).
+            try_get_function_realm(agent, agent[idx].bound_target_function, gc)
+        }
+        // 3. If obj is a Proxy exotic object, then
+        Object::Proxy(obj) => {
+            // a. Perform ? ValidateNonRevokedProxy(obj).
+            let obj = try_validate_non_revoked_proxy(agent, obj, gc)?;
+            // b. Let proxyTarget be obj.[[ProxyTarget]].
+            let proxy_target = obj.target;
+            // c. Return ? GetFunctionRealm(proxyTarget).
+            try_get_function_realm(agent, proxy_target, gc)
+        }
+        // 4. Return the current Realm Record.
+        // NOTE: Step 4 will only be reached if obj is a non-standard function
+        // exotic object that does not have a [[Realm]] internal slot.
+        _ => Some(agent.current_realm_id_internal()),
     }
 }
 
@@ -1866,7 +1915,7 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
     TryResult::Continue(
         agent.heap.create_object_with_prototype(
             agent
-                .current_realm()
+                .current_realm_record()
                 .intrinsics()
                 .object_prototype()
                 .into_object(),
@@ -1941,7 +1990,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
 
     let object = agent.heap.create_object_with_prototype(
         agent
-            .current_realm()
+            .current_realm_record()
             .intrinsics()
             .object_prototype()
             .into_object(),

@@ -224,8 +224,12 @@ impl NumberConstructor {
         Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier<'static>,
+        gc: NoGcScope,
+    ) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
         let parse_float = intrinsics.parse_float().into_value();
         let parse_int = intrinsics.parse_int().into_value();

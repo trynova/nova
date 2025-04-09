@@ -1434,8 +1434,8 @@ impl IndexMut<HeapNumber<'_>> for Vec<Option<NumberHeapData>> {
     }
 }
 
-impl CreateHeapData<f64, Number<'static>> for Heap {
-    fn create(&mut self, data: f64) -> Number<'static> {
+impl<'a> CreateHeapData<f64, Number<'a>> for Heap {
+    fn create(&mut self, data: f64) -> Number<'a> {
         // NOTE: This function cannot currently be implemented
         // directly using `Number::from_f64` as it takes an Agent
         // parameter that we do not have access to here.

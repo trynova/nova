@@ -163,7 +163,7 @@ pub fn perform_eval<'gc>(
     };
 
     // 3. Let evalRealm be the current Realm Record.
-    let eval_realm = agent.current_realm_id();
+    let eval_realm = agent.current_realm(gc.nogc());
 
     // 4. NOTE: In the case of a direct eval, evalRealm is the realm of both the caller of eval and of the eval function itself.
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
@@ -318,7 +318,7 @@ pub fn perform_eval<'gc>(
         // 21. Set evalContext's Function to null.
         function: None,
         // 22. Set evalContext's Realm to evalRealm.
-        realm: eval_realm,
+        realm: eval_realm.unbind(),
         // 23. Set evalContext's ScriptOrModule to runningContext's ScriptOrModule.
         script_or_module: agent.running_execution_context().script_or_module,
         // 24. Set evalContext's VariableEnvironment to varEnv.
@@ -825,7 +825,7 @@ impl GlobalObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        if arguments.len() == 0 {
+        if arguments.is_empty() {
             return Ok(Value::nan());
         }
 
@@ -1117,7 +1117,7 @@ impl GlobalObject {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectEval>(agent, realm).build();
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectIsFinite>(agent, realm)
             .build();

@@ -94,7 +94,7 @@ impl<'a> InternalSlots<'a> for FinalizationRegistry<'a> {
 impl<'a> InternalMethods<'a> for FinalizationRegistry<'a> {}
 
 impl Index<FinalizationRegistry<'_>> for Agent {
-    type Output = FinalizationRegistryHeapData;
+    type Output = FinalizationRegistryHeapData<'static>;
 
     fn index(&self, index: FinalizationRegistry) -> &Self::Output {
         &self.heap.finalization_registrys[index]
@@ -107,8 +107,8 @@ impl IndexMut<FinalizationRegistry<'_>> for Agent {
     }
 }
 
-impl Index<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData>> {
-    type Output = FinalizationRegistryHeapData;
+impl Index<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData<'static>>> {
+    type Output = FinalizationRegistryHeapData<'static>;
 
     fn index(&self, index: FinalizationRegistry) -> &Self::Output {
         self.get(index.get_index())
@@ -118,7 +118,7 @@ impl Index<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData
     }
 }
 
-impl IndexMut<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData>> {
+impl IndexMut<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData<'static>>> {
     fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("FinalizationRegistry out of bounds")
@@ -150,9 +150,9 @@ impl Rootable for FinalizationRegistry<'_> {
     }
 }
 
-impl CreateHeapData<FinalizationRegistryHeapData, FinalizationRegistry<'static>> for Heap {
-    fn create(&mut self, data: FinalizationRegistryHeapData) -> FinalizationRegistry<'static> {
-        self.finalization_registrys.push(Some(data));
+impl<'a> CreateHeapData<FinalizationRegistryHeapData<'a>, FinalizationRegistry<'a>> for Heap {
+    fn create(&mut self, data: FinalizationRegistryHeapData<'a>) -> FinalizationRegistry<'a> {
+        self.finalization_registrys.push(Some(data.unbind()));
         FinalizationRegistry(FinalizationRegistryIndex::last(
             &self.finalization_registrys,
         ))

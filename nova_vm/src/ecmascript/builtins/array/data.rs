@@ -118,12 +118,12 @@ impl<'a> From<SealableElementsVector<'a>> for ElementsVector<'a> {
 /// property whose value is always a non-negative integral Number whose
 /// mathematical value is strictly less than 2**32.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArrayHeapData {
-    pub object_index: Option<OrdinaryObject<'static>>,
+pub struct ArrayHeapData<'a> {
+    pub object_index: Option<OrdinaryObject<'a>>,
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.
-    pub elements: SealableElementsVector<'static>,
+    pub elements: SealableElementsVector<'a>,
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
@@ -154,7 +154,22 @@ impl HeapMarkAndSweep for SealableElementsVector<'static> {
     }
 }
 
-impl HeapMarkAndSweep for ArrayHeapData {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayHeapData<'_> {
+    type Of<'a> = ArrayHeapData<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for ArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

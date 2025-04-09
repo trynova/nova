@@ -291,8 +291,8 @@ impl StringConstructor {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let string_prototype = intrinsics.string_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<StringConstructor>(agent, realm)

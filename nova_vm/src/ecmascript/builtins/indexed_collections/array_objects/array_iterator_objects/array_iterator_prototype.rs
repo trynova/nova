@@ -263,8 +263,8 @@ impl ArrayIteratorPrototype {
         Ok(create_iter_result_object(agent, result.unbind(), false, gc.into_nogc()).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
-        let intrinsics = agent.get_realm(realm).intrinsics();
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.array_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();
 

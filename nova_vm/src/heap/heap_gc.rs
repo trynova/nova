@@ -66,10 +66,17 @@ use crate::{
             bigint::HeapBigInt,
         },
     },
-    engine::{Executable, context::GcScope},
+    engine::{
+        Executable,
+        context::{Bindable, GcScope},
+    },
 };
 
-pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], gc: GcScope) {
+pub fn heap_gc(
+    agent: &mut Agent,
+    root_realms: &mut [Option<RealmIdentifier<'static>>],
+    gc: GcScope,
+) {
     let Agent {
         heap,
         execution_context_stack,
@@ -86,7 +93,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
 
     root_realms.iter().for_each(|realm| {
         if let Some(realm) = realm {
-            queues.realms.push(*realm);
+            queues.realms.push(realm.unbind());
         }
     });
 
@@ -1027,7 +1034,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
 fn sweep(
     agent: &mut Agent,
     bits: &HeapBits,
-    root_realms: &mut [Option<RealmIdentifier>],
+    root_realms: &mut [Option<RealmIdentifier<'static>>],
     _: GcScope,
 ) {
     let compactions = CompactionLists::create_from_bits(bits);
