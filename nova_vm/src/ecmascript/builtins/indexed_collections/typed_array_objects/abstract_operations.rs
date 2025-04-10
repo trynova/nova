@@ -6,7 +6,9 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{construct, get, length_of_array_like, set, try_set},
+            operations_on_objects::{
+                construct, get, length_of_array_like, set, species_constructor, try_set,
+            },
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
@@ -1340,6 +1342,23 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     )
 }
 
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+pub(crate) fn internal_typed_array_species_create<'a, Exemplar: Viewable, Result: Viewable>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
+    // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
+    if Result::IS_BIGINT != Exemplar::IS_BIGINT {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc,
+        ));
+    };
+    Ok(())
+}
+
 /// ### [23.2.4.3 TypedArrayCreateSameType ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-create-same-type)
 /// The abstract operation TypedArrayCreateSameType takes arguments exemplar (a TypedArray)
 /// and argumentList (a List of ECMAScript language values) and returns either
@@ -1387,4 +1406,175 @@ pub(crate) fn typed_array_create_same_type<'a>(
     // 4. Assert: result.[[ContentType]] is exemplar.[[ContentType]].
     // 5. Return result.
     Ok(result.unbind())
+}
+
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
+    agent: &mut Agent,
+    exemplar: TypedArray,
+    length: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+    let default_constructor = match exemplar {
+        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
+        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
+        TypedArray::Uint8ClampedArray(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .uint8_clamped_array(),
+        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
+        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
+        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
+        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
+        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
+        TypedArray::BigUint64Array(_) => {
+            agent.current_realm_record().intrinsics().big_uint64_array()
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
+        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
+        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
+    };
+    // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
+    let constuctor = species_constructor(
+        agent,
+        exemplar.into_object(),
+        default_constructor.into_function(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
+    let result = typed_array_create_from_constructor_with_length(
+        agent,
+        constuctor.unbind(),
+        length,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
+    // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
+    let scoped_result = result.scope(agent, gc.nogc());
+    let _ = match scoped_result.get(agent) {
+        TypedArray::Int8Array(_) => internal_typed_array_species_create::<T, i8>(agent, gc.nogc()),
+        TypedArray::Uint8Array(_) => internal_typed_array_species_create::<T, u8>(agent, gc.nogc()),
+        TypedArray::Uint8ClampedArray(_) => {
+            internal_typed_array_species_create::<T, U8Clamped>(agent, gc.nogc())
+        }
+        TypedArray::Int16Array(_) => {
+            internal_typed_array_species_create::<T, i16>(agent, gc.nogc())
+        }
+        TypedArray::Uint16Array(_) => {
+            internal_typed_array_species_create::<T, u16>(agent, gc.nogc())
+        }
+        TypedArray::Int32Array(_) => {
+            internal_typed_array_species_create::<T, i32>(agent, gc.nogc())
+        }
+        TypedArray::Uint32Array(_) => {
+            internal_typed_array_species_create::<T, u32>(agent, gc.nogc())
+        }
+        TypedArray::BigInt64Array(_) => {
+            internal_typed_array_species_create::<T, i64>(agent, gc.nogc())
+        }
+        TypedArray::BigUint64Array(_) => {
+            internal_typed_array_species_create::<T, u64>(agent, gc.nogc())
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => {
+            internal_typed_array_species_create::<T, f16>(agent, gc.nogc())
+        }
+        TypedArray::Float32Array(_) => {
+            internal_typed_array_species_create::<T, f32>(agent, gc.nogc())
+        }
+        TypedArray::Float64Array(_) => {
+            internal_typed_array_species_create::<T, f64>(agent, gc.nogc())
+        }
+    };
+    // 6. Return result.
+    Ok(scoped_result.get(agent).unbind())
+}
+
+pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
+    agent: &mut Agent,
+    exemplar: TypedArray,
+    array_buffer: ArrayBuffer,
+    byte_offset: i64,
+    length: Option<i64>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+    let default_constructor = match exemplar {
+        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
+        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
+        TypedArray::Uint8ClampedArray(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .uint8_clamped_array(),
+        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
+        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
+        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
+        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
+        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
+        TypedArray::BigUint64Array(_) => {
+            agent.current_realm_record().intrinsics().big_uint64_array()
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
+        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
+        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
+    };
+    // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
+    // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
+    let result = typed_array_create_from_constructor_with_buffer(
+        agent,
+        default_constructor.into_function(),
+        array_buffer,
+        byte_offset,
+        length,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
+    // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
+    let scoped_result = result.scope(agent, gc.nogc());
+    let _ = match scoped_result.get(agent) {
+        TypedArray::Int8Array(_) => internal_typed_array_species_create::<T, i8>(agent, gc.nogc()),
+        TypedArray::Uint8Array(_) => internal_typed_array_species_create::<T, u8>(agent, gc.nogc()),
+        TypedArray::Uint8ClampedArray(_) => {
+            internal_typed_array_species_create::<T, U8Clamped>(agent, gc.nogc())
+        }
+        TypedArray::Int16Array(_) => {
+            internal_typed_array_species_create::<T, i16>(agent, gc.nogc())
+        }
+        TypedArray::Uint16Array(_) => {
+            internal_typed_array_species_create::<T, u16>(agent, gc.nogc())
+        }
+        TypedArray::Int32Array(_) => {
+            internal_typed_array_species_create::<T, i32>(agent, gc.nogc())
+        }
+        TypedArray::Uint32Array(_) => {
+            internal_typed_array_species_create::<T, u32>(agent, gc.nogc())
+        }
+        TypedArray::BigInt64Array(_) => {
+            internal_typed_array_species_create::<T, i64>(agent, gc.nogc())
+        }
+        TypedArray::BigUint64Array(_) => {
+            internal_typed_array_species_create::<T, u64>(agent, gc.nogc())
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => {
+            internal_typed_array_species_create::<T, f16>(agent, gc.nogc())
+        }
+        TypedArray::Float32Array(_) => {
+            internal_typed_array_species_create::<T, f32>(agent, gc.nogc())
+        }
+        TypedArray::Float64Array(_) => {
+            internal_typed_array_species_create::<T, f64>(agent, gc.nogc())
+        }
+    };
+    // 6. Return result.
+    Ok(scoped_result.get(agent).unbind())
 }
