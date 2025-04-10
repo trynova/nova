@@ -518,6 +518,28 @@ impl<'a> String<'a> {
             None
         }
     }
+
+    pub(crate) fn get_property_value(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+    ) -> Option<Value<'a>> {
+        if property_key == BUILTIN_STRING_MEMORY.length.into() {
+            let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
+                .expect("String length is over MAX_SAFE_INTEGER");
+            Some(super::Number::from(smi).into_value())
+        } else if let PropertyKey::Integer(index) = property_key {
+            let index = index.into_i64();
+            if index >= 0 && (index as usize) < self.utf16_len(agent) {
+                let ch = self.utf16_char(agent, index as usize);
+                Some(SmallString::from_code_point(ch).into_value())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl<'gc> String<'gc> {

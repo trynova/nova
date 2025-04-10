@@ -297,10 +297,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return TryResult::Continue(true);
             }
         }
@@ -317,10 +314,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return Ok(true);
             }
         }
@@ -357,8 +351,8 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
-                return TryResult::Continue(string_desc.value.unwrap());
+            if let Some(value) = string.get_property_value(agent, property_key) {
+                return TryResult::Continue(value.bind(gc));
             }
         }
 
@@ -389,8 +383,8 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
-            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
-                return Ok(string_desc.value.unwrap());
+            if let Some(value) = string.get_property_value(agent, property_key) {
+                return Ok(value.bind(gc.into_nogc()));
             }
         }
 
@@ -423,10 +417,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return TryResult::Continue(false);
             }
         }
@@ -445,10 +436,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return Ok(false);
             }
         }

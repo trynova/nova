@@ -144,11 +144,17 @@ pub(crate) fn get_v<'gc>(
             .intrinsics()
             .boolean_prototype()
             .into_object(),
-        Value::String(_) | Value::SmallString(_) => agent
-            .current_realm_record()
-            .intrinsics()
-            .string_prototype()
-            .into_object(),
+        Value::String(_) | Value::SmallString(_) => {
+            let v = String::try_from(v).unwrap();
+            if let Some(value) = v.get_property_value(agent, p) {
+                return Ok(value.unbind());
+            }
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .string_prototype()
+                .into_object()
+        }
         Value::Symbol(_) => agent
             .current_realm_record()
             .intrinsics()
@@ -184,15 +190,52 @@ pub(crate) fn try_get_v<'gc>(
     p: PropertyKey,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<JsResult<Value<'gc>>> {
+    let v = v.bind(gc);
+    let p = p.bind(gc);
     // 1. Let O be ? ToObject(V).
-    let o = match to_object(agent, v, gc) {
-        Ok(o) => o,
-        Err(err) => {
-            return TryResult::Continue(Err(err));
+    // Optimisation: We avoid allocating a primitive object that would only be
+    // used for the internal methods, and instead just use the prototype
+    // intrinsics directly.
+    let o = match v {
+        Value::Undefined | Value::Null => {
+            // Call to conversion function to throw error.
+            return TryResult::Continue(Err(to_object(agent, v, gc).unwrap_err()));
         }
+        Value::Boolean(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .boolean_prototype()
+            .into_object(),
+        Value::String(_) | Value::SmallString(_) => {
+            let v = String::try_from(v).unwrap();
+            if let Some(value) = v.get_property_value(agent, p) {
+                return TryResult::Continue(Ok(value.bind(gc)));
+            }
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .string_prototype()
+                .into_object()
+        }
+        Value::Symbol(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .symbol_prototype()
+            .into_object(),
+        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .number_prototype()
+            .into_object(),
+        Value::BigInt(_) | Value::SmallBigInt(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .big_int_prototype()
+            .into_object(),
+        _ => Object::try_from(v).unwrap(),
     };
     // 2. Return ? O.[[Get]](P, V).
-    TryResult::Continue(Ok(o.try_get(agent, p, o.into(), gc)?))
+    TryResult::Continue(Ok(o.try_get(agent, p, v.into(), gc)?))
 }
 
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
