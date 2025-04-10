@@ -4,6 +4,7 @@
 
 use core::ops::{Index, IndexMut};
 
+use crate::ecmascript::types::{IntoPrimitive, Primitive};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{TryResult, unwrap_try};
@@ -146,7 +147,7 @@ impl PrimitiveObject<'_> {
     pub fn is_number_object(self, agent: &Agent) -> bool {
         matches!(
             agent[self].data,
-            PrimitiveObjectData::Float(_)
+            PrimitiveObjectData::SmallF64(_)
                 | PrimitiveObjectData::Integer(_)
                 | PrimitiveObjectData::Number(_)
         )
@@ -206,7 +207,7 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
                     PrimitiveObjectData::Symbol(_) => ProtoIntrinsics::Symbol,
                     PrimitiveObjectData::Number(_)
                     | PrimitiveObjectData::Integer(_)
-                    | PrimitiveObjectData::Float(_) => ProtoIntrinsics::Number,
+                    | PrimitiveObjectData::SmallF64(_) => ProtoIntrinsics::Number,
                     PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_) => {
                         ProtoIntrinsics::BigInt
                     }
@@ -552,7 +553,7 @@ pub(crate) enum PrimitiveObjectData<'a> {
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(SmallF64) = FLOAT_DISCRIMINANT,
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
@@ -576,7 +577,7 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Number<'a> {
         match value {
             PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
             PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
-            PrimitiveObjectData::Float(data) => Ok(Number::SmallF64(data)),
+            PrimitiveObjectData::SmallF64(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -601,6 +602,44 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Symbol<'a> {
         match value {
             PrimitiveObjectData::Symbol(data) => Ok(data),
             _ => Err(()),
+        }
+    }
+}
+
+impl<'a> IntoValue<'a> for PrimitiveObjectData<'a> {
+    fn into_value(self) -> Value<'a> {
+        self.into()
+    }
+}
+
+impl<'a> From<PrimitiveObjectData<'a>> for Value<'a> {
+    fn from(value: PrimitiveObjectData<'a>) -> Self {
+        match value {
+            PrimitiveObjectData::Boolean(data) => Value::Boolean(data),
+            PrimitiveObjectData::String(data) => Value::String(data),
+            PrimitiveObjectData::SmallString(data) => Value::SmallString(data),
+            PrimitiveObjectData::Symbol(data) => Value::Symbol(data),
+            PrimitiveObjectData::Number(data) => Value::Number(data),
+            PrimitiveObjectData::Integer(data) => Value::Integer(data),
+            PrimitiveObjectData::SmallF64(data) => Value::SmallF64(data),
+            PrimitiveObjectData::BigInt(data) => Value::BigInt(data),
+            PrimitiveObjectData::SmallBigInt(data) => Value::SmallBigInt(data),
+        }
+    }
+}
+
+impl<'a> IntoPrimitive<'a> for PrimitiveObjectData<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
+        match self {
+            PrimitiveObjectData::Boolean(d) => Primitive::Boolean(d),
+            PrimitiveObjectData::String(d) => Primitive::String(d),
+            PrimitiveObjectData::SmallString(d) => Primitive::SmallString(d),
+            PrimitiveObjectData::Symbol(d) => Primitive::Symbol(d),
+            PrimitiveObjectData::Number(d) => Primitive::Number(d),
+            PrimitiveObjectData::Integer(d) => Primitive::Integer(d),
+            PrimitiveObjectData::SmallF64(d) => Primitive::SmallF64(d),
+            PrimitiveObjectData::BigInt(d) => Primitive::BigInt(d),
+            PrimitiveObjectData::SmallBigInt(d) => Primitive::SmallBigInt(d),
         }
     }
 }
@@ -634,7 +673,7 @@ impl<'a> PrimitiveObjectHeapData<'a> {
         let data = match number {
             Number::Number(data) => PrimitiveObjectData::Number(data.unbind()),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
-            Number::SmallF64(data) => PrimitiveObjectData::Float(data),
+            Number::SmallF64(data) => PrimitiveObjectData::SmallF64(data),
         };
         Self {
             object_index: None,

@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::fmt::Write;
+
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
 use crate::{
@@ -9,22 +11,26 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_data_property, get, length_of_array_like,
-                scoped_enumerable_own_keys, try_create_data_property,
+                call_function, create_data_property, enumerable_own_keys, get, get_v,
+                length_of_array_like, scoped_enumerable_own_keys, try_create_data_property,
                 try_create_data_property_or_throw,
             },
             testing_and_comparison::{is_array, is_callable},
-            type_conversion::to_string,
+            type_conversion::{
+                to_integer_or_infinity_number, to_number, to_property_key, to_property_key_simple,
+                to_string,
+            },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, array_create,
             ordinary::ordinary_object_create_with_intrinsics,
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
         execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoValue, Number,
-            Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoPrimitive, IntoValue,
+            Number, Object, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -150,7 +156,7 @@ impl JSONObject {
             let root_name = String::EMPTY_STRING
                 .to_property_key()
                 .unbind()
-                .scope_static(gc.nogc());
+                .scope_static();
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
             unwrap_try(try_create_data_property_or_throw(
@@ -173,13 +179,258 @@ impl JSONObject {
         Ok(unfiltered.unbind())
     }
 
+    /// ### [25.5.1 JSON.stringify ( value \[ , replacer \[ , space \] ] )](https://tc39.es/ecma262/#sec-json.stringify)
+    ///
+    /// This function returns a String in UTF-16 encoded JSON format
+    /// representing an ECMAScript language value, or undefined. It can take
+    /// three parameters. The value parameter is an ECMAScript language value,
+    /// which is usually an object or array, although it can also be a String,
+    /// Boolean, Number or null. The optional replacer parameter is either a
+    /// function that alters the way objects and arrays are stringified, or an
+    /// array of Strings and Numbers that acts as an inclusion list for
+    /// selecting the object properties that will be stringified. The optional
+    /// space parameter is a String or Number that allows the result to have
+    /// white space injected into it to improve human readability.
+    ///
+    /// > Note 1
+    /// >
+    /// > JSON structures are allowed to be nested to any depth, but they must be acyclic. If value is or contains a cyclic structure, then this function must throw a TypeError exception. This is an example of a value that cannot be stringified:
+    /// >
+    /// > ```js
+    /// > a = [];
+    /// > a[0] = a;
+    /// > my_text = JSON.stringify(a); // This must throw a TypeError.
+    /// > ```
+    ///
+    /// > Note 2
+    /// >
+    /// > Symbolic primitive values are rendered as follows:
+    /// >
+    /// > - The null value is rendered in JSON text as the String value "null".
+    /// > - The undefined value is not rendered.
+    /// > - The true value is rendered in JSON text as the String value "true".
+    /// > - The false value is rendered in JSON text as the String value "false".
+    ///
+    /// > Note 3
+    /// >
+    /// > String values are wrapped in QUOTATION MARK (`"``) code units. The code
+    /// > units `"` and `\` are escaped with `\` prefixes. Control characters code
+    /// > units are replaced with escape sequences `\uHHHH`, or with the shorter
+    /// > forms, `\b` (BACKSPACE), `\f` (FORM FEED), `\n` (LINE FEED), `\r` (CARRIAGE
+    /// > RETURN), `\t` (CHARACTER TABULATION).
+    ///
+    /// > Note 4
+    /// >
+    /// > Finite numbers are stringified as if by calling ToString(number). NaN
+    /// > and Infinity regardless of sign are represented as the String value
+    /// > "null".
+    ///
+    /// > Note 5
+    /// >
+    /// > Values that do not have a JSON representation (such as undefined and
+    /// > functions) do not produce a String. Instead they produce the undefined
+    /// > value. In arrays these values are represented as the String value
+    /// > "null". In objects an unrepresentable value causes the property to be
+    /// > excluded from stringification.
+    ///
+    /// > Note 6
+    /// >
+    /// > An object is rendered as U+007B (LEFT CURLY BRACKET) followed by zero
+    /// > or more properties, separated with a U+002C (COMMA), closed with a
+    /// > U+007D (RIGHT CURLY BRACKET). A property is a quoted String
+    /// > representing the property name, a U+003A (COLON), and then the
+    /// > stringified property value. An array is rendered as an opening U+005B
+    /// > (LEFT SQUARE BRACKET) followed by zero or more values, separated with a
+    /// > U+002C (COMMA), closed with a U+005D (RIGHT SQUARE BRACKET).
     fn stringify<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        let value = arguments.get(0).scope(agent, gc.nogc());
+        let replacer = arguments.get(1).bind(gc.nogc());
+        let space = arguments.get(2).scope(agent, gc.nogc());
+
+        // 1. Let stack be a new empty List.
+        let stack = Vec::new();
+        // 3. Let PropertyList be undefined.
+        let mut property_list: Option<Vec<Scoped<'_, PropertyKey<'static>>>> = None;
+
+        // 4. Let ReplacerFunction be undefined.
+        // a. If IsCallable(replacer) is true, then
+        let replacer_function = if let Some(replacer) = is_callable(replacer, gc.nogc()) {
+            // i. Set ReplacerFunction to replacer.
+            Some(replacer.scope(agent, gc.nogc()))
+        } else if let Ok(replacer) = Object::try_from(replacer) {
+            // 5. If replacer is an Object, then
+            // b. Else,
+            // i. Let isArray be ? IsArray(replacer).
+            if is_array(agent, replacer, gc.nogc())? {
+                let scoped_replacer = replacer.scope(agent, gc.nogc());
+                // ii. If isArray is true, then
+                // 2. Let len be ? LengthOfArrayLike(replacer).
+                let len = length_of_array_like(agent, replacer.unbind(), gc.reborrow())?;
+                // 1. Set PropertyList to a new empty List.
+                property_list = Some(Vec::with_capacity(len as usize));
+                // 3. Let k be 0.
+                // 4. Repeat, while k < len,
+                // h. Set k to k + 1.
+                for k in 0..len {
+                    // a. Let prop be ! ToString(𝔽(k)).
+                    let prop = PropertyKey::from(SmallInteger::try_from(k).unwrap());
+                    // b. Let v be ? Get(replacer, prop).
+                    let v = get(agent, scoped_replacer.get(agent), prop, gc.reborrow())?
+                        .unbind()
+                        .bind(gc.nogc());
+                    // c. Let item be undefined.
+                    let item = if let Ok(v) = String::try_from(v) {
+                        // d. If v is a String, then
+                        // i. Set item to v.
+                        Some(unwrap_try(to_property_key_simple(agent, v, gc.nogc())))
+                    } else if let Ok(v) = Number::try_from(v) {
+                        // e. Else if v is a Number, then
+                        // i. Set item to ! ToString(v).
+                        Some(
+                            to_property_key(agent, v.unbind(), gc.reborrow())
+                                .unwrap()
+                                .unbind()
+                                .bind(gc.nogc()),
+                        )
+                    } else if let Ok(v) = PrimitiveObject::try_from(v) {
+                        // f. Else if v is an Object, then
+                        // i. If v has a [[StringData]] or [[NumberData]] internal slot, set item to ? ToString(v).
+                        if v.is_string_object(agent) || v.is_number_object(agent) {
+                            Some(
+                                to_property_key(agent, v.unbind(), gc.reborrow())
+                                    .unwrap()
+                                    .unbind()
+                                    .bind(gc.nogc()),
+                            )
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    // g. If item is not undefined and PropertyList does not contain item, then
+                    // i. Append item to PropertyList.
+                    if let Some(item) = item {
+                        let property_list = property_list.as_mut().unwrap();
+                        if !property_list.iter().any(|x| x.get(agent) == item) {
+                            property_list.push(item.scope(agent, gc.nogc()));
+                        }
+                    }
+                }
+                // SAFETY: scoped_replacer is not shared.
+                let _ = unsafe { scoped_replacer.take(agent) };
+            }
+            None
+        } else {
+            None
+        };
+
+        // SAFETY: space is not shared.
+        let space = unsafe { space.take(agent) }.bind(gc.nogc());
+        // 6. If space is an Object, then
+        let space = if let Ok(space) = PrimitiveObject::try_from(space) {
+            if space.is_number_object(agent) {
+                // a. If space has a [[NumberData]] internal slot, then
+                // i. Set space to ? ToNumber(space).
+                Some(
+                    to_number(agent, space.unbind(), gc.reborrow())?
+                        .into_primitive()
+                        .unbind()
+                        .bind(gc.nogc()),
+                )
+            } else if space.is_string_object(agent) {
+                // b. Else if space has a [[StringData]] internal slot, then
+                // i. Set space to ? ToString(space).
+                Some(
+                    to_string(agent, space.unbind(), gc.reborrow())?
+                        .into_primitive()
+                        .unbind()
+                        .bind(gc.nogc()),
+                )
+            } else {
+                None
+            }
+        } else if let Ok(space) = Number::try_from(space) {
+            Some(space.into_primitive())
+        } else if let Ok(space) = String::try_from(space) {
+            Some(space.into_primitive())
+        } else {
+            None
+        };
+
+        let gap: Box<str> = space.map_or("".into(), |space| {
+            // 7. If space is a Number, then
+            if let Ok(space) = Number::try_from(space) {
+                // a. Let spaceMV be ! ToIntegerOrInfinity(space).
+                let space_mv = to_integer_or_infinity_number(agent, space, gc.nogc());
+                // b. Set spaceMV to min(10, spaceMV).
+                // c. If spaceMV < 1, let gap be the empty String; otherwise let gap be the String value containing spaceMV occurrences of the code unit 0x0020 (SPACE).
+                let space_mv = space_mv.into_i64().clamp(0, 10) as usize;
+                " ".repeat(space_mv as usize).into()
+            } else if let Ok(space) = String::try_from(space) {
+                // 8. Else if space is a String, then
+                let space = space.as_str(agent);
+                // a. If the length of space ≤ 10, let gap be space; otherwise let gap be the substring of space from 0 to 10.
+                if space.len() <= 10 {
+                    space.into()
+                } else {
+                    space[..10].into()
+                }
+            } else {
+                // 9. Else,
+                // a. Let gap be the empty String.
+                "".into()
+            }
+        });
+
+        // 10. Let wrapper be OrdinaryObjectCreate(%Object.prototype%).
+        let wrapper = ordinary_object_create_with_intrinsics(
+            agent,
+            Some(ProtoIntrinsics::Object),
+            None,
+            gc.nogc(),
+        );
+        // SAFETY: value is not shared.
+        let value = unsafe { value.take(agent) }.bind(gc.nogc());
+        // 11. Perform ! CreateDataPropertyOrThrow(wrapper, the empty String, value).
+        wrapper.property_storage().set(
+            agent,
+            String::EMPTY_STRING.to_property_key(),
+            PropertyDescriptor::new_data_descriptor(value),
+        );
+        // 12. Let state be the JSON Serialization Record { [[ReplacerFunction]]: ReplacerFunction, [[Stack]]: stack, [[Indent]]: indent, [[Gap]]: gap, [[PropertyList]]: PropertyList }.
+        let mut state = JSONSerializationRecord {
+            result: Default::default(),
+            replacer_function,
+            stack,
+            // 2. Let indent be the empty String.
+            indent: Default::default(),
+            gap,
+            property_list,
+        };
+        let wrapper = wrapper.scope(agent, gc.nogc());
+        // 13. Return ? SerializeJSONProperty(state, the empty String, wrapper).
+        let key = String::EMPTY_STRING
+            .to_property_key()
+            .scope(agent, gc.nogc());
+        let value_p = get_serializable_json_property_value(
+            agent,
+            state.replacer_function.clone(),
+            key,
+            wrapper,
+            gc.reborrow(),
+        )?;
+        if let Some(value_p) = value_p {
+            serialize_json_property_value(agent, &mut state, value_p.unbind(), gc.reborrow())?;
+            Ok(String::from_string(agent, state.result, gc.into_nogc()).into_value())
+        } else {
+            Ok(Value::Undefined)
+        }
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
@@ -241,8 +492,7 @@ fn internalize_json_property<'gc, 'a>(
             // iii. Repeat, while I < len,
             while i < len {
                 // 1. Let prop be ! ToString(𝔽(I)).
-                let prop =
-                    PropertyKey::from(SmallInteger::try_from(i).unwrap()).scope_static(gc.nogc());
+                let prop = PropertyKey::from(SmallInteger::try_from(i).unwrap()).scope_static();
 
                 // 2. Let newElement be ? InternalizeJSONProperty(val, prop, reviver).
                 let new_element = internalize_json_property(
@@ -325,6 +575,533 @@ fn internalize_json_property<'gc, 'a>(
         Some(ArgumentsList::from_mut_slice(&mut [name, val])),
         gc,
     )
+}
+
+struct JSONSerializationRecord<'a> {
+    result: std::string::String,
+    replacer_function: Option<Scoped<'a, Function<'static>>>,
+    stack: Vec<Scoped<'a, Object<'static>>>,
+    indent: Box<str>,
+    gap: Box<str>,
+    property_list: Option<Vec<Scoped<'a, PropertyKey<'static>>>>,
+}
+
+/// ### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
+///
+/// The abstract operation SerializeJSONProperty takes arguments state (a JSON
+/// Serialization Record), key (a String), and holder (an Object) and returns
+/// either a normal completion containing either a serializable Value or
+/// undefined, or a throw completion.
+///
+/// > Note: This performs steps 1 through 4, and 10 and 12 of the
+/// > SerializeJSONProperty abstract operation.
+fn get_serializable_json_property_value<'a, 'b>(
+    agent: &mut Agent,
+    replacer_function: Option<Scoped<'b, Function<'static>>>,
+    key: Scoped<'b, PropertyKey<'static>>,
+    holder: Scoped<'b, Object<'static>>,
+    mut gc: GcScope<'a, 'b>,
+) -> JsResult<Option<Value<'a>>> {
+    // 1. Let value be ? Get(holder, key).
+    let mut value = get(
+        agent,
+        holder.get(agent),
+        PropertyKey::from(key.get(agent)),
+        gc.reborrow(),
+    )?
+    .unbind()
+    .bind(gc.nogc());
+    // 2. If value is an Object or value is a BigInt, then
+    if value.is_object() || value.is_bigint() {
+        let scoped_value = value.scope(agent, gc.nogc());
+        // a. Let toJSON be ? GetV(value, "toJSON").
+        let to_json = get_v(
+            agent,
+            value.unbind(),
+            BUILTIN_STRING_MEMORY.toJSON.to_property_key(),
+            gc.reborrow(),
+        )?
+        .unbind()
+        .bind(gc.nogc());
+        // b. If IsCallable(toJSON) is true, then
+        if let Some(to_json) = is_callable(to_json, gc.nogc()) {
+            // i. Set value to ? Call(toJSON, value, « key »).
+            let key = key.get(agent).convert_to_value(agent, gc.nogc());
+            value = call_function(
+                agent,
+                to_json.unbind(),
+                scoped_value.get(agent),
+                Some(ArgumentsList::from_mut_value(&mut key.unbind())),
+                gc.reborrow(),
+            )?
+            .unbind()
+            .bind(gc.nogc());
+            // SAFETY: scoped_value is not shared.
+            let _ = unsafe { scoped_value.take(agent) };
+        } else {
+            // Return the value back from scoping.
+            // SAFETY: scoped_value is not shared.
+            value = unsafe { scoped_value.take(agent) };
+        }
+    }
+    // 3. If state.[[ReplacerFunction]] is not undefined, then
+    if let Some(replacer_function) = replacer_function {
+        // a. Set value to ? Call(state.[[ReplacerFunction]], holder, « key, value »).
+        let key = key.get(agent).convert_to_value(agent, gc.nogc());
+        value = call_function(
+            agent,
+            replacer_function.get(agent),
+            holder.get(agent).into_value().unbind(),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                key.unbind(),
+                value.unbind(),
+            ])),
+            gc.reborrow(),
+        )?
+        .unbind()
+        .bind(gc.nogc());
+    }
+
+    // 4. If value is an Object, then
+    if let Ok(obj) = PrimitiveObject::try_from(value) {
+        match agent[obj].data {
+            // a. If value has a [[NumberData]] internal slot, then
+            // i. Set value to ? ToNumber(value).
+            PrimitiveObjectData::Number(_)
+            | PrimitiveObjectData::Integer(_)
+            | PrimitiveObjectData::SmallF64(_) => {
+                value = to_number(agent, obj.unbind(), gc.reborrow())?
+                    .into_value()
+                    .unbind()
+                    .bind(gc.nogc())
+            }
+            // b. Else if value has a [[StringData]] internal slot, then
+            // i. Set value to ? ToString(value).
+            PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
+                value = to_string(agent, obj.unbind(), gc.reborrow())?
+                    .into_value()
+                    .unbind()
+                    .bind(gc.nogc())
+            }
+            // c. Else if value has a [[BooleanData]] internal slot, then
+            // i. Set value to value.[[BooleanData]].
+            PrimitiveObjectData::Boolean(bool) => value = Value::Boolean(bool),
+            // d. Else if value has a [[BigIntData]] internal slot, then
+            // i. Set value to value.[[BigIntData]].
+            PrimitiveObjectData::BigInt(bigint) => value = Value::BigInt(bigint),
+            PrimitiveObjectData::SmallBigInt(bigint) => value = Value::SmallBigInt(bigint),
+            _ => {}
+        }
+    }
+
+    if value.is_bigint() {
+        // 10. If value is a BigInt, throw a TypeError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Cannot serialize BigInt to JSON",
+            gc.nogc(),
+        ));
+    } else if value.is_undefined() || value.is_symbol() {
+        Ok(None)
+    } else if is_callable(value, gc.nogc()).is_some() {
+        // 11. If value is an Object and IsCallable(value) is false, then
+        Ok(None)
+    } else {
+        Ok(Some(value.unbind().bind(gc.into_nogc())))
+    }
+}
+
+/// ### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
+///
+/// > Note: This performs steps 5 through 9, and 11 of the
+/// > SerializeJSONProperty abstract operation.
+fn serialize_json_property_value<'a>(
+    agent: &mut Agent,
+    state: &mut JSONSerializationRecord<'a>,
+    value: Value,
+    gc: GcScope<'_, 'a>,
+) -> JsResult<()> {
+    match value {
+        // 5. If value is null, return "null".
+        Value::Null => {
+            state.result.push_str("null");
+        }
+        // 6. If value is true, return "true".
+        Value::Boolean(true) => {
+            state.result.push_str("true");
+        }
+        // 7. If value is false, return "false".
+        Value::Boolean(false) => {
+            state.result.push_str("false");
+        }
+        // 8. If value is a String, return QuoteJSONString(value).
+        Value::String(_) | Value::SmallString(_) => {
+            let value = String::try_from(value).unwrap();
+            quote_json_string(agent, &mut state.result, value);
+        }
+        // 9. If value is a Number, then
+        Value::Number(_) | Value::SmallF64(_) | Value::Integer(_) => {
+            let value = Number::try_from(value).unwrap();
+            // a. If value is finite, return ! ToString(value).
+            if value.is_finite(agent) {
+                let mut buffer = ryu_js::Buffer::new();
+                let value = buffer.format(value.into_f64(agent));
+                state.result.push_str(value);
+            } else {
+                // b. Return "null".
+                state.result.push_str("null");
+            }
+        }
+        _ => {
+            // 11. If value is an Object and IsCallable(value) is false, then
+            // Note: All non-Object and callable values should've returned
+            // None from get_serializable_json_property_value.
+            let value = Object::try_from(value).unwrap();
+            debug_assert!(is_callable(value, gc.nogc()).is_none());
+            // a. Let isArray be ? IsArray(value).
+            // b. If isArray is true, return ? SerializeJSONArray(state, value).
+            if is_array(agent, value, gc.nogc())? {
+                let value = value.scope(agent, gc.nogc());
+                serialize_json_array(agent, state, value.clone(), gc)?;
+                // SAFETY: value should've been popped off of state.stack at
+                // the end of serialize_json_array call.
+                let _ = unsafe { value.take(agent) };
+            } else {
+                // c. Return ? SerializeJSONObject(state, value).
+                let value = value.scope(agent, gc.nogc());
+                serialize_json_object(agent, state, value.clone(), gc)?;
+                // SAFETY: value should've been popped off of state.stack at
+                // the end of serialize_json_object call.
+                let _ = unsafe { value.take(agent) };
+            }
+        }
+    }
+    Ok(())
+}
+
+/// ### [25.5.2.3 QuoteJSONString ( value )](https://tc39.es/ecma262/#sec-quotejsonstring)
+///
+/// The abstract operation QuoteJSONString takes argument value (a String) and
+/// returns a String. It wraps value in 0x0022 (QUOTATION MARK) code units and
+/// escapes certain other code units within it. This operation interprets value
+/// as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: String) {
+    product.reserve(value.utf16_len(agent) + 2);
+    // 1. Let product be the String value consisting solely of the code unit 0x0022 (QUOTATION MARK).
+    product.push('"');
+    // 2. For each code point C of StringToCodePoints(value), do
+    for c in value.as_str(agent).chars() {
+        match c {
+            // a. If C is listed in the “Code Point” column of Table 75, then
+            // i. Set product to the string-concatenation of product and the escape sequence for C as specified in the “Escape Sequence” column of the corresponding row.
+            '\u{0008}' => product.extend(&['\\', 'b']),
+            '\u{0009}' => product.extend(&['\\', 't']),
+            '\u{000A}' => product.extend(&['\\', 'n']),
+            '\u{000C}' => product.extend(&['\\', 'f']),
+            '\u{000D}' => product.extend(&['\\', 'r']),
+            '\u{0022}' => product.extend(&['\\', '"']),
+            '\u{005C}' => product.extend(&['\\', '\\']),
+            // b. Else if C has a numeric value less than 0x0020 (SPACE) or C has the same numeric value as a leading surrogate or trailing surrogate, then
+            // i. Let unit be the code unit whose numeric value is the numeric value of C.
+            // ii. Set product to the string-concatenation of product and UnicodeEscape(unit).
+            _ if c < '\u{0020}' => product.extend(format!("\\u{:04x}", c as u32).chars()),
+            // c. Else,
+            // i. Set product to the string-concatenation of product and UTF16EncodeCodePoint(C).
+            _ => product.push(c),
+        }
+    }
+    // 3. Set product to the string-concatenation of product and the code unit 0x0022 (QUOTATION MARK).
+    product.push('"');
+    // 4. Return product.
+}
+
+fn quote_property_key(agent: &Agent, product: &mut std::string::String, key: PropertyKey) {
+    if let PropertyKey::Integer(key) = key {
+        let key = key.into_i64();
+        write!(product, "\"{}\"", key).unwrap();
+    } else {
+        // Symbol keys do not get serialised into JSON.
+        debug_assert!(key.is_string());
+        // SAFETY: The key is guaranteed to be a non-integer string.
+        let key = unsafe { key.into_value_unchecked() };
+        quote_json_string(agent, product, String::try_from(key).unwrap())
+    }
+}
+
+/// ### [25.5.2.5 SerializeJSONObject ( state, value )](https://tc39.es/ecma262/#sec-serializejsonobject)
+///
+/// The abstract operation SerializeJSONObject takes arguments state (a JSON
+/// Serialization Record) and value (an Object) and returns either a normal
+/// completion containing a String or a throw completion. It serializes an
+/// object.
+fn serialize_json_object<'a>(
+    agent: &mut Agent,
+    state: &mut JSONSerializationRecord<'a>,
+    value: Scoped<'a, Object<'static>>,
+    mut gc: GcScope<'_, 'a>,
+) -> JsResult<()> {
+    // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
+    let stack_value = value.get(agent).bind(gc.nogc());
+    if state.stack.iter().any(|x| x.get(agent) == stack_value) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Cyclical structure in JSON",
+            gc.nogc(),
+        ));
+    }
+
+    // 5. If state.[[PropertyList]] is not undefined, then
+    // a. Let K be state.[[PropertyList]].
+    // 6. Else,
+    // a. Let K be ? EnumerableOwnProperties(value, key).
+    let k = if let Some(property_list) = &state.property_list {
+        property_list.clone()
+    } else {
+        enumerable_own_keys(agent, stack_value.unbind(), gc.reborrow())?
+            .unbind()
+            .into_iter()
+            .map(|k| k.scope(agent, gc.nogc()))
+            .collect()
+    };
+
+    if k.is_empty() {
+        // 9. If partial is empty, then
+        // a. Let final be "{}".
+        state.result.push_str("{}");
+        return Ok(());
+    }
+
+    // 2. Append value to state.[[Stack]].
+    state.stack.push(value.clone());
+
+    let open_string: Box<str>;
+    let separator_string: Box<str>;
+    let close_string: Box<str>;
+    let step_back: Box<str>;
+
+    // a. If state.[[Gap]] is the empty String, then
+    let (open, separator, key_value_separator, close) = if state.gap.is_empty() {
+        step_back = Default::default();
+        // i. Let properties be the String value formed by concatenating
+        //    all the element Strings of partial with each adjacent pair of
+        //    Strings separated with the code unit 0x002C (COMMA). A comma
+        //    is not inserted either before the first String or after the
+        //    last String.
+        // ii. Let final be the string-concatenation of "{", properties,
+        //     and "}".
+        ("{", ",", ":", "}")
+    } else {
+        // 3. Let stepBack be state.[[Indent]].
+        // 4. Set state.[[Indent]] to the string-concatenation of state.[[Indent]] and state.[[Gap]].
+        let mut new_ident =
+            std::string::String::with_capacity(state.indent.len() + state.gap.len());
+        new_ident.push_str(&state.indent);
+        new_ident.push_str(&state.gap);
+        step_back = core::mem::replace(&mut state.indent, new_ident.into_boxed_str());
+
+        // b. Else,
+        // i. Let separator be the string-concatenation of the code unit
+        //    0x002C (COMMA), the code unit 0x000A (LINE FEED), and
+        //    state.[[Indent]].
+        separator_string = format!(",\n{}", &state.indent).into_boxed_str();
+        // ii. Let properties be the String value formed by concatenating
+        //     all the element Strings of partial with each adjacent pair
+        //     of Strings separated with separator. The separator String is
+        //     not inserted either before the first String or after the
+        //     last String.
+        // iii. Let final be the string-concatenation of "{", the code unit
+        //      0x000A (LINE FEED), state.[[Indent]], properties, the code
+        //      unit 0x000A (LINE FEED), stepBack, and "}".
+        open_string = format!("{{\n{}", &state.indent).into_boxed_str();
+        close_string = format!("\n{}}}", &step_back).into_boxed_str();
+        (
+            open_string.as_ref(),
+            separator_string.as_ref(),
+            ": ",
+            close_string.as_ref(),
+        )
+    };
+
+    let mut first_inserted = false;
+
+    // 7. Let partial be a new empty List.
+    // 8. For each element P of K, do
+    for p in k {
+        // a. Let strP be ? SerializeJSONProperty(state, P, value).
+        let value_p = get_serializable_json_property_value(
+            agent,
+            state.replacer_function.clone(),
+            p.clone(),
+            value.clone(),
+            gc.reborrow(),
+        )?;
+        // b. If strP is not undefined, then
+        let Some(value_p) = value_p else {
+            continue;
+        };
+
+        if !first_inserted {
+            first_inserted = true;
+            state.result.push_str(open);
+        } else {
+            state.result.push_str(separator);
+        }
+
+        // i. Let member be QuoteJSONString(P).
+        quote_property_key(agent, &mut state.result, p.get(agent));
+        // ii. Set member to the string-concatenation of member and ":".
+        // iii. If state.[[Gap]] is not the empty String, then
+        // 1. Set member to the string-concatenation of member and the code unit 0x0020 (SPACE).
+        state.result.push_str(key_value_separator);
+        // iv. Set member to the string-concatenation of member and strP.
+        serialize_json_property_value(agent, state, value_p.unbind(), gc.reborrow())?;
+        // let member = String::concat(agent, member, gc.nogc()).unbind();
+        // v. Append member to partial.
+    }
+
+    // 11. Remove the last element of state.[[Stack]].
+    state.stack.pop();
+
+    if state.gap.is_empty() {
+        // 12. Set state.[[Indent]] to stepBack.
+        state.indent = step_back;
+        // 13. Return final.
+    }
+
+    // 9. If partial is empty, then
+    if !first_inserted {
+        // a. Let final be "{}".
+        state.result.push_str("{}");
+    } else {
+        state.result.push_str(close);
+    }
+    Ok(())
+}
+
+/// ### [25.5.2.6 SerializeJSONArray ( state, value )](https://tc39.es/ecma262/#sec-serializejsonarray)
+///
+/// The abstract operation SerializeJSONArray takes arguments state (a JSON
+/// Serialization Record) and value (an ECMAScript language value) and returns
+/// either a normal completion containing a String or a throw completion. It
+/// serializes an array.
+fn serialize_json_array<'a>(
+    agent: &mut Agent,
+    state: &mut JSONSerializationRecord<'a>,
+    value: Scoped<'a, Object<'static>>,
+    mut gc: GcScope<'_, 'a>,
+) -> JsResult<()> {
+    // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
+    let stack_value = value.get(agent).bind(gc.nogc());
+    if state.stack.iter().any(|x| x.get(agent) == stack_value) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Cyclical structure in JSON",
+            gc.nogc(),
+        ));
+    }
+    // 6. Let len be ? LengthOfArrayLike(value).
+    let len = length_of_array_like(agent, stack_value.unbind(), gc.reborrow())? as u64;
+
+    // 9. If partial is empty, then
+    // Note: We skip all the bookkeeping work when dealing with empty arrays.
+    if len == 0 {
+        // a. Let final be "[]".
+        // 11. Remove the last element of state.[[Stack]].
+        // Note: We haven't yet pushed the value to stack, so we shouldn't pop
+        // it either.
+        // 12. Set state.[[Indent]] to stepBack.
+        // Note: We've not yet changed indent, so we shouldn't restore it
+        // either.
+        // 13. Return final.
+        state.result.push_str("[]");
+        return Ok(());
+    }
+
+    // 2. Append value to state.[[Stack]].
+    state.stack.push(value.clone());
+
+    let open_string: Box<str>;
+    let separator_string: Box<str>;
+    let close_string: Box<str>;
+    let step_back: Box<str>;
+
+    // a. If state.[[Gap]] is the empty String, then
+    let (open, separator, close) = if state.gap.is_empty() {
+        step_back = Default::default();
+        // i. Let properties be the String value formed by concatenating all
+        //    the element Strings of partial with each adjacent pair of Strings
+        //    separated with the code unit 0x002C (COMMA). A comma is not
+        //    inserted either before the first String or after the last String.
+        // ii. Let final be the string-concatenation of "[", properties, and
+        //     "]".
+        ("[", ",", "]")
+    } else {
+        // 3. Let stepBack be state.[[Indent]].
+        // 4. Set state.[[Indent]] to the string-concatenation of state.[[Indent]] and state.[[Gap]].
+        let mut new_ident =
+            std::string::String::with_capacity(state.indent.len() + state.gap.len());
+        new_ident.push_str(&state.indent);
+        new_ident.push_str(&state.gap);
+        step_back = core::mem::replace(&mut state.indent, new_ident.into_boxed_str());
+
+        // b. Else,
+        // i. Let separator be the string-concatenation of the code unit 0x002C
+        //    (COMMA), the code unit 0x000A (LINE FEED), and state.[[Indent]].
+        separator_string = format!(",\n{}", &state.indent).into_boxed_str();
+        // ii. Let properties be the String value formed by concatenating all
+        //     the element Strings of partial with each adjacent pair of
+        //     Strings separated with separator. The separator String is not
+        //     inserted either before the first String or after the last
+        //     String.
+        // iii. Let final be the string-concatenation of "[", the code unit
+        //      0x000A (LINE FEED), state.[[Indent]], properties, the code unit
+        //      0x000A (LINE FEED), stepBack, and "]".
+        open_string = format!("[\n{}", &state.indent).into_boxed_str();
+        close_string = format!("\n{}]", &step_back).into_boxed_str();
+        (
+            open_string.as_ref(),
+            separator_string.as_ref(),
+            close_string.as_ref(),
+        )
+    };
+
+    // 5. Let partial be a new empty List.
+    state
+        .result
+        .reserve(open.len() + close.len() + (len as usize) * (separator.len() + 1));
+    state.result.push_str(open);
+    // 7. Let index be 0.
+    // 8. Repeat, while index < len,
+    for index in 0..len {
+        if index > 0 {
+            state.result.push_str(separator);
+        }
+        let key = PropertyKey::try_from(index).unwrap().scope_static();
+        // a. Let strP be ? SerializeJSONProperty(state, ! ToString(𝔽(index)), value).
+        if let Some(value_p) = get_serializable_json_property_value(
+            agent,
+            state.replacer_function.clone(),
+            key,
+            value.clone(),
+            gc.reborrow(),
+        )? {
+            // c. Else,
+            // i. Append strP to partial.
+            serialize_json_property_value(agent, state, value_p.unbind(), gc.reborrow())?;
+        } else {
+            // b. If strP is undefined, then
+            // i. Append "null" to partial.
+            state.result.push_str("null");
+        }
+        // d. Set index to index + 1.
+    }
+    state.result.push_str(close);
+    // 11. Remove the last element of state.[[Stack]].
+    state.stack.pop();
+    // 12. Set state.[[Indent]] to stepBack.
+    state.indent = step_back;
+    // 13. Return final.
+    Ok(())
 }
 
 pub(crate) fn value_from_json<'gc>(

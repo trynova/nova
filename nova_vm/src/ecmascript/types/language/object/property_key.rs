@@ -37,10 +37,7 @@ pub enum PropertyKey<'a> {
 }
 
 impl<'a> PropertyKey<'a> {
-    pub const fn scope_static<'scope>(
-        self,
-        _gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, PropertyKey<'static>> {
+    pub const fn scope_static<'scope>(self) -> Scoped<'static, PropertyKey<'static>> {
         let key_root_repr = match self {
             PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),
             PropertyKey::SmallString(small_string) => {
@@ -289,7 +286,15 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
     fn from(value: String<'a>) -> Self {
         match value {
             String::String(x) => PropertyKey::String(x),
-            String::SmallString(x) => PropertyKey::SmallString(x),
+            String::SmallString(x) => {
+                // NOTE: Makes property keys slightly more correct by converting
+                // small strings to integers when possible.
+                if let Ok(n) = x.as_str().parse::<i64>() {
+                    return PropertyKey::Integer(SmallInteger::try_from(n).unwrap());
+                }
+
+                PropertyKey::SmallString(x)
+            }
         }
     }
 }
@@ -302,6 +307,14 @@ impl<'a> From<PropertyKey<'a>> for Value<'a> {
     fn from(value: PropertyKey<'a>) -> Self {
         // SAFETY: Don't be silly!
         unsafe { value.into_value_unchecked() }
+    }
+}
+
+impl TryFrom<u64> for PropertyKey<'static> {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, ()> {
+        Ok(PropertyKey::Integer(SmallInteger::try_from(value)?))
     }
 }
 

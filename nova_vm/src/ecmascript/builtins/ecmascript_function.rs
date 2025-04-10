@@ -497,10 +497,13 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let f = self.bind(gc.nogc());
+        let arguments_list = arguments_list.bind(gc.nogc());
+
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
-        let callee_context = prepare_for_ordinary_call(agent, self, None, gc.nogc());
+        let callee_context = prepare_for_ordinary_call(agent, f, None, gc.nogc());
         // This is step 4. or OrdinaryCallBindThis:
         // "Let localEnv be the LexicalEnvironment of calleeContext."
         let local_env = callee_context
@@ -512,7 +515,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if agent[self]
+        if agent[f]
             .ecmascript_function
             .constructor_status
             .is_class_constructor()
@@ -529,13 +532,13 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             // d. Return ThrowCompletion(error).
             return Err(error);
         }
-        // 5. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
         let Environment::Function(local_env) = local_env else {
             panic!("localEnv is not a Function Environment Record");
         };
-        ordinary_call_bind_this(agent, self, local_env, this_argument, gc.nogc());
+        // 5. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
+        ordinary_call_bind_this(agent, f, local_env, this_argument, gc.nogc());
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(agent, self, arguments_list, gc);
+        let result = ordinary_call_evaluate_body(agent, f.unbind(), arguments_list.unbind(), gc);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.execution_context_stack.pop();

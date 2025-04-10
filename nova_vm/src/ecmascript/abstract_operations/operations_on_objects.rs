@@ -34,7 +34,8 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
-            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            Number, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            String, Value,
         },
     },
     engine::{Vm, instanceof_operator, rootable::Scopable},
@@ -132,8 +133,7 @@ pub(crate) fn get_v<'gc>(
     // 1. Let O be ? ToObject(V).
     let o = to_object(agent, v, gc.nogc())?;
     // 2. Return ? O.[[Get]](P, V).
-    o.unbind()
-        .internal_get(agent, p.unbind(), o.unbind().into(), gc)
+    o.unbind().internal_get(agent, p.unbind(), v.unbind(), gc)
 }
 
 /// ### Try [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -1653,6 +1653,180 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
                 results.push(entry.into_value().scope(agent, gc.nogc()));
             }
         }
+    }
+    Ok(results
+        .into_iter()
+        .map(|scoped_value| scoped_value.get(agent))
+        .collect())
+}
+
+/// ### [7.3.23 EnumerableOwnProperties ( O, kind )](https://tc39.es/ecma262/#sec-enumerableownproperties)
+///
+/// The abstract operation EnumerableOwnProperties takes arguments O (an
+/// Object) and kind (KEY) and returns either a normal completion containing a
+/// List of property keys or a throw completion.
+pub(crate) fn enumerable_own_keys<'gc>(
+    agent: &mut Agent,
+    o: Object,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<PropertyKey<'gc>>> {
+    if let Object::Object(o) = o {
+        return Ok(enumerable_own_keys_fast(agent, o, gc.into_nogc()));
+    }
+    let mut o = o.bind(gc.nogc());
+    let mut scoped_o = None;
+    // 1. Let ownKeys be ? O.[[OwnPropertyKeys]]().
+    let mut own_keys =
+        if let TryResult::Continue(own_keys) = o.try_own_property_keys(agent, gc.nogc()) {
+            own_keys
+        } else {
+            scoped_o = Some(o.scope(agent, gc.nogc()));
+            let result = o
+                .unbind()
+                .internal_own_property_keys(agent, gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            o = scoped_o.as_ref().unwrap().get(agent).bind(gc.nogc());
+            result
+        };
+    // 2. Let results be a new empty List.
+    let mut results: Vec<PropertyKey> = Vec::with_capacity(own_keys.len());
+    // 3. For each element key of ownKeys, do
+    let mut broke = false;
+    let mut i = 0;
+    for &key in own_keys.iter() {
+        if let PropertyKey::Symbol(_) = key {
+            i += 1;
+            continue;
+        }
+        // i. Let desc be ? O.[[GetOwnProperty]](key).
+        let TryResult::Continue(desc) = o.try_get_own_property(agent, key, gc.nogc()) else {
+            broke = true;
+            break;
+        };
+        // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        let Some(desc) = desc else {
+            i += 1;
+            continue;
+        };
+        if desc.enumerable != Some(true) {
+            i += 1;
+            continue;
+        }
+        // 1. If kind is KEY, then
+        // a. Append key to results.
+        results.push(key);
+        i += 1;
+    }
+    if broke {
+        // drop the keys we already got.
+        let _ = own_keys.drain(..i);
+        let scoped_o = scoped_o.unwrap_or_else(|| o.scope(agent, gc.nogc()));
+        enumerable_own_keys_slow(agent, scoped_o, own_keys.unbind(), results.unbind(), gc)
+    } else {
+        // 4. Return results.
+        Ok(results.unbind().bind(gc.into_nogc()))
+    }
+}
+
+fn enumerable_own_keys_fast<'gc>(
+    agent: &mut Agent,
+    o: OrdinaryObject,
+    gc: NoGcScope<'gc, '_>,
+) -> Vec<PropertyKey<'gc>> {
+    // let descriptor = agent.heap.elements.get_descriptor(values, index);
+
+    let ObjectHeapData { keys, values, .. } = agent[o];
+    // 1. Let keys be a new empty List.
+    let mut integer_keys = vec![];
+    let mut result_keys = Vec::with_capacity(keys.len() as usize);
+
+    // 3. For each own property key P of O such that P is a String and P is not an array index, in
+    //    ascending chronological order of property creation, do
+    for (index, key) in agent[keys].iter().enumerate() {
+        // SAFETY: Keys are all PropertyKeys reinterpreted as Values without
+        // conversion.
+        let key = unsafe { PropertyKey::from_value_unchecked(key.unwrap()) };
+        match key {
+            PropertyKey::Integer(integer_key) => {
+                let enumerable = agent
+                    .heap
+                    .elements
+                    .get_descriptor(values, index)
+                    .map_or(true, |desc| desc.is_enumerable());
+                if !enumerable {
+                    continue;
+                }
+                let key_value = integer_key.into_i64();
+                if (0..u32::MAX as i64).contains(&key_value) {
+                    // Integer property key! This requires sorting
+                    integer_keys.push(key_value as u32);
+                } else {
+                    result_keys.push(key.bind(gc));
+                }
+            }
+            PropertyKey::Symbol(_) => {
+                // Symbol keys are never considered enumerable.
+                continue;
+            }
+            // a. Append P to keys.
+            _ => {
+                let enumerable = agent
+                    .heap
+                    .elements
+                    .get_descriptor(values, index)
+                    .map_or(true, |desc| desc.is_enumerable());
+                if !enumerable {
+                    continue;
+                }
+                result_keys.push(key.bind(gc))
+            }
+        }
+    }
+
+    // 2. For each own property key P of O such that P is an array index,
+    if !integer_keys.is_empty() {
+        // in ascending numeric index order, do
+        integer_keys.sort();
+        // a. Append P to keys.
+        result_keys.splice(0..0, integer_keys.into_iter().map(|key| key.into()));
+    }
+
+    // 5. Return keys.
+    result_keys
+}
+
+fn enumerable_own_keys_slow<'gc>(
+    agent: &mut Agent,
+    o: Scoped<'_, Object<'static>>,
+    own_keys: Vec<PropertyKey>,
+    results: Vec<PropertyKey>,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<PropertyKey<'gc>>> {
+    let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
+    let mut results = results
+        .into_iter()
+        .map(|v| v.scope(agent, gc.nogc()))
+        .collect::<Vec<_>>();
+    for scoped_key in own_keys {
+        let key = scoped_key.get(agent).bind(gc.nogc());
+        if key.is_symbol() {
+            continue;
+        }
+        // i. Let desc be ? O.[[GetOwnProperty]](key).
+        let desc = o
+            .get(agent)
+            .internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
+        // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        let Some(desc) = desc else {
+            continue;
+        };
+        if desc.enumerable != Some(true) {
+            continue;
+        }
+        // 1. If kind is KEY, then
+        // a. Append key to results.
+        results.push(scoped_key);
     }
     Ok(results
         .into_iter()

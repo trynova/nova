@@ -196,7 +196,7 @@ impl ObjectPrototype {
                 }
                 PrimitiveObjectData::Number(_)
                 | PrimitiveObjectData::Integer(_)
-                | PrimitiveObjectData::Float(_) => {
+                | PrimitiveObjectData::SmallF64(_) => {
                     Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
                 }
                 PrimitiveObjectData::Symbol(_)
