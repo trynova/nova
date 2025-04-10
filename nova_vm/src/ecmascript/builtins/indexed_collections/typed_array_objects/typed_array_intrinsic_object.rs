@@ -2438,6 +2438,7 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         let callback = arguments.get(0).bind(gc.nogc());
         let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1).bind(gc.nogc()))
