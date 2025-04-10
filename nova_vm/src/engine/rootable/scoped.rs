@@ -92,6 +92,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     ///
     /// If the scoped value has been taken by another caller already, the
     /// method panics.
+    #[must_use]
     pub unsafe fn take(self, agent: &Agent) -> T {
         match T::from_root_repr(&self.inner) {
             Ok(value) => value,

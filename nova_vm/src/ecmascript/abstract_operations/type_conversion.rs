@@ -1138,7 +1138,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectHeapData {
                 object_index: None,
-                data: PrimitiveObjectData::Float(float),
+                data: PrimitiveObjectData::SmallF64(float),
             })
             .into_object()),
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.

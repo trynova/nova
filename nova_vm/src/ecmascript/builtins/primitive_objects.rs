@@ -4,6 +4,7 @@
 
 use core::ops::{Index, IndexMut};
 
+use crate::ecmascript::types::{IntoPrimitive, Primitive};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{TryResult, unwrap_try};
@@ -146,7 +147,7 @@ impl PrimitiveObject<'_> {
     pub fn is_number_object(self, agent: &Agent) -> bool {
         matches!(
             agent[self].data,
-            PrimitiveObjectData::Float(_)
+            PrimitiveObjectData::SmallF64(_)
                 | PrimitiveObjectData::Integer(_)
                 | PrimitiveObjectData::Number(_)
         )
@@ -206,7 +207,7 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
                     PrimitiveObjectData::Symbol(_) => ProtoIntrinsics::Symbol,
                     PrimitiveObjectData::Number(_)
                     | PrimitiveObjectData::Integer(_)
-                    | PrimitiveObjectData::Float(_) => ProtoIntrinsics::Number,
+                    | PrimitiveObjectData::SmallF64(_) => ProtoIntrinsics::Number,
                     PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_) => {
                         ProtoIntrinsics::BigInt
                     }
@@ -296,10 +297,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return TryResult::Continue(true);
             }
         }
@@ -316,10 +314,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return Ok(true);
             }
         }
@@ -356,8 +351,8 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
-                return TryResult::Continue(string_desc.value.unwrap());
+            if let Some(value) = string.get_property_value(agent, property_key) {
+                return TryResult::Continue(value.bind(gc));
             }
         }
 
@@ -388,8 +383,8 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
-            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
-                return Ok(string_desc.value.unwrap());
+            if let Some(value) = string.get_property_value(agent, property_key) {
+                return Ok(value.bind(gc.into_nogc()));
             }
         }
 
@@ -422,10 +417,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return TryResult::Continue(false);
             }
         }
@@ -444,10 +436,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
+            if string.get_property_value(agent, property_key).is_some() {
                 return Ok(false);
             }
         }
@@ -552,7 +541,7 @@ pub(crate) enum PrimitiveObjectData<'a> {
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    Float(SmallF64) = FLOAT_DISCRIMINANT,
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
@@ -576,7 +565,7 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Number<'a> {
         match value {
             PrimitiveObjectData::Number(data) => Ok(Number::Number(data)),
             PrimitiveObjectData::Integer(data) => Ok(Number::Integer(data)),
-            PrimitiveObjectData::Float(data) => Ok(Number::SmallF64(data)),
+            PrimitiveObjectData::SmallF64(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -601,6 +590,34 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Symbol<'a> {
         match value {
             PrimitiveObjectData::Symbol(data) => Ok(data),
             _ => Err(()),
+        }
+    }
+}
+
+impl<'a> IntoValue<'a> for PrimitiveObjectData<'a> {
+    fn into_value(self) -> Value<'a> {
+        self.into_primitive().into_value()
+    }
+}
+
+impl<'a> From<PrimitiveObjectData<'a>> for Value<'a> {
+    fn from(value: PrimitiveObjectData<'a>) -> Self {
+        value.into_value()
+    }
+}
+
+impl<'a> IntoPrimitive<'a> for PrimitiveObjectData<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
+        match self {
+            PrimitiveObjectData::Boolean(d) => Primitive::Boolean(d),
+            PrimitiveObjectData::String(d) => Primitive::String(d),
+            PrimitiveObjectData::SmallString(d) => Primitive::SmallString(d),
+            PrimitiveObjectData::Symbol(d) => Primitive::Symbol(d),
+            PrimitiveObjectData::Number(d) => Primitive::Number(d),
+            PrimitiveObjectData::Integer(d) => Primitive::Integer(d),
+            PrimitiveObjectData::SmallF64(d) => Primitive::SmallF64(d),
+            PrimitiveObjectData::BigInt(d) => Primitive::BigInt(d),
+            PrimitiveObjectData::SmallBigInt(d) => Primitive::SmallBigInt(d),
         }
     }
 }
@@ -634,7 +651,7 @@ impl<'a> PrimitiveObjectHeapData<'a> {
         let data = match number {
             Number::Number(data) => PrimitiveObjectData::Number(data.unbind()),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
-            Number::SmallF64(data) => PrimitiveObjectData::Float(data),
+            Number::SmallF64(data) => PrimitiveObjectData::SmallF64(data),
         };
         Self {
             object_index: None,

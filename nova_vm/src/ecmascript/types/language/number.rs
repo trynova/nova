@@ -1323,18 +1323,14 @@ impl<'a> Number<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
         match x {
-            Number::Number(_) => {
+            Number::Number(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string(), gc)
-                    .bind(gc)
+                String::from_string(agent, buffer.format(agent[x]).to_string(), gc)
             }
-            Number::Integer(x) => {
-                let x = x.into_i64();
-                String::from_string(agent, format!("{x}"), gc).bind(gc)
-            }
+            Number::Integer(x) => String::from_string(agent, x.into_i64().to_string(), gc),
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64()).to_string(), gc).bind(gc)
+                String::from_string(agent, buffer.format(x.into_f64()).to_string(), gc)
             }
         }
     }
