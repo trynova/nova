@@ -131,7 +131,41 @@ pub(crate) fn get_v<'gc>(
     let v = v.bind(gc.nogc());
     let p = p.bind(gc.nogc());
     // 1. Let O be ? ToObject(V).
-    let o = to_object(agent, v, gc.nogc())?;
+    // Optimisation: We avoid allocating a primitive object that would only be
+    // used for the internal methods, and instead just use the prototype
+    // intrinsics directly.
+    let o = match v {
+        Value::Undefined | Value::Null => {
+            // Call to conversion function to throw error.
+            return Err(to_object(agent, v.unbind(), gc.into_nogc()).unwrap_err());
+        }
+        Value::Boolean(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .boolean_prototype()
+            .into_object(),
+        Value::String(_) | Value::SmallString(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .string_prototype()
+            .into_object(),
+        Value::Symbol(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .symbol_prototype()
+            .into_object(),
+        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .number_prototype()
+            .into_object(),
+        Value::BigInt(_) | Value::SmallBigInt(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .big_int_prototype()
+            .into_object(),
+        _ => Object::try_from(v).unwrap(),
+    };
     // 2. Return ? O.[[Get]](P, V).
     o.unbind().internal_get(agent, p.unbind(), v.unbind(), gc)
 }
