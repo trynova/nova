@@ -235,7 +235,7 @@ pub(crate) fn try_get_v<'gc>(
         _ => Object::try_from(v).unwrap(),
     };
     // 2. Return ? O.[[Get]](P, V).
-    TryResult::Continue(Ok(o.try_get(agent, p, v.into(), gc)?))
+    TryResult::Continue(Ok(o.try_get(agent, p, v, gc)?))
 }
 
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
