@@ -608,23 +608,13 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Symbol<'a> {
 
 impl<'a> IntoValue<'a> for PrimitiveObjectData<'a> {
     fn into_value(self) -> Value<'a> {
-        self.into()
+        self.into_primitive().into_value()
     }
 }
 
 impl<'a> From<PrimitiveObjectData<'a>> for Value<'a> {
     fn from(value: PrimitiveObjectData<'a>) -> Self {
-        match value {
-            PrimitiveObjectData::Boolean(data) => Value::Boolean(data),
-            PrimitiveObjectData::String(data) => Value::String(data),
-            PrimitiveObjectData::SmallString(data) => Value::SmallString(data),
-            PrimitiveObjectData::Symbol(data) => Value::Symbol(data),
-            PrimitiveObjectData::Number(data) => Value::Number(data),
-            PrimitiveObjectData::Integer(data) => Value::Integer(data),
-            PrimitiveObjectData::SmallF64(data) => Value::SmallF64(data),
-            PrimitiveObjectData::BigInt(data) => Value::BigInt(data),
-            PrimitiveObjectData::SmallBigInt(data) => Value::SmallBigInt(data),
-        }
+        value.into_value()
     }
 }
 
