@@ -603,14 +603,9 @@ fn get_serializable_json_property_value<'a, 'b>(
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<Option<Value<'a>>> {
     // 1. Let value be ? Get(holder, key).
-    let mut value = get(
-        agent,
-        holder.get(agent),
-        PropertyKey::from(key.get(agent)),
-        gc.reborrow(),
-    )?
-    .unbind()
-    .bind(gc.nogc());
+    let mut value = get(agent, holder.get(agent), key.get(agent), gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
     // 2. If value is an Object or value is a BigInt, then
     if value.is_object() || value.is_bigint() {
         let scoped_value = value.scope(agent, gc.nogc());
@@ -696,11 +691,11 @@ fn get_serializable_json_property_value<'a, 'b>(
 
     if value.is_bigint() {
         // 10. If value is a BigInt, throw a TypeError exception.
-        return Err(agent.throw_exception_with_static_message(
+        Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Cannot serialize BigInt to JSON",
             gc.nogc(),
-        ));
+        ))
     } else if value.is_undefined() || value.is_symbol() {
         Ok(None)
     } else if is_callable(value, gc.nogc()).is_some() {

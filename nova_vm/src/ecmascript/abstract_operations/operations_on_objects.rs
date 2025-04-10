@@ -1787,7 +1787,7 @@ fn enumerable_own_keys_fast<'gc>(
                     .heap
                     .elements
                     .get_descriptor(values, index)
-                    .map_or(true, |desc| desc.is_enumerable());
+                    .is_none_or(|desc| desc.is_enumerable());
                 if !enumerable {
                     continue;
                 }
@@ -1809,7 +1809,7 @@ fn enumerable_own_keys_fast<'gc>(
                     .heap
                     .elements
                     .get_descriptor(values, index)
-                    .map_or(true, |desc| desc.is_enumerable());
+                    .is_none_or(|desc| desc.is_enumerable());
                 if !enumerable {
                     continue;
                 }
