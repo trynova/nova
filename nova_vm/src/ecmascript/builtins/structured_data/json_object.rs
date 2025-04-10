@@ -786,31 +786,56 @@ fn serialize_json_property_value<'a>(
 /// escapes certain other code units within it. This operation interprets value
 /// as a sequence of UTF-16 encoded code points, as described in 6.1.4.
 fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: String) {
-    product.reserve(value.utf16_len(agent) + 2);
-    // 1. Let product be the String value consisting solely of the code unit 0x0022 (QUOTATION MARK).
+    product.reserve(value.len(agent) + 2);
+    // 1. Let product be the String value consisting solely of the code unit
+    //    0x0022 (QUOTATION MARK).
     product.push('"');
     // 2. For each code point C of StringToCodePoints(value), do
     for c in value.as_str(agent).chars() {
         match c {
-            // a. If C is listed in the “Code Point” column of Table 75, then
-            // i. Set product to the string-concatenation of product and the escape sequence for C as specified in the “Escape Sequence” column of the corresponding row.
-            '\u{0008}' => product.extend(&['\\', 'b']),
-            '\u{0009}' => product.extend(&['\\', 't']),
-            '\u{000A}' => product.extend(&['\\', 'n']),
-            '\u{000C}' => product.extend(&['\\', 'f']),
-            '\u{000D}' => product.extend(&['\\', 'r']),
-            '\u{0022}' => product.extend(&['\\', '"']),
-            '\u{005C}' => product.extend(&['\\', '\\']),
-            // b. Else if C has a numeric value less than 0x0020 (SPACE) or C has the same numeric value as a leading surrogate or trailing surrogate, then
-            // i. Let unit be the code unit whose numeric value is the numeric value of C.
-            // ii. Set product to the string-concatenation of product and UnicodeEscape(unit).
-            _ if c < '\u{0020}' => product.extend(format!("\\u{:04x}", c as u32).chars()),
+            // a. If C is listed in the “Code Point” column of Table 81, then
+            // i. Set product to the string-concatenation of product and the
+            //    escape sequence for C as specified in the “Escape Sequence”
+            //    column of the corresponding row.
+
+            // Table 81. JSON Single Character Escape Sequences
+            // +------------+------------------------+-----------------+
+            // | Code Point | Unicode Character Name | Escape Sequence |
+            // +------------+------------------------+-----------------+
+            // | U+0008     | Backspace              | \b              |
+            '\u{0008}' => product.push_str("\\b"),
+            // | U+0009     | CHARACTER TABULATION   | \t              |
+            '\u{0009}' => product.push_str("\\t'"),
+            // | U+000A     | LINE FEED (LF)         | \n              |
+            '\u{000A}' => product.push_str("\\n'"),
+            // | U+000C     | FORM FEED (FF)         | \f              |
+            '\u{000C}' => product.push_str("\\f'"),
+            // | U+000D     | CARRIAGE RETURN (CR)   | \r              |
+            '\u{000D}' => product.push_str("\\r'"),
+            // | U+0022     | QUOTATION MARK         | \"              |
+            '\u{0022}' => product.push_str("\\\""),
+            // | U+005C     | REVERSE SOLIDUS        | \\              |
+            '\u{005C}' => product.push_str("\\\\"),
+            // +------------+------------------------+-----------------+
+            // b. Else if C has a numeric value less than 0x0020 (SPACE) or C
+            //    has the same numeric value as a leading surrogate or trailing
+            //    surrogate, then
+            _ if c < '\u{0020}' => {
+                // i. Let unit be the code unit whose numeric value is the
+                //    numeric value of C.
+                let unit = c as u32;
+                // ii. Set product to the string-concatenation of product and
+                //     UnicodeEscape(unit).
+                write!(product, "\\u{:04x}", unit).unwrap();
+            }
             // c. Else,
-            // i. Set product to the string-concatenation of product and UTF16EncodeCodePoint(C).
+            // i. Set product to the string-concatenation of product and
+            //    UTF16EncodeCodePoint(C).
             _ => product.push(c),
         }
     }
-    // 3. Set product to the string-concatenation of product and the code unit 0x0022 (QUOTATION MARK).
+    // 3. Set product to the string-concatenation of product and the code unit
+    //    0x0022 (QUOTATION MARK).
     product.push('"');
     // 4. Return product.
 }
