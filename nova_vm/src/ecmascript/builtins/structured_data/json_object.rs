@@ -944,6 +944,10 @@ fn serialize_json_object<'a>(
 
     let mut first_inserted = false;
 
+    // Assume most properties will indeed get serialised properly.
+    state.result.reserve(
+        open.len() + close.len() + k.len() * (separator.len() + 3 + key_value_separator.len() + 1),
+    );
     // 7. Let partial be a new empty List.
     // 8. For each element P of K, do
     for p in k {
