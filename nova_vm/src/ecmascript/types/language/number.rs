@@ -1335,20 +1335,6 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub(crate) fn to_std_string(self, agent: &Agent) -> std::string::String {
-        match self {
-            Number::Number(x) => {
-                let mut buffer = ryu_js::Buffer::new();
-                buffer.format(agent[x]).to_string()
-            }
-            Number::Integer(x) => x.into_i64().to_string(),
-            Number::SmallF64(x) => {
-                let mut buffer = ryu_js::Buffer::new();
-                buffer.format(x.into_f64()).to_string()
-            }
-        }
-    }
-
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub(crate) fn to_real(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f64 {
         match self {
