@@ -190,7 +190,7 @@ impl BaseTest262Runner {
                 command.arg("--no-strict");
             }
             if !self.run_gc {
-                command.arg("--nogc");
+                // command.arg("--nogc");
             }
 
             command.arg(&self.nova_harness_path);

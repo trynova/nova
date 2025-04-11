@@ -10,7 +10,7 @@
 use ahash::AHashMap;
 
 use super::{
-    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, Realm, RealmIdentifier
+    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, RealmRecord, Realm
 };
 use crate::{
     ecmascript::{
@@ -82,12 +82,12 @@ pub(crate) enum InnerJob {
 }
 
 pub struct Job {
-    pub(crate) realm: Option<RealmIdentifier<'static>>,
+    pub(crate) realm: Option<Realm<'static>>,
     pub(crate) inner: InnerJob,
 }
 
 impl Job {
-    fn realm(&self) -> Option<RealmIdentifier<'static>> {
+    fn realm(&self) -> Option<Realm<'static>> {
         self.realm
     }
 
@@ -125,7 +125,7 @@ pub enum PromiseRejectionTrackerOperation {
 
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
-    fn host_ensure_can_compile_strings(&self, _callee_realm: &mut Realm) -> JsResult<()> {
+    fn host_ensure_can_compile_strings(&self, _callee_realm: &mut RealmRecord) -> JsResult<()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
         Ok(())
     }
@@ -160,7 +160,7 @@ pub trait HostHooks: core::fmt::Debug {
 /// collection on the Agent heap.
 pub struct GcAgent {
     agent: Agent,
-    realm_roots: Vec<Option<RealmIdentifier<'static>>>,
+    realm_roots: Vec<Option<Realm<'static>>>,
 }
 
 /// ECMAScript Realm root
@@ -183,7 +183,7 @@ impl GcAgent {
         }
     }
 
-    fn root_realm(&mut self, identifier: RealmIdentifier<'static>) -> RealmRoot {
+    fn root_realm(&mut self, identifier: Realm<'static>) -> RealmRoot {
         let index = if let Some((index, deleted_entry)) = self
             .realm_roots
             .iter_mut()
@@ -315,7 +315,7 @@ impl Agent {
         }
     }
 
-    fn get_created_realm_root(&mut self) -> RealmIdentifier<'static> {
+    fn get_created_realm_root(&mut self) -> Realm<'static> {
         assert!(!self.execution_context_stack.is_empty());
         let identifier = self.current_realm_id_internal();
         let _ = self.execution_context_stack.pop();
@@ -335,7 +335,7 @@ impl Agent {
         >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
         gc: GcScope<'gc, '_>,
-    ) -> RealmIdentifier<'gc> {
+    ) -> Realm<'gc> {
         initialize_host_defined_realm(
             self,
             create_global_object,
@@ -355,7 +355,7 @@ impl Agent {
             impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
         >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
-    ) -> RealmIdentifier<'static> {
+    ) -> Realm<'static> {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -372,7 +372,7 @@ impl Agent {
     /// Creates a default realm suitable for basic testing only.
     ///
     /// This is intended for usage within BuiltinFunction calls.
-    fn create_default_realm(&mut self) -> RealmIdentifier {
+    fn create_default_realm(&mut self) -> Realm {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -380,7 +380,7 @@ impl Agent {
         self.get_created_realm_root()
     }
 
-    pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
+    pub fn run_in_realm<F, R>(&mut self, realm: Realm, func: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
@@ -416,33 +416,33 @@ impl Agent {
     }
 
     /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
-    pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> RealmIdentifier<'a> {
+    pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> Realm<'a> {
         self.current_realm_id_internal().bind(gc)
     }
 
     /// Set the current executiono context's Realm.
-    pub(crate) fn set_current_realm(&mut self, realm: RealmIdentifier) {
+    pub(crate) fn set_current_realm(&mut self, realm: Realm) {
         self.execution_context_stack.last_mut().unwrap().realm = realm.unbind();
     }
 
     /// Internal method to get current Realm's identifier without binding.
-    pub(crate) fn current_realm_id_internal(&self) -> RealmIdentifier<'static> {
+    pub(crate) fn current_realm_id_internal(&self) -> Realm<'static> {
         self.execution_context_stack.last().unwrap().realm
     }
 
-    pub(crate) fn current_realm_record(&self) -> &Realm {
+    pub(crate) fn current_realm_record(&self) -> &RealmRecord {
         self.get_realm_record_by_id(self.current_realm_id_internal())
     }
 
-    pub(crate) fn current_realm_record_mut(&mut self) -> &mut Realm<'static> {
+    pub(crate) fn current_realm_record_mut(&mut self) -> &mut RealmRecord<'static> {
         self.get_realm_record_by_id_mut(self.current_realm_id_internal())
     }
 
-    pub(crate) fn get_realm_record_by_id(&self, id: RealmIdentifier) -> &Realm {
+    pub(crate) fn get_realm_record_by_id(&self, id: Realm) -> &RealmRecord {
         &self[id]
     }
 
-    fn get_realm_record_by_id_mut(&mut self, id: RealmIdentifier) -> &mut Realm<'static> {
+    fn get_realm_record_by_id_mut(&mut self, id: Realm) -> &mut RealmRecord<'static> {
         &mut self[id]
     }
 

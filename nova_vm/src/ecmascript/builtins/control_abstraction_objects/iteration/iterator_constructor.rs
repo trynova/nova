@@ -9,7 +9,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::ordinary_create_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, Object, String, Value},
     },
     engine::context::{Bindable, GcScope},
@@ -66,7 +66,7 @@ impl IteratorConstructor {
         .map(Into::into)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let iterator_prototype = intrinsics.iterator_prototype();
         let function_prototype = intrinsics.function_prototype();

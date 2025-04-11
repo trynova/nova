@@ -12,7 +12,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
             ordinary::ordinary_create_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
@@ -222,7 +222,7 @@ impl NativeErrorConstructors {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let error_constructor = intrinsics.error().into_object();
         let eval_error_prototype = intrinsics.eval_error_prototype();

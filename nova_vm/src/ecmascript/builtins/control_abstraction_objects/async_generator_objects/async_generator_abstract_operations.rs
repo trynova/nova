@@ -17,7 +17,7 @@ use crate::{
             },
         },
         execution::{
-            Agent, JsResult, RealmIdentifier,
+            Agent, JsResult, Realm,
             agent::{ExceptionType, JsError},
         },
         types::{IntoValue, Value},
@@ -127,7 +127,7 @@ fn async_generator_complete_step(
     generator: AsyncGenerator,
     completion: AsyncGeneratorRequestCompletion,
     done: bool,
-    realm: Option<RealmIdentifier>,
+    realm: Option<Realm>,
     gc: NoGcScope,
 ) {
     // 1. Assert: generator.[[AsyncGeneratorQueue]] is not empty.

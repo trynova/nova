@@ -19,7 +19,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            PrivateEnvironment, RealmIdentifier, agent::ExceptionType, get_this_environment,
+            PrivateEnvironment, Realm, agent::ExceptionType, get_this_environment,
             new_declarative_environment,
         },
         scripts_and_modules::source_code::SourceCode,
@@ -1117,7 +1117,7 @@ impl GlobalObject {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectEval>(agent, realm).build();
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectIsFinite>(agent, realm)
             .build();

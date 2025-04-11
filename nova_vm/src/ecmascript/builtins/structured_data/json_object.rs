@@ -27,7 +27,7 @@ use crate::{
             ordinary::ordinary_object_create_with_intrinsics,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoPrimitive, IntoValue,
             Number, Object, PropertyDescriptor, PropertyKey, String, Value,
@@ -433,7 +433,7 @@ impl JSONObject {
         }
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.json();

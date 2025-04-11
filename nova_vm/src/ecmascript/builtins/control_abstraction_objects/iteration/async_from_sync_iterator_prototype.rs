@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::GcScope,
@@ -61,7 +61,7 @@ impl AsyncFromSyncIteratorPrototype {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let this = intrinsics.async_from_sync_iterator_prototype();

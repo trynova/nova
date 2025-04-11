@@ -7,7 +7,7 @@ use oxc_span::Span;
 use crate::{
     ecmascript::{
         builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
-        execution::{Environment, PrivateEnvironment, RealmIdentifier},
+        execution::{Environment, PrivateEnvironment, Realm},
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
@@ -45,7 +45,7 @@ pub struct BuiltinFunctionHeapData<'a> {
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
     /// created.
-    pub(crate) realm: RealmIdentifier<'a>,
+    pub(crate) realm: Realm<'a>,
     /// #### \[\[InitialName]]
     /// A String that is the initial name of the function. It is used by
     /// 20.2.3.5 (`Function.prototype.toString()`).
@@ -59,7 +59,7 @@ pub struct BuiltinConstructorHeapData<'a> {
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
     /// created.
-    pub(crate) realm: RealmIdentifier<'a>,
+    pub(crate) realm: Realm<'a>,
     /// ### \[\[ConstructorKind]]
     ///
     /// If the boolean is `true` then ConstructorKind is Derived, else it is

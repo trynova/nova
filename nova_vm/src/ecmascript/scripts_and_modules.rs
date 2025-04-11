@@ -15,10 +15,19 @@ pub mod module;
 pub mod script;
 pub mod source_code;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) enum ScriptOrModule<'a> {
     Script(Script<'a>),
     Module(Module<'a>),
+}
+
+impl core::fmt::Debug for ScriptOrModule<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ScriptOrModule::Script(script) => script.fmt(f),
+            ScriptOrModule::Module(module) => module.fmt(f),
+        }
+    }
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

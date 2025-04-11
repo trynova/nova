@@ -15,7 +15,7 @@ use crate::{
             ArgumentsList, Builtin,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
     heap::WellKnownSymbolIndexes,
@@ -97,7 +97,7 @@ impl SetIteratorPrototype {
         Ok(create_iter_result_object(agent, Value::Undefined, true, gc).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.set_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();

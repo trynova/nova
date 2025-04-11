@@ -9,7 +9,7 @@ use crate::{
         abstract_operations::type_conversion::{to_number, to_number_primitive, to_uint32},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, String, Value},
     },
     engine::{
@@ -1740,11 +1740,7 @@ impl MathObject {
         }
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier<'static>,
-        gc: NoGcScope,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();

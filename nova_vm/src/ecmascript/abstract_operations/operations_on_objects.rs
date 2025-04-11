@@ -27,8 +27,7 @@ use crate::{
             },
         },
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            RealmIdentifier,
+            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult, Realm,
             agent::{ExceptionType, JsError},
             new_class_field_initializer_environment,
         },
@@ -1087,6 +1086,7 @@ pub(crate) fn length_of_array_like(
     obj: Object,
     mut gc: GcScope,
 ) -> JsResult<i64> {
+    let obj = obj.bind(gc.nogc());
     // NOTE: Fast path for Array objects.
     if let Ok(array) = Array::try_from(obj) {
         return Ok(array.len(agent) as i64);
@@ -1095,7 +1095,7 @@ pub(crate) fn length_of_array_like(
     // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
     let property = get(
         agent,
-        obj,
+        obj.unbind(),
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
         gc.reborrow(),
     )?;
@@ -1925,7 +1925,7 @@ pub(crate) fn get_function_realm<'a, 'gc>(
     agent: &mut Agent,
     obj: impl IntoObject<'a>,
     gc: NoGcScope<'gc, '_>,
-) -> JsResult<RealmIdentifier<'gc>> {
+) -> JsResult<Realm<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();
@@ -1966,7 +1966,7 @@ pub(crate) fn try_get_function_realm<'a, 'gc>(
     agent: &Agent,
     obj: impl IntoObject<'a>,
     gc: NoGcScope<'gc, '_>,
-) -> Option<RealmIdentifier<'gc>> {
+) -> Option<Realm<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();

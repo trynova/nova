@@ -21,7 +21,7 @@ use crate::{
     engine::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, Scopable},
+        rootable::HeapRootData,
         unwrap_try,
     },
     heap::{
@@ -615,36 +615,48 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let o = self.bind(gc.nogc());
+        let property_key = property_key.bind(gc.nogc());
+        let receiver = receiver.bind(gc.nogc());
+
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
         if property_key.is_array_index() {
             Ok(unwrap_try(self.try_get(
                 agent,
-                property_key,
-                receiver,
+                property_key.unbind(),
+                receiver.unbind(),
                 gc.into_nogc(),
             )))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
-                Some(backing_object) => {
-                    ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
-                }
+                Some(backing_object) => ordinary_get(
+                    agent,
+                    backing_object,
+                    property_key.unbind(),
+                    receiver.unbind(),
+                    gc,
+                ),
                 None => {
-                    let property_key = property_key.scope(agent, gc.nogc());
                     // a. Let parent be ? O.[[GetPrototypeOf]]().
-                    let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
+                    // Note: [[GetPrototypeOf]] of TypedArray cannot call into
+                    // JavaScript.
+                    let Some(parent) = unwrap_try(o.try_get_prototype_of(agent, gc.nogc())) else {
                         // b. If parent is null, return undefined.
                         return Ok(Value::Undefined);
                     };
 
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent
-                        .unbind()
-                        .internal_get(agent, property_key.get(agent), receiver, gc)
+                    parent.unbind().internal_get(
+                        agent,
+                        property_key.unbind(),
+                        receiver.unbind(),
+                        gc,
+                    )
                 }
             }
         }

@@ -58,7 +58,7 @@ use crate::{
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
-            ObjectEnvironment, RealmIdentifier,
+            ObjectEnvironment, Realm,
         },
         scripts_and_modules::{script::Script, source_code::SourceCode},
         types::{
@@ -72,11 +72,7 @@ use crate::{
     },
 };
 
-pub fn heap_gc(
-    agent: &mut Agent,
-    root_realms: &mut [Option<RealmIdentifier<'static>>],
-    gc: GcScope,
-) {
+pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
     let Agent {
         heap,
         execution_context_stack,
@@ -262,7 +258,7 @@ pub fn heap_gc(
                 scripts.get(index).mark_values(&mut queues);
             }
         });
-        let mut realm_marks: Box<[RealmIdentifier]> = queues.realms.drain(..).collect();
+        let mut realm_marks: Box<[Realm]> = queues.realms.drain(..).collect();
         realm_marks.sort();
         realm_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
@@ -1034,7 +1030,7 @@ pub fn heap_gc(
 fn sweep(
     agent: &mut Agent,
     bits: &HeapBits,
-    root_realms: &mut [Option<RealmIdentifier<'static>>],
+    root_realms: &mut [Option<Realm<'static>>],
     _: GcScope,
 ) {
     let compactions = CompactionLists::create_from_bits(bits);

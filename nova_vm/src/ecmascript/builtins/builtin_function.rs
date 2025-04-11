@@ -10,8 +10,7 @@ use core::{
 use crate::{
     ecmascript::{
         execution::{
-            Agent, ExecutionContext, JsResult, ProtoIntrinsics, RealmIdentifier,
-            agent::ExceptionType,
+            Agent, ExecutionContext, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType,
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
@@ -35,11 +34,17 @@ use crate::{
     },
 };
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 #[repr(transparent)]
 pub struct ArgumentsList<'slice, 'value> {
     slice: &'slice mut [Value<'static>],
     value: PhantomData<Value<'value>>,
+}
+
+impl core::fmt::Debug for ArgumentsList<'_, '_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.slice.fmt(f)
+    }
 }
 
 impl<'slice, 'value> ArgumentsList<'slice, 'value> {
@@ -264,7 +269,7 @@ pub trait BuiltinGetter: Builtin {}
 pub struct BuiltinFunctionArgs<'a> {
     pub length: u32,
     pub name: &'static str,
-    pub realm: Option<RealmIdentifier<'a>>,
+    pub realm: Option<Realm<'a>>,
     pub prototype: Option<Object<'a>>,
     pub prefix: Option<&'static str>,
 }
@@ -278,7 +283,7 @@ impl<'a> BuiltinFunctionArgs<'a> {
         }
     }
 
-    pub fn new_with_realm(length: u32, name: &'static str, realm: RealmIdentifier<'a>) -> Self {
+    pub fn new_with_realm(length: u32, name: &'static str, realm: Realm<'a>) -> Self {
         Self {
             length,
             name,

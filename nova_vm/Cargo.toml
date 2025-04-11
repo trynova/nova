@@ -33,6 +33,7 @@ wtf8 = { workspace = true }
 
 [features]
 default = [
+"interleaved-gc",
     "math",
     "json",
     "date",

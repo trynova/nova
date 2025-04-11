@@ -6,7 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     ecmascript::{
-        execution::{ModuleEnvironment, RealmIdentifier},
+        execution::{ModuleEnvironment, Realm},
         types::{HeapString, OrdinaryObject, PropertyKey, String},
     },
     engine::context::{Bindable, NoGcScope},
@@ -27,7 +27,7 @@ pub(crate) struct ModuleRecord<'a> {
     /// \[\[Realm]]
     ///
     /// The Realm within which this module was created.
-    realm: RealmIdentifier<'a>,
+    realm: Realm<'a>,
     /// \[\[Environment]]
     ///
     /// The Environment Record containing the top level bindings for this

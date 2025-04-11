@@ -13,7 +13,7 @@ use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
 #[cfg(feature = "interleaved-gc")]
-use crate::{ecmascript::execution::RealmIdentifier, heap::heap_gc::heap_gc};
+use crate::{ecmascript::execution::Realm, heap::heap_gc::heap_gc};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -336,6 +336,7 @@ impl<'a> Vm {
         #[cfg(feature = "interleaved-gc")]
         let mut instr_count = 0u8;
 
+        let stack_depth = agent.stack_refs.borrow().len();
         let instructions = executable.get_instructions(agent);
         while let Some(instr) = get_instruction(instructions, &mut self.ip) {
             #[cfg(feature = "interleaved-gc")]
@@ -347,7 +348,7 @@ impl<'a> Vm {
                         .realms
                         .iter()
                         .enumerate()
-                        .map(|(i, _)| Some(RealmIdentifier::from_index(i)))
+                        .map(|(i, _)| Some(Realm::from_index(i)))
                         .collect::<Vec<_>>();
                     with_vm_gc(
                         agent,
@@ -389,6 +390,7 @@ impl<'a> Vm {
                     }
                 }
             }
+            agent.stack_refs.borrow_mut().truncate(stack_depth);
         }
 
         ExecutionResult::Return(Value::Undefined)

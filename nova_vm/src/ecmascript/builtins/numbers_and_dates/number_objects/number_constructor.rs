@@ -15,7 +15,7 @@ use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
@@ -224,11 +224,7 @@ impl NumberConstructor {
         Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier<'static>,
-        gc: NoGcScope,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
         let parse_float = intrinsics.parse_float().into_value();

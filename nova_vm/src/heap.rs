@@ -76,7 +76,7 @@ use crate::{
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
         },
-        execution::{Environments, Realm, RealmIdentifier},
+        execution::{Environments, Realm, RealmRecord},
         scripts_and_modules::{
             script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
@@ -144,7 +144,7 @@ pub struct Heap {
     pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
     pub promises: Vec<Option<PromiseHeapData<'static>>>,
     pub proxys: Vec<Option<ProxyHeapData<'static>>>,
-    pub realms: Vec<Option<Realm<'static>>>,
+    pub realms: Vec<Option<RealmRecord<'static>>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData<'static>>>,
     #[cfg(feature = "set")]
@@ -306,13 +306,9 @@ impl Heap {
         Module::last(&self.modules)
     }
 
-    pub(crate) fn add_realm<'a>(
-        &mut self,
-        realm: Realm,
-        _: NoGcScope<'a, '_>,
-    ) -> RealmIdentifier<'a> {
+    pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
         self.realms.push(Some(realm.unbind()));
-        RealmIdentifier::last(&self.realms)
+        Realm::last(&self.realms)
     }
 
     pub(crate) fn add_script<'a>(

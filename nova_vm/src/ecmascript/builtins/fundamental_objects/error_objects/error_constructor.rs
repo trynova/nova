@@ -15,7 +15,7 @@ use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
@@ -137,7 +137,7 @@ impl ErrorConstructor {
         is_error(_agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
 

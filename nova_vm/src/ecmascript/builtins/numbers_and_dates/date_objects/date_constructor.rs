@@ -16,7 +16,7 @@ use crate::ecmascript::builtins::{
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
@@ -328,7 +328,7 @@ impl DateConstructor {
         Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let date_prototype = intrinsics.date_prototype();
 

@@ -29,7 +29,7 @@ use crate::{
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
@@ -307,7 +307,7 @@ impl TypedArrayConstructors {
         typed_array_constructor::<f64>(agent, arguments, new_target, gc)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let typed_array_constructor = intrinsics.typed_array().into_object();
 
@@ -502,7 +502,7 @@ impl TypedArrayConstructors {
 
 pub(crate) struct TypedArrayPrototypes;
 impl TypedArrayPrototypes {
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let typed_array_prototype = intrinsics.typed_array_prototype();
 

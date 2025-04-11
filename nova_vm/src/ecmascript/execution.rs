@@ -18,6 +18,5 @@ pub(crate) use environments::{
 };
 pub(crate) use execution_context::*;
 pub(crate) use realm::{
-    ProtoIntrinsics, Realm, RealmIdentifier, initialize_default_realm,
-    initialize_host_defined_realm,
+    ProtoIntrinsics, Realm, RealmRecord, initialize_default_realm, initialize_host_defined_realm,
 };

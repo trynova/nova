@@ -21,7 +21,7 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
             structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
@@ -197,7 +197,7 @@ impl DataViewConstructor {
         Ok(o.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let data_view_prototype = intrinsics.data_view_prototype();
 

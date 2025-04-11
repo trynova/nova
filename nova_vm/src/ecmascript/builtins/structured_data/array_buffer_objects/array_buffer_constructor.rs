@@ -13,7 +13,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array_buffer::allocate_array_buffer,
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
             Value,
@@ -174,7 +174,7 @@ impl ArrayBufferConstructor {
         Ok(this_value.bind(gc.into_nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let array_buffer_prototype = intrinsics.array_buffer_prototype();
 

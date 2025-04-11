@@ -14,7 +14,7 @@ use crate::{
             ArgumentsList, Builtin,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
     },
 };
@@ -456,7 +456,7 @@ impl NumberPrototype {
         this_number_value(agent, this_value, gc.nogc()).map(|result| result.unbind().into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.number_prototype();

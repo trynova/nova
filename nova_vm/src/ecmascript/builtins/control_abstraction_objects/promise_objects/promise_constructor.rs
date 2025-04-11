@@ -19,7 +19,7 @@ use crate::{
                 data::{PromiseHeapData, PromiseState},
             },
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
             Value,
@@ -433,7 +433,7 @@ impl PromiseConstructor {
         Ok(this_value.unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let promise_prototype = intrinsics.promise_prototype();
 

@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Builtin, primitive_objects::PrimitiveObjectData},
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, String, Value},
     },
     heap::WellKnownSymbolIndexes,
@@ -78,7 +78,7 @@ impl BigIntPrototype {
         this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.big_int_prototype();

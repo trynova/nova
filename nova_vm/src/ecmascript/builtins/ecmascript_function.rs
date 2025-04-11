@@ -16,7 +16,7 @@ use crate::{
         abstract_operations::type_conversion::to_object,
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext,
-            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, RealmIdentifier,
+            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, Realm,
             ThisBindingStatus,
             agent::{
                 ExceptionType::{self, SyntaxError},
@@ -215,7 +215,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
     pub constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
-    pub realm: RealmIdentifier<'a>,
+    pub realm: Realm<'a>,
 
     /// \[\[ScriptOrModule]]
     pub script_or_module: ScriptOrModule<'a>,

@@ -8,7 +8,7 @@ use crate::{
             Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor,
         },
-        execution::{Agent, RealmIdentifier},
+        execution::{Agent, Realm},
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue,
             Object, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
@@ -63,7 +63,7 @@ pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction<'static>,
     object_index: Option<OrdinaryObject<'static>>,
-    realm: RealmIdentifier<'static>,
+    realm: Realm<'static>,
     prototype: P,
     length: L,
     name: N,
@@ -77,7 +77,7 @@ impl<'agent>
     #[must_use]
     pub fn new<T: Builtin>(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier<'static>,
+        realm: Realm<'static>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -105,7 +105,7 @@ impl<'agent>
     #[must_use]
     pub(crate) fn new_intrinsic_constructor<T: BuiltinIntrinsicConstructor>(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier<'static>,
+        realm: Realm<'static>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,
@@ -136,7 +136,7 @@ impl<'agent>
     #[must_use]
     pub(crate) fn new_intrinsic_function<T: BuiltinIntrinsic>(
         agent: &'agent mut Agent,
-        realm: RealmIdentifier<'static>,
+        realm: Realm<'static>,
     ) -> BuiltinFunctionBuilder<
         'agent,
         NoPrototype,

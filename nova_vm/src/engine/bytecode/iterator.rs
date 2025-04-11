@@ -68,10 +68,15 @@ impl VmIterator {
             }
             VmIterator::ArrayValues(iter) => iter.next(agent, gc),
             VmIterator::GenericIterator(iter) => {
+                let next_method = iter.next_method.bind(gc.nogc());
+                let iterator = iter.iterator.bind(gc.nogc());
+                let scoped_next_method = next_method.scope(agent, gc.nogc());
+                let scoped_iterator = iterator.scope(agent, gc.nogc());
+
                 let result = call_function(
                     agent,
-                    iter.next_method,
-                    iter.iterator.into_value(),
+                    next_method.unbind(),
+                    iterator.into_value().unbind(),
                     None,
                     gc.reborrow(),
                 )?;
@@ -92,6 +97,11 @@ impl VmIterator {
                     gc.reborrow(),
                 )?;
                 let done = to_boolean(agent, done);
+                // SAFETY: Neither is shared.
+                unsafe {
+                    iter.iterator = scoped_iterator.take(agent);
+                    iter.next_method = scoped_next_method.take(agent);
+                }
                 if done {
                     Ok(None)
                 } else {
@@ -138,13 +148,17 @@ impl VmIterator {
     ///
     /// This method version performs the SYNC version of the method.
     pub(super) fn from_value(agent: &mut Agent, value: Value, mut gc: GcScope) -> JsResult<Self> {
+        let value = value.bind(gc.nogc());
+        let scoped_value = value.scope(agent, gc.nogc());
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
-            value,
+            value.unbind(),
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
             return Err(agent.throw_exception_with_static_message(
@@ -154,6 +168,8 @@ impl VmIterator {
             ));
         };
 
+        // SAFETY: scoped_value is not shared.
+        let value = unsafe { scoped_value.take(agent).bind(gc.nogc()) };
         // 4. Return ? GetIteratorFromMethod(obj, method).
         match value {
             // Optimisation: Check if we're using the Array values iterator on
@@ -170,7 +186,7 @@ impl VmIterator {
             }
             _ => {
                 if let Some(js_iterator) =
-                    get_iterator_from_method(agent, value, method.unbind(), gc)?
+                    get_iterator_from_method(agent, value.unbind(), method.unbind(), gc)?
                 {
                     Ok(VmIterator::GenericIterator(js_iterator.unbind()))
                 } else {
@@ -219,8 +235,8 @@ impl ObjectPropertiesIterator {
         agent: &mut Agent,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<Option<PropertyKey<'a>>> {
+        let mut object = self.object.scope(agent, gc.nogc());
         loop {
-            let object = self.object.scope(agent, gc.nogc());
             if !self.object_was_visited {
                 let keys = object
                     .get(agent)
@@ -239,7 +255,6 @@ impl ObjectPropertiesIterator {
                 if self.visited_keys.contains(&r) {
                     continue;
                 }
-                // TODO: Properly handle potential GC.
                 let desc = object
                     .get(agent)
                     .internal_get_own_property(agent, r, gc.reborrow())?;
@@ -250,13 +265,14 @@ impl ObjectPropertiesIterator {
                     }
                 }
             }
-            // TODO: Properly handle potential GC.
             let prototype = object
                 .get(agent)
                 .internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype.unbind();
+                // SAFETY: object is not shared.
+                unsafe { object.replace(agent, prototype.unbind()) };
             } else {
                 return Ok(None);
             }
@@ -285,11 +301,11 @@ impl ArrayValuesIterator {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Option<Value<'gc>>> {
         // b. Repeat,
-        let array = self.array;
+        let array = self.array.bind(gc.nogc());
         // iv. Let indexNumber be 𝔽(index).
         let index = self.index;
         // 1. Let len be ? LengthOfArrayLike(array).
-        let len = self.array.len(agent);
+        let len = array.len(agent);
         // iii. If index ≥ len, return NormalCompletion(undefined).
         if index >= len {
             return Ok(None);
@@ -299,12 +315,14 @@ impl ArrayValuesIterator {
         if let Some(element_value) = array.as_slice(agent)[index as usize] {
             // Fast path: If the element at this index has a Value, then it is
             // not an accessor nor a hole. Yield the result as-is.
-            return Ok(Some(element_value.bind(gc.into_nogc())));
+            return Ok(Some(element_value.unbind()));
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        // TODO: Properly handle potential GC.
-        let element_value = get(agent, self.array, index.into(), gc)?;
+        let scoped_array = array.scope(agent, gc.nogc());
+        let element_value = get(agent, array.unbind(), index.into(), gc)?;
+        // SAFETY: scoped_array is not shared.
+        self.array = unsafe { scoped_array.take(agent) };
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))
