@@ -921,6 +921,7 @@ mod test {
         let result = Object::try_from(foo).unwrap();
         assert!(
             result
+                .unbind()
                 .internal_own_property_keys(&mut agent, gc)
                 .unwrap()
                 .is_empty()

@@ -1859,12 +1859,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match self {
             Object::Object(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Array(data) => data.try_get_own_property(agent, property_key, gc),
@@ -1968,12 +1968,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_get_own_property(
+    fn internal_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
         match self {
             Object::Object(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Array(data) => data.internal_get_own_property(agent, property_key, gc),

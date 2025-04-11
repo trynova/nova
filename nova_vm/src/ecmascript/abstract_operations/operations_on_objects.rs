@@ -475,9 +475,14 @@ pub(crate) fn define_property_or_throw<'a>(
     mut gc: GcScope,
 ) -> JsResult<()> {
     let property_key = property_key.bind(gc.nogc());
+    let desc = desc.bind(gc.nogc());
     // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
-    let success =
-        object.internal_define_own_property(agent, property_key.unbind(), desc, gc.reborrow())?;
+    let success = object.internal_define_own_property(
+        agent,
+        property_key.unbind(),
+        desc.unbind(),
+        gc.reborrow(),
+    )?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception_with_static_message(

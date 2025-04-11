@@ -185,12 +185,12 @@ impl<'a> InternalSlots<'a> for Error<'a> {
 }
 
 impl<'a> InternalMethods<'a> for Error<'a> {
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get_own_property(agent, property_key, gc),
             None => {

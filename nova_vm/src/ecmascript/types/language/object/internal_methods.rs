@@ -162,12 +162,12 @@ where
     /// method cannot be completed without calling into JavaScript, then `None`
     /// is returned. It is preferable to call this method first and only call
     /// the main method if this returns None.
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        _gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_get_own_property(agent, backing_object, property_key),
@@ -177,12 +177,12 @@ where
 
     /// ## \[\[GetOwnProperty\]\]
     #[inline(always)]
-    fn internal_get_own_property(
+    fn internal_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
         Ok(unwrap_try(self.try_get_own_property(
             agent,
             property_key,

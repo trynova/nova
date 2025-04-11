@@ -188,11 +188,11 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
 }
 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
-pub(crate) fn ordinary_get_own_property(
+pub(crate) fn ordinary_get_own_property<'a>(
     agent: &Agent,
-    object: OrdinaryObject,
+    object: OrdinaryObject<'a>,
     property_key: PropertyKey,
-) -> Option<PropertyDescriptor> {
+) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
     let x = object
@@ -759,7 +759,7 @@ pub(crate) fn ordinary_get<'gc>(
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
     if let Some(value) = descriptor.value {
         debug_assert!(descriptor.is_data_descriptor());
-        return Ok(value);
+        return Ok(value.unbind());
     }
 
     // 4. Assert: IsAccessorDescriptor(desc) is true.
@@ -772,7 +772,7 @@ pub(crate) fn ordinary_get<'gc>(
     };
 
     // 7. Return ? Call(getter, Receiver).
-    call_function(agent, getter, receiver, None, gc)
+    call_function(agent, getter.unbind(), receiver.unbind(), None, gc)
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
@@ -826,7 +826,7 @@ pub(crate) fn ordinary_set(
         scoped_property_key,
         value,
         receiver,
-        own_descriptor,
+        own_descriptor.unbind(),
         gc,
     )
 }
@@ -949,9 +949,11 @@ fn ordinary_set_with_own_descriptor(
     own_descriptor: Option<PropertyDescriptor>,
     mut gc: GcScope,
 ) -> JsResult<bool> {
+    let mut value = value.bind(gc.nogc());
+    let receiver = receiver.bind(gc.nogc());
     let property_key = scoped_property_key.get(agent).bind(gc.nogc());
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
-        own_descriptor
+        own_descriptor.bind(gc.nogc())
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
@@ -962,9 +964,13 @@ fn ordinary_set_with_own_descriptor(
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
             // Note: Prototype might be a Proxy or contain a setter.
-            return parent
-                .unbind()
-                .internal_set(agent, property_key.unbind(), value, receiver, gc);
+            return parent.unbind().internal_set(
+                agent,
+                property_key.unbind(),
+                value.unbind(),
+                receiver.unbind(),
+                gc,
+            );
         }
         // c. Else,
         else {
@@ -989,16 +995,31 @@ fn ordinary_set_with_own_descriptor(
         }
 
         // b. If Receiver is not an Object, return false.
-        let Ok(receiver) = Object::try_from(receiver) else {
+        let Ok(mut receiver) = Object::try_from(receiver) else {
             return Ok(false);
         };
 
+        let property_key = scoped_property_key.get(agent).bind(gc.nogc());
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor = receiver.internal_get_own_property(
-            agent,
-            scoped_property_key.get(agent),
-            gc.reborrow(),
-        )?;
+        let existing_descriptor = if let TryResult::Continue(desc) =
+            receiver.try_get_own_property(agent, property_key, gc.nogc())
+        {
+            desc
+        } else {
+            let scoped_receiver = receiver.scope(agent, gc.nogc());
+            let scoped_value = value.scope(agent, gc.nogc());
+            let desc = receiver
+                .unbind()
+                .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            // SAFETY: Neither are shared.
+            unsafe {
+                value = scoped_value.take(agent).bind(gc.nogc());
+                receiver = scoped_receiver.take(agent).bind(gc.nogc());
+            }
+            desc
+        };
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
@@ -1014,15 +1035,15 @@ fn ordinary_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value.unbind()),
+                value: Some(value),
                 ..Default::default()
             };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            return receiver.internal_define_own_property(
+            return receiver.unbind().internal_define_own_property(
                 agent,
                 scoped_property_key.get(agent).unbind(),
-                value_descriptor,
+                value_descriptor.unbind(),
                 gc,
             );
         }
@@ -1037,9 +1058,9 @@ fn ordinary_set_with_own_descriptor(
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             return create_data_property(
                 agent,
-                receiver,
+                receiver.unbind(),
                 scoped_property_key.get(agent),
-                value,
+                value.unbind(),
                 gc,
             );
         }
@@ -1057,8 +1078,8 @@ fn ordinary_set_with_own_descriptor(
     // 6. Perform ? Call(setter, Receiver, « V »).
     call_function(
         agent,
-        setter,
-        receiver,
+        setter.unbind(),
+        receiver.unbind(),
         Some(ArgumentsList::from_mut_slice(&mut [value.unbind()])),
         gc,
     )?;

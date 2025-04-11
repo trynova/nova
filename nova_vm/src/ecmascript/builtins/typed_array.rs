@@ -367,12 +367,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.2 Infallible \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-getownproperty)
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
@@ -513,14 +513,15 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         property_descriptor: PropertyDescriptor,
         gc: GcScope,
     ) -> JsResult<bool> {
+        let o = self.bind(gc.nogc());
+        let property_descriptor = property_descriptor.bind(gc.nogc());
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
-            // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
             let numeric_index = numeric_index.into_i64();
-            let numeric_index =
-                is_valid_integer_index_generic(agent, self, numeric_index, gc.nogc());
+            // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
+            let numeric_index = is_valid_integer_index_generic(agent, o, numeric_index, gc.nogc());
             let Some(numeric_index) = numeric_index else {
                 return Ok(false);
             };
@@ -547,20 +548,26 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
             if let Some(value) = property_descriptor.value {
                 let numeric_index = numeric_index as i64;
-                typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
+                typed_array_set_element_generic(
+                    agent,
+                    o.unbind(),
+                    numeric_index,
+                    value.unbind(),
+                    gc,
+                )?;
             }
             // vii. Return true.
             Ok(true)
         } else {
             // 2. Return ! OrdinaryDefineOwnProperty(O, P, Desc).
-            let backing_object = self
+            let backing_object = o
                 .get_backing_object(agent)
-                .unwrap_or_else(|| self.create_backing_object(agent));
+                .unwrap_or_else(|| o.create_backing_object(agent));
             Ok(ordinary_define_own_property(
                 agent,
                 backing_object,
                 property_key,
-                property_descriptor,
+                property_descriptor.unbind(),
                 gc.into_nogc(),
             ))
         }

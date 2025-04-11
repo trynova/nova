@@ -152,12 +152,12 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
 }
 
 impl<'a> InternalMethods<'a> for RegExp<'a> {
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             // If a backing object exists, it's the only one with correct
             // knowledge of all our properties, including lastIndex.

@@ -487,7 +487,7 @@ impl<'a> String<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-    ) -> Option<PropertyDescriptor> {
+    ) -> Option<PropertyDescriptor<'static>> {
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
             let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
                 .expect("String length is over MAX_SAFE_INTEGER");

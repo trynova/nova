@@ -6,7 +6,7 @@ use core::ops::{Index, IndexMut};
 use std::marker::PhantomData;
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::HeapRootData;
+use crate::engine::rootable::{HeapRootData, Scopable};
 use crate::engine::{TryResult, unwrap_try};
 use crate::{
     ecmascript::{
@@ -198,12 +198,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         TryResult::Continue(true)
     }
 
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
@@ -244,12 +244,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// 10.4.6.5 \[\[GetOwnProperty\]\] ( P )
-    fn internal_get_own_property(
+    fn internal_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
         let property_key = property_key.bind(gc.nogc());
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -352,6 +352,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
+        let property_descriptor = property_descriptor.bind(gc.nogc());
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
@@ -360,7 +361,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         agent,
                         object,
                         property_key.unbind(),
-                        property_descriptor,
+                        property_descriptor.unbind(),
                         gc.into_nogc(),
                     ),
                     None => false,
@@ -368,30 +369,43 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
+                let is_accessor_descriptor = property_descriptor.is_accessor_descriptor();
+                let PropertyDescriptor {
+                    value,
+                    writable,
+                    enumerable,
+                    configurable,
+                    ..
+                } = property_descriptor;
+                let value = value.map(|v| v.scope(agent, gc.nogc()));
                 let current = self.internal_get_own_property(agent, property_key.unbind(), gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return Ok(false);
                 };
                 // 4. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
-                if property_descriptor.configurable == Some(true) {
+                if configurable == Some(true) {
                     return Ok(false);
                 }
                 // 5. If Desc has an [[Enumerable]] field and Desc.[[Enumerable]] is false, return false.
-                if property_descriptor.enumerable == Some(false) {
+                if enumerable == Some(false) {
                     return Ok(false);
                 }
                 // 6. If IsAccessorDescriptor(Desc) is true, return false.
-                if property_descriptor.is_accessor_descriptor() {
+                if is_accessor_descriptor {
                     return Ok(false);
                 }
                 // 7. If Desc has a [[Writable]] field and Desc.[[Writable]] is false, return false.
-                if property_descriptor.writable == Some(false) {
+                if writable == Some(false) {
                     return Ok(false);
                 }
                 // 8. If Desc has a [[Value]] field, return SameValue(Desc.[[Value]], current.[[Value]]).
-                if let Some(value) = property_descriptor.value {
-                    Ok(same_value(agent, value, current.value.unwrap()))
+                if let Some(value) = value {
+                    Ok(same_value(
+                        agent,
+                        value.get(agent),
+                        current.value.unwrap_or(Value::Undefined),
+                    ))
                 } else {
                     // 9. Return true.
                     Ok(true)

@@ -80,11 +80,12 @@ pub(crate) fn function_create_backing_object<'a>(
     backing_object
 }
 
-pub(crate) fn function_internal_get_own_property<'a>(
+pub(crate) fn function_internal_get_own_property<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
-) -> Option<PropertyDescriptor> {
+    gc: NoGcScope<'gc, '_>,
+) -> Option<PropertyDescriptor<'gc>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         ordinary_get_own_property(agent, backing_object, property_key)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -97,7 +98,7 @@ pub(crate) fn function_internal_get_own_property<'a>(
         })
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
         Some(PropertyDescriptor {
-            value: Some(func.get_name(agent).into_value()),
+            value: Some(func.get_name(agent).into_value().bind(gc)),
             writable: Some(false),
             enumerable: Some(false),
             configurable: Some(true),

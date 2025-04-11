@@ -226,12 +226,12 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
 }
 
 impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
         // For string exotic objects:

@@ -285,12 +285,12 @@ impl<'a> InternalSlots<'a> for Array<'a> {
 }
 
 impl<'a> InternalMethods<'a> for Array<'a> {
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
@@ -315,8 +315,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let elements = elements.into();
             let index = index as usize;
             // We checked that we're within the vector bounds.
-            let value = *agent.heap.elements.get(elements).get(index).unwrap();
-            let descriptor = agent.heap.elements.get_descriptor(elements, index);
+            let value = agent
+                .heap
+                .elements
+                .get(elements)
+                .get(index)
+                .unwrap()
+                .bind(gc);
+            let descriptor = agent.heap.elements.get_descriptor(elements, index).bind(gc);
             return if value.is_none() && descriptor.is_none() {
                 TryResult::Continue(None)
             } else {
@@ -438,13 +444,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
+        let property_descriptor = property_descriptor.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            array_set_length(agent, self, property_descriptor, gc)
+            array_set_length(agent, self, property_descriptor.unbind(), gc)
         } else {
             Ok(unwrap_try(self.try_define_own_property(
                 agent,
                 property_key.unbind(),
-                property_descriptor,
+                property_descriptor.unbind(),
                 gc.into_nogc(),
             )))
         }
@@ -812,7 +819,7 @@ fn ordinary_define_own_property_for_array(
                 .get_descriptors_and_slice_mut(elements.into());
             let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor).unwrap();
             if let Some(descriptors) = descriptors {
-                descriptors.insert(index, elem_descriptor);
+                descriptors.insert(index, elem_descriptor.unbind());
             } else {
                 agent.heap.elements.set_descriptor(
                     elements.into(),
@@ -831,11 +838,11 @@ fn ordinary_define_own_property_for_array(
                 .heap
                 .elements
                 .get_descriptors_and_slice_mut(elements.into());
-            slice[index as usize] = Some(descriptor_value.unwrap_or(Value::Undefined));
+            slice[index as usize] = Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
             let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
             if let Some(descriptor) = elem_descriptor {
                 if let Some(descriptors) = descriptors {
-                    descriptors.insert(index, descriptor);
+                    descriptors.insert(index, descriptor.unbind());
                 } else {
                     agent.heap.elements.set_descriptor(
                         elements.into(),
@@ -953,7 +960,7 @@ fn ordinary_define_own_property_for_array(
             .get_descriptors_and_slice_mut(elements.into());
         slice[index as usize] = None;
         if let Some(descriptors) = descriptors {
-            descriptors.insert(index, new_descriptor);
+            descriptors.insert(index, new_descriptor.unbind());
         } else {
             agent.heap.elements.set_descriptor(
                 elements.into(),
@@ -996,7 +1003,7 @@ fn ordinary_define_own_property_for_array(
         } else {
             descriptors.unwrap().remove(&index);
         }
-        slice[index as usize] = Some(descriptor.value.unwrap_or(Value::Undefined));
+        slice[index as usize] = Some(descriptor.value.unwrap_or(Value::Undefined).unbind());
     }
     // c. Else,
     else {
@@ -1013,10 +1020,10 @@ fn ordinary_define_own_property_for_array(
             .heap
             .elements
             .get_descriptors_and_slice_mut(elements.into());
-        slice[index as usize] = result_value;
+        slice[index as usize] = result_value.unbind();
         if let Some(elem_descriptor) = ElementDescriptor::from_property_descriptor(descriptor) {
             if let Some(descriptors) = descriptors {
-                descriptors.insert(index, elem_descriptor);
+                descriptors.insert(index, elem_descriptor.unbind());
             } else {
                 agent.heap.elements.set_descriptor(
                     elements.into(),

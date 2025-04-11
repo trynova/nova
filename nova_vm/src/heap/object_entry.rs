@@ -24,8 +24,8 @@ impl<'a> ObjectEntry<'a> {
     }
 }
 
-impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor<'static> {
-    fn from(value: PropertyDescriptor) -> Self {
+impl<'a> From<PropertyDescriptor<'a>> for ObjectEntryPropertyDescriptor<'a> {
+    fn from(value: PropertyDescriptor<'a>) -> Self {
         let configurable = value.configurable.unwrap_or(true);
         let enumerable = value.enumerable.unwrap_or(true);
         if value.get.is_some() && value.set.is_some() {
