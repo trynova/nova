@@ -497,12 +497,20 @@ impl ObjectConstructor {
                 agent,
                 attributes.unbind(),
                 gc.reborrow(),
-            )?;
+            )?
+            .unbind()
+            .bind(gc.nogc());
             key = scoped_key.get(agent).bind(gc.nogc());
             desc
         };
         // 4. Perform ? DefinePropertyOrThrow(O, key, desc).
-        define_property_or_throw(agent, o.get(agent), key.unbind(), desc, gc.reborrow())?;
+        define_property_or_throw(
+            agent,
+            o.get(agent),
+            key.unbind(),
+            desc.unbind(),
+            gc.reborrow(),
+        )?;
         // 5. Return O.
         Ok(o.get(agent).into_value())
     }
@@ -709,7 +717,7 @@ impl ObjectConstructor {
             .internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
         Ok(
-            PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc())
+            PropertyDescriptor::from_property_descriptor(desc.unbind(), agent, gc.nogc())
                 .map_or(Value::Undefined, |obj| obj.into_value().unbind()),
         )
     }
@@ -1165,6 +1173,7 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
         let desc =
             PropertyDescriptor::to_property_descriptor(agent, desc_obj.unbind(), gc.reborrow())?
+                .unbind()
                 .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
         descriptors.push((next_key, desc));
@@ -1176,7 +1185,9 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
             agent,
             o,
             property_key.get(agent),
-            property_descriptor.into_property_descriptor(agent),
+            property_descriptor
+                .into_property_descriptor(agent, gc.nogc())
+                .unbind(),
             gc.reborrow(),
         )?;
     }
@@ -1439,7 +1450,8 @@ fn get_own_property_descriptors_slow<'gc>(
             obj.get(agent)
                 .internal_get_own_property(agent, key.get(agent), gc.reborrow())?;
         // b. Let descriptor be FromPropertyDescriptor(desc).
-        let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc());
+        let descriptor =
+            PropertyDescriptor::from_property_descriptor(desc.unbind(), agent, gc.nogc());
         // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
         if let Some(descriptor) = descriptor {
             let gc = gc.nogc();

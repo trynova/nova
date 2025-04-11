@@ -32,7 +32,7 @@ pub struct NoProperties;
 pub struct CreatorProperties(
     Vec<(
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     )>,
 );
@@ -147,7 +147,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (
             PropertyKey<'static>,
-            Option<ElementDescriptor>,
+            Option<ElementDescriptor<'static>>,
             Option<Value<'static>>,
         ),
     ) -> Self {

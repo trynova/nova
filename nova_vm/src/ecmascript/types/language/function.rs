@@ -321,12 +321,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),

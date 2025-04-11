@@ -280,7 +280,9 @@ impl ReflectObject {
                 agent,
                 attributes.unbind(),
                 gc.reborrow(),
-            )?;
+            )?
+            .unbind()
+            .bind(gc.nogc());
             key = scoped_key.get(agent).bind(gc.nogc());
             target = scoped_target.unwrap().get(agent).bind(gc.nogc());
             desc
@@ -289,7 +291,7 @@ impl ReflectObject {
         let ret = target.unbind().internal_define_own_property(
             agent,
             key.unbind(),
-            desc,
+            desc.unbind(),
             gc.reborrow(),
         )?;
 
@@ -423,7 +425,7 @@ impl ReflectObject {
             .unbind()
             .internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
-        match PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc()) {
+        match PropertyDescriptor::from_property_descriptor(desc.unbind(), agent, gc.nogc()) {
             Some(ret) => Ok(ret.into_value().unbind()),
             None => Ok(Value::Undefined),
         }

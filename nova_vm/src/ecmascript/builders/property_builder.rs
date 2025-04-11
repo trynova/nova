@@ -247,7 +247,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorValue> {
         self,
     ) -> (
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     ) {
         (
@@ -263,7 +263,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorReadOnlyValue> {
         self,
     ) -> (
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     ) {
         (
@@ -279,7 +279,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetAccessor> {
         self,
     ) -> (
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     ) {
         (
@@ -299,7 +299,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorSetAccess> {
         self,
     ) -> (
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     ) {
         (
@@ -319,7 +319,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetSetAccessor> {
         self,
     ) -> (
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     ) {
         (

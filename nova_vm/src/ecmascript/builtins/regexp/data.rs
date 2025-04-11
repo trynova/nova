@@ -87,7 +87,7 @@ impl RegExpLastIndex {
     /// This property descriptor is only valid if the backing object does not
     /// exist. If it does exist, then this both the value and the writable bit
     /// of this descriptor may differ from the real values.
-    pub(super) fn into_property_descriptor(self) -> PropertyDescriptor {
+    pub(super) fn into_property_descriptor(self) -> PropertyDescriptor<'static> {
         PropertyDescriptor {
             value: Some(self.get_value().map_or(Value::Undefined, |i| i.into())),
             writable: Some(true),

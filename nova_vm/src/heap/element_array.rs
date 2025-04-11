@@ -237,7 +237,7 @@ impl ElementsVector<'_> {
             descriptors_map
                 .entry(self.elements_index.unbind())
                 .or_default()
-                .insert(self.len, descriptor);
+                .insert(self.len, descriptor.unbind());
         }
         self.len += 1;
     }
@@ -356,7 +356,7 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum ElementDescriptor {
+pub enum ElementDescriptor<'a> {
     /// ```js
     /// { value, writable: true, enumerable: true, configurable: true }
     /// ```
@@ -394,66 +394,66 @@ pub enum ElementDescriptor {
     /// ```js
     /// { get, enumerable: true, configurable: true }
     /// ```
-    ReadOnlyEnumerableConfigurableAccessor { get: Function<'static> },
+    ReadOnlyEnumerableConfigurableAccessor { get: Function<'a> },
     /// ```js
     /// { get, enumerable: true, configurable: false }
     /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'static> },
+    ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'a> },
     /// ```js
     /// { get, enumerable: false, configurable: true }
     /// ```
-    ReadOnlyUnenumerableConfigurableAccessor { get: Function<'static> },
+    ReadOnlyUnenumerableConfigurableAccessor { get: Function<'a> },
     /// ```js
     /// { get, enumerable: false, configurable: false }
     /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'static> },
+    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'a> },
     /// ```js
     /// { set, enumerable: true, configurable: true }
     /// ```
-    WriteOnlyEnumerableConfigurableAccessor { set: Function<'static> },
+    WriteOnlyEnumerableConfigurableAccessor { set: Function<'a> },
     /// ```js
     /// { set, enumerable: true, configurable: false }
     /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'static> },
+    WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'a> },
     /// ```js
     /// { set, enumerable: false, configurable: true }
     /// ```
-    WriteOnlyUnenumerableConfigurableAccessor { set: Function<'static> },
+    WriteOnlyUnenumerableConfigurableAccessor { set: Function<'a> },
     /// ```js
     /// { set, enumerable: false, configurable: false }
     /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'static> },
+    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'a> },
     /// ```js
     /// { get, set, enumerable: true, configurable: true }
     /// ```
     ReadWriteEnumerableConfigurableAccessor {
-        get: Function<'static>,
-        set: Function<'static>,
+        get: Function<'a>,
+        set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: true, configurable: false }
     /// ```
     ReadWriteEnumerableUnconfigurableAccessor {
-        get: Function<'static>,
-        set: Function<'static>,
+        get: Function<'a>,
+        set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: false, configurable: true }
     /// ```
     ReadWriteUnenumerableConfigurableAccessor {
-        get: Function<'static>,
-        set: Function<'static>,
+        get: Function<'a>,
+        set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: false, configurable: false }
     /// ```
     ReadWriteUnenumerableUnconfigurableAccessor {
-        get: Function<'static>,
-        set: Function<'static>,
+        get: Function<'a>,
+        set: Function<'a>,
     },
 }
 
-impl ElementDescriptor {
+impl<'a> ElementDescriptor<'a> {
     pub(crate) fn has_getter(&self) -> bool {
         matches!(
             self,
@@ -495,7 +495,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) const fn new_with_get_ec(get: Function<'static>, e: bool, c: bool) -> Self {
+    pub(crate) const fn new_with_get_ec(get: Function<'a>, e: bool, c: bool) -> Self {
         match (e, c) {
             (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
             (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
@@ -504,7 +504,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) const fn new_with_set_ec(set: Function<'static>, e: bool, c: bool) -> Self {
+    pub(crate) const fn new_with_set_ec(set: Function<'a>, e: bool, c: bool) -> Self {
         match (e, c) {
             (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
             (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
@@ -514,8 +514,8 @@ impl ElementDescriptor {
     }
 
     pub(crate) const fn new_with_get_set_ec(
-        get: Function<'static>,
-        set: Function<'static>,
+        get: Function<'a>,
+        set: Function<'a>,
         e: bool,
         c: bool,
     ) -> Self {
@@ -527,9 +527,9 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) fn from_object_entry_property_descriptor<'a>(
+    pub(crate) fn from_object_entry_property_descriptor(
         desc: &ObjectEntryPropertyDescriptor<'a>,
-    ) -> (Option<ElementDescriptor>, Option<Value<'a>>) {
+    ) -> (Option<Self>, Option<Value<'a>>) {
         match desc {
             ObjectEntryPropertyDescriptor::Data {
                 value,
@@ -539,31 +539,30 @@ impl ElementDescriptor {
             } => match (writable, enumerable, configurable) {
                 (true, true, true) => (None, Some(*value)),
                 (true, true, false) => (
-                    Some(ElementDescriptor::WritableEnumerableUnconfigurableData),
+                    Some(Self::WritableEnumerableUnconfigurableData),
                     Some(*value),
                 ),
                 (true, false, true) => (
-                    Some(ElementDescriptor::WritableUnenumerableConfigurableData),
+                    Some(Self::WritableUnenumerableConfigurableData),
                     Some(*value),
                 ),
                 (true, false, false) => (
-                    Some(ElementDescriptor::WritableUnenumerableUnconfigurableData),
+                    Some(Self::WritableUnenumerableUnconfigurableData),
                     Some(*value),
                 ),
-                (false, true, true) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableData),
-                    Some(*value),
-                ),
+                (false, true, true) => {
+                    (Some(Self::ReadOnlyEnumerableConfigurableData), Some(*value))
+                }
                 (false, true, false) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableUnconfigurableData),
+                    Some(Self::ReadOnlyEnumerableUnconfigurableData),
                     Some(*value),
                 ),
                 (false, false, true) => (
-                    Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
+                    Some(Self::ReadOnlyUnenumerableConfigurableData),
                     Some(*value),
                 ),
                 (false, false, false) => (
-                    Some(ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData),
+                    Some(Self::ReadOnlyUnenumerableUnconfigurableData),
                     Some(*value),
                 ),
             },
@@ -574,33 +573,19 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor {
-                        get: get.unbind(),
-                    }),
+                    Some(Self::ReadOnlyEnumerableConfigurableAccessor { get: *get }),
                     None,
                 ),
                 (true, false) => (
-                    Some(
-                        ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor {
-                            get: get.unbind(),
-                        },
-                    ),
+                    Some(Self::ReadOnlyEnumerableUnconfigurableAccessor { get: *get }),
                     None,
                 ),
                 (false, true) => (
-                    Some(
-                        ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor {
-                            get: get.unbind(),
-                        },
-                    ),
+                    Some(Self::ReadOnlyUnenumerableConfigurableAccessor { get: *get }),
                     None,
                 ),
                 (false, false) => (
-                    Some(
-                        ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor {
-                            get: get.unbind(),
-                        },
-                    ),
+                    Some(Self::ReadOnlyUnenumerableUnconfigurableAccessor { get: *get }),
                     None,
                 ),
             },
@@ -610,33 +595,19 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor {
-                        set: set.unbind(),
-                    }),
+                    Some(Self::WriteOnlyEnumerableConfigurableAccessor { set: *set }),
                     None,
                 ),
                 (true, false) => (
-                    Some(
-                        ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor {
-                            set: set.unbind(),
-                        },
-                    ),
+                    Some(Self::WriteOnlyEnumerableUnconfigurableAccessor { set: *set }),
                     None,
                 ),
                 (false, true) => (
-                    Some(
-                        ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor {
-                            set: set.unbind(),
-                        },
-                    ),
+                    Some(Self::WriteOnlyUnenumerableConfigurableAccessor { set: *set }),
                     None,
                 ),
                 (false, false) => (
-                    Some(
-                        ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor {
-                            set: set.unbind(),
-                        },
-                    ),
+                    Some(Self::WriteOnlyUnenumerableUnconfigurableAccessor { set: *set }),
                     None,
                 ),
             },
@@ -647,44 +618,38 @@ impl ElementDescriptor {
                 configurable,
             } => match (enumerable, configurable) {
                 (true, true) => (
-                    Some(ElementDescriptor::ReadWriteEnumerableConfigurableAccessor {
-                        get: get.unbind(),
-                        set: set.unbind(),
+                    Some(Self::ReadWriteEnumerableConfigurableAccessor {
+                        get: *get,
+                        set: *set,
                     }),
                     None,
                 ),
                 (true, false) => (
-                    Some(
-                        ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor {
-                            get: get.unbind(),
-                            set: set.unbind(),
-                        },
-                    ),
+                    Some(Self::ReadWriteEnumerableUnconfigurableAccessor {
+                        get: *get,
+                        set: *set,
+                    }),
                     None,
                 ),
                 (false, true) => (
-                    Some(
-                        ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor {
-                            get: get.unbind(),
-                            set: set.unbind(),
-                        },
-                    ),
+                    Some(Self::ReadWriteUnenumerableConfigurableAccessor {
+                        get: *get,
+                        set: *set,
+                    }),
                     None,
                 ),
                 (false, false) => (
-                    Some(
-                        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
-                            get: get.unbind(),
-                            set: set.unbind(),
-                        },
-                    ),
+                    Some(Self::ReadWriteUnenumerableUnconfigurableAccessor {
+                        get: *get,
+                        set: *set,
+                    }),
                     None,
                 ),
             },
         }
     }
 
-    pub fn from_property_descriptor(descriptor: PropertyDescriptor) -> Option<Self> {
+    pub fn from_property_descriptor(descriptor: PropertyDescriptor<'a>) -> Option<Self> {
         let configurable = descriptor.configurable.unwrap_or(false);
         let enumerable = descriptor.enumerable.unwrap_or(false);
         let writable = descriptor.writable.unwrap_or(false);
@@ -732,7 +697,7 @@ impl ElementDescriptor {
     pub fn to_property_descriptor(
         descriptor: Option<Self>,
         value: Option<Value>,
-    ) -> PropertyDescriptor {
+    ) -> PropertyDescriptor<'a> {
         let descriptor =
             descriptor.unwrap_or(ElementDescriptor::WritableEnumerableConfigurableData);
         let value = value.map(Value::unbind);
@@ -924,7 +889,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn getter_function<'a>(&self, gc: NoGcScope<'a, '_>) -> Option<Function<'a>> {
+    pub fn getter_function<'gc>(&self, gc: NoGcScope<'gc, '_>) -> Option<Function<'gc>> {
         match self {
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
@@ -940,7 +905,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn setter_function<'a>(&self, gc: NoGcScope<'a, '_>) -> Option<Function<'a>> {
+    pub fn setter_function<'gc>(&self, gc: NoGcScope<'gc, '_>) -> Option<Function<'gc>> {
         match self {
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
             | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
@@ -1021,11 +986,26 @@ impl ElementDescriptor {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ElementDescriptor<'_> {
+    type Of<'a> = ElementDescriptor<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 /// Element arrays of up to 16 elements
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow4 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 4)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow4 {
@@ -1041,7 +1021,7 @@ impl ElementArray2Pow4 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow6 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 6)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow6 {
@@ -1057,7 +1037,7 @@ impl ElementArray2Pow6 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow8 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 8)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow8 {
@@ -1073,7 +1053,7 @@ impl ElementArray2Pow8 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow10 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 10)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow10 {
@@ -1089,7 +1069,7 @@ impl ElementArray2Pow10 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow12 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 12)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow12 {
@@ -1105,7 +1085,7 @@ impl ElementArray2Pow12 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow16 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 16)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow16 {
@@ -1121,7 +1101,7 @@ impl ElementArray2Pow16 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow24 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 24)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow24 {
@@ -1137,7 +1117,7 @@ impl ElementArray2Pow24 {
 #[derive(Debug, Default)]
 pub struct ElementArray2Pow32 {
     pub values: Vec<Option<[Option<Value<'static>>; usize::pow(2, 32)]>>,
-    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor>>,
+    pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 impl ElementArray2Pow32 {
@@ -1230,7 +1210,7 @@ impl ElementArrays {
         &mut self,
         key: ElementArrayKey,
         vector: &[Option<Value>],
-        descriptors: Option<AHashMap<u32, ElementDescriptor>>,
+        descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
     ) -> ElementIndex<'static> {
         debug_assert_eq!(
             core::mem::size_of::<Option<[Option<Value>; 1]>>(),
@@ -1902,7 +1882,7 @@ impl ElementArrays {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
-        let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
+        let mut descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>> = None;
         entries.drain(..).enumerate().for_each(|(index, entry)| {
             let (key, maybe_descriptor, maybe_value) = entry;
             let key = match key {
@@ -1920,7 +1900,7 @@ impl ElementArrays {
                 descriptors
                     .as_mut()
                     .unwrap()
-                    .insert(index as u32, descriptor);
+                    .insert(index as u32, descriptor.unbind());
             }
         });
         let cap = ElementArrayKey::from(length);
@@ -1948,7 +1928,7 @@ impl ElementArrays {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
-        let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
+        let mut descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>> = None;
         for (index, entry) in entries.iter().enumerate() {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
@@ -1968,7 +1948,7 @@ impl ElementArrays {
                 descriptors
                     .as_mut()
                     .unwrap()
-                    .insert(index as u32, descriptor);
+                    .insert(index as u32, descriptor.unbind());
             }
         }
         let cap = ElementArrayKey::from(length);
@@ -2045,7 +2025,7 @@ impl ElementArrays {
         &self,
         vector: ElementsVector,
     ) -> (
-        Option<&AHashMap<u32, ElementDescriptor>>,
+        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
         &[Option<Value<'static>>],
     ) {
         let vector = vector.unbind();
@@ -2163,7 +2143,7 @@ impl ElementArrays {
         &mut self,
         vector: ElementsVector,
     ) -> (
-        Option<&mut AHashMap<u32, ElementDescriptor>>,
+        Option<&mut AHashMap<u32, ElementDescriptor<'static>>>,
         &mut [Option<Value<'static>>],
     ) {
         let vector = vector.unbind();
@@ -2324,13 +2304,13 @@ impl ElementArrays {
         };
         if let Some(inner_map) = descriptors.get_mut(&vector.elements_index) {
             if let Some(descriptor) = descriptor {
-                inner_map.insert(index, descriptor);
+                inner_map.insert(index, descriptor.unbind());
             } else {
                 inner_map.remove(&index);
             }
         } else if let Some(descriptor) = descriptor {
             let mut inner_map = AHashMap::default();
-            inner_map.insert(index, descriptor);
+            inner_map.insert(index, descriptor.unbind());
             descriptors.insert(vector.elements_index, inner_map);
         }
     }
@@ -2435,7 +2415,7 @@ impl ElementArrays {
     }
 }
 
-impl HeapMarkAndSweep for ElementDescriptor {
+impl HeapMarkAndSweep for ElementDescriptor<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             ElementDescriptor::WritableEnumerableConfigurableData

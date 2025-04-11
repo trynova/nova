@@ -63,7 +63,7 @@ impl<'a> PropertyStorage<'a> {
         }
     }
 
-    pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<PropertyDescriptor> {
+    pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<PropertyDescriptor<'a>> {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
@@ -78,8 +78,8 @@ impl<'a> PropertyStorage<'a> {
                     .find(|(_, element_key)| element_key.unwrap() == key)
                     .map(|res| res.0);
                 result.map(|index| {
-                    let value = *agent.heap.elements.get(values).get(index).unwrap();
-                    let descriptor = agent.heap.elements.get_descriptor(values, index);
+                    let value = agent.heap.elements.get(values).get(index).unwrap().unbind();
+                    let descriptor = agent.heap.elements.get_descriptor(values, index).unbind();
                     ElementDescriptor::to_property_descriptor(descriptor, value)
                 })
             }
@@ -109,7 +109,7 @@ impl<'a> PropertyStorage<'a> {
                     let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
                     *key_entry = Some(property_key.unbind());
                     let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
-                    *value_entry = value;
+                    *value_entry = value.unbind();
                     agent
                         .heap
                         .elements

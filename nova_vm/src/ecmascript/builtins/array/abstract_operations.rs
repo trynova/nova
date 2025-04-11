@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -183,6 +184,7 @@ pub(crate) fn array_set_length(
     mut gc: GcScope,
 ) -> JsResult<bool> {
     let a = a.bind(gc.nogc());
+    let desc = desc.bind(gc.nogc());
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
@@ -210,11 +212,24 @@ pub(crate) fn array_set_length(
     // a. Let newLenDesc.[[Writable]] be true
     let new_len_writable = desc.writable.unwrap_or(true);
     // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
+
+    let PropertyDescriptor {
+        enumerable: desc_enumerable,
+        configurable: desc_configurable,
+        ..
+    } = desc;
+
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     let a = a.scope(agent, gc.nogc());
-    let new_len = to_uint32(agent, desc_value, gc.reborrow())?;
+    let scoped_desc_value = desc_value.scope(agent, gc.nogc());
+    let new_len = to_uint32(agent, desc_value.unbind(), gc.reborrow())?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
-    let number_len = to_number(agent, desc_value, gc.reborrow())?;
+    let number_len = to_number(
+        agent,
+        // SAFETY: scoped_desc_value is not shared.
+        unsafe { scoped_desc_value.take(agent) },
+        gc.reborrow(),
+    )?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
@@ -241,7 +256,7 @@ pub(crate) fn array_set_length(
         return Ok(false);
     }
     // Optimization: check OrdinaryDefineOwnProperty conditions for failing early on.
-    if desc.configurable == Some(true) || desc.enumerable == Some(true) {
+    if desc_configurable == Some(true) || desc_enumerable == Some(true) {
         // 16. If succeeded is false, return false.
         return Ok(false);
     }

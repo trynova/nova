@@ -54,7 +54,7 @@ pub struct NoProperties;
 pub struct CreatorProperties(
     Vec<(
         PropertyKey<'static>,
-        Option<ElementDescriptor>,
+        Option<ElementDescriptor<'static>>,
         Option<Value<'static>>,
     )>,
 );
@@ -364,7 +364,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (
             PropertyKey<'static>,
-            Option<ElementDescriptor>,
+            Option<ElementDescriptor<'static>>,
             Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
@@ -431,7 +431,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
         ) -> (
             PropertyKey<'static>,
-            Option<ElementDescriptor>,
+            Option<ElementDescriptor<'static>>,
             Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {

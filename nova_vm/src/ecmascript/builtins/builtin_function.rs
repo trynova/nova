@@ -439,16 +439,17 @@ impl<'a> InternalSlots<'a> for BuiltinFunction<'a> {
 }
 
 impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
             agent,
             property_key,
+            gc,
         ))
     }
 

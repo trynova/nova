@@ -494,12 +494,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(boolean_trap_result)
     }
 
-    fn try_get_own_property(
+    fn try_get_own_property<'gc>(
         self,
         _: &mut Agent,
         _: PropertyKey,
-        _: NoGcScope,
-    ) -> TryResult<Option<PropertyDescriptor>> {
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         TryResult::Break(())
     }
 
@@ -508,12 +508,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     /// The [[GetOwnProperty]] internal method of a Proxy exotic object O takes
     /// argument P (a property key) and returns either a normal completion
     /// containing either a Property Descriptor or undefined, or a throw completion.
-    fn internal_get_own_property(
+    fn internal_get_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        mut gc: GcScope,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
         let nogc = gc.nogc();
         let mut property_key = property_key.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
@@ -586,7 +586,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let target_desc = scoped_target
             .get(agent)
             .unbind()
-            .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())?;
+            .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
         // 10. If trapResultObj is undefined, then
         if trap_result_obj_is_undefined {
             if let Some(target_desc) = target_desc {
@@ -622,6 +624,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             // e. Return undefined.
             return Ok(None);
         };
+        let target_desc = target_desc.map(|desc| desc.scope(agent, gc.nogc()));
         // 11. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target =
             is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
@@ -630,15 +633,18 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             agent,
             trap_result_obj.get(agent),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // 13. Perform CompletePropertyDescriptor(resultDesc).
         result_desc.complete_property_descriptor()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
+        let target_desc = target_desc.map(|desc| desc.into_property_descriptor(agent, gc.nogc()));
         let valid = is_compatible_property_descriptor(
             agent,
             extensible_target,
             result_desc.clone(),
-            target_desc.clone(),
+            target_desc.clone().unbind(),
             gc.nogc(),
         );
         // 15. If valid is false, throw a TypeError exception.
@@ -685,7 +691,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             }
         };
         // 17. Return resultDesc.
-        Ok(Some(result_desc))
+        Ok(Some(result_desc.unbind()))
     }
 
     fn try_define_own_property(
@@ -706,14 +712,17 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         mut gc: GcScope,
     ) -> JsResult<bool> {
         let nogc = gc.nogc();
+        let o = self.bind(nogc);
         let property_key = property_key.bind(nogc).scope(agent, nogc);
+        let property_descriptor = property_descriptor.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
         // 4. Assert: handler is an Object.
-        let NonRevokedProxy { target, handler } = validate_non_revoked_proxy(agent, self, nogc)?;
+        let NonRevokedProxy { target, handler } = validate_non_revoked_proxy(agent, o, nogc)?;
         let scoped_target = target.scope(agent, nogc);
         let scoped_handler = handler.scope(agent, nogc);
+        let property_descriptor = property_descriptor.scope(agent, nogc);
         // 5. Let trap be ? GetMethod(handler, "defineProperty").
         let trap = get_object_method(
             agent,
@@ -727,14 +736,20 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return scoped_target.get(agent).internal_define_own_property(
                 agent,
                 property_key.get(agent),
-                property_descriptor,
+                property_descriptor
+                    .into_property_descriptor(agent, gc.nogc())
+                    .unbind(),
                 gc,
             );
         };
         let trap = trap.unbind().bind(gc.nogc());
         // 7. Let descObj be FromPropertyDescriptor(Desc).
         let desc_obj = PropertyDescriptor::from_property_descriptor(
-            property_descriptor.clone().into(),
+            Some(
+                property_descriptor
+                    .clone()
+                    .into_property_descriptor(agent, gc.nogc()),
+            ),
             agent,
             gc.nogc(),
         );
@@ -757,17 +772,19 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return Ok(false);
         };
         // 10. Let targetDesc be ? target.[[GetOwnProperty]](P).
-        let target_desc = scoped_target.get(agent).internal_get_own_property(
-            agent,
-            property_key.get(agent),
-            gc.reborrow(),
-        )?;
+        let target_desc = scoped_target
+            .get(agent)
+            .internal_get_own_property(agent, property_key.get(agent), gc.reborrow())?
+            .unbind()
+            .map(|desc| desc.scope(agent, gc.nogc()));
         // 11. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
         // 12. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is false, then
         let setting_config_false = property_descriptor.configurable == Some(false);
         // 14. If targetDesc is undefined, then
         let gc = gc.into_nogc();
+        let target_desc = target_desc.map(|desc| desc.into_property_descriptor(agent, gc));
+        let property_descriptor = property_descriptor.into_property_descriptor(agent, gc);
         if target_desc.is_none() {
             // a. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
@@ -1055,11 +1072,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 8. Let targetDesc be ? target.[[GetOwnProperty]](P).
         let target = scoped_target.get(agent).bind(gc.nogc());
         let property_key = scoped_property_key.get(agent).bind(gc.nogc());
-        let target_desc = target.unbind().internal_get_own_property(
-            agent,
-            property_key.unbind(),
-            gc.reborrow(),
-        )?;
+        let target_desc = target
+            .unbind()
+            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
         let trap_result = trap_result.get(agent).bind(gc.nogc());
         // 9. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
         if let Some(target_desc) = target_desc {

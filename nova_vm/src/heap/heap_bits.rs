@@ -950,7 +950,7 @@ pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
 }
 
 pub(crate) fn mark_descriptors(
-    descriptors: &AHashMap<u32, ElementDescriptor>,
+    descriptors: &AHashMap<u32, ElementDescriptor<'static>>,
     queues: &mut WorkQueues,
 ) {
     for descriptor in descriptors.values() {
@@ -1046,7 +1046,7 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
-    descriptors: &mut AHashMap<ElementIndex, AHashMap<u32, ElementDescriptor>>,
+    descriptors: &mut AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
     compactions: &CompactionLists,
     self_compactions: &CompactionList,
     marks: &[(bool, T)],
