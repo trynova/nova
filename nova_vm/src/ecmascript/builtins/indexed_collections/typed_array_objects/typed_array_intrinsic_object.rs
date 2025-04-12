@@ -50,9 +50,9 @@ use crate::{
 
 use super::abstract_operations::{
     TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds,
-    make_typed_array_with_buffer_witness_record, typed_array_byte_length,
-    typed_array_create_from_constructor_with_length, typed_array_create_same_type,
-    typed_array_length, validate_typed_array,
+    is_valid_integer_index_generic, make_typed_array_with_buffer_witness_record,
+    typed_array_byte_length, typed_array_create_from_constructor_with_length,
+    typed_array_create_same_type, typed_array_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -2816,13 +2816,110 @@ impl TypedArrayPrototype {
         )
     }
 
+    /// ### [23.2.3.36 %TypedArray%.prototype.with ( index, value )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.with)
     fn with<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        let this_value = this_value.bind(gc.nogc());
+        let index = arguments.get(0).bind(gc.nogc());
+        let value = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+
+        let o = match ta_record.object {
+            TypedArray::Int8Array(_) => with_typed_array::<i8>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Uint8Array(_) => with_typed_array::<u8>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Uint8ClampedArray(_) => with_typed_array::<U8Clamped>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Int16Array(_) => with_typed_array::<i16>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Uint16Array(_) => with_typed_array::<u16>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Int32Array(_) => with_typed_array::<i32>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Uint32Array(_) => with_typed_array::<u32>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::BigInt64Array(_) => with_typed_array::<i64>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::BigUint64Array(_) => with_typed_array::<u64>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => with_typed_array::<f16>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Float32Array(_) => with_typed_array::<f32>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+            TypedArray::Float64Array(_) => with_typed_array::<f64>(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                value.unbind(),
+                gc,
+            ),
+        };
+
+        o.map(|o| o.into_value())
     }
 
     /// ### [23.2.3.38 get %TypedArray%.prototype \[ %Symbol.toStringTag% \]](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
@@ -3229,4 +3326,91 @@ fn fill_typed_array<'a, T: Viewable>(
     slice.fill(value);
     // 20. Return O.
     Ok(ta)
+}
+
+fn with_typed_array<'a, T: Viewable>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    index: Value,
+    value: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let index = index.bind(gc.nogc());
+    let value = value.bind(gc.nogc());
+    let o = ta_record.object;
+    let scoped_index = index.scope(agent, gc.nogc());
+    let scoped_value = value.scope(agent, gc.nogc());
+    // 3. Let len be TypedArrayLength(taRecord).
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
+    let relative_index = if let Value::Integer(index) = index {
+        index.into_i64()
+    } else {
+        to_integer_or_infinity(agent, scoped_index.get(agent), gc.reborrow())?.into_i64()
+    };
+    // 5. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
+    let actual_index = if relative_index >= 0 {
+        relative_index
+    } else {
+        // 6. Else, let actualIndex be len + relativeIndex.
+        len + relative_index
+    };
+    // 7. If O.[[ContentType]] is bigint, let numericValue be ? ToBigInt(value).
+    let numeric_value = if T::IS_BIGINT {
+        let result = to_big_int(agent, scoped_value.get(agent), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+            .into_numeric();
+        result.scope(agent, gc.nogc())
+    } else {
+        // 8. Else, let numericValue be ? ToNumber(value).
+        let result = to_number(agent, scoped_value.get(agent), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+            .into_numeric();
+        result.scope(agent, gc.nogc())
+    };
+    // 9. If IsValidIntegerIndex(O, 𝔽(actualIndex)) is false, throw a RangeError exception.
+    if is_valid_integer_index_generic(agent, o, actual_index, gc.nogc()).is_none() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "TypedArray is not properly aligned",
+            gc.into_nogc(),
+        ));
+    }
+    // 10. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
+    let a = typed_array_create_same_type(agent, o, len, gc.reborrow())
+        .unbind()
+        .bind(gc.nogc())?
+        .scope(agent, gc.nogc());
+    // 11. Let k be 0.
+    let mut k = 0;
+    let scoped_o = o.scope(agent, gc.nogc());
+    // 12. Repeat, while k < len,
+    while k < len {
+        // a. Let Pk be ! ToString(𝔽(k)).
+        let pk = PropertyKey::from(SmallInteger::from(k as u32));
+        // b. If k = actualIndex, let fromValue be numericValue.
+        let from_value = if k == actual_index {
+            numeric_value.get(agent).into_value()
+        } else {
+            // c. Else, let fromValue be ! Get(O, Pk).
+            unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc()))
+        };
+        // d. Perform ! Set(A, Pk, fromValue, true).
+        unwrap_try(try_set(
+            agent,
+            a.get(agent).into_object(),
+            pk,
+            from_value.unbind(),
+            true,
+            gc.nogc(),
+        ))
+        .unwrap();
+        //     e. Set k to k + 1.
+        k += 1;
+    }
+    // 13. Return A.
+    let a = a.get(agent);
+    Ok(a)
 }
