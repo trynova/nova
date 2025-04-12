@@ -3422,7 +3422,7 @@ fn fill_typed_array<'a, T: Viewable>(
     Ok(ta)
 }
 
-fn sort_partial_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + PartialOrd>(
+fn sort_partial_cmp_typed_array<T: Viewable + std::fmt::Debug + PartialOrd>(
     agent: &mut Agent,
     ta: TypedArray,
     len: usize,
@@ -3457,7 +3457,7 @@ fn sort_partial_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + PartialOrd>(
     Ok(())
 }
 
-fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + 'static>(
+fn sort_total_cmp_typed_array<T: Viewable + std::fmt::Debug + TotalOrder + 'static>(
     agent: &mut Agent,
     ta: TypedArray,
     len: usize,
@@ -3492,12 +3492,12 @@ fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + '
     Ok(())
 }
 
-fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+fn sort_comparator_typed_array<T: Viewable + Copy + std::fmt::Debug>(
     agent: &mut Agent,
     ta: TypedArray,
     len: usize,
     comparator: Scoped<'_, Function<'static>>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<()> {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
     let byte_offset = ta.byte_offset(agent);
