@@ -10,8 +10,8 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
             operations_on_objects::{
-                call, call_function, get, get_method, length_of_array_like, set,
-                throw_not_callable, try_get, try_set,
+                call_function, get, get_method, length_of_array_like, set, throw_not_callable,
+                try_get, try_set,
             },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
@@ -29,7 +29,7 @@ use crate::{
             array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
             indexed_collections::array_objects::{
                 array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind},
-                array_prototype::{find_via_predicate, sort_indexed_properties},
+                array_prototype::find_via_predicate,
             },
             typed_array::TypedArray,
         },
@@ -2756,7 +2756,95 @@ impl TypedArrayPrototype {
         //    a. Return ? CompareTypedArrayElements(x, y, comparator).
         // 7. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare, read-through-holes).
         let scoped_obj = obj.scope(agent, gc.nogc());
-        if comparator.is_none() {
+        if let Some(comparator) = comparator {
+            match scoped_obj.get(agent) {
+                TypedArray::Int8Array(_) => sort_comparator_typed_array::<i8>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Uint8Array(_) => sort_comparator_typed_array::<u8>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Uint8ClampedArray(_) => sort_comparator_typed_array::<U8Clamped>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Int16Array(_) => sort_comparator_typed_array::<i16>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Uint16Array(_) => sort_comparator_typed_array::<u16>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Int32Array(_) => sort_comparator_typed_array::<i32>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Uint32Array(_) => sort_comparator_typed_array::<u32>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::BigInt64Array(_) => sort_comparator_typed_array::<i64>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::BigUint64Array(_) => sort_comparator_typed_array::<u64>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => sort_comparator_typed_array::<f16>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Float32Array(_) => sort_comparator_typed_array::<f32>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+                TypedArray::Float64Array(_) => sort_comparator_typed_array::<f64>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    comparator,
+                    gc.reborrow(),
+                )?,
+            };
+        } else {
             let gc = gc.nogc();
             match scoped_obj.get(agent) {
                 TypedArray::Int8Array(_) => {
@@ -2800,30 +2888,6 @@ impl TypedArrayPrototype {
                     sort_total_cmp_typed_array::<f64>(agent, scoped_obj.get(agent), len, gc)?
                 }
             };
-        } else {
-            let sorted_list = sort_indexed_properties::<false, true>(
-                agent,
-                scoped_obj.get(agent).into_object(),
-                len,
-                comparator,
-                gc.reborrow(),
-            )?;
-            // 8. Let j be 0.
-            let mut j = 0;
-            // 9. Repeat, while j < len,
-            while j < len {
-                // a. Perform ! Set(obj, ! ToString(𝔽(j)), sortedList[j], true).
-                unwrap_try(try_set(
-                    agent,
-                    scoped_obj.get(agent).into_object(),
-                    j.try_into().unwrap(),
-                    sorted_list[j].get(agent),
-                    true,
-                    gc.nogc(),
-                ))?;
-                // b. Set j to j + 1.
-                j += 1;
-            }
         };
         // 10. Return obj.
         let obj = scoped_obj.get(agent);
@@ -3466,42 +3530,69 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
         if error.is_some() {
             return std::cmp::Ordering::Equal;
         }
-        let a_value = a.into_le_value(agent, gc.nogc()).into_value();
-        let b_value = b.into_le_value(agent, gc.nogc()).into_value();
-        let result = match call_function(
+        let a_val = a.into_le_value(agent, gc.nogc()).into_value().unbind();
+        let b_val = b.into_le_value(agent, gc.nogc()).into_value().unbind();
+        let call_result = call_function(
             agent,
             comparator.get(agent).unbind(),
             Value::Undefined,
-            Some(ArgumentsList::from_mut_slice(&mut [
-                a_value.unbind(),
-                b_value.unbind(),
-            ])),
+            Some(ArgumentsList::from_mut_slice(&mut [a_val, b_val])),
             gc.reborrow(),
-        ) {
-            Ok(v) => match to_number(agent, v.unbind(), gc.reborrow()) {
-                Ok(num) => {
-                    if num.is_nan(agent) {
-                        Ok(std::cmp::Ordering::Equal)
-                    } else if num.is_sign_positive(agent) {
-                        Ok(std::cmp::Ordering::Greater)
-                    } else if num.is_sign_negative(agent) {
-                        Ok(std::cmp::Ordering::Less)
-                    } else {
-                        Ok(std::cmp::Ordering::Equal)
-                    }
-                }
-                Err(e) => Err(e),
-            },
-            Err(e) => Err(e),
-        };
-        match result {
-            Ok(ord) => ord,
+        );
+        let num_result = match call_result {
+            Ok(v) => to_number(agent, v.unbind(), gc.reborrow()),
             Err(e) => {
                 error = Some(e);
-                std::cmp::Ordering::Equal
+                return std::cmp::Ordering::Equal;
             }
+        };
+        let num = match num_result {
+            Ok(n) => n,
+            Err(e) => {
+                error = Some(e);
+                return std::cmp::Ordering::Equal;
+            }
+        };
+        if num.is_nan(agent) {
+            std::cmp::Ordering::Equal
+        } else if num.is_sign_positive(agent) {
+            std::cmp::Ordering::Greater
+        } else if num.is_sign_negative(agent) {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Equal
         }
     });
-    slice.copy_from_slice(&items);
+    if let Some(error) = error {
+        return Err(error);
+    }
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() || len == 0 {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc.nogc(),
+        ));
+    }
+    let len = len.min(slice.len());
+    let slice = &mut slice[..len];
+    let copy_len = items.len().min(slice.len());
+    slice[..copy_len].copy_from_slice(&items[..copy_len]);
     Ok(())
 }
