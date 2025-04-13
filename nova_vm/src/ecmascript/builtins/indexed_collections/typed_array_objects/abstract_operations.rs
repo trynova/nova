@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::any::TypeId;
+
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -1342,23 +1344,6 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     )
 }
 
-/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
-pub(crate) fn internal_typed_array_species_create<'a, Exemplar: Viewable, Result: Viewable>(
-    agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
-    // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    if Result::IS_BIGINT != Exemplar::IS_BIGINT {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray out of bounds",
-            gc,
-        ));
-    };
-    Ok(())
-}
-
 /// ### [23.2.4.3 TypedArrayCreateSameType ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-create-same-type)
 /// The abstract operation TypedArrayCreateSameType takes arguments exemplar (a TypedArray)
 /// and argumentList (a List of ECMAScript language values) and returns either
@@ -1409,7 +1394,7 @@ pub(crate) fn typed_array_create_same_type<'a>(
 }
 
 /// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
-pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
+pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
     agent: &mut Agent,
     exemplar: TypedArray,
     length: i64,
@@ -1437,7 +1422,7 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
         TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
     };
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
-    let constuctor = species_constructor(
+    let constructor = species_constructor(
         agent,
         exemplar.into_object(),
         default_constructor.into_function(),
@@ -1448,7 +1433,7 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
     // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     let result = typed_array_create_from_constructor_with_length(
         agent,
-        constuctor.unbind(),
+        constructor.unbind(),
         length,
         gc.reborrow(),
     )
@@ -1457,46 +1442,33 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
     let scoped_result = result.scope(agent, gc.nogc());
-    let _ = match scoped_result.get(agent) {
-        TypedArray::Int8Array(_) => internal_typed_array_species_create::<T, i8>(agent, gc.nogc()),
-        TypedArray::Uint8Array(_) => internal_typed_array_species_create::<T, u8>(agent, gc.nogc()),
-        TypedArray::Uint8ClampedArray(_) => {
-            internal_typed_array_species_create::<T, U8Clamped>(agent, gc.nogc())
-        }
-        TypedArray::Int16Array(_) => {
-            internal_typed_array_species_create::<T, i16>(agent, gc.nogc())
-        }
-        TypedArray::Uint16Array(_) => {
-            internal_typed_array_species_create::<T, u16>(agent, gc.nogc())
-        }
-        TypedArray::Int32Array(_) => {
-            internal_typed_array_species_create::<T, i32>(agent, gc.nogc())
-        }
-        TypedArray::Uint32Array(_) => {
-            internal_typed_array_species_create::<T, u32>(agent, gc.nogc())
-        }
-        TypedArray::BigInt64Array(_) => {
-            internal_typed_array_species_create::<T, i64>(agent, gc.nogc())
-        }
-        TypedArray::BigUint64Array(_) => {
-            internal_typed_array_species_create::<T, u64>(agent, gc.nogc())
-        }
+    let type_id_matches = match scoped_result.get(agent) {
+        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
+        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
+        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
+        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
+        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
+        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
+        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
+        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
+        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
         #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => {
-            internal_typed_array_species_create::<T, f16>(agent, gc.nogc())
-        }
-        TypedArray::Float32Array(_) => {
-            internal_typed_array_species_create::<T, f32>(agent, gc.nogc())
-        }
-        TypedArray::Float64Array(_) => {
-            internal_typed_array_species_create::<T, f64>(agent, gc.nogc())
-        }
+        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
+        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
+        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
     };
+    if !type_id_matches {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    }
     // 6. Return result.
-    Ok(scoped_result.get(agent).unbind())
+    Ok(scoped_result.get(agent))
 }
 
-pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
+pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
     agent: &mut Agent,
     exemplar: TypedArray,
     array_buffer: ArrayBuffer,
@@ -1540,41 +1512,28 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
     let scoped_result = result.scope(agent, gc.nogc());
-    let _ = match scoped_result.get(agent) {
-        TypedArray::Int8Array(_) => internal_typed_array_species_create::<T, i8>(agent, gc.nogc()),
-        TypedArray::Uint8Array(_) => internal_typed_array_species_create::<T, u8>(agent, gc.nogc()),
-        TypedArray::Uint8ClampedArray(_) => {
-            internal_typed_array_species_create::<T, U8Clamped>(agent, gc.nogc())
-        }
-        TypedArray::Int16Array(_) => {
-            internal_typed_array_species_create::<T, i16>(agent, gc.nogc())
-        }
-        TypedArray::Uint16Array(_) => {
-            internal_typed_array_species_create::<T, u16>(agent, gc.nogc())
-        }
-        TypedArray::Int32Array(_) => {
-            internal_typed_array_species_create::<T, i32>(agent, gc.nogc())
-        }
-        TypedArray::Uint32Array(_) => {
-            internal_typed_array_species_create::<T, u32>(agent, gc.nogc())
-        }
-        TypedArray::BigInt64Array(_) => {
-            internal_typed_array_species_create::<T, i64>(agent, gc.nogc())
-        }
-        TypedArray::BigUint64Array(_) => {
-            internal_typed_array_species_create::<T, u64>(agent, gc.nogc())
-        }
+    let type_id_matches = match scoped_result.get(agent) {
+        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
+        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
+        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
+        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
+        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
+        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
+        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
+        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
+        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
         #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => {
-            internal_typed_array_species_create::<T, f16>(agent, gc.nogc())
-        }
-        TypedArray::Float32Array(_) => {
-            internal_typed_array_species_create::<T, f32>(agent, gc.nogc())
-        }
-        TypedArray::Float64Array(_) => {
-            internal_typed_array_species_create::<T, f64>(agent, gc.nogc())
-        }
+        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
+        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
+        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
     };
+    if !type_id_matches {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    }
     // 6. Return result.
     Ok(scoped_result.get(agent).unbind())
 }
