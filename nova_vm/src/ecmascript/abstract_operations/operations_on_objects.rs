@@ -1384,11 +1384,11 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
 }
 
 /// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-speciesconstructor)
-pub(crate) fn species_constructor<'a, 'b>(
+pub(crate) fn species_constructor<'a>(
     agent: &mut Agent,
     o: Object<'a>,
     default_constructor: Function<'a>,
-    mut gc: GcScope<'a, 'b>,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<Function<'a>> {
     // 1. Let C be ? Get(O, "constructor").
     let c = get(
@@ -1420,7 +1420,6 @@ pub(crate) fn species_constructor<'a, 'b>(
     )?
     .unbind()
     .bind(gc.nogc());
-
     // 5. If S is either undefined or null, return defaultConstructor.
     if s.is_undefined() || s.is_null() {
         return Ok(default_constructor);

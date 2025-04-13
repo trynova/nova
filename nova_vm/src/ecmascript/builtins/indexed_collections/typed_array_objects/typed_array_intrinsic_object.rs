@@ -35,8 +35,8 @@ use crate::{
         },
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, IntoNumeric, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, U8Clamped, Value, Viewable,
+            BUILTIN_STRING_MEMORY, Function, IntoNumeric, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -1253,7 +1253,7 @@ impl TypedArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         let this_value = this_value.bind(gc.nogc());
@@ -1295,120 +1295,105 @@ impl TypedArrayPrototype {
                 gc.nogc(),
             ));
         };
-        let callback = callback.scope(agent, gc.nogc());
-        let this_arg = this_arg.scope(agent, gc.nogc());
-        let scoped_o = o.scope(agent, gc.nogc());
-        // 5. Let kept be a new empty List.
-        let mut kept = Vec::with_capacity(len.try_into().unwrap());
-        // 6. Let captured be 0.
-        let mut captured = 0;
-        // 7. Let k be 0.
-        let mut k = 0;
-        // 8. Repeat, while k < len,
-        while k < len {
-            // a. Let Pk be ! ToString(𝔽(k)).
-            let pk = PropertyKey::from(SmallInteger::from(k as u32));
-            // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc()))
-                .scope(agent, gc.nogc());
-            // c. Let selected be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
-            let call = call_function(
-                agent,
-                callback.get(agent),
-                this_arg.get(agent),
-                Some(ArgumentsList::from_mut_slice(&mut [
-                    k_value.get(agent).unbind(),
-                    Number::try_from(k).unwrap().into_value(),
-                    scoped_o.get(agent).into_value().unbind(),
-                ])),
-                gc.reborrow(),
-            )?;
-            let selected = to_boolean(agent, call);
-            // d. If selected is true, then
-            if selected {
-                //  i. Append kValue to kept.
-                kept.push(k_value.get(agent).unbind());
-                //  ii. Set captured to captured + 1.
-                captured += 1;
-            }
-            // e. Set k to k + 1.
-            k += 1;
-        }
-        // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
-        let o = scoped_o.get(agent);
         let a = match o {
-            TypedArray::Int8Array(_) => {
-                typed_array_species_create_with_length::<i8>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Uint8Array(_) => {
-                typed_array_species_create_with_length::<u8>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_species_create_with_length::<U8Clamped>(
-                    agent,
-                    o,
-                    captured,
-                    gc.reborrow(),
-                )?
-                .unbind()
-            }
-            TypedArray::Int16Array(_) => {
-                typed_array_species_create_with_length::<i16>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Uint16Array(_) => {
-                typed_array_species_create_with_length::<u16>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Int32Array(_) => {
-                typed_array_species_create_with_length::<i32>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Uint32Array(_) => {
-                typed_array_species_create_with_length::<u32>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::BigInt64Array(_) => {
-                typed_array_species_create_with_length::<i64>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::BigUint64Array(_) => {
-                typed_array_species_create_with_length::<u64>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
-                typed_array_species_create_with_length::<f16>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Float32Array(_) => {
-                typed_array_species_create_with_length::<f32>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-            TypedArray::Float64Array(_) => {
-                typed_array_species_create_with_length::<f64>(agent, o, captured, gc.reborrow())?
-                    .unbind()
-            }
-        };
-        // 10. Let n be 0.
-        // 11. For each element e of kept, do
-        let scoped_a = a.scope(agent, gc.nogc());
-        for (n, e) in kept.iter().enumerate() {
-            // a. Perform ! Set(A, ! ToString(𝔽(n)), e, true).
-            // b. Set n to n + 1.
-            unwrap_try(try_set(
+            TypedArray::Int8Array(_) => filter_typed_array::<i8>(
                 agent,
-                scoped_a.get(agent).into_object(),
-                n.try_into().unwrap(),
-                *e,
-                true,
-                gc.nogc(),
-            ))?;
-        }
-        // 12. Return A.
-        let a = scoped_a.get(agent);
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Uint8Array(_) => filter_typed_array::<u8>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Uint8ClampedArray(_) => filter_typed_array::<U8Clamped>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Int16Array(_) => filter_typed_array::<i16>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Uint16Array(_) => filter_typed_array::<u16>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Int32Array(_) => filter_typed_array::<i32>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Uint32Array(_) => filter_typed_array::<u32>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::BigInt64Array(_) => filter_typed_array::<i64>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::BigUint64Array(_) => filter_typed_array::<u64>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => filter_typed_array::<f16>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Float32Array(_) => filter_typed_array::<f32>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+            TypedArray::Float64Array(_) => filter_typed_array::<f64>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                o.unbind(),
+                len,
+                gc,
+            )?,
+        };
         Ok(a.into_value())
     }
 
@@ -3386,4 +3371,86 @@ fn fill_typed_array<'a, T: Viewable>(
     slice.fill(value);
     // 20. Return O.
     Ok(ta)
+}
+
+fn filter_typed_array<'a, T: Viewable + 'static>(
+    agent: &mut Agent,
+    callback: Function<'_>,
+    this_arg: Value,
+    o: TypedArray,
+    len: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let callback = callback.bind(gc.nogc());
+    let this_arg = this_arg.bind(gc.nogc());
+    let o = o.bind(gc.nogc());
+    let callback = callback.scope(agent, gc.nogc());
+    let this_arg = this_arg.scope(agent, gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
+    // 5. Let kept be a new empty List.
+    // 6. Let captured be 0.
+    let mut kept: Vec<T> = Vec::with_capacity(len.try_into().unwrap());
+    // 7. Let k be 0.
+    let mut k = 0;
+    // 8. Repeat, while k < len,
+    while k < len {
+        // a. Let Pk be ! ToString(𝔽(k)).
+        let pk = k.try_into().unwrap();
+        // b. Let kValue be ! Get(O, Pk).
+        let k_value =
+            unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc())).scope(agent, gc.nogc());
+        // c. Let selected be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
+        let call = call_function(
+            agent,
+            callback.get(agent),
+            this_arg.get(agent),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                k_value.get(agent).unbind(),
+                Number::try_from(k).unwrap().into_value(),
+                scoped_o.get(agent).into_value().unbind(),
+            ])),
+            gc.reborrow(),
+        )?;
+        let selected = to_boolean(agent, call);
+        // d. If selected is true, then
+        if selected {
+            //  i. Append kValue to kept.
+            let value = T::try_from_value(agent, k_value.get(agent));
+            let Some(value) = value else {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not callable",
+                    gc.nogc(),
+                ));
+            };
+            kept.push(value);
+            //  ii. Set captured to captured + 1.
+        }
+        // e. Set k to k + 1.
+        k += 1;
+    }
+    // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
+    let len = kept.len() as i64;
+    let o = scoped_o.get(agent);
+    let a = typed_array_species_create_with_length::<T>(agent, o, len, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
+    // 10. Let n be 0.
+    // 11. For each element e of kept, do
+    for (n, e) in kept.iter().enumerate() {
+        // a. Perform ! Set(A, ! ToString(𝔽(n)), e, true).
+        // b. Set n to n + 1.
+        let value = e.into_le_value(agent, gc.nogc()).into_value();
+        unwrap_try(try_set(
+            agent,
+            a.into_object(),
+            n.try_into().unwrap(),
+            value,
+            true,
+            gc.nogc(),
+        ))
+        .unwrap();
+    }
+    // 12. Return A.
+    Ok(a.unbind())
 }
