@@ -1420,7 +1420,7 @@ pub(crate) fn species_constructor<'a, 'b>(
     let Ok(c) = Object::try_from(c) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "c is not an object",
+            "constructor property value is not an object",
             gc.into_nogc(),
         ));
     };
