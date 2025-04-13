@@ -2162,7 +2162,6 @@ impl TypedArrayPrototype {
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-
         let o = match ta_record.object {
             TypedArray::Int8Array(_) => with_typed_array::<i8>(
                 agent,
