@@ -81,7 +81,7 @@ macro_rules! create_environment_index {
 
         impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                write!(f, "$index({:?})", self.0)
+                write!(f, "$index({:?})", self.into_u32_index())
             }
         }
 
@@ -230,12 +230,19 @@ impl<'a> From<ObjectEnvironment<'a>> for Environment<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ModuleEnvironment<'a>(
     NonZeroU32,
     PhantomData<DeclarativeEnvironmentRecord>,
     PhantomData<&'a GcToken>,
 );
+
+impl core::fmt::Debug for ModuleEnvironment<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "ModuleEnvironment({:?})", self.into_index())
+    }
+}
+
 impl ModuleEnvironment<'_> {
     /// Creates a new index from a u32.
     ///
@@ -737,10 +744,12 @@ unsafe impl Bindable for Environment<'_> {
 impl core::fmt::Debug for Environment<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Environment::Declarative(d) => write!(f, "DeclarativeEnvironment({:?})", d.0),
-            Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.0),
-            Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.0),
-            Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.0),
+            Environment::Declarative(d) => {
+                write!(f, "DeclarativeEnvironment({:?})", d.into_u32_index())
+            }
+            Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.into_u32_index()),
+            Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.into_u32_index()),
+            Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.into_u32_index()),
             // EnvironmentIndex::Module(d) => {}
         }
     }

@@ -351,12 +351,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_descriptor: PropertyDescriptor,
         gc: GcScope,
     ) -> JsResult<bool> {
+        let o = self.bind(gc.nogc());
         let property_key = property_key.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                Ok(match self.get_backing_object(agent) {
+                Ok(match o.get_backing_object(agent) {
                     Some(object) => ordinary_define_own_property(
                         agent,
                         object,
@@ -378,7 +379,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     ..
                 } = property_descriptor;
                 let value = value.map(|v| v.scope(agent, gc.nogc()));
-                let current = self.internal_get_own_property(agent, property_key.unbind(), gc)?;
+                let current =
+                    o.unbind()
+                        .internal_get_own_property(agent, property_key.unbind(), gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return Ok(false);

@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         execution::{
             Agent, ECMAScriptCode, Environment, ExecutionContext, GlobalEnvironment, JsResult,
-            RealmIdentifier, agent::ExceptionType,
+            Realm, agent::ExceptionType,
         },
         scripts_and_modules::ScriptOrModule,
         syntax_directed_operations::{
@@ -40,12 +40,18 @@ use super::source_code::SourceCode;
 
 pub type HostDefined = &'static mut dyn Any;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Script<'a>(
     u32,
     PhantomData<ScriptRecord<'static>>,
     PhantomData<&'a GcToken>,
 );
+
+impl core::fmt::Debug for Script<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Script({:?})", self.into_u32())
+    }
+}
 
 impl Script<'_> {
     /// Creates a script identififer from a usize.
@@ -131,7 +137,7 @@ pub struct ScriptRecord<'a> {
     /// The realm within which this script was created. undefined if not yet
     /// assigned.
     // TODO: This should be able to be undefined sometimes.
-    pub(crate) realm: RealmIdentifier<'a>,
+    pub(crate) realm: Realm<'a>,
 
     /// ### \[\[ECMAScriptCode]]
     ///
@@ -257,7 +263,7 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
 pub fn parse_script<'a>(
     agent: &mut Agent,
     source_text: String,
-    realm: RealmIdentifier,
+    realm: Realm,
     strict_mode: bool,
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,

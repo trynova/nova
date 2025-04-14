@@ -313,13 +313,14 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[self].bound_target_function;
+        let target = agent[f].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].
-        let bound_this = agent[self].bound_this;
+        let bound_this = agent[f].bound_this;
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = agent[self].bound_arguments;
+        let bound_args = agent[f].bound_arguments;
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
@@ -434,6 +435,10 @@ impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'stati
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
         self.bound_functions.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<BoundFunctionHeapData<'static>>>();
+        }
         BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
     }
 }

@@ -1593,7 +1593,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 let handler = handler.unbind();
                 args.with_scoped(
                     agent,
-                    |agent, gc| {
+                    |agent, _, gc| {
                         get_object_method(agent, handler, BUILTIN_STRING_MEMORY.apply.into(), gc)
                     },
                     gc.reborrow(),
@@ -1669,7 +1669,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 let handler = handler.unbind();
                 args.with_scoped(
                     agent,
-                    |agent, gc| {
+                    |agent, _, gc| {
                         get_object_method(
                             agent,
                             handler,
@@ -1822,6 +1822,10 @@ impl TryFrom<HeapRootData> for Proxy<'_> {
 impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
     fn create(&mut self, data: ProxyHeapData<'a>) -> Proxy<'a> {
         self.proxys.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ProxyHeapData<'static>>>();
+        }
         Proxy(ProxyIndex::last(&self.proxys))
     }
 }

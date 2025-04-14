@@ -7,7 +7,7 @@ use crate::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::{
@@ -98,7 +98,7 @@ impl ErrorPrototype {
         }
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.error_prototype();

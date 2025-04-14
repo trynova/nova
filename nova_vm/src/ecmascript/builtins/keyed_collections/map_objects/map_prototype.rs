@@ -21,7 +21,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::{Map, data::MapData},
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, HeapNumber, IntoValue, PropertyKey, String, Value},
     },
     heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
@@ -502,7 +502,7 @@ impl MapPrototype {
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();

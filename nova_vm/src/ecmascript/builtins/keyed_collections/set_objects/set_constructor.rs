@@ -26,7 +26,7 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
             set::{Set, data::SetData},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
             PropertyKey, String, Value,
@@ -249,7 +249,7 @@ impl SetConstructor {
         Ok(this_value.unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let set_prototype = intrinsics.set_prototype();
 

@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
@@ -232,7 +232,7 @@ impl AsyncGeneratorPrototype {
         Ok(promise.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();

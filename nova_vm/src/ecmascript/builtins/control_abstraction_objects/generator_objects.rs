@@ -105,8 +105,8 @@ impl Generator<'_> {
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
-            VmOrArguments::Arguments(args) => {
-                Vm::execute(agent, executable.clone(), Some(&args), gc.reborrow())
+            VmOrArguments::Arguments(mut args) => {
+                Vm::execute(agent, executable.clone(), Some(&mut args), gc.reborrow())
             }
             VmOrArguments::Vm(vm) => {
                 vm.resume(agent, executable.clone(), value.unbind(), gc.reborrow())
@@ -349,6 +349,10 @@ impl<'a> InternalMethods<'a> for Generator<'a> {}
 impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
     fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
         self.generators.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<GeneratorHeapData<'static>>>();
+        }
         Generator(GeneratorIndex::last(&self.generators))
     }
 }
@@ -460,7 +464,7 @@ impl HeapMarkAndSweep for SuspendedGeneratorState {
         } = self;
         match vm_or_args {
             VmOrArguments::Vm(vm) => vm.sweep_values(compactions),
-            VmOrArguments::Arguments(args) => args.as_ref().sweep_values(compactions),
+            VmOrArguments::Arguments(args) => args.as_mut().sweep_values(compactions),
         }
         executable.sweep_values(compactions);
         execution_context.sweep_values(compactions);

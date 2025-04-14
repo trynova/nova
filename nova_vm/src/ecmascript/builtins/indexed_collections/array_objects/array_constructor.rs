@@ -37,7 +37,7 @@ use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::agent::ExceptionType;
 
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 
 use crate::SmallInteger;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
@@ -600,7 +600,7 @@ impl ArrayConstructor {
         Ok(this_value.bind(gc.into_nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype().into_object();
         let array_prototype = intrinsics.array_prototype();

@@ -16,7 +16,7 @@ use crate::{
         abstract_operations::type_conversion::to_object,
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext,
-            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, RealmIdentifier,
+            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, Realm,
             ThisBindingStatus,
             agent::{
                 ExceptionType::{self, SyntaxError},
@@ -215,7 +215,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
     pub constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
-    pub realm: RealmIdentifier<'a>,
+    pub realm: Realm<'a>,
 
     /// \[\[ScriptOrModule]]
     pub script_or_module: ScriptOrModule<'a>,
@@ -574,7 +574,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             let this_argument = args
                 .with_scoped(
                     agent,
-                    |agent, gc| {
+                    |agent, _, gc| {
                         ordinary_create_from_constructor(
                             agent,
                             unbound_new_target,
@@ -1213,6 +1213,11 @@ impl HeapMarkAndSweep for ECMAScriptFunction<'static> {
 impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> for Heap {
     fn create(&mut self, data: ECMAScriptFunctionHeapData<'a>) -> ECMAScriptFunction<'a> {
         self.ecmascript_functions.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter +=
+                core::mem::size_of::<Option<ECMAScriptFunctionHeapData<'static>>>();
+        }
         ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }

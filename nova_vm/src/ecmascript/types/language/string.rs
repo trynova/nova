@@ -595,6 +595,10 @@ impl Scoped<'_, String<'static>> {
 impl<'a> CreateHeapData<(StringHeapData, u64), String<'a>> for Heap {
     fn create(&mut self, (data, hash): (StringHeapData, u64)) -> String<'a> {
         self.strings.push(Some(data));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<StringHeapData>>();
+        }
         let index = StringIndex::last(&self.strings);
         let heap_string = HeapString(index);
         self.string_lookup_table

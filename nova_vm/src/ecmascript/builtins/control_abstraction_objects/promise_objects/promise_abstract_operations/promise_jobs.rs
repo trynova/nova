@@ -6,6 +6,7 @@
 
 use crate::engine::Global;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{call_function, get_function_realm},
@@ -129,55 +130,70 @@ pub(crate) struct PromiseReactionJob {
 impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
         let Self { reaction, argument } = self;
-        let reaction = reaction.take(agent);
-        let argument = argument.take(agent).bind(gc.nogc()).unbind();
+        let reaction = reaction.take(agent).bind(gc.nogc());
+        let argument = argument.take(agent).bind(gc.nogc());
         // The following are substeps of point 1 in NewPromiseReactionJob.
-        let handler_result = match agent[reaction].handler {
-            PromiseReactionHandler::Empty => match agent[reaction].reaction_type {
-                PromiseReactionType::Fulfill => {
-                    // d.i.1. Let handlerResult be NormalCompletion(argument).
-                    Ok(argument)
+        let (handler_result, promise_capability) = match agent[reaction].handler {
+            PromiseReactionHandler::Empty => {
+                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        // d.i.1. Let handlerResult be NormalCompletion(argument).
+                        (Ok(argument), capability)
+                    }
+                    PromiseReactionType::Reject => {
+                        // d.ii.1. Let handlerResult be ThrowCompletion(argument).
+                        (Err(JsError::new(argument.unbind())), capability)
+                    }
                 }
-                PromiseReactionType::Reject => {
-                    // d.ii.1. Let handlerResult be ThrowCompletion(argument).
-                    Err(JsError::new(argument))
-                }
-            },
+            }
             // e.1. Let handlerResult be Completion(HostCallJobCallback(handler, undefined, « argument »)).
             // TODO: Add the HostCallJobCallback host hook. For now we're using its default
             // implementation, which is calling the thenable, since only browsers should use a
             // different implementation.
-            PromiseReactionHandler::JobCallback(callback) => call_function(
-                agent,
-                callback,
-                Value::Undefined,
-                Some(ArgumentsList::from_mut_slice(&mut [argument])),
-                gc.reborrow(),
-            ),
+            PromiseReactionHandler::JobCallback(callback) => {
+                let reaction = reaction.scope(agent, gc.nogc());
+                let result = call_function(
+                    agent,
+                    callback.unbind(),
+                    Value::Undefined,
+                    Some(ArgumentsList::from_mut_slice(&mut [argument.unbind()])),
+                    gc.reborrow(),
+                )
+                .unbind()
+                .bind(gc.nogc());
+                // SAFETY: reaction is not shared.
+                let reaction = unsafe { reaction.take(agent) };
+                (
+                    result,
+                    agent[reaction].capability.clone().unwrap().bind(gc.nogc()),
+                )
+            }
             PromiseReactionHandler::Await(await_reaction) => {
                 assert!(agent[reaction].capability.is_none());
                 let reaction_type = agent[reaction].reaction_type;
-                await_reaction.resume(agent, reaction_type, argument, gc.reborrow());
+                await_reaction.resume(agent, reaction_type, argument.unbind(), gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 5. f. Return undefined.
-                Ok(Value::Undefined)
+                return Ok(());
             }
             PromiseReactionHandler::AsyncGenerator(async_generator) => {
                 assert!(agent[reaction].capability.is_none());
                 let reaction_type = agent[reaction].reaction_type;
-                async_generator.resume_await(agent, reaction_type, argument, gc.reborrow());
-                Ok(Value::Undefined)
+                async_generator.resume_await(
+                    agent,
+                    reaction_type,
+                    argument.unbind(),
+                    gc.reborrow(),
+                );
+                return Ok(());
             }
         };
 
         // f. If promiseCapability is undefined, then
-        let Some(promise_capability) = &agent[reaction].capability else {
-            // i. Assert: handlerResult is not an abrupt completion.
-            handler_result.unwrap();
-            // ii. Return empty.
-            return Ok(());
-        };
-        let promise_capability = promise_capability.clone();
+        // i. Assert: handlerResult is not an abrupt completion.
+        // ii. Return empty.
+
         match handler_result {
             // h. If handlerResult is an abrupt completion, then
             Err(err) => {
@@ -187,7 +203,9 @@ impl PromiseReactionJob {
             // i. Else,
             Ok(value) => {
                 // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.resolve(agent, value.unbind(), gc)
+                promise_capability
+                    .unbind()
+                    .resolve(agent, value.unbind(), gc)
             }
         };
         Ok(())

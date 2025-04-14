@@ -25,7 +25,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, scope_property_keys,
@@ -1097,7 +1097,7 @@ impl ObjectConstructor {
         )
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
 

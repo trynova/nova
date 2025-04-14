@@ -13,9 +13,7 @@ use crate::{
             OrdinaryFunctionCreateParams, make_constructor,
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
-        execution::{
-            Agent, Environment, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType,
-        },
+        execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         scripts_and_modules::source_code::SourceCode,
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
@@ -82,7 +80,7 @@ impl FunctionConstructor {
         Ok(f.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype().into_object();
 

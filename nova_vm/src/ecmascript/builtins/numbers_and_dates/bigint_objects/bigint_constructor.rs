@@ -18,7 +18,7 @@ use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::BigInt;
@@ -208,7 +208,7 @@ impl BigIntConstructor {
         }
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let big_int_prototype = intrinsics.big_int_prototype();
 

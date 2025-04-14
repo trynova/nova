@@ -112,10 +112,26 @@ unsafe impl Bindable for TypedArrayHeapData<'_> {
 
 impl HeapMarkAndSweep for TypedArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
+        let Self {
+            object_index,
+            viewed_array_buffer,
+            byte_length: _,
+            byte_offset: _,
+            array_length: _,
+        } = self;
+        object_index.mark_values(queues);
+        viewed_array_buffer.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
+        let Self {
+            object_index,
+            viewed_array_buffer,
+            byte_length: _,
+            byte_offset: _,
+            array_length: _,
+        } = self;
+        object_index.sweep_values(compactions);
+        viewed_array_buffer.sweep_values(compactions);
     }
 }

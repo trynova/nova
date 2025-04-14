@@ -23,7 +23,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor, bound_function::bound_function_create, set_function_name,
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
             Number, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
@@ -423,7 +423,7 @@ impl FunctionPrototype {
         ordinary_has_instance(agent, f, v, gc).map(|result| result.into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         ThrowTypeError::create_intrinsic(agent, realm);
 
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
@@ -489,7 +489,7 @@ impl ThrowTypeError {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let throw_type_error =
             BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
         let backing_object = create_throw_type_error_backing_object(agent, realm);
@@ -499,7 +499,7 @@ impl ThrowTypeError {
 
 fn create_throw_type_error_backing_object(
     agent: &mut Agent,
-    realm: RealmIdentifier,
+    realm: Realm,
 ) -> OrdinaryObject<'static> {
     let prototype = agent
         .get_realm_record_by_id(realm)

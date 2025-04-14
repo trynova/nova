@@ -17,7 +17,7 @@ use crate::{
             },
         },
         execution::{
-            Agent, JsResult, RealmIdentifier,
+            Agent, JsResult, Realm,
             agent::{ExceptionType, JsError},
         },
         types::{IntoValue, Value},
@@ -127,7 +127,7 @@ fn async_generator_complete_step(
     generator: AsyncGenerator,
     completion: AsyncGeneratorRequestCompletion,
     done: bool,
-    realm: Option<RealmIdentifier>,
+    realm: Option<Realm>,
     gc: NoGcScope,
 ) {
     // 1. Assert: generator.[[AsyncGeneratorQueue]] is not empty.
@@ -209,8 +209,8 @@ pub(super) fn async_generator_resume(
     //    result of the operation that suspended it. Let result be the
     //    Completion Record returned by the resumed computation.
     let execution_result = match vm_or_args {
-        VmOrArguments::Arguments(args) => {
-            Vm::execute(agent, executable, Some(&args), gc.reborrow())
+        VmOrArguments::Arguments(mut args) => {
+            Vm::execute(agent, executable, Some(&mut args), gc.reborrow())
         }
         VmOrArguments::Vm(vm) => {
             let AsyncGeneratorRequestCompletion::Ok(value) = completion else {

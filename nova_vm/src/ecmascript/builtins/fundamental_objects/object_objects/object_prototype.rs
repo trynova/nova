@@ -16,7 +16,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
             primitive_objects::PrimitiveObjectData,
         },
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -251,7 +251,7 @@ impl ObjectPrototype {
         to_object(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         // The Object prototype object:
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         // is %Object.prototype%.

@@ -33,7 +33,7 @@ use crate::{
             array_species_create,
         },
         execution::{
-            Agent, JsResult, RealmIdentifier,
+            Agent, JsResult, Realm,
             agent::{ExceptionType, JsError},
         },
         types::{
@@ -3817,7 +3817,7 @@ impl ArrayPrototype {
         Ok(a.get(agent).bind(gc.into_nogc()).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();

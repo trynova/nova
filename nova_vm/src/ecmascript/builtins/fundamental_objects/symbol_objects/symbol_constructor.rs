@@ -10,7 +10,7 @@ use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::IntoObject;
 
@@ -106,7 +106,7 @@ impl SymbolConstructor {
         Ok(arguments.get(0).unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let symbol_prototype = intrinsics.symbol_prototype();
 

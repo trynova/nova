@@ -52,8 +52,7 @@ use crate::ecmascript::{
         proxy::Proxy,
     },
     execution::{
-        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
-        RealmIdentifier,
+        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment, Realm,
     },
     scripts_and_modules::{script::Script, source_code::SourceCode},
     types::{
@@ -175,7 +174,7 @@ pub(crate) struct WorkQueues {
     pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub proxys: Vec<Proxy<'static>>,
-    pub realms: Vec<RealmIdentifier<'static>>,
+    pub realms: Vec<Realm<'static>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
     pub scripts: Vec<Script<'static>>,
@@ -919,7 +918,9 @@ where
     }
 
     fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        panic!();
+        const {
+            panic!("Cannot sweep immutable slice");
+        }
     }
 }
 

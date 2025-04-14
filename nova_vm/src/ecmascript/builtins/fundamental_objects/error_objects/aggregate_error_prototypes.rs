@@ -4,13 +4,13 @@
 
 use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    execution::{Agent, RealmIdentifier},
+    execution::{Agent, Realm},
     types::{BUILTIN_STRING_MEMORY, IntoValue, String},
 };
 
 pub(crate) struct AggregateErrorPrototype;
 impl AggregateErrorPrototype {
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let aggregate_constructor = intrinsics.aggregate_error();
         let this = intrinsics.aggregate_error_prototype();

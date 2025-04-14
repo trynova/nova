@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         fundamental_objects::function_objects::function_constructor::{
             DynamicFunctionKind, create_dynamic_function,
         },
@@ -62,7 +62,7 @@ impl AsyncGeneratorFunctionConstructor {
         Ok(f.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_constructor = intrinsics.function();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();

@@ -13,7 +13,7 @@ use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
 #[cfg(feature = "interleaved-gc")]
-use crate::{ecmascript::execution::RealmIdentifier, heap::heap_gc::heap_gc};
+use crate::{ecmascript::execution::Realm, heap::heap_gc::heap_gc};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -36,10 +36,11 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
-            OrdinaryFunctionCreateParams, array_create, create_builtin_constructor,
-            create_unmapped_arguments_object, global_object::perform_eval, make_constructor,
-            make_method, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, set_function_name,
+            OrdinaryFunctionCreateParams, ScopedArgumentsList, array_create,
+            create_builtin_constructor, create_unmapped_arguments_object,
+            global_object::perform_eval, make_constructor, make_method,
+            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+            set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, ProtoIntrinsics,
@@ -60,7 +61,7 @@ use crate::{
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
-            executable::{ArrowFunctionExpression, SendableRef},
+            executable::ArrowFunctionExpression,
             instructions::Instr,
             iterator::{ObjectPropertiesIterator, VmIterator},
         },
@@ -266,37 +267,58 @@ impl<'a> Vm {
     pub(crate) fn execute<'gc>(
         agent: &mut Agent,
         executable: Scoped<'_, Executable>,
-        arguments: Option<&[Value<'static>]>,
+        arguments: Option<&mut [Value<'static>]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
         let mut vm = Vm::new();
 
         if let Some(arguments) = arguments {
-            // SAFETY: awaits and yields are invalid syntax inside an arguments
-            // list, so this reference shouldn't remain alive after this
-            // function returns.
-            let arguments = unsafe { SendableRef::new_as_static(arguments) };
-            vm.iterator_stack.push(VmIterator::SliceIterator(arguments));
-        }
+            ArgumentsList::from_mut_slice(arguments).with_scoped(
+                agent,
+                |agent, arguments, gc| {
+                    // SAFETY: awaits and yields are invalid syntax inside an arguments
+                    // list, so this reference shouldn't remain alive after this
+                    // function returns.
+                    let arguments = unsafe {
+                        core::mem::transmute::<ScopedArgumentsList, ScopedArgumentsList<'static>>(
+                            arguments,
+                        )
+                    };
+                    vm.iterator_stack.push(VmIterator::SliceIterator(arguments));
+                    if agent.options.print_internals {
+                        vm.print_internals(agent, executable.clone(), gc.nogc());
+                    }
 
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Executing Executable ===");
-            eprintln!(
-                "Constants: {:?}",
-                executable.get_constants(agent, gc.nogc())
-            );
-            eprintln!();
-
-            eprintln!("Instructions:");
-            let iter = InstructionIter::new(executable.get_instructions(agent));
-            for (ip, instr) in iter {
-                instr.debug_print(agent, ip, executable.clone(), gc.nogc());
+                    vm.inner_execute(agent, executable, gc)
+                },
+                gc,
+            )
+        } else {
+            if agent.options.print_internals {
+                vm.print_internals(agent, executable.clone(), gc.nogc());
             }
-            eprintln!();
-        }
 
-        vm.inner_execute(agent, executable, gc)
+            vm.inner_execute(agent, executable, gc)
+        }
+    }
+
+    fn print_internals(
+        &self,
+        agent: &mut Agent,
+        executable: Scoped<'_, Executable>,
+        gc: NoGcScope,
+    ) {
+        eprintln!();
+        eprintln!("=== Executing Executable ===");
+        eprintln!("Constants: {:?}", executable.get_constants(agent, gc));
+        eprintln!();
+
+        eprintln!("Instructions:");
+        let iter = InstructionIter::new(executable.get_instructions(agent));
+        for (ip, instr) in iter {
+            instr.debug_print(agent, ip, executable.clone(), gc);
+        }
+        eprintln!();
     }
 
     pub fn resume<'gc>(
@@ -336,18 +358,23 @@ impl<'a> Vm {
         #[cfg(feature = "interleaved-gc")]
         let mut instr_count = 0u8;
 
+        let stack_depth = agent.stack_refs.borrow().len();
         let instructions = executable.get_instructions(agent);
         while let Some(instr) = get_instruction(instructions, &mut self.ip) {
             #[cfg(feature = "interleaved-gc")]
             if do_gc {
                 instr_count = instr_count.wrapping_add(1);
-                if instr_count == 0 {
+                const ALLOC_COUNTER_LIMIT: usize = 1024 * 1024 * 2;
+                // Check allocation counter roughly every 256 instructions and
+                // perform garbage collection if over 2 MiB of allocations have
+                // been performed since last GC.
+                if instr_count == 0 && agent.heap.alloc_counter > ALLOC_COUNTER_LIMIT {
                     let mut root_realms = agent
                         .heap
                         .realms
                         .iter()
                         .enumerate()
-                        .map(|(i, _)| Some(RealmIdentifier::from_index(i)))
+                        .map(|(i, _)| Some(Realm::from_index(i)))
                         .collect::<Vec<_>>();
                     with_vm_gc(
                         agent,
@@ -389,6 +416,7 @@ impl<'a> Vm {
                     }
                 }
             }
+            agent.stack_refs.borrow_mut().truncate(stack_depth);
         }
 
         ExecutionResult::Return(Value::Undefined)
@@ -2274,8 +2302,7 @@ impl<'a> Vm {
                         // We have exhausted the iterator; push in an empty
                         // VmIterator so further instructions aren't
                         // observable.
-                        vm.iterator_stack
-                            .push(VmIterator::SliceIterator(SendableRef::new(&[])));
+                        vm.iterator_stack.push(VmIterator::EmptySliceIterator);
                     } else {
                         // Return our iterator into the iterator stack.
                         vm.iterator_stack.push(iterator);
@@ -2331,7 +2358,7 @@ impl<'a> Vm {
                     unreachable!()
                 };
                 vm.result = Some(
-                    create_unmapped_arguments_object(agent, slice.get(), gc.nogc())
+                    create_unmapped_arguments_object(agent, *slice, gc.nogc())
                         .into_value()
                         .unbind(),
                 );

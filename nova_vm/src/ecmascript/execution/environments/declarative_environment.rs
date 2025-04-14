@@ -158,7 +158,8 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
             bindings,
         } = self;
         outer_env.mark_values(queues);
-        for binding in bindings.values() {
+        for (key, binding) in bindings.iter() {
+            key.mark_values(queues);
             binding.value.mark_values(queues);
         }
     }
@@ -169,18 +170,28 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
             bindings,
         } = self;
         outer_env.sweep_values(compactions);
-        for binding in bindings.values_mut() {
+        let mut replacements = Vec::new();
+        // Sweep all binding values, while also sweeping keys and making note
+        // of all changes in them: Those need to be updated in a separate loop.
+        for (key, binding) in bindings.iter_mut() {
             binding.value.sweep_values(compactions);
-        }
-        let keys = bindings.keys().copied().collect::<Box<[_]>>();
-        for key in keys.iter() {
-            let mut new_key = *key;
-            new_key.sweep_values(compactions);
-            if *key != new_key {
-                let mut binding = bindings.remove(key).unwrap();
-                binding.value.sweep_values(compactions);
-                bindings.insert(new_key, binding);
+            if let String::String(old_key) = key {
+                let old_key = *old_key;
+                let mut new_key = old_key;
+                new_key.sweep_values(compactions);
+                if old_key != new_key {
+                    replacements.push((old_key, new_key));
+                }
             }
+        }
+        // Note: Replacement keys are in indeterminate order, we need to sort
+        // them so that "cascading" replacements are applied in the correct
+        // order.
+        replacements.sort();
+        for (old_key, new_key) in replacements.into_iter() {
+            let binding = bindings.remove(&old_key.into()).unwrap();
+            let did_insert = bindings.insert(new_key.into(), binding).is_none();
+            assert!(did_insert, "Failed to insert binding {:#?}", new_key);
         }
     }
 }

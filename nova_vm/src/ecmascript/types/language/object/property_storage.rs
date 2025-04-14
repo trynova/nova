@@ -7,7 +7,7 @@ use core::cell::Ref;
 use crate::{
     Heap,
     ecmascript::{
-        execution::{Agent, Realm},
+        execution::{Agent, RealmRecord},
         types::{BUILTIN_STRING_MEMORY, IntoValue, PropertyDescriptor, Value},
     },
     engine::context::Bindable,
@@ -173,11 +173,11 @@ impl<'a> PropertyStorage<'a> {
 
 #[derive(Debug)]
 pub struct Entries<'a> {
-    pub realm: Ref<'a, Realm<'static>>,
+    pub realm: Ref<'a, RealmRecord<'static>>,
 }
 
 impl<'a> Entries<'a> {
-    fn new(realm: Ref<'a, Realm<'static>>) -> Self {
+    fn new(realm: Ref<'a, RealmRecord<'static>>) -> Self {
         Self { realm }
     }
 }

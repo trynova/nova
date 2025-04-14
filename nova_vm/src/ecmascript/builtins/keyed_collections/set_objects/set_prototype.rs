@@ -25,7 +25,7 @@ use crate::{
                 data::{SetData, SetHeapData},
             },
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
     heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
@@ -430,7 +430,7 @@ impl SetPrototype {
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.set_prototype();
