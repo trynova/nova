@@ -177,7 +177,7 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
             binding.value.sweep_values(compactions);
             if let String::String(old_key) = key {
                 let old_key = *old_key;
-                let mut new_key = old_key.clone();
+                let mut new_key = old_key;
                 new_key.sweep_values(compactions);
                 if old_key != new_key {
                     replacements.push((old_key, new_key));

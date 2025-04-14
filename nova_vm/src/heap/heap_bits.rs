@@ -918,9 +918,6 @@ where
     }
 
     fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        if self.len() == 0 {
-            return;
-        }
         const {
             panic!("Cannot sweep immutable slice");
         }

@@ -287,7 +287,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
         let collection_data: &mut HeapRootCollectionData =
             collections.get_mut(self.index as usize).unwrap();
         if let HeapRootCollectionData::ArgumentsList(args_ref) = collection_data {
-            let args: &mut [Value<'static>] = *args_ref;
+            let args: &mut [Value<'static>] = args_ref;
             if let Some((first, rest)) = args.split_first_mut() {
                 let result = first.unbind().bind(gc);
                 // SAFETY: args_ref must be valid in the current call and is
