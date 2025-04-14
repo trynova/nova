@@ -158,6 +158,7 @@ impl HeapMarkAndSweep for SharedArrayBuffer<'static> {
 impl<'a> CreateHeapData<SharedArrayBufferHeapData<'a>, SharedArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: SharedArrayBufferHeapData<'a>) -> SharedArrayBuffer<'a> {
         self.shared_array_buffers.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<SharedArrayBufferHeapData<'static>>>();
         SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }
 }

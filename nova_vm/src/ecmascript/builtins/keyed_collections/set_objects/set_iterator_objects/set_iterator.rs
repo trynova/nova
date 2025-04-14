@@ -180,6 +180,7 @@ impl TryFrom<HeapRootData> for SetIterator<'_> {
 impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
     fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
         self.set_iterators.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<SetIteratorHeapData<'static>>>();
         SetIterator(SetIteratorIndex::last(&self.set_iterators))
     }
 }

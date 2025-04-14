@@ -560,6 +560,7 @@ impl Rootable for BuiltinConstructorFunction<'_> {
 impl<'a> CreateHeapData<BuiltinConstructorHeapData<'a>, BuiltinConstructorFunction<'a>> for Heap {
     fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction<'a> {
         self.builtin_constructors.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<BuiltinConstructorHeapData<'static>>>();
         BuiltinConstructorIndex::last(&self.builtin_constructors).into()
     }
 }

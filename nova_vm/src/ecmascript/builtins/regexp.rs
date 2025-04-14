@@ -430,6 +430,7 @@ impl TryFrom<HeapRootData> for RegExp<'_> {
 impl<'a> CreateHeapData<RegExpHeapData<'a>, RegExp<'a>> for Heap {
     fn create(&mut self, data: RegExpHeapData<'a>) -> RegExp<'a> {
         self.regexps.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<RegExpHeapData<'static>>>();
         RegExp(RegExpIndex::last(&self.regexps))
     }
 }

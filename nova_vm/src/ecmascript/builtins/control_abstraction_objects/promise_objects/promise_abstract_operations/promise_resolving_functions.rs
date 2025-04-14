@@ -342,6 +342,8 @@ impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseReso
         data: PromiseResolvingFunctionHeapData<'a>,
     ) -> BuiltinPromiseResolvingFunction<'a> {
         self.promise_resolving_functions.push(Some(data.unbind()));
+        self.alloc_counter +=
+            core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();
         BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
 }

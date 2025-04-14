@@ -207,6 +207,7 @@ impl HeapMarkAndSweep for Date<'static> {
 impl<'a> CreateHeapData<DateHeapData<'a>, Date<'a>> for Heap {
     fn create(&mut self, data: DateHeapData<'a>) -> Date<'a> {
         self.dates.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<DateHeapData<'static>>>();
         Date(DateIndex::last(&self.dates))
     }
 }

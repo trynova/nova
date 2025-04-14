@@ -218,6 +218,7 @@ impl Rootable for DataView<'_> {
 impl<'a> CreateHeapData<DataViewHeapData<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewHeapData<'a>) -> DataView<'a> {
         self.data_views.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<DataViewHeapData<'static>>>();
         DataView::from(DataViewIndex::last(&self.data_views))
     }
 }

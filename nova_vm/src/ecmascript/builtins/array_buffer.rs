@@ -309,6 +309,7 @@ impl HeapMarkAndSweep for ArrayBuffer<'static> {
 impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
         self.array_buffers.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<ArrayBufferHeapData<'static>>>();
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }
 }

@@ -855,6 +855,7 @@ impl TryFrom<HeapRootData> for TypedArray<'_> {
 impl<'a> CreateHeapData<TypedArrayHeapData<'a>, TypedArray<'a>> for Heap {
     fn create(&mut self, data: TypedArrayHeapData<'a>) -> TypedArray<'a> {
         self.typed_arrays.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<TypedArrayHeapData<'static>>>();
         // TODO: The type should be checked based on data or something equally stupid
         TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
     }

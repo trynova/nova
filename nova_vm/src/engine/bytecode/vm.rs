@@ -364,7 +364,11 @@ impl<'a> Vm {
             #[cfg(feature = "interleaved-gc")]
             if do_gc {
                 instr_count = instr_count.wrapping_add(1);
-                if instr_count == 0 {
+                const ALLOC_COUNTER_LIMIT: usize = 1024 * 1024 * 2;
+                // Check allocation counter roughly every 256 instructions and
+                // perform garbage collection if over 2 MiB of allocations have
+                // been performed since last GC.
+                if instr_count == 0 && agent.heap.alloc_counter > ALLOC_COUNTER_LIMIT {
                     let mut root_realms = agent
                         .heap
                         .realms

@@ -130,6 +130,7 @@ impl<'a> InternalMethods<'a> for Promise<'a> {}
 impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
     fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
         self.promises.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<PromiseHeapData<'static>>>();
         Promise(PromiseIndex::last(&self.promises))
     }
 }
