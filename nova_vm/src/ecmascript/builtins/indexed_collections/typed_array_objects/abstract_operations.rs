@@ -2,11 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::any::TypeId;
+
 use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{construct, get, length_of_array_like, set, try_set},
+            operations_on_objects::{
+                construct, get, length_of_array_like, set, species_constructor, try_set,
+            },
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
@@ -1375,4 +1379,147 @@ pub(crate) fn typed_array_create_same_type<'a>(
     // 4. Assert: result.[[ContentType]] is exemplar.[[ContentType]].
     // 5. Return result.
     Ok(result.unbind())
+}
+
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
+    agent: &mut Agent,
+    exemplar: TypedArray,
+    length: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+    let default_constructor = match exemplar {
+        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
+        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
+        TypedArray::Uint8ClampedArray(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .uint8_clamped_array(),
+        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
+        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
+        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
+        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
+        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
+        TypedArray::BigUint64Array(_) => {
+            agent.current_realm_record().intrinsics().big_uint64_array()
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
+        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
+        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
+    };
+    // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
+    let constructor = species_constructor(
+        agent,
+        exemplar.into_object(),
+        default_constructor.into_function(),
+        gc.reborrow(),
+    )?;
+    // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
+    let result = typed_array_create_from_constructor_with_length(
+        agent,
+        constructor.unbind(),
+        length,
+        gc.reborrow(),
+    )?
+    .unbind()
+    .bind(gc.nogc());
+    // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
+    // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
+    let scoped_result = result.scope(agent, gc.nogc());
+    let type_id_matches = match scoped_result.get(agent) {
+        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
+        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
+        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
+        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
+        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
+        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
+        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
+        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
+        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
+        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
+        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
+    };
+    if !type_id_matches {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    }
+    // 6. Return result.
+    Ok(scoped_result.get(agent))
+}
+
+pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
+    agent: &mut Agent,
+    exemplar: TypedArray,
+    array_buffer: ArrayBuffer,
+    byte_offset: i64,
+    length: Option<i64>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+    let default_constructor = match exemplar {
+        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
+        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
+        TypedArray::Uint8ClampedArray(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .uint8_clamped_array(),
+        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
+        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
+        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
+        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
+        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
+        TypedArray::BigUint64Array(_) => {
+            agent.current_realm_record().intrinsics().big_uint64_array()
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
+        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
+        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
+    };
+    // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
+    // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
+    let result = typed_array_create_from_constructor_with_buffer(
+        agent,
+        default_constructor.into_function(),
+        array_buffer,
+        byte_offset,
+        length,
+        gc.reborrow(),
+    )?
+    .unbind()
+    .bind(gc.nogc());
+    // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
+    // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
+    let scoped_result = result.scope(agent, gc.nogc());
+    let type_id_matches = match scoped_result.get(agent) {
+        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
+        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
+        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
+        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
+        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
+        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
+        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
+        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
+        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
+        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
+        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
+    };
+    if !type_id_matches {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.nogc(),
+        ));
+    }
+    // 6. Return result.
+    Ok(scoped_result.get(agent).unbind())
 }
