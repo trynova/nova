@@ -783,7 +783,10 @@ impl IndexMut<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
 impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
     fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
         self.bigints.push(Some(data));
-        self.alloc_counter += core::mem::size_of::<Option<BigIntHeapData>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<BigIntHeapData>>();
+        }
         BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
     }
 }

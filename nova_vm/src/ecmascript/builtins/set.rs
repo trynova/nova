@@ -183,7 +183,10 @@ impl TryFrom<HeapRootData> for Set<'_> {
 impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
         self.sets.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SetHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<SetHeapData<'static>>>();
+        }
         Set(SetIndex::last(&self.sets))
     }
 }

@@ -227,7 +227,10 @@ impl Rootable for SourceCode<'_> {
 impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
     fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
         self.source_codes.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SourceCodeHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<SourceCodeHeapData<'static>>>();
+        }
         SourceCode(SourceCodeIndex::last(&self.source_codes))
     }
 }

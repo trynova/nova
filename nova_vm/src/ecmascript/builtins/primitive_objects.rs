@@ -755,7 +755,10 @@ impl HeapMarkAndSweep for PrimitiveObject<'static> {
 impl<'a> CreateHeapData<PrimitiveObjectHeapData<'a>, PrimitiveObject<'a>> for Heap {
     fn create(&mut self, data: PrimitiveObjectHeapData<'a>) -> PrimitiveObject<'a> {
         self.primitive_objects.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<PrimitiveObjectHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<PrimitiveObjectHeapData<'static>>>();
+        }
         PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
     }
 }

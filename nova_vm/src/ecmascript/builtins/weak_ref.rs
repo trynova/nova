@@ -148,7 +148,10 @@ impl TryFrom<HeapRootData> for WeakRef<'_> {
 impl<'a> CreateHeapData<WeakRefHeapData<'a>, WeakRef<'a>> for Heap {
     fn create(&mut self, data: WeakRefHeapData<'a>) -> WeakRef<'a> {
         self.weak_refs.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<WeakRefHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<WeakRefHeapData<'static>>>();
+        }
         WeakRef(WeakRefIndex::last(&self.weak_refs))
     }
 }

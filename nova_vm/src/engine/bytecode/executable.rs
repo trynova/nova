@@ -472,7 +472,10 @@ impl Rootable for Executable<'_> {
 impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
     fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
         self.executables.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<Option<ExecutableHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ExecutableHeapData<'static>>>();
+        }
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         // SAFETY: After pushing to executables, the vector cannot be empty.
         Executable(

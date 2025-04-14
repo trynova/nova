@@ -761,7 +761,10 @@ impl Rootable for Array<'_> {
 impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
         self.arrays.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
+        }
         Array::from(ArrayIndex::last(&self.arrays))
     }
 }

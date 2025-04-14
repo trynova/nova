@@ -1822,7 +1822,10 @@ impl TryFrom<HeapRootData> for Proxy<'_> {
 impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
     fn create(&mut self, data: ProxyHeapData<'a>) -> Proxy<'a> {
         self.proxys.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ProxyHeapData<'static>>>();
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ProxyHeapData<'static>>>();
+        }
         Proxy(ProxyIndex::last(&self.proxys))
     }
 }
