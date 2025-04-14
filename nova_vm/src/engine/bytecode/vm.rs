@@ -36,10 +36,11 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
-            OrdinaryFunctionCreateParams, array_create, create_builtin_constructor,
-            create_unmapped_arguments_object, global_object::perform_eval, make_constructor,
-            make_method, ordinary::ordinary_object_create_with_intrinsics,
-            ordinary_function_create, set_function_name,
+            OrdinaryFunctionCreateParams, ScopedArgumentsList, array_create,
+            create_builtin_constructor, create_unmapped_arguments_object,
+            global_object::perform_eval, make_constructor, make_method,
+            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
+            set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, ProtoIntrinsics,
@@ -60,7 +61,7 @@ use crate::{
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
-            executable::{ArrowFunctionExpression, SendableRef},
+            executable::ArrowFunctionExpression,
             instructions::Instr,
             iterator::{ObjectPropertiesIterator, VmIterator},
         },
@@ -266,37 +267,58 @@ impl<'a> Vm {
     pub(crate) fn execute<'gc>(
         agent: &mut Agent,
         executable: Scoped<'_, Executable>,
-        arguments: Option<&[Value<'static>]>,
+        arguments: Option<&mut [Value<'static>]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
         let mut vm = Vm::new();
 
         if let Some(arguments) = arguments {
-            // SAFETY: awaits and yields are invalid syntax inside an arguments
-            // list, so this reference shouldn't remain alive after this
-            // function returns.
-            let arguments = unsafe { SendableRef::new_as_static(arguments) };
-            vm.iterator_stack.push(VmIterator::SliceIterator(arguments));
-        }
+            ArgumentsList::from_mut_slice(arguments).with_scoped(
+                agent,
+                |agent, arguments, gc| {
+                    // SAFETY: awaits and yields are invalid syntax inside an arguments
+                    // list, so this reference shouldn't remain alive after this
+                    // function returns.
+                    let arguments = unsafe {
+                        core::mem::transmute::<ScopedArgumentsList, ScopedArgumentsList<'static>>(
+                            arguments,
+                        )
+                    };
+                    vm.iterator_stack.push(VmIterator::SliceIterator(arguments));
+                    if agent.options.print_internals {
+                        vm.print_internals(agent, executable.clone(), gc.nogc());
+                    }
 
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Executing Executable ===");
-            eprintln!(
-                "Constants: {:?}",
-                executable.get_constants(agent, gc.nogc())
-            );
-            eprintln!();
-
-            eprintln!("Instructions:");
-            let iter = InstructionIter::new(executable.get_instructions(agent));
-            for (ip, instr) in iter {
-                instr.debug_print(agent, ip, executable.clone(), gc.nogc());
+                    vm.inner_execute(agent, executable, gc)
+                },
+                gc,
+            )
+        } else {
+            if agent.options.print_internals {
+                vm.print_internals(agent, executable.clone(), gc.nogc());
             }
-            eprintln!();
-        }
 
-        vm.inner_execute(agent, executable, gc)
+            vm.inner_execute(agent, executable, gc)
+        }
+    }
+
+    fn print_internals(
+        &self,
+        agent: &mut Agent,
+        executable: Scoped<'_, Executable>,
+        gc: NoGcScope,
+    ) {
+        eprintln!();
+        eprintln!("=== Executing Executable ===");
+        eprintln!("Constants: {:?}", executable.get_constants(agent, gc));
+        eprintln!();
+
+        eprintln!("Instructions:");
+        let iter = InstructionIter::new(executable.get_instructions(agent));
+        for (ip, instr) in iter {
+            instr.debug_print(agent, ip, executable.clone(), gc);
+        }
+        eprintln!();
     }
 
     pub fn resume<'gc>(
@@ -2276,8 +2298,7 @@ impl<'a> Vm {
                         // We have exhausted the iterator; push in an empty
                         // VmIterator so further instructions aren't
                         // observable.
-                        vm.iterator_stack
-                            .push(VmIterator::SliceIterator(SendableRef::new(&[])));
+                        vm.iterator_stack.push(VmIterator::EmptySliceIterator);
                     } else {
                         // Return our iterator into the iterator stack.
                         vm.iterator_stack.push(iterator);
@@ -2333,7 +2354,7 @@ impl<'a> Vm {
                     unreachable!()
                 };
                 vm.result = Some(
-                    create_unmapped_arguments_object(agent, slice.get(), gc.nogc())
+                    create_unmapped_arguments_object(agent, *slice, gc.nogc())
                         .into_value()
                         .unbind(),
                 );

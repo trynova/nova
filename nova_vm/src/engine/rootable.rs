@@ -769,8 +769,8 @@ impl HeapMarkAndSweep for HeapRootCollectionData {
             Self::ArgumentsList(slice) => {
                 slice.sweep_values(compactions);
             }
-            Self::ValueVec(values) => values.as_slice().sweep_values(compactions),
-            Self::PropertyKeyVec(items) => items.as_slice().sweep_values(compactions),
+            Self::ValueVec(values) => values.as_mut_slice().sweep_values(compactions),
+            Self::PropertyKeyVec(items) => items.as_mut_slice().sweep_values(compactions),
         }
     }
 }

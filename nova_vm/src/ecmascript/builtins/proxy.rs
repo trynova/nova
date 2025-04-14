@@ -1593,7 +1593,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 let handler = handler.unbind();
                 args.with_scoped(
                     agent,
-                    |agent, gc| {
+                    |agent, _, gc| {
                         get_object_method(agent, handler, BUILTIN_STRING_MEMORY.apply.into(), gc)
                     },
                     gc.reborrow(),
@@ -1669,7 +1669,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 let handler = handler.unbind();
                 args.with_scoped(
                     agent,
-                    |agent, gc| {
+                    |agent, _, gc| {
                         get_object_method(
                             agent,
                             handler,

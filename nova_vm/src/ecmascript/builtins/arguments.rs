@@ -36,12 +36,13 @@ use crate::{
         execution::{ProtoIntrinsics, agent::Agent},
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Number, Object, PropertyDescriptor,
-            PropertyKey, Value,
+            PropertyKey,
         },
     },
     heap::WellKnownSymbolIndexes,
 };
 
+use super::ScopedArgumentsList;
 use super::ordinary::ordinary_object_create_with_intrinsics;
 
 // 10.4.4.1 [[GetOwnProperty]] ( P )
@@ -122,14 +123,14 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 /// The abstract operation CreateUnmappedArgumentsObject takes argument
 /// argumentsList (a List of ECMAScript language values) and returns an
 /// ordinary object.
-pub(crate) fn create_unmapped_arguments_object<'a>(
+pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     agent: &mut Agent,
-    arguments_list: &[Value],
-    gc: NoGcScope<'a, '_>,
+    arguments_list: ScopedArgumentsList<'b>,
+    gc: NoGcScope<'a, 'b>,
 ) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.
-    let len = arguments_list.len();
-    let len = Number::from_f64(agent, len as f64, gc)
+    let len = arguments_list.len(agent);
+    let len_value = Number::from_i64(agent, len as i64, gc)
         .into_value()
         .unbind();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
@@ -147,7 +148,7 @@ pub(crate) fn create_unmapped_arguments_object<'a>(
         key,
         PropertyDescriptor {
             // [[Value]]: 𝔽(len),
-            value: Some(len),
+            value: Some(len_value),
             // [[Writable]]: true,
             writable: Some(true),
             // [[Enumerable]]: false,
@@ -161,12 +162,13 @@ pub(crate) fn create_unmapped_arguments_object<'a>(
     .unwrap();
     // 5. Let index be 0.
     // 6. Repeat, while index < len,
-    for (index, &val) in arguments_list.iter().enumerate() {
+    for index in 0..len {
         // a. Let val be argumentsList[index].
         // b. Perform ! CreateDataPropertyOrThrow(obj, ! ToString(𝔽(index)), val).
         debug_assert!(index < u32::MAX as usize);
         let index = index as u32;
         let key = PropertyKey::Integer(index.into());
+        let val = arguments_list.get(agent, index, gc);
         unwrap_try(try_create_data_property_or_throw(agent, obj, key, val, gc)).unwrap();
         // c. Set index to index + 1.
     }

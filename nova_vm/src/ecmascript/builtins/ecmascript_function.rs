@@ -574,7 +574,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             let this_argument = args
                 .with_scoped(
                     agent,
-                    |agent, gc| {
+                    |agent, _, gc| {
                         ordinary_create_from_constructor(
                             agent,
                             unbound_new_target,

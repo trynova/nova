@@ -296,7 +296,7 @@ pub(crate) fn evaluate_function_body<'gc>(
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
-    Vm::execute(agent, exe, Some(arguments_list.unbind().as_slice()), gc).into_js_result()
+    Vm::execute(agent, exe, Some(arguments_list.unbind().as_mut_slice()), gc).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
@@ -335,8 +335,12 @@ pub(crate) fn evaluate_async_function_body<'a>(
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
-    let arguments_list: &[Value<'static>] = &arguments_list.unbind();
-    match Vm::execute(agent, exe, Some(arguments_list), gc.reborrow()) {
+    match Vm::execute(
+        agent,
+        exe,
+        Some(arguments_list.unbind().as_mut_slice()),
+        gc.reborrow(),
+    ) {
         ExecutionResult::Return(result) => {
             let result = result.unbind().bind(gc.nogc());
             let promise = promise.get(agent).bind(gc.nogc());
@@ -429,7 +433,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
         let generator = args
             .with_scoped(
                 agent,
-                |agent, gc| {
+                |agent, _, gc| {
                     ordinary_create_from_constructor(
                         agent,
                         function_object,
@@ -445,7 +449,6 @@ pub(crate) fn evaluate_generator_body<'gc>(
     };
     let gc = gc.into_nogc();
     let generator = generator.bind(gc);
-    let arguments_list = arguments_list.bind(gc);
     let Object::Generator(generator) = generator else {
         unreachable!()
     };
@@ -497,7 +500,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         let generator = args
             .with_scoped(
                 agent,
-                |agent, gc| {
+                |agent, _, gc| {
                     ordinary_create_from_constructor(
                         agent,
                         function_object,

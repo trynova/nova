@@ -6,6 +6,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, Index, IndexMut},
 };
+use std::hint::unreachable_unchecked;
 
 use crate::{
     ecmascript::{
@@ -75,83 +76,98 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     pub fn with_scoped<'a, R>(
         &mut self,
         agent: &mut Agent,
-        work: impl FnOnce(&mut Agent, GcScope<'a, '_>) -> R,
+        work: impl FnOnce(&mut Agent, ScopedArgumentsList<'_>, GcScope<'a, '_>) -> R,
         mut gc: GcScope<'a, '_>,
     ) -> R
     where
         R: 'a,
     {
-        if cfg!(feature = "interleaved-gc") {
-            // First take the arguments from ArgumentsList. Note: This is
-            // strictly extra work from a computational standpoint, but makes
-            // the code safer from a memory stand point. Any errors will also
-            // become more obvious.
-            let slice = core::mem::take(&mut self.slice);
-            // SAFETY: We push the slice to the heap temporarily, for which we
-            // need to transmute its lifetime to static. This is strictly not
-            // correct: The slice points either to the stack or to a Vec owned
-            // by an above call frame. But! We give our best possible guarantee
-            // that the slice will be taken out of the heap before the end of
-            // this call. As long as that holds, then this is all perfectly
-            // legal. Note that unwinding of panics will break that guarantee
-            // currently.
-            let slice = unsafe {
-                std::mem::transmute::<&mut [Value<'static>], &'static mut [Value<'static>]>(slice)
-            };
-            // We store the slice's data for validity checking later.
-            let slice_ptr = slice.as_mut_ptr();
-            let slice_len = slice.len();
-            // Now we push the slice onto the heap.
-            let len = {
-                let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
-                let len = stack_ref_collections.len();
-                stack_ref_collections.push(HeapRootCollectionData::ArgumentsList(slice));
-                // Elsewhere we make assumptions about the size of the stack.
-                // Thus check it here as well.
-                u32::try_from(len).unwrap()
-            };
+        // First take the arguments from ArgumentsList. Note: This is
+        // strictly extra work from a computational standpoint, but makes
+        // the code safer from a memory stand point. Any errors will also
+        // become more obvious.
+        let slice = core::mem::take(&mut self.slice);
+        // SAFETY: We push the slice to the heap temporarily, for which we
+        // need to transmute its lifetime to static. This is strictly not
+        // correct: The slice points either to the stack or to a Vec owned
+        // by an above call frame. But! We give our best possible guarantee
+        // that the slice will be taken out of the heap before the end of
+        // this call. As long as that holds, then this is all perfectly
+        // legal. Note that unwinding of panics will break that guarantee
+        // currently.
+        let slice = unsafe {
+            std::mem::transmute::<&mut [Value<'static>], &'static mut [Value<'static>]>(slice)
+        };
+        // Store the slice's end pointer for validity checking later.
+        let slice_end_ptr = slice.as_ptr_range().end;
+        let slice_len = slice.len();
+        // Now we push the slice onto the heap.
+        let (stack_refs_len, len) = {
+            let stack_refs_len = u32::try_from(agent.stack_refs.borrow().len())
+                .expect("Stack references overflowed");
+            let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
+            let len = stack_ref_collections.len();
+            stack_ref_collections.push(HeapRootCollectionData::ArgumentsList(slice));
+            // Elsewhere we make assumptions about the size of the stack.
+            // Thus check it here as well.
+            (
+                stack_refs_len,
+                u32::try_from(len).expect("Stack reference collections overflowed"),
+            )
+        };
+        let result = {
+            let sub_gc = gc.subscope();
+            let scoped_args = ScopedArgumentsList::new(len, sub_gc.nogc());
             // Once the slice is on the heap, we can perform the user's work.
-            let result = work(agent, gc.subscope());
-            // After the user's work is done, we can get to work returning the
-            // slice from the heap.
-            let stack_data = {
-                // We look at the slot where we put the slice in and check that
-                // it contains an arguments list.
-                let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
-                debug_assert!(stack_ref_collections.len() >= len as usize);
-                let stack_slot = &mut stack_ref_collections[len as usize];
-                if !matches!(stack_slot, HeapRootCollectionData::ArgumentsList(_)) {
-                    unreachable!()
-                }
-                // We take the slice back from the heap by replacing the data
-                // with an empty collection, and then truncate the heap stack
-                // to its previous size.
-                let stack_data = core::mem::replace(stack_slot, HeapRootCollectionData::Empty);
-                stack_ref_collections.truncate(len as usize);
-                stack_data
-            };
-            let HeapRootCollectionData::ArgumentsList(slice) = stack_data else {
+            work(agent, scoped_args, sub_gc)
+        };
+        // After the user's work is done, we can get to work returning the
+        // slice from the heap.
+        let slice = {
+            agent
+                .stack_refs
+                .borrow_mut()
+                .truncate(stack_refs_len as usize);
+
+            // We look at the slot where we put the slice in and check that
+            // it contains an arguments list.
+            let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
+            debug_assert!(stack_ref_collections.len() >= len as usize);
+            let stack_slot = &mut stack_ref_collections[len as usize];
+            if !matches!(stack_slot, HeapRootCollectionData::ArgumentsList(_)) {
                 unreachable!()
+            }
+            // We take the slice back from the heap by replacing the data
+            // with an empty collection, and then truncate the heap stack
+            // to its previous size.
+            let HeapRootCollectionData::ArgumentsList(slice) =
+                core::mem::replace(stack_slot, HeapRootCollectionData::Empty)
+            else {
+                // SAFETY: Checked above against the stack_slot.
+                unsafe { unreachable_unchecked() }
             };
-            // Confirm that we have the right slice and that no funny business
-            // has occurred.
-            assert_eq!(slice.as_mut_ptr(), slice_ptr);
-            assert_eq!(slice.len(), slice_len);
-            // Now that we have our slice back, we can place it back where it
-            // came from. The end result is that the slice has temporarily been
-            // held by the heap and has been given back to the caller. While
-            // the heap held it, the caller couldn't have done so, and thus the
-            // exclusive reference requirement cannot have been broken by this
-            // method.
-            // The only thing we can break here is the lifetime requirement,
-            // and that is only possible if the user method panicked and that
-            // panic was caught and recovered from above us. ie. We're not
-            // panic safe currently.
-            debug_assert!(core::mem::replace(&mut self.slice, slice).is_empty());
-            result
-        } else {
-            work(agent, gc)
-        }
+            stack_ref_collections.truncate(len as usize);
+            slice
+        };
+        // Confirm that we have the right slice and that only valid subslicing
+        // has occurred.
+        let post_work_slice_end_ptr = slice.as_ptr_range().end;
+        let post_work_slice_len = slice.len();
+        assert!(slice_len >= post_work_slice_len);
+        assert_eq!(slice_end_ptr, post_work_slice_end_ptr);
+        // Now that we have our slice back, we can place it back where it
+        // came from. The end result is that the slice has temporarily been
+        // held by the heap and has been given back to the caller. While
+        // the heap held it, the caller couldn't have done so, and thus the
+        // exclusive reference requirement cannot have been broken by this
+        // method.
+        // The only thing we can break here is the lifetime requirement,
+        // and that is only possible if the user method panicked and that
+        // panic was caught and recovered from above us. ie. We're not
+        // panic safe currently.
+        let slice = core::mem::replace(&mut self.slice, slice);
+        debug_assert!(slice.is_empty());
+        result
     }
 
     pub(crate) fn slice_from(self, start: usize) -> ArgumentsList<'slice, 'value> {
@@ -166,6 +182,11 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
 
     /// Access the Values in an ArgumentsList as a slice.
     pub fn as_slice(&self) -> &[Value<'value>] {
+        self.slice
+    }
+
+    /// Access the Values in an ArgumentsList as a mut slice.
+    pub(crate) fn as_mut_slice(&mut self) -> &mut [Value<'static>] {
         self.slice
     }
 
@@ -212,6 +233,84 @@ impl<'value> Deref for ArgumentsList<'_, 'value> {
 
     fn deref(&self) -> &Self::Target {
         self.slice
+    }
+}
+
+/// Arguments list stored temporarily on the Agent's heap.
+///
+/// The arguments can be accessed through the Agent for the duration of the
+/// function call.
+#[derive(Clone, Copy)]
+pub struct ScopedArgumentsList<'scope> {
+    index: u32,
+    value: PhantomData<Value<'scope>>,
+}
+
+impl<'scope> ScopedArgumentsList<'scope> {
+    pub(crate) fn new(index: u32, _: NoGcScope<'_, 'scope>) -> Self {
+        Self {
+            index,
+            value: PhantomData,
+        }
+    }
+
+    pub fn get<'gc>(self, agent: &Agent, index: u32, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        if let HeapRootCollectionData::ArgumentsList(args) = agent
+            .stack_ref_collections
+            .borrow()
+            .get(self.index as usize)
+            .unwrap()
+        {
+            args.get(index as usize)
+                .unwrap_or(&Value::Undefined)
+                .bind(gc)
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn len(self, agent: &Agent) -> usize {
+        if let HeapRootCollectionData::ArgumentsList(args) = agent
+            .stack_ref_collections
+            .borrow()
+            .get(self.index as usize)
+            .unwrap()
+        {
+            args.len()
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub(crate) fn unshift<'gc>(self, agent: &Agent, gc: NoGcScope<'gc, '_>) -> Option<Value<'gc>> {
+        let mut collections = agent.stack_ref_collections.borrow_mut();
+        let collection_data: &mut HeapRootCollectionData =
+            collections.get_mut(self.index as usize).unwrap();
+        if let HeapRootCollectionData::ArgumentsList(args_ref) = collection_data {
+            let args: &mut [Value<'static>] = *args_ref;
+            if let Some((first, rest)) = args.split_first_mut() {
+                let result = first.unbind().bind(gc);
+                // SAFETY: args_ref must be valid in the current call and is
+                // marked as static. A subslice of it is then likewise valid
+                // and should be marked static.
+                *args_ref = unsafe {
+                    core::mem::transmute::<&mut [Value<'static>], &'static mut [Value<'static>]>(
+                        rest,
+                    )
+                };
+                Some(result)
+            } else {
+                None
+            }
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+impl core::fmt::Debug for ScopedArgumentsList<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "ScopedArgumentsList({})", self.index)
     }
 }
 

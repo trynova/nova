@@ -11,7 +11,7 @@ use crate::{
             operations_on_objects::{call_function, get, get_method, throw_not_callable},
             type_conversion::to_boolean,
         },
-        builtins::Array,
+        builtins::{Array, ScopedArgumentsList},
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyKey, Value},
     },
@@ -22,8 +22,6 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
-use super::executable::SendableRef;
-
 #[derive(Debug)]
 pub(super) enum VmIterator {
     /// Special type for iterators that do not have a callable next method.
@@ -31,7 +29,8 @@ pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord<'static>),
-    SliceIterator(SendableRef<[Value<'static>]>),
+    SliceIterator(ScopedArgumentsList<'static>),
+    EmptySliceIterator,
 }
 
 impl VmIterator {
@@ -115,16 +114,8 @@ impl VmIterator {
                     Ok(Some(value))
                 }
             }
-            VmIterator::SliceIterator(slice_ref) => {
-                let slice = slice_ref.get();
-                if slice.is_empty() {
-                    Ok(None)
-                } else {
-                    let ret = slice[0];
-                    *slice_ref = SendableRef::new(&slice[1..]);
-                    Ok(Some(ret))
-                }
-            }
+            VmIterator::SliceIterator(slice_ref) => Ok(slice_ref.unshift(agent, gc.into_nogc())),
+            VmIterator::EmptySliceIterator => Ok(None),
         }
     }
 
@@ -136,7 +127,8 @@ impl VmIterator {
                 Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
             }
             VmIterator::GenericIterator(_) => None,
-            VmIterator::SliceIterator(slice) => Some(slice.get().len()),
+            VmIterator::SliceIterator(slice) => Some(slice.len(agent)),
+            VmIterator::EmptySliceIterator => Some(0),
         }
     }
 
@@ -376,7 +368,8 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),
             VmIterator::GenericIterator(iter) => iter.mark_values(queues),
-            VmIterator::SliceIterator(slice) => slice.get().mark_values(queues),
+            VmIterator::SliceIterator(_) => {}
+            VmIterator::EmptySliceIterator => {}
         }
     }
 
@@ -386,7 +379,8 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),
-            VmIterator::SliceIterator(slice) => slice.get().sweep_values(compactions),
+            VmIterator::SliceIterator(_) => {}
+            VmIterator::EmptySliceIterator => {}
         }
     }
 }
