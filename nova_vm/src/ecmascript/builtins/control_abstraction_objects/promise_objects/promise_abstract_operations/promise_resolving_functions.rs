@@ -344,7 +344,8 @@ impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseReso
         self.promise_resolving_functions.push(Some(data.unbind()));
         #[cfg(feature = "interleaved-gc")]
         {
-            core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();
+            self.alloc_counter +=
+                core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();
         }
         BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
