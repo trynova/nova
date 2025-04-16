@@ -596,11 +596,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let target_env = agent[target_module].module.environment;
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     match target_env {
-                        None => Err(agent.throw_exception(
-                            ExceptionType::ReferenceError,
-                            format!("Could not resolve module '{}'.", key.as_str(agent)),
-                            gc.nogc(),
-                        )),
+                        None => Err(agent
+                            .throw_exception(
+                                ExceptionType::ReferenceError,
+                                format!("Could not resolve module '{}'.", key.as_str(agent)),
+                                gc.nogc(),
+                            )
+                            .unbind()),
                         Some(_target_env) => {
                             // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
                             todo!()

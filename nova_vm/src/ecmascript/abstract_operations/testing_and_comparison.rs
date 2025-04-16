@@ -41,11 +41,13 @@ pub(crate) fn require_object_coercible<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
     if argument.is_undefined() || argument.is_null() {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Argument cannot be converted into an object",
-            gc,
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Argument cannot be converted into an object",
+                gc,
+            )
+            .unbind())
     } else {
         Ok(argument.bind(gc))
     }

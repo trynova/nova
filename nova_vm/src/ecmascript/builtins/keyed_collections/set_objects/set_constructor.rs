@@ -70,11 +70,13 @@ impl SetConstructor {
         let new_target = new_target.bind(nogc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Cannot call Set as a function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Cannot call Set as a function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
         let new_target = Function::try_from(new_target).unwrap();
@@ -110,11 +112,13 @@ impl SetConstructor {
         )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder.unbind(), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Invalid adder function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Invalid adder function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let adder = adder.scope(agent, gc.nogc());
         if let Value::Array(iterable) = scoped_iterable.get(agent) {
@@ -202,7 +206,7 @@ impl SetConstructor {
             .unbind()
             .bind(gc.nogc())
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
 
         let iterator = iterator.scope(agent, gc.nogc());

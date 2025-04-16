@@ -43,11 +43,13 @@ impl SetIteratorPrototype {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::SetIterator(iterator) = this_value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "SetIterator expected",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "SetIterator expected",
+                    gc,
+                )
+                .unbind());
         };
         let iterator = iterator.bind(gc);
 

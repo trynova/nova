@@ -412,7 +412,9 @@ impl ObjectConstructor {
                 "{} is not an object or null",
                 o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         };
         if properties != Value::Undefined {
             let scoped_obj = obj.scope(agent, gc.nogc());
@@ -442,7 +444,9 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
         let result = object_define_properties(agent, o.unbind(), properties.unbind(), gc)?;
@@ -469,11 +473,9 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                error_message,
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
+                .unbind());
         };
         let o = o.scope(agent, gc.nogc());
         // 2. Let key be ? ToPropertyKey(P).
@@ -549,11 +551,13 @@ impl ObjectConstructor {
         let status = set_integrity_level::<Frozen>(agent, o.unbind(), gc.reborrow())?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
-            Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Could not freeze object",
-                gc.nogc(),
-            ))
+            Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Could not freeze object",
+                    gc.nogc(),
+                )
+                .unbind())
         } else {
             // 4. Return O.
             Ok(scoped_o.get(agent).into_value())
@@ -984,11 +988,13 @@ impl ObjectConstructor {
             .internal_prevent_extensions(agent, gc.reborrow())?;
         // 3. If status is false, throw a TypeError exception.
         if !status {
-            Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Could not prevent extensions",
-                gc.nogc(),
-            ))
+            Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Could not prevent extensions",
+                    gc.nogc(),
+                )
+                .unbind())
         } else {
             // 4. Return O.
             Ok(scoped_o.get(agent).into_value())
@@ -1012,11 +1018,13 @@ impl ObjectConstructor {
         let status = set_integrity_level::<Sealed>(agent, o.unbind(), gc.reborrow())?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
-            Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Could not seal object",
-                gc.nogc(),
-            ))
+            Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Could not seal object",
+                    gc.nogc(),
+                )
+                .unbind())
         } else {
             // 4. Return O.
             Ok(scoped_o.get(agent).into_value())
@@ -1047,11 +1055,9 @@ impl ObjectConstructor {
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                error_message,
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
+                .unbind());
         };
         // 3. If O is not an Object, return O.
         let Ok(o) = Object::try_from(o) else {
@@ -1064,11 +1070,13 @@ impl ObjectConstructor {
             .internal_set_prototype_of(agent, proto.unbind(), gc.reborrow())?;
         // 5. If status is false, throw a TypeError exception.
         if !status {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Could not set prototype",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Could not set prototype",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 6. Return O.
         Ok(scoped_o.get(agent).into_value())
@@ -1290,7 +1298,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
         .unbind()
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()));
+        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
     };
 
     let iterator = iterator.scope(agent, gc.nogc());
@@ -1324,7 +1332,12 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            iterator_close(agent, iterator.get(agent), Err(error), gc.reborrow())?;
+            iterator_close(
+                agent,
+                iterator.get(agent),
+                Err(error.unbind()),
+                gc.reborrow(),
+            )?;
             return Ok(target.get(agent).bind(gc.into_nogc()));
         };
         // SAFETY: scoped_next is its own Scoped value, not a clone from target

@@ -88,11 +88,13 @@ pub(super) fn async_generator_validate<'a>(
     if let Value::AsyncGenerator(generator) = generator {
         Ok(generator.unbind())
     } else {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Not an async generator object",
-            gc,
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not an async generator object",
+                gc,
+            )
+            .unbind())
     }
 }
 

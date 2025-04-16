@@ -132,7 +132,7 @@ mod private {
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm,
+                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, agent::JsError,
             },
             scripts_and_modules::{script::Script, source_code::SourceCode},
             types::{
@@ -210,6 +210,8 @@ mod private {
     impl RootableSealed for ObjectEnvironment<'_> {}
     impl RootableSealed for PrivateEnvironment<'_> {}
     impl RootableSealed for Environment<'_> {}
+    // Errors are rootable as they're just a wrapper around Value.
+    impl RootableSealed for JsError<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {}

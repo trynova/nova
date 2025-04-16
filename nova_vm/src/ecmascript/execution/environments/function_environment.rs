@@ -228,11 +228,13 @@ impl FunctionEnvironment<'_> {
         match env_rec.this_binding_status {
             ThisBindingStatus::Lexical => unreachable!(),
             ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
-            ThisBindingStatus::Uninitialized => Err(agent.throw_exception_with_static_message(
-                ExceptionType::ReferenceError,
-                "Uninitialized this binding",
-                gc,
-            )),
+            ThisBindingStatus::Uninitialized => Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::ReferenceError,
+                    "Uninitialized this binding",
+                    gc,
+                )
+                .unbind()),
         }
     }
 
@@ -283,11 +285,9 @@ impl FunctionEnvironment<'_> {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                return Err(agent.throw_exception(
-                    ExceptionType::ReferenceError,
-                    error_message,
-                    gc,
-                ));
+                return Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                    .unbind());
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -314,7 +314,9 @@ impl FunctionEnvironment<'_> {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
+            return Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                .unbind());
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -333,7 +335,9 @@ impl FunctionEnvironment<'_> {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
+                return Err(agent
+                    .throw_exception(ExceptionType::TypeError, error_message, gc)
+                    .unbind());
             }
         }
 
@@ -386,11 +390,13 @@ impl FunctionEnvironment<'_> {
         // 2. If envRec.[[ThisBindingStatus]] is INITIALIZED, throw a
         // ReferenceError exception.
         if env_rec.this_binding_status == ThisBindingStatus::Initialized {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::ReferenceError,
-                "[[ThisBindingStatus]] is INITIALIZED",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::ReferenceError,
+                    "[[ThisBindingStatus]] is INITIALIZED",
+                    gc,
+                )
+                .unbind());
         }
 
         // 3. Set envRec.[[ThisValue]] to V.

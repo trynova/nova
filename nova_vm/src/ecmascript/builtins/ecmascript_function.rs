@@ -531,7 +531,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             // c. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
             agent.execution_context_stack.pop();
             // d. Return ThrowCompletion(error).
-            return Err(error);
+            return Err(error.unbind());
         }
         let Environment::Function(local_env) = local_env else {
             panic!("localEnv is not a Function Environment Record");
@@ -664,7 +664,13 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
                     .as_str(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
-            Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
+            Err(agent
+                .throw_exception_with_message(
+                    ExceptionType::TypeError,
+                    message.unbind(),
+                    gc.into_nogc(),
+                )
+                .unbind())
         } else {
             // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
             // 13. Assert: thisBinding is an Object.
@@ -1165,11 +1171,13 @@ fn set_ecmascript_function_length(
 
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     if length > u8::MAX as usize {
-        return Err(agent.throw_exception_with_static_message(
-            SyntaxError,
-            "Too many arguments in function call (only 255 allowed)",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                SyntaxError,
+                "Too many arguments in function call (only 255 allowed)",
+                gc,
+            )
+            .unbind());
     }
     function.length = length as u8;
 

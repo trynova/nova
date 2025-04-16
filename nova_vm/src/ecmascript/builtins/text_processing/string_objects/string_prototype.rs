@@ -671,11 +671,13 @@ impl StringPrototype {
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
             if is_reg_exp(agent, search_string.get(agent), gc.reborrow())? {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "searchString is RegExp",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "searchString is RegExp",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
 
             // 5. Let searchStr be ? ToString(searchString).
@@ -766,11 +768,13 @@ impl StringPrototype {
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
             if is_reg_exp(agent, search_string.get(agent), gc.reborrow())? {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "searchString is RegExp",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "searchString is RegExp",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
 
             // 5. Let searchStr be ? ToString(searchString).
@@ -1091,11 +1095,13 @@ impl StringPrototype {
                 Ok(form) => form,
                 // 5. If f is not one of "NFC", "NFD", "NFKC", or "NFKD", throw a RangeError exception.
                 Err(()) => {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "The normalization form should be one of NFC, NFD, NFKC, NFKD.",
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::RangeError,
+                            "The normalization form should be one of NFC, NFD, NFKC, NFKD.",
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
             }
         };
@@ -1191,21 +1197,25 @@ impl StringPrototype {
 
         // 4. If n < 0 or n = +∞, throw a RangeError exception.
         if n.is_pos_infinity() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "count must be less than infinity",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "count must be less than infinity",
+                    gc.nogc(),
+                )
+                .unbind());
         }
 
         let n = n.into_i64();
 
         if n < 0 {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "count must not be negative",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "count must not be negative",
+                    gc.nogc(),
+                )
+                .unbind());
         }
 
         // 5. If n = 0, return the empty String.
@@ -1730,11 +1740,13 @@ impl StringPrototype {
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
             if is_reg_exp(agent, search_string.get(agent), gc.reborrow())? {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "searchString is RegExp",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "searchString is RegExp",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
 
             // 5. Let searchStr be ? ToString(searchString).
@@ -2696,11 +2708,13 @@ fn this_string_value<'gc>(
         }
         _ => {
             // 3. Throw a TypeError exception.
-            Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a string value",
-                gc,
-            ))
+            Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a string value",
+                    gc,
+                )
+                .unbind())
         }
     }
 }

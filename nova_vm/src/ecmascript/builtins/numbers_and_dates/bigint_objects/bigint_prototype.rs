@@ -132,6 +132,6 @@ fn this_big_int_value<'a>(
             ExceptionType::TypeError,
             "Not a BigInt",
             gc,
-        )),
+        ).unbind()),
     }
 }

@@ -339,11 +339,13 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
     ) -> JsResult<Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "class constructors must be invoked with 'new'",
-            gc.nogc(),
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "class constructors must be invoked with 'new'",
+                gc.nogc(),
+            )
+            .unbind())
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)

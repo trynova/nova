@@ -56,11 +56,13 @@ impl GeneratorPrototype {
     ) -> JsResult<Value<'gc>> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Generator expected",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Generator expected",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
         // 1. Return ? GeneratorResume(this value, value, empty).
@@ -81,11 +83,13 @@ impl GeneratorPrototype {
         // [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Generator expected",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Generator expected",
+                    gc,
+                )
+                .unbind());
         };
         let generator = generator.bind(gc);
 
@@ -108,11 +112,13 @@ impl GeneratorPrototype {
                 // c. Set state to completed.
             }
             GeneratorState::Executing => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "The generator is currently running",
-                    gc,
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "The generator is currently running",
+                        gc,
+                    )
+                    .unbind());
             }
             GeneratorState::Completed => {}
         };
@@ -132,11 +138,13 @@ impl GeneratorPrototype {
     ) -> JsResult<Value<'gc>> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Generator expected",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Generator expected",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
         // 1. Let g be the this value.

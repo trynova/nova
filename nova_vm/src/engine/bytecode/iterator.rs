@@ -46,7 +46,7 @@ impl VmIterator {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Option<Value<'gc>>> {
         match self {
-            VmIterator::InvalidIterator => Err(throw_not_callable(agent, gc.into_nogc())),
+            VmIterator::InvalidIterator => Err(throw_not_callable(agent, gc.into_nogc()).unbind()),
             VmIterator::ObjectProperties(iter) => {
                 let result = iter.next(agent, gc.reborrow())?;
                 if let Some(result) = result {
@@ -80,11 +80,13 @@ impl VmIterator {
                     gc.reborrow(),
                 )?;
                 let Ok(result) = Object::try_from(result) else {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Iterator returned a non-object result",
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Iterator returned a non-object result",
+                            gc.nogc(),
+                        )
+                        .unbind());
                 };
                 let result = result.unbind().bind(gc.nogc());
                 let scoped_result = result.scope(agent, gc.nogc());
@@ -153,11 +155,13 @@ impl VmIterator {
         .bind(gc.nogc());
         // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Iterator method cannot be undefined",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Iterator method cannot be undefined",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
         // SAFETY: scoped_value is not shared.

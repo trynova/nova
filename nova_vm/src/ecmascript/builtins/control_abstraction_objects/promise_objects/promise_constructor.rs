@@ -114,11 +114,13 @@ impl PromiseConstructor {
 
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Promise Constructor requires 'new'",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Promise Constructor requires 'new'",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let new_target = new_target.unbind().bind(gc.nogc());
 
@@ -135,11 +137,13 @@ impl PromiseConstructor {
         // 2. If IsCallable(executor) is false, throw a TypeError exception.
         // TODO: Callable proxies
         let Ok(executor) = Function::try_from(executor) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a callable value",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a callable value",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let executor = executor.unbind().bind(gc.nogc()).scope(agent, gc.nogc());
 
@@ -302,11 +306,13 @@ impl PromiseConstructor {
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Expected the this value to be a constructor.",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Expected the this value to be a constructor.",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // We currently don't support Promise subclassing.
         assert_eq!(
@@ -358,11 +364,13 @@ impl PromiseConstructor {
     ) -> JsResult<Value<'gc>> {
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Expected the this value to be a constructor.",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Expected the this value to be a constructor.",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // We currently don't support Promise subclassing.
         assert_eq!(

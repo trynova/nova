@@ -248,7 +248,9 @@ impl<'a> PropertyDescriptor<'a> {
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         };
         let scoped_obj = obj.scope(agent, gc.nogc());
 
@@ -356,11 +358,13 @@ impl<'a> PropertyDescriptor<'a> {
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter, gc.nogc()) else {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "getter is not callable",
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "getter is not callable",
+                            gc.nogc(),
+                        )
+                        .unbind());
                 };
                 // c. Set desc.[[Get]] to getter.
                 desc.get = Some(getter.unbind());
@@ -388,11 +392,13 @@ impl<'a> PropertyDescriptor<'a> {
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter, gc.nogc()) else {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "setter is not callable",
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "setter is not callable",
+                            gc.nogc(),
+                        )
+                        .unbind());
                 };
                 // c. Set desc.[[Set]] to setter.
                 desc.set = Some(setter.unbind());
@@ -407,11 +413,13 @@ impl<'a> PropertyDescriptor<'a> {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Over-defined property descriptor",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Over-defined property descriptor",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
         }
         // 16. Return desc.
@@ -425,11 +433,13 @@ impl<'a> PropertyDescriptor<'a> {
     ) -> TryResult<JsResult<Self>> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Property descriptor must be an object",
-                gc,
-            )));
+            return TryResult::Continue(Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Property descriptor must be an object",
+                    gc,
+                )
+                .unbind()));
         };
         // 2. Let desc be a new Property Descriptor that initially has no
         // fields.
@@ -485,11 +495,13 @@ impl<'a> PropertyDescriptor<'a> {
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter, gc) else {
-                    return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "getter is not callable",
-                        gc,
-                    )));
+                    return TryResult::Continue(Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "getter is not callable",
+                            gc,
+                        )
+                        .unbind()));
                 };
                 // c. Set desc.[[Get]] to getter.
                 desc.get = Some(getter.unbind());
@@ -505,11 +517,13 @@ impl<'a> PropertyDescriptor<'a> {
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter, gc) else {
-                    return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "setter is not callable",
-                        gc,
-                    )));
+                    return TryResult::Continue(Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "setter is not callable",
+                            gc,
+                        )
+                        .unbind()));
                 };
                 // c. Set desc.[[Set]] to setter.
                 desc.set = Some(setter.unbind());
@@ -520,11 +534,13 @@ impl<'a> PropertyDescriptor<'a> {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
-                return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Over-defined property descriptor",
-                    gc,
-                )));
+                return TryResult::Continue(Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Over-defined property descriptor",
+                        gc,
+                    )
+                    .unbind()));
             }
         }
         // 16. Return desc.

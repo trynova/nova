@@ -44,11 +44,13 @@ impl MapIteratorPrototype {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "MapIterator expected",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "MapIterator expected",
+                    gc,
+                )
+                .unbind());
         };
 
         // 24.1.5.1 CreateMapIterator ( map, kind ), step 2

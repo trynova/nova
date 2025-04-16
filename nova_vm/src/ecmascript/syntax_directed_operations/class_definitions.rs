@@ -79,11 +79,13 @@ pub(crate) fn derived_class_default_constructor<'a>(
     let func = unwrap_try(f.try_get_prototype_of(agent, gc.nogc()));
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Expected callable function",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected callable function",
+                gc.nogc(),
+            )
+            .unbind());
     };
     let f = f.scope(agent, gc.nogc());
     // 4. Let result be ? Construct(func, args, NewTarget).

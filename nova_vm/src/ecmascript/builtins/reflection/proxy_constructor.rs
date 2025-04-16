@@ -51,11 +51,13 @@ impl ProxyConstructor {
         let handler = arguments.get(1).bind(gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         if new_target.is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "calling a builtin Proxy constructor without new is forbidden",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "calling a builtin Proxy constructor without new is forbidden",
+                    gc,
+                )
+                .unbind());
         }
         // 2. Return ? ProxyCreate(target, handler).
         proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())

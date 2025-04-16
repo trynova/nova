@@ -206,11 +206,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         } else if let Ok(handler_proto) = Object::try_from(handler_proto) {
             Some(handler_proto)
         } else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Handler prototype must be an object or null",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Handler prototype must be an object or null",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
         // 9. Let extensibleTarget be ? IsExtensible(target).
@@ -228,11 +230,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
         // 12. If SameValue(handlerProto, targetProto) is false, throw a TypeError exception.
         if handler_proto != target_proto {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "handlerProto and targetProto are not the same value",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "handlerProto and targetProto are not the same value",
+                    gc.nogc(),
+                )
+                .unbind());
         }
 
         // 13. Return handlerProto.
@@ -342,7 +346,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 ExceptionType::TypeError,
                 "'setPrototypeOf' on proxy: trap returned truish for setting a new prototype on the non-extensible proxy target",
                 gc.nogc(),
-            ));
+            ).unbind());
         }
         // 13. Return true.
         Ok(true)
@@ -408,11 +412,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
         // 9. If booleanTrapResult is not targetResult, throw a TypeError exception.
         if boolean_trap_result != target_result {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "proxy must report same extensiblitity as target",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "proxy must report same extensiblitity as target",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
         // 10. Return booleanTrapResult.
@@ -482,11 +488,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
             // b. If extensibleTarget is true, throw a TypeError exception.
             if extensible_target {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "proxy can't report an extensible object as non-extensible",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "proxy can't report an extensible object as non-extensible",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
         };
 
@@ -575,11 +583,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 8. If trapResultObj is not an Object and trapResultObj is not undefined, throw a TypeError exception.
         let trap_result_obj_is_undefined = trap_result_obj.is_undefined();
         if !trap_result_obj.is_object() && !trap_result_obj_is_undefined {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "proxy [[GetOwnProperty]] must return an object or undefined",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "proxy [[GetOwnProperty]] must return an object or undefined",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let trap_result_obj = trap_result_obj.unbind().scope(agent, gc.nogc());
         // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
@@ -601,7 +611,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                             scoped_property_key.get(agent).as_display(agent)
                         ),
                         gc.nogc(),
-                    ));
+                    ).unbind());
                 }
             } else {
                 // a. If targetDesc is undefined, return undefined.
@@ -619,7 +629,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                         scoped_property_key.get(agent).as_display(agent)
                     ),
                     gc.nogc(),
-                ));
+                ).unbind());
             };
             // e. Return undefined.
             return Ok(None);
@@ -649,11 +659,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         );
         // 15. If valid is false, throw a TypeError exception.
         if !valid {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "valid",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(ExceptionType::TypeError, "valid", gc.nogc())
+                .unbind());
         };
         // 16. If resultDesc.[[Configurable]] is false, then
         if result_desc.configurable == Some(false) {
@@ -663,14 +671,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 .is_none_or(|d| d.configurable == Some(true))
             {
                 // i. Throw a TypeError exception.
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    format!(
-                        "proxy can't report a non-existent property '{}' as non-configurable",
-                        scoped_property_key.get(agent).as_display(agent)
-                    ),
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy can't report a non-existent property '{}' as non-configurable",
+                            scoped_property_key.get(agent).as_display(agent)
+                        ),
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
             let target_desc = target_desc.unwrap();
             // b. If resultDesc has a [[Writable]] field and resultDesc.[[Writable]] is false, then
@@ -686,7 +696,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                             scoped_property_key.get(agent).as_display(agent)
                         ),
                         gc.nogc(),
-                    ));
+                    ).unbind());
                 }
             }
         };
@@ -788,25 +798,29 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         if target_desc.is_none() {
             // a. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    format!(
-                        "proxy can't define a new property '{}' on a non-extensible object",
-                        property_key.get(agent).as_display(agent)
-                    ),
-                    gc,
-                ));
+                return Err(agent
+                    .throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy can't define a new property '{}' on a non-extensible object",
+                            property_key.get(agent).as_display(agent)
+                        ),
+                        gc,
+                    )
+                    .unbind());
             }
             // b. If settingConfigFalse is true, throw a TypeError exception.
             if setting_config_false {
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    format!(
-                        "proxy can't define a non-existent '{}' property as non-configurable",
-                        property_key.get(agent).as_display(agent)
-                    ),
-                    gc,
-                ));
+                return Err(agent
+                    .throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy can't define a non-existent '{}' property as non-configurable",
+                            property_key.get(agent).as_display(agent)
+                        ),
+                        gc,
+                    )
+                    .unbind());
             }
         } else {
             // 15. Else,
@@ -825,7 +839,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                         property_key.get(agent).as_display(agent)
                     ),
                     gc,
-                ));
+                ).unbind());
             };
             // b. If settingConfigFalse is true and targetDesc.[[Configurable]] is true, throw a TypeError exception.
             if setting_config_false {
@@ -838,7 +852,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                                 property_key.get(agent).as_display(agent)
                             ),
                             gc,
-                        ));
+                        ).unbind());
                     }
                 }
             }
@@ -858,7 +872,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                                     property_key.get(agent).as_display(agent)
                                 ),
                                 gc,
-                            ));
+                            ).unbind());
                         }
                     }
                 }
@@ -946,27 +960,34 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             if let Some(target_desc) = target_desc {
                 //  i. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
                 if target_desc.configurable == Some(false) {
-                    let property_key = scoped_property_key.get(agent).bind(gc.nogc());
+                    let gc = gc.into_nogc();
+                    let property_key = scoped_property_key.get(agent).bind(gc);
                     let message = String::from_string(
                         agent,
                         format!(
                             "proxy can't report a non-configurable own property '{}' as non-existent",
                             property_key.as_display(agent)
                         ),
-                        gc.into_nogc(),
+                        gc,
                     );
-                    return Err(
-                        agent.throw_exception_with_message(ExceptionType::TypeError, message)
-                    );
+                    return Err(agent
+                        .throw_exception_with_message(
+                            ExceptionType::TypeError,
+                            message.unbind(),
+                            gc,
+                        )
+                        .unbind());
                 }
                 // ii. Let extensibleTarget be ? IsExtensible(target).
                 // iii. If extensibleTarget is false, throw a TypeError exception.
                 if !is_extensible(agent, scoped_target.get(agent), gc.reborrow())? {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "proxy can't report an extensible object as non-extensible",
-                        gc.into_nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "proxy can't report an extensible object as non-extensible",
+                            gc.into_nogc(),
+                        )
+                        .unbind());
                 }
             }
         };
@@ -1099,11 +1120,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                         && target_desc.get.is_none()
                         && trap_result.is_undefined()
                 {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Invalid Proxy [[Get]] method",
-                        gc.into_nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Invalid Proxy [[Get]] method",
+                            gc.into_nogc(),
+                        )
+                        .unbind());
                 }
             }
         }
@@ -1236,11 +1259,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     )
                     || target_desc.is_accessor_descriptor() && target_desc.set.is_none()
                 {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Invalid Proxy [[Set]] method",
-                        gc.into_nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Invalid Proxy [[Set]] method",
+                            gc.into_nogc(),
+                        )
+                        .unbind());
                 }
             }
         }
@@ -1335,27 +1360,31 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         };
         // 11. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
         if target_desc.configurable == Some(false) {
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                format!(
-                    "property '{}' is non-configurable and can't be deleted",
-                    scoped_property_key.get(agent).as_display(agent)
-                ),
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "property '{}' is non-configurable and can't be deleted",
+                        scoped_property_key.get(agent).as_display(agent)
+                    ),
+                    gc.into_nogc(),
+                )
+                .unbind());
         };
         // 12. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
         // 13. If extensibleTarget is false, throw a TypeError exception.
         if !extensible_target {
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                format!(
-                    "proxy can't delete property '{}' on a non-extensible object",
-                    scoped_property_key.get(agent).as_display(agent)
-                ),
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "proxy can't delete property '{}' on a non-extensible object",
+                        scoped_property_key.get(agent).as_display(agent)
+                    ),
+                    gc.into_nogc(),
+                )
+                .unbind());
         };
         // 14. Return true.
         Ok(true)
@@ -1434,14 +1463,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         for value in trap_result.iter() {
             let p = value.get(agent).bind(gc.nogc());
             if unique_trap_results.contains(&p) {
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    format!(
-                        "proxy [[OwnPropertyKeys]] can't report property '{}' more than once",
-                        p.as_display(agent),
-                    ),
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy [[OwnPropertyKeys]] can't report property '{}' more than once",
+                            p.as_display(agent),
+                        ),
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
             unique_trap_results.push(p);
         }
@@ -1503,14 +1534,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         for key in target_nonconfigurable_keys {
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
             if !unchecked_result_keys.contains(&key) {
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    format!(
-                        "proxy can't skip a non-configurable property '{}'",
-                        key.as_display(agent)
-                    ),
-                    gc,
-                ));
+                return Err(agent
+                    .throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy can't skip a non-configurable property '{}'",
+                            key.as_display(agent)
+                        ),
+                        gc,
+                    )
+                    .unbind());
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
@@ -1532,7 +1565,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     ExceptionType::TypeError,
                     format!("proxy can't report an existing own property '{}' as non-existent on a non-extensible object", key.as_display(agent)),
                     gc,
-                ));
+                ).unbind());
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
@@ -1544,11 +1577,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         }
         // 22. If uncheckedResultKeys is not empty, throw a TypeError exception.
         if !unchecked_result_keys.is_empty() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "trap returned extra keys but proxy target is non-extensible",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "trap returned extra keys but proxy target is non-extensible",
+                    gc,
+                )
+                .unbind());
         }
         // 23. Return trapResult.
         Ok(trap_result)
@@ -1719,11 +1754,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .unbind()
             .try_into()
             // 10. If newObj is not an Object, throw a TypeError exception.
-            .or(Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "proxy [[Construct]] must return an object",
-                gc.nogc(),
-            )))
+            .or(Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "proxy [[Construct]] must return an object",
+                    gc.nogc(),
+                )
+                .unbind()))
     }
 }
 
@@ -1741,19 +1778,23 @@ pub(crate) fn proxy_create<'a>(
 ) -> JsResult<Proxy<'a>> {
     // 1. If target is not an Object, throw a TypeError exception.
     let Ok(target) = Object::try_from(target.unbind()) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Proxy target must be an object",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Proxy target must be an object",
+                gc,
+            )
+            .unbind());
     };
     // 2. If handler is not an Object, throw a TypeError exception.
     let Ok(handler) = Object::try_from(handler.unbind()) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Proxy handler must be an object",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Proxy handler must be an object",
+                gc,
+            )
+            .unbind());
     };
     // 3. Let P be MakeBasicObject(« [[ProxyHandler]], [[ProxyTarget]] »).
     let p = agent.heap.create(ProxyHeapData::NonRevoked {

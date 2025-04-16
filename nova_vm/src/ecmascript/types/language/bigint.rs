@@ -346,26 +346,32 @@ impl<'a> BigInt<'a> {
             BigInt::BigInt(x) => agent[x].data < 0.into(),
             _ => false,
         } {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "exponent must be positive",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "exponent must be positive",
+                    gc,
+                )
+                .unbind());
         }
 
         let BigInt::SmallBigInt(exponent) = exponent else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "exponent over bounds",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "exponent over bounds",
+                    gc,
+                )
+                .unbind());
         };
         let Ok(exponent) = u32::try_from(exponent.into_i64()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "exponent over bounds",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "exponent over bounds",
+                    gc,
+                )
+                .unbind());
         };
 
         if exponent == 1 {
@@ -492,11 +498,13 @@ impl<'a> BigInt<'a> {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
                 match y {
-                    0 => Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    )),
+                    0 => Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::RangeError,
+                            "Division by zero",
+                            gc,
+                        )
+                        .unbind()),
                     1 => Ok(BigInt::SmallBigInt(x)),
                     y => Ok(BigInt::SmallBigInt(
                         SmallBigInt::try_from(x.into_i64() / y).unwrap(),
@@ -512,11 +520,13 @@ impl<'a> BigInt<'a> {
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
                 match y {
-                    0 => Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    )),
+                    0 => Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::RangeError,
+                            "Division by zero",
+                            gc,
+                        )
+                        .unbind()),
                     1 => Ok(BigInt::BigInt(x)),
                     y => Ok(Self::from_num_bigint(agent, &agent[x].data / y)),
                 }
@@ -550,11 +560,13 @@ impl<'a> BigInt<'a> {
         match (n, d) {
             (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::RangeError,
+                            "Division by zero",
+                            gc,
+                        )
+                        .unbind());
                 }
                 let (n, d) = (n.into_i64(), d.into_i64());
                 let result = n % d;
@@ -566,11 +578,13 @@ impl<'a> BigInt<'a> {
             }
             (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::RangeError,
+                            "Division by zero",
+                            gc,
+                        )
+                        .unbind());
                 }
                 Ok(Self::SmallBigInt(
                     SmallBigInt::try_from(

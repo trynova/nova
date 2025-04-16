@@ -122,11 +122,13 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         // v. If result is not an Object, return result.
         Primitive::try_from(result).map_err(|_| {
             // vi. Throw a TypeError exception.
-            agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Invalid toPrimitive return value",
-                gc,
-            )
+            agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Invalid toPrimitive return value",
+                    gc,
+                )
+                .unbind()
         })
     } else {
         // c. If preferredType is not present, let preferredType be NUMBER.
@@ -191,11 +193,13 @@ pub(crate) fn ordinary_to_primitive<'gc>(
         o = scoped_o.get(agent).bind(gc.nogc());
     }
     // 4. Throw a TypeError exception.
-    Err(agent.throw_exception_with_static_message(
-        ExceptionType::TypeError,
-        "Could not convert to primitive",
-        gc.nogc(),
-    ))
+    Err(agent
+        .throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Could not convert to primitive",
+            gc.nogc(),
+        )
+        .unbind())
 }
 
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
@@ -311,11 +315,13 @@ pub(crate) fn to_number_primitive<'gc>(
         Primitive::String(str) => Ok(string_to_number(agent, str.into(), gc)),
         Primitive::SmallString(str) => Ok(string_to_number(agent, str.into(), gc)),
         // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
-        Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "cannot convert symbol to number",
-            gc,
-        )),
+        Primitive::Symbol(_) => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "cannot convert symbol to number",
+                gc,
+            )
+            .unbind()),
         // 1. If argument is a Number, return argument.
         Primitive::Number(idx) => Ok(idx.unbind().bind(gc).into()),
         Primitive::Integer(idx) => Ok(idx.into()),
@@ -325,7 +331,8 @@ pub(crate) fn to_number_primitive<'gc>(
                 ExceptionType::TypeError,
                 "cannot convert bigint to number",
                 gc,
-            )),
+            )
+            .unbind()),
     }
 }
 
@@ -830,16 +837,20 @@ pub(crate) fn to_big_int_primitive<'a>(
 ) -> JsResult<BigInt<'a>> {
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
-        Primitive::Undefined => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Invalid primitive 'undefined'",
-            gc,
-        )),
-        Primitive::Null => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Invalid primitive 'null'",
-            gc,
-        )),
+        Primitive::Undefined => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid primitive 'undefined'",
+                gc,
+            )
+            .unbind()),
+        Primitive::Null => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid primitive 'null'",
+                gc,
+            )
+            .unbind()),
         Primitive::Boolean(bool) => {
             if bool {
                 Ok(BigInt::from(1))
@@ -849,17 +860,20 @@ pub(crate) fn to_big_int_primitive<'a>(
         }
         Primitive::String(idx) => string_to_big_int(agent, idx.into(), gc),
         Primitive::SmallString(data) => string_to_big_int(agent, data.into(), gc),
-        Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Cannot convert Symbol to BigInt",
-            gc,
-        )),
+        Primitive::Symbol(_) => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot convert Symbol to BigInt",
+                gc,
+            )
+            .unbind()),
         Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => Err(agent
             .throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Cannot convert Number to BigInt",
                 gc,
-            )),
+            )
+            .unbind()),
         Primitive::BigInt(idx) => Ok(BigInt::BigInt(idx).bind(gc)),
         Primitive::SmallBigInt(data) => Ok(data.into()),
     }
@@ -921,7 +935,9 @@ pub(crate) fn string_to_big_int<'a>(
             format!("Cannot convert {} to a BigInt", literal),
             nogc,
         );
-        Err(agent.throw_exception_with_message(ExceptionType::SyntaxError, message))
+        Err(agent
+            .throw_exception_with_message(ExceptionType::SyntaxError, message, nogc)
+            .unbind())
     }
 }
 
@@ -1054,11 +1070,13 @@ pub(crate) fn to_string_primitive<'gc>(
         Primitive::String(idx) => Ok(String::String(idx)),
         Primitive::SmallString(data) => Ok(String::SmallString(data)),
         // 2. If argument is a Symbol, throw a TypeError exception.
-        Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Cannot turn Symbol into string",
-            gc,
-        )),
+        Primitive::Symbol(_) => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot turn Symbol into string",
+                gc,
+            )
+            .unbind()),
         // 7. If argument is a Number, return Number::toString(argument, 10).
         Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => {
             Ok(Number::to_string_radix_10(agent, Number::try_from(argument).unwrap(), gc).unbind())
@@ -1083,11 +1101,13 @@ pub(crate) fn to_object<'a>(
 ) -> JsResult<Object<'a>> {
     let argument = argument.bind(gc);
     match argument {
-        Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Argument cannot be converted into an object",
-            gc,
-        )),
+        Value::Undefined | Value::Null => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Argument cannot be converted into an object",
+                gc,
+            )
+            .unbind()),
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
         Value::Boolean(bool) => Ok(agent
             .heap
@@ -1354,11 +1374,13 @@ pub(crate) fn canonical_numeric_index_string<'gc>(
 ///    RangeError exception.
 pub(crate) fn validate_index(agent: &mut Agent, value: i64, gc: NoGcScope) -> JsResult<u64> {
     if !(0..=(SmallInteger::MAX_NUMBER)).contains(&value) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Index is out of range",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Index is out of range",
+                gc,
+            )
+            .unbind());
     }
     Ok(value as u64)
 }

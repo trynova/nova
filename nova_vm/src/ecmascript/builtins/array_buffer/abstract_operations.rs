@@ -51,11 +51,13 @@ pub(crate) fn allocate_array_buffer<'a>(
     if allocating_resizable_buffer {
         // a. If byteLength > maxByteLength, throw a RangeError exception.
         if byte_length > max_byte_length.unwrap() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Byte length is over maximumm byte length",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Byte length is over maximumm byte length",
+                    gc,
+                )
+                .unbind());
         }
         // b. Append [[ArrayBufferMaxByteLength]] to slots.
     }
@@ -134,7 +136,7 @@ pub(crate) fn detach_array_buffer(
             ExceptionType::TypeError,
             "Mismatching array buffer detach keys",
             gc,
-        ));
+        ).unbind());
     }
 
     // 4. Set arrayBuffer.[[ArrayBufferData]] to null.

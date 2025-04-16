@@ -166,11 +166,13 @@ impl ArrayConstructor {
                     let int_len = to_uint32_number(agent, len);
                     // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
                     if !same_value_zero(agent, int_len, len) {
-                        return Err(agent.throw_exception_with_static_message(
-                            ExceptionType::RangeError,
-                            "Invalid array length",
-                            gc,
-                        ));
+                        return Err(agent
+                            .throw_exception_with_static_message(
+                                ExceptionType::RangeError,
+                                "Invalid array length",
+                                gc,
+                            )
+                            .unbind());
                     }
                     let array = array_create(
                         agent,
@@ -268,11 +270,13 @@ impl ArrayConstructor {
             // 3. Else,
             // a. If IsCallable(mapfn) is false, throw a TypeError exception.
             let Some(mapfn) = is_callable(mapfn, gc.nogc()) else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "The map function of Array.from is not callable",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "The map function of Array.from is not callable",
+                        gc.nogc(),
+                    )
+                    .unbind());
             };
 
             // b. Let mapping be true.
@@ -326,7 +330,7 @@ impl ArrayConstructor {
             .unbind()
             .bind(gc.nogc())
             else {
-                return Err(throw_not_callable(agent, gc.into_nogc()));
+                return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
             };
 
             // d. Let k be 0.
@@ -341,11 +345,13 @@ impl ArrayConstructor {
                 // i. If k ≥ 2**53 - 1, then
                 if k >= u32::MAX as usize {
                     // 1. Let error be ThrowCompletion(a newly created TypeError object).
-                    let error = agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Maximum array size of 2**53-1 exceeded",
-                        gc.nogc(),
-                    );
+                    let error = agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Maximum array size of 2**53-1 exceeded",
+                            gc.nogc(),
+                        )
+                        .unbind();
                     // 2. Return ? IteratorClose(iteratorRecord, error).
                     return iterator_close(agent, iterator.get(agent), Err(error), gc.reborrow());
                 }

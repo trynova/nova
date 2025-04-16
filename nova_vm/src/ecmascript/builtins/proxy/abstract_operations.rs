@@ -36,11 +36,13 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Proxy target is missing",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Proxy target is missing",
+                gc,
+            )
+            .unbind());
     };
 
     // 3. Return unused.

@@ -121,11 +121,13 @@ impl FunctionPrototype {
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value, gc.nogc()) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a callable value",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a callable value",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         if arg_array.is_undefined() || arg_array.is_null() {
             // 3. If argArray is either undefined or null, then
@@ -174,11 +176,13 @@ impl FunctionPrototype {
         let target = this_value;
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
         let Some(mut target) = is_callable(target, gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Cannot bind a non-callable object",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Cannot bind a non-callable object",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let scoped_target = target.scope(agent, gc.nogc());
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
@@ -321,11 +325,13 @@ impl FunctionPrototype {
         let this_value = this_value.bind(nogc);
         let this_arg = args.get(0).bind(nogc);
         let Some(func) = is_callable(this_value, nogc) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a callable value",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a callable value",
+                    nogc,
+                )
+                .unbind());
         };
         // TODO: PrepareForTailCall
         let args = if !args.is_empty() {
@@ -346,11 +352,13 @@ impl FunctionPrototype {
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a callable value",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a callable value",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
         match func {
@@ -486,7 +494,7 @@ impl ThrowTypeError {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
+        Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()).unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

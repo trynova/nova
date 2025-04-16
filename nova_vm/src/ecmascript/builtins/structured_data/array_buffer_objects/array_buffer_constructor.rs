@@ -72,11 +72,13 @@ impl ArrayBufferConstructor {
         let nogc = gc.nogc();
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Constructor ArrayBuffer requires 'new'",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Constructor ArrayBuffer requires 'new'",
+                    nogc,
+                )
+                .unbind());
         };
         let new_target = new_target.bind(nogc);
         let length = arguments.get(0).bind(nogc);

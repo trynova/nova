@@ -46,22 +46,29 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
     ) -> JsResult<Value<'gc>> {
         let args = args.bind(gc.nogc());
         if args.len() != 1 {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::Error,
-                "Expected 1 argument",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::Error,
+                    "Expected 1 argument",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         let Ok(path) = String::try_from(args.get(0)) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::Error,
-                "Expected a string argument",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::Error,
+                    "Expected a string argument",
+                    gc.nogc(),
+                )
+                .unbind());
         };
 
-        let file = std::fs::read_to_string(path.as_str(agent))
-            .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string(), gc.nogc()))?;
+        let file = std::fs::read_to_string(path.as_str(agent)).map_err(|e| {
+            agent
+                .throw_exception(ExceptionType::Error, e.to_string(), gc.nogc())
+                .unbind()
+        })?;
         Ok(String::from_string(agent, file, gc.into_nogc()).into_value())
     }
 
@@ -122,11 +129,13 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     ) -> JsResult<Value<'gc>> {
         let args = args.bind(gc.nogc());
         let Value::ArrayBuffer(array_buffer) = args.get(0) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::Error,
-                "Cannot detach non ArrayBuffer argument",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::Error,
+                    "Cannot detach non ArrayBuffer argument",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         array_buffer.detach(agent, None, gc.nogc())?;
         Ok(Value::Undefined)

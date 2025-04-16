@@ -226,11 +226,13 @@ pub fn perform_eval<'gc>(
     // b. If script is a List of errors, throw a SyntaxError exception.
     let Ok((script, source_code)) = parse_result else {
         // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "Invalid eval source text.",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::SyntaxError,
+                "Invalid eval source text.",
+                gc.nogc(),
+            )
+            .unbind());
     };
 
     // c. If script Contains ScriptBody is false, return undefined.
@@ -404,14 +406,16 @@ pub fn eval_declaration_instantiation(
                 // 2. NOTE: eval will not create a global var declaration that
                 //    would be shadowed by a global lexical declaration.
                 if var_env.has_lexical_declaration(agent, name) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::SyntaxError,
-                        format!(
-                            "Redeclaration of lexical declaration '{}'",
-                            name.as_str(agent)
-                        ),
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(
+                            ExceptionType::SyntaxError,
+                            format!(
+                                "Redeclaration of lexical declaration '{}'",
+                                name.as_str(agent)
+                            ),
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
             }
         }
@@ -442,11 +446,13 @@ pub fn eval_declaration_instantiation(
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics
                         //     for the above step.
-                        return Err(agent.throw_exception(
-                            ExceptionType::SyntaxError,
-                            format!("Redeclaration of variable '{}'", name),
-                            gc.nogc(),
-                        ));
+                        return Err(agent
+                            .throw_exception(
+                                ExceptionType::SyntaxError,
+                                format!("Redeclaration of variable '{}'", name),
+                                gc.nogc(),
+                            )
+                            .unbind());
                     }
                     this_env = scoped_this_env.get(agent).bind(gc.nogc());
                 }
@@ -520,14 +526,16 @@ pub fn eval_declaration_instantiation(
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
-                        return Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            format!(
-                                "Cannot declare global function '{}'.",
-                                function_name.as_str(agent)
-                            ),
-                            gc.nogc(),
-                        ));
+                        return Err(agent
+                            .throw_exception(
+                                ExceptionType::TypeError,
+                                format!(
+                                    "Cannot declare global function '{}'.",
+                                    function_name.as_str(agent)
+                                ),
+                                gc.nogc(),
+                            )
+                            .unbind());
                     }
                 }
 
@@ -567,11 +575,16 @@ pub fn eval_declaration_instantiation(
                         )?;
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
-                            return Err(agent.throw_exception(
-                                ExceptionType::TypeError,
-                                format!("Cannot declare global variable '{}'.", vn.as_str(agent)),
-                                gc.nogc(),
-                            ));
+                            return Err(agent
+                                .throw_exception(
+                                    ExceptionType::TypeError,
+                                    format!(
+                                        "Cannot declare global variable '{}'.",
+                                        vn.as_str(agent)
+                                    ),
+                                    gc.nogc(),
+                                )
+                                .unbind());
                         }
                     }
                     // b. If declaredVarNames does not contain vn, then

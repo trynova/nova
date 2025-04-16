@@ -216,11 +216,13 @@ impl StringConstructor {
             };
             let next_cp = next_cp.into_i64();
             if !(0..=0x10FFFF).contains(&next_cp) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    format!("{:?} is not a valid code point", next_cp),
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp),
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
             // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
             if let Some(cu) = char::from_u32(next_cp as u32) {
@@ -239,11 +241,13 @@ impl StringConstructor {
                 let next_cp = next_cp.into_i64();
                 // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
                 if !(0..=0x10FFFF).contains(&next_cp) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp),
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(
+                            ExceptionType::RangeError,
+                            format!("{:?} is not a valid code point", next_cp),
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
                 // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
                 result.push(char::from_u32(next_cp as u32).unwrap());
@@ -259,20 +263,24 @@ impl StringConstructor {
                 let next_cp = to_number(agent, next.get(agent), gc.reborrow())?;
                 // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
                 if !is_integral_number(agent, next_cp) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp.to_real(agent)),
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(
+                            ExceptionType::RangeError,
+                            format!("{:?} is not a valid code point", next_cp.to_real(agent)),
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
                 // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
                 let next_cp = next_cp.into_i64(agent);
                 if !(0..=0x10FFFF).contains(&next_cp) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp),
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(
+                            ExceptionType::RangeError,
+                            format!("{:?} is not a valid code point", next_cp),
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
                 // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
                 result.push(char::from_u32(next_cp as u32).unwrap());

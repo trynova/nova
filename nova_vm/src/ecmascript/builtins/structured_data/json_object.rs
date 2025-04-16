@@ -110,11 +110,9 @@ impl JSONObject {
         let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
             Ok(value) => value,
             Err(error) => {
-                return Err(agent.throw_exception(
-                    ExceptionType::SyntaxError,
-                    error.to_string(),
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception(ExceptionType::SyntaxError, error.to_string(), gc.nogc())
+                    .unbind());
             }
         };
 
@@ -691,11 +689,13 @@ fn get_serializable_json_property_value<'a, 'b>(
 
     if value.is_bigint() {
         // 10. If value is a BigInt, throw a TypeError exception.
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Cannot serialize BigInt to JSON",
-            gc.nogc(),
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot serialize BigInt to JSON",
+                gc.nogc(),
+            )
+            .unbind())
     } else if value.is_undefined() || value.is_symbol() {
         Ok(None)
     } else if is_callable(value, gc.nogc()).is_some() {
@@ -863,11 +863,13 @@ fn serialize_json_object<'a>(
     // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
     let stack_value = value.get(agent).bind(gc.nogc());
     if state.stack.iter().any(|x| x.get(agent) == stack_value) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Cyclical structure in JSON",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cyclical structure in JSON",
+                gc.nogc(),
+            )
+            .unbind());
     }
 
     // 5. If state.[[PropertyList]] is not undefined, then
@@ -1017,11 +1019,13 @@ fn serialize_json_array<'a>(
     // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
     let stack_value = value.get(agent).bind(gc.nogc());
     if state.stack.iter().any(|x| x.get(agent) == stack_value) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Cyclical structure in JSON",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cyclical structure in JSON",
+                gc.nogc(),
+            )
+            .unbind());
     }
     // 6. Let len be ? LengthOfArrayLike(value).
     let len = length_of_array_like(agent, stack_value.unbind(), gc.reborrow())? as u64;

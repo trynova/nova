@@ -81,7 +81,7 @@ unsafe impl Sync for EmptyParametersList {}
 #[derive(Debug)]
 pub(crate) enum ExecutionResult<'a> {
     Return(Value<'a>),
-    Throw(JsError),
+    Throw(JsError<'a>),
     Await {
         vm: SuspendedVm,
         awaited_value: Value<'a>,
@@ -95,7 +95,7 @@ impl<'a> ExecutionResult<'a> {
     pub(crate) fn into_js_result(self) -> JsResult<Value<'a>> {
         match self {
             ExecutionResult::Return(value) => Ok(value),
-            ExecutionResult::Throw(err) => Err(err),
+            ExecutionResult::Throw(err) => Err(err.unbind()),
             _ => panic!("Unexpected yield or await"),
         }
     }
@@ -109,7 +109,7 @@ unsafe impl Bindable for ExecutionResult<'_> {
     fn unbind(self) -> Self::Of<'static> {
         match self {
             Self::Return(value) => ExecutionResult::Return(value.unbind()),
-            Self::Throw(js_error) => ExecutionResult::Throw(js_error),
+            Self::Throw(js_error) => ExecutionResult::Throw(js_error.unbind()),
             Self::Await { vm, awaited_value } => ExecutionResult::Await {
                 vm,
                 awaited_value: awaited_value.unbind(),
@@ -125,7 +125,7 @@ unsafe impl Bindable for ExecutionResult<'_> {
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         match self {
             Self::Return(value) => ExecutionResult::Return(value.bind(gc)),
-            Self::Throw(js_error) => ExecutionResult::Throw(js_error),
+            Self::Throw(js_error) => ExecutionResult::Throw(js_error.bind(gc)),
             Self::Await { vm, awaited_value } => ExecutionResult::Await {
                 vm,
                 awaited_value: awaited_value.bind(gc),
@@ -427,7 +427,7 @@ impl<'a> Vm {
         if let Some(ejt) = self.exception_jump_target_stack.pop() {
             self.ip = ejt.ip;
             agent.set_current_lexical_environment(ejt.lexical_environment);
-            self.result = Some(err.value());
+            self.result = Some(err.value().unbind());
             true
         } else {
             false
@@ -1559,11 +1559,9 @@ impl<'a> Vm {
                         "'{}' is not a constructor.",
                         constructor_string.as_str(agent)
                     );
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        error_message,
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                        .unbind());
                 };
 
                 let constructor = constructor.unbind();
@@ -1619,11 +1617,9 @@ impl<'a> Vm {
                         },
                         gc.reborrow(),
                     );
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        error_message,
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                        .unbind());
                 };
                 // 6. Let result be ? Construct(func, argList, newTarget).
                 let result = {
@@ -1825,11 +1821,9 @@ impl<'a> Vm {
                         },
                         gc.reborrow(),
                     );
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        error_message,
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
+                        .unbind());
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
                 let property_key = if lval.is_string() || lval.is_integer() {
@@ -2025,7 +2019,9 @@ impl<'a> Vm {
 
                 let exception_type = ExceptionType::try_from(exception_type_immediate).unwrap();
 
-                return Err(agent.throw_exception_with_message(exception_type, message));
+                return Err(agent
+                    .throw_exception_with_message(exception_type, message, gc.into_nogc())
+                    .unbind());
             }
             Instruction::PushExceptionJumpTarget => {
                 vm.exception_jump_target_stack.push(ExceptionJumpTarget {
@@ -2172,11 +2168,13 @@ impl<'a> Vm {
                         debug_assert!(!is_private_reference(&refer));
                         // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
                         if is_super_reference(&refer) {
-                            return Err(agent.throw_exception_with_static_message(
-                                ExceptionType::ReferenceError,
-                                "Invalid delete involving 'super'.",
-                                gc.nogc(),
-                            ));
+                            return Err(agent
+                                .throw_exception_with_static_message(
+                                    ExceptionType::ReferenceError,
+                                    "Invalid delete involving 'super'.",
+                                    gc.into_nogc(),
+                                )
+                                .unbind());
                         }
                         // c. Let baseObj be ? ToObject(ref.[[Base]]).
                         let base_obj = to_object(agent, base, gc.nogc())?;
@@ -2201,11 +2199,13 @@ impl<'a> Vm {
                         };
                         // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
                         if !delete_status && strict {
-                            return Err(agent.throw_exception_with_static_message(
-                                ExceptionType::TypeError,
-                                "Cannot delete property",
-                                gc.nogc(),
-                            ));
+                            return Err(agent
+                                .throw_exception_with_static_message(
+                                    ExceptionType::TypeError,
+                                    "Cannot delete property",
+                                    gc.into_nogc(),
+                                )
+                                .unbind());
                         }
                         // g. Return deleteStatus.
                         vm.result = Some(delete_status.into());
@@ -2583,11 +2583,13 @@ fn apply_string_or_numeric_binary_operator<'gc>(
         })
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "The left and right-hand sides do not have the same type.",
-            gc,
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "The left and right-hand sides do not have the same type.",
+                gc,
+            )
+            .unbind())
     }
 }
 
@@ -2708,7 +2710,9 @@ pub(crate) fn instanceof_operator<'a>(
                 .string_repr(agent, gc.reborrow())
                 .as_str(agent)
         );
-        return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+        return Err(agent
+            .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
+            .unbind());
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
     let inst_of_handler = get_method(
@@ -2740,7 +2744,9 @@ pub(crate) fn instanceof_operator<'a>(
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
+                .unbind());
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
         Ok(ordinary_has_instance(agent, target.unbind(), value, gc)?)

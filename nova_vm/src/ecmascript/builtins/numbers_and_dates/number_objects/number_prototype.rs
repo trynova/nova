@@ -102,11 +102,13 @@ impl NumberPrototype {
         let f = f.into_i64();
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Fraction digits count out of range",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Fraction digits count out of range",
+                    gc,
+                )
+                .unbind());
         }
         let f = f as usize;
 
@@ -143,20 +145,24 @@ impl NumberPrototype {
         debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If f is not finite, throw a RangeError exception.
         if !f.is_finite() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Fraction digits count out of range",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Fraction digits count out of range",
+                    gc,
+                )
+                .unbind());
         }
         let f = f.into_i64();
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Fraction digits count out of range",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Fraction digits count out of range",
+                    gc,
+                )
+                .unbind());
         }
         // 6. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
@@ -221,11 +227,13 @@ impl NumberPrototype {
         // 5. If p < 1 or p > 100, throw a RangeError exception.
         let precision = p.into_i64();
         if !(1..=100).contains(&precision) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Precision out of range",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Precision out of range",
+                    gc,
+                )
+                .unbind());
         }
         let precision = precision as u8;
 
@@ -535,5 +543,7 @@ fn this_number_value<'gc>(
         }
     }
     // 3. Throw a TypeError exception.
-    Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a Number", gc))
+    Err(agent
+        .throw_exception_with_static_message(ExceptionType::TypeError, "Not a Number", gc)
+        .unbind())
 }

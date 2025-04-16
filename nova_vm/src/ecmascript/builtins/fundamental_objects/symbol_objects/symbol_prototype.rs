@@ -190,7 +190,7 @@ fn this_symbol_value<'a>(
             ExceptionType::TypeError,
             "this is not a symbol",
             gc,
-        )),
+        ).unbind()),
     }
 }
 

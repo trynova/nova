@@ -740,11 +740,13 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
-                Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Not a constructor",
-                    gc.nogc(),
-                ))
+                Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Not a constructor",
+                        gc.nogc(),
+                    )
+                    .unbind())
             } else {
                 func(
                     agent,

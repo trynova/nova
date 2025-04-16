@@ -371,11 +371,9 @@ impl ObjectEnvironment<'_> {
                 "Property '{}' does not exist in object.",
                 n.as_display(agent)
             );
-            TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                error_message,
-                gc,
-            )))
+            TryResult::Continue(Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                .unbind()))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             // 5. Return UNUSED.
@@ -417,7 +415,9 @@ impl ObjectEnvironment<'_> {
                 n.as_display(agent),
                 binding_object_repr.as_str(agent)
             );
-            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
+            Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
+                .unbind())
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             set(agent, binding_object, n, v, s, gc)?;
@@ -457,11 +457,9 @@ impl ObjectEnvironment<'_> {
                     "Property '{}' does not exist in object.",
                     name.as_display(agent)
                 );
-                TryResult::Continue(Err(agent.throw_exception(
-                    ExceptionType::ReferenceError,
-                    error_message,
-                    gc,
-                )))
+                TryResult::Continue(Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                    .unbind()))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
@@ -504,7 +502,9 @@ impl ObjectEnvironment<'_> {
                     name.as_display(agent),
                     binding_object_repr.as_str(agent)
                 );
-                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
+                Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
+                    .unbind())
             }
         } else {
             // 4. Return ? Get(bindingObject, N).

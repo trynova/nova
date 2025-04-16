@@ -425,11 +425,13 @@ impl ArrayPrototype {
                 )?;
                 // ii. If n + len > 2**53 - 1, throw a TypeError exception.
                 if (n + len) > SmallInteger::MAX_NUMBER {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Array overflow",
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Array overflow",
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
                 // iii. Let k be 0.
                 let mut k = 0;
@@ -472,11 +474,13 @@ impl ArrayPrototype {
                 // i. NOTE: E is added as a single item rather than spread.
                 // ii. If n ≥ 2**53 - 1, throw a TypeError exception.
                 if n >= SmallInteger::MAX_NUMBER {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Array overflow",
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "Array overflow",
+                            gc.nogc(),
+                        )
+                        .unbind());
                 }
                 // iii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), E).
                 create_data_property_or_throw(
@@ -705,11 +709,13 @@ impl ArrayPrototype {
     ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Expected this to be an object",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Expected this to be an object",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 2. Return CreateArrayIterator(O, key+value).
         Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::KeyAndValue).into_value())
@@ -768,11 +774,13 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not a function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not a function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn never escapes this call.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
@@ -990,11 +998,13 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not callable",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not callable",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn never escapes this call.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
@@ -1239,11 +1249,13 @@ impl ArrayPrototype {
         let source_len = length_of_array_like(agent, o.get(agent), gc.reborrow())? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
         let Some(stack_mapper_function) = is_callable(mapper_function.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Mapper function is not callable",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Mapper function is not callable",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn is not shared.
         let mapper_function =
@@ -1321,11 +1333,13 @@ impl ArrayPrototype {
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not a function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not a function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn is not shared.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
@@ -1699,11 +1713,13 @@ impl ArrayPrototype {
     ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Expected this to be an object",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Expected this to be an object",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 2. Return CreateArrayIterator(O, key).
         Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Key).into_value())
@@ -1887,11 +1903,13 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not a function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not a function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn is not shared.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
@@ -1965,11 +1983,13 @@ impl ArrayPrototype {
                 let length_writable = agent[array].elements.len_writable;
                 if len == 0 {
                     return if !length_writable {
-                        Err(agent.throw_exception_with_static_message(
-                            ExceptionType::TypeError,
-                            "Could not set property.",
-                            gc.nogc(),
-                        ))
+                        Err(agent
+                            .throw_exception_with_static_message(
+                                ExceptionType::TypeError,
+                                "Could not set property.",
+                                gc.nogc(),
+                            )
+                            .unbind())
                     } else {
                         Ok(Value::Undefined)
                     };
@@ -1981,11 +2001,13 @@ impl ArrayPrototype {
                     if length_writable {
                         agent[array].elements.len -= 1;
                     } else {
-                        return Err(agent.throw_exception_with_static_message(
-                            ExceptionType::TypeError,
-                            "Could not set property.",
-                            gc.nogc(),
-                        ));
+                        return Err(agent
+                            .throw_exception_with_static_message(
+                                ExceptionType::TypeError,
+                                "Could not set property.",
+                                gc.nogc(),
+                            )
+                            .unbind());
                     }
                     return Ok(last_element);
                 }
@@ -2065,11 +2087,13 @@ impl ArrayPrototype {
         let arg_count = items.len();
         // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
         if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Array length overflow",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length overflow",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         if let Object::Array(array) = o.get(agent) {
             // Fast path: Reserve enough room in the array.
@@ -2167,22 +2191,26 @@ impl ArrayPrototype {
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not a function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not a function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn is not shared.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Array length is 0 and no initial value provided",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length is 0 and no initial value provided",
+                    gc.nogc(),
+                )
+                .unbind());
         }
 
         // 5. Let k be 0.
@@ -2220,11 +2248,13 @@ impl ArrayPrototype {
 
             // c. If kPresent is false, throw a TypeError exception.
             if !k_present {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Array length is 0 and no initial value provided",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Array length is 0 and no initial value provided",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
         }
 
@@ -2326,22 +2356,26 @@ impl ArrayPrototype {
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not a function",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not a function",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn is not shared outside this call.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Array length is 0 and no initial value provided",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length is 0 and no initial value provided",
+                    gc.nogc(),
+                )
+                .unbind());
         }
 
         // 5. Let k be len - 1.
@@ -2379,11 +2413,13 @@ impl ArrayPrototype {
 
             // c. If kPresent is false, throw a TypeError exception.
             if !k_present {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Array length is 0 and no initial value provided",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Array length is 0 and no initial value provided",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
         }
 
@@ -2954,11 +2990,13 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not callable",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not callable",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // SAFETY: callback_fn is never shared before this call.
         let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
@@ -3035,11 +3073,9 @@ impl ArrayPrototype {
         } else if let Some(comparator) = is_callable(comparator, gc.nogc()) {
             Some(comparator.scope(agent, gc.nogc()))
         } else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(ExceptionType::TypeError, "", gc.nogc())
+                .unbind());
         };
         // 2. Let obj be ? ToObject(this value).
         let obj = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
@@ -3144,11 +3180,13 @@ impl ArrayPrototype {
         };
         // 11. If len + itemCount - actualDeleteCount > 2**53 - 1, throw a TypeError exception.
         if len as usize + item_count - actual_delete_count > SmallInteger::MAX_NUMBER as usize {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Target index overflowed",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Target index overflowed",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 12. Let A be ? ArraySpeciesCreate(O, actualDeleteCount).
         let a = array_species_create(agent, o.get(agent), actual_delete_count, gc.reborrow())?
@@ -3372,11 +3410,13 @@ impl ArrayPrototype {
         } else if let Some(comparator) = is_callable(comparator, gc.nogc()) {
             Some(comparator.scope(agent, gc.nogc()))
         } else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "The comparison function must be either a function or undefined",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "The comparison function must be either a function or undefined",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 2. Let o be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
@@ -3467,11 +3507,13 @@ impl ArrayPrototype {
         // 11. Let newLen be len + insertCount - actualSkipCount.
         let new_len = len + insert_count - actual_skip_count;
         if new_len > SmallInteger::MAX_NUMBER as usize {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Target index overflowed",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Target index overflowed",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 13. Let A be ? ArrayCreate(newLen).
         let a = array_create(agent, new_len, new_len, None, gc.nogc())?;
@@ -3639,11 +3681,13 @@ impl ArrayPrototype {
         if arg_count > 0 {
             // a. If len + argCount > 2**53 - 1, throw a TypeError exception.
             if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Array length overflow",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Array length overflow",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
             // b. Let k be len.
             let mut k = len;
@@ -3714,11 +3758,13 @@ impl ArrayPrototype {
     ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Expected this to be an object",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Expected this to be an object",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 2. Return CreateArrayIterator(O, value).
         Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Value).into_value())
@@ -3747,11 +3793,13 @@ impl ArrayPrototype {
                     len + relative_index
                 };
                 if actual_index >= len || actual_index < 0 {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "invalid or out-of-range index",
-                        nogc,
-                    ));
+                    return Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::RangeError,
+                            "invalid or out-of-range index",
+                            nogc,
+                        )
+                        .unbind());
                 }
                 // Fast path: Set new value in cloned array.
                 let cloned_array = array.to_cloned(agent);
@@ -3777,11 +3825,13 @@ impl ArrayPrototype {
         };
         // 6. If actualIndex ≥ len or actualIndex < 0, throw a RangeError exception.
         if actual_index >= len || actual_index < 0 {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "invalid or out-of-range index",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "invalid or out-of-range index",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 7. Let A be ? ArrayCreate(len).
         let a = array_create(agent, len as usize, len as usize, None, gc.nogc())?
@@ -4002,11 +4052,13 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
 ) -> JsResult<(i64, Value<'gc>)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(stack_predicate) = is_callable(predicate.get(agent), gc.nogc()) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Predicate is not a function",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Predicate is not a function",
+                gc.nogc(),
+            )
+            .unbind());
     };
     // SAFETY: We're only ever called in a way that gives ownership of
     // predicate to us.
@@ -4179,11 +4231,13 @@ fn flatten_into_array(
             // vi. Else,
             // 1. If targetIndex ≥ 2**53 - 1, throw a TypeError exception.
             if target_index >= SmallInteger::MAX_NUMBER as usize {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Target index overflowed",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Target index overflowed",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
             // 2. Perform ? CreateDataPropertyOrThrow(target, ! ToString(𝔽(targetIndex)), element).
             create_data_property_or_throw(

@@ -942,11 +942,13 @@ impl DatePrototype {
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, throw a RangeError exception.
         let Some(tv) = tv.get_f64() else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Invalid Date",
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Invalid Date",
+                    gc.into_nogc(),
+                )
+                .unbind());
         };
         // 5. Assert: tv is an integral Number.
         assert!(tv.fract() == 0.0);
@@ -1247,7 +1249,9 @@ impl DatePrototype {
                 "{} is not an object",
                 this_value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         };
         // 3. If hint is either "string" or "default", then
         let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
@@ -1268,7 +1272,9 @@ impl DatePrototype {
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
         Ok(ordinary_to_primitive(agent, o, try_first, gc.reborrow())?
@@ -1343,11 +1349,13 @@ fn require_internal_slot_date<'a>(
 ) -> JsResult<Date<'a>> {
     match this_value {
         Value::Date(date) => Ok(date.bind(gc)),
-        _ => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "this is not a Date object.",
-            gc,
-        )),
+        _ => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "this is not a Date object.",
+                gc,
+            )
+            .unbind()),
     }
 }
 

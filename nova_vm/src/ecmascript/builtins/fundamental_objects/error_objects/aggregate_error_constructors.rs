@@ -89,7 +89,7 @@ impl AggregateErrorConstructor {
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
         let Some(iterator_record) = get_iterator(agent, errors.get(agent), false, gc.reborrow())?
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let errors_list = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
         // 6. Perform ! DefinePropertyOrThrow(O, "errors", PropertyDescriptor {

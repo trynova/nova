@@ -108,11 +108,13 @@ impl IteratorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
@@ -125,21 +127,21 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return iterator_close(agent, o.unbind(), Err(error), gc);
+            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let Some(IteratorRecord {
             iterator,
             next_method,
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -154,9 +156,9 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?;
+                .bind(gc.nogc());
 
             // b. If value is done, return true.
             let Some(value) = value else {
@@ -208,11 +210,13 @@ impl IteratorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
@@ -225,21 +229,21 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(agent, o.unbind(), error, gc));
+            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let Some(IteratorRecord {
             iterator,
             next_method,
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -256,9 +260,9 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?;
+                .bind(gc.nogc());
 
             // b. If value is done, return undefined.
             let Some(value) = value else {
@@ -312,11 +316,13 @@ impl IteratorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
@@ -329,21 +335,21 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return iterator_close(agent, o.unbind(), Err(error), gc);
+            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
         };
         let scoped_procedure = Value::from(procedure).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let Some(IteratorRecord {
             iterator,
             next_method,
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -358,9 +364,9 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?;
+                .bind(gc.nogc());
             // b. If value is done, return undefined.
             let Some(value) = value else {
                 return Ok(Value::Undefined);
@@ -409,11 +415,13 @@ impl IteratorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
@@ -426,21 +434,21 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return iterator_close(agent, o.unbind(), Err(error), gc);
+            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
         };
         let scoped_reducer = Value::from(reducer).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let Some(IteratorRecord {
             iterator,
             next_method,
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -452,17 +460,19 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let accumulator = iterator_step_value(agent, iterated, gc.reborrow())
+            let accumulator = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?;
+                .bind(gc.nogc());
 
             // b. If accumulator is done, throw a TypeError exception.
             let Some(accumulator) = accumulator else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "'this' was done",
-                    gc.into_nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "'this' was done",
+                        gc.into_nogc(),
+                    )
+                    .unbind());
             };
 
             // c. Let counter be 1.
@@ -481,9 +491,9 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?;
+                .bind(gc.nogc());
 
             // b. If value is done, return accumulator.
             let Some(value) = value else {
@@ -535,11 +545,13 @@ impl IteratorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
@@ -552,21 +564,21 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return iterator_close(agent, o.unbind(), Err(error), gc);
+            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let Some(IteratorRecord {
             iterator,
             next_method,
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -581,9 +593,9 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?;
+                .bind(gc.nogc());
 
             // b. If value is done, return false.
             let Some(value) = value else {
@@ -634,24 +646,26 @@ impl IteratorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let iterated be ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let Some(IteratorRecord {
             iterator,
             next_method,
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
+            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -666,9 +680,9 @@ impl IteratorPrototype {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?
                 .unbind()
-                .bind(gc.nogc())?
+                .bind(gc.nogc())
                 .map(|x| x.scope(agent, gc.nogc()));
 
             // b. If value is done, return CreateArrayFromList(items).

@@ -40,11 +40,13 @@ impl ErrorPrototype {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not an object",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not an object",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let scoped_o = o.scope(agent, gc.nogc());
         // 3. Let name be ? Get(O, "name").

@@ -225,7 +225,9 @@ impl GlobalEnvironment<'_> {
         if dcl_rec.has_binding(agent, name) {
             let error_message =
                 format!("Redeclaration of global binding '{}'.", name.as_str(agent));
-            Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc))
+            Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc)
+                .unbind())
         } else {
             // 3. Return ! DclRec.CreateMutableBinding(N, D).
             dcl_rec.create_mutable_binding(agent, name, is_deletable);
@@ -256,7 +258,9 @@ impl GlobalEnvironment<'_> {
         if dcl_rec.has_binding(agent, name) {
             let error_message =
                 format!("Redeclaration of global binding '{}'.", name.as_str(agent));
-            Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc))
+            Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc)
+                .unbind())
         } else {
             // 3. Return ! DclRec.CreateImmutableBinding(N, S).
             dcl_rec.create_immutable_binding(agent, name, is_strict);

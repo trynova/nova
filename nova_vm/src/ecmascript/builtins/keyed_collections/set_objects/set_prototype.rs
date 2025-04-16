@@ -297,11 +297,13 @@ impl SetPrototype {
         let mut s = require_set_data_internal_slot(agent, this_value, nogc)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, nogc) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback function is not a function",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback function is not a function",
+                    nogc,
+                )
+                .unbind());
         };
         // 4. Let entries be S.[[SetData]].
         // 5. Let numEntries be the number of elements in entries.
@@ -485,11 +487,13 @@ fn require_set_data_internal_slot<'a>(
 ) -> JsResult<Set<'a>> {
     match value {
         Value::Set(map) => Ok(map.bind(gc)),
-        _ => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Object is not a Set",
-            gc,
-        )),
+        _ => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Object is not a Set",
+                gc,
+            )
+            .unbind()),
     }
 }
 

@@ -17,8 +17,8 @@ use crate::{
         abstract_operations::type_conversion::to_string,
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule},
-        types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+        types::{Function, IntoValue, Object, Reference, String, Symbol, Value, ValueRootRepr},
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -28,18 +28,18 @@ pub struct Options {
     pub print_internals: bool,
 }
 
-pub type JsResult<T> = core::result::Result<T, JsError>;
+pub type JsResult<T> = core::result::Result<T, JsError<'static>>;
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct JsError(Value<'static>);
+pub struct JsError<'a>(Value<'a>);
 
-impl JsError {
-    pub(crate) fn new(value: Value<'static>) -> Self {
+impl<'a> JsError<'a> {
+    pub(crate) fn new(value: Value<'a>) -> Self {
         Self(value)
     }
 
-    pub fn value(self) -> Value<'static> {
+    pub fn value(self) -> Value<'a> {
         self.0
     }
 
@@ -49,21 +49,45 @@ impl JsError {
 }
 
 // SAFETY: Property implemented as a recursive bind.
-unsafe impl Bindable for JsError {
-    type Of<'a> = JsError;
+unsafe impl Bindable for JsError<'_> {
+    type Of<'a> = JsError<'a>;
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
-        self
+        JsError(self.value().unbind())
     }
 
     #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        JsError(self.value().bind(gc))
     }
 }
 
-impl HeapMarkAndSweep for JsError {
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(transparent)]
+pub struct JsErrorRootRepr(ValueRootRepr);
+
+impl Rootable for JsError<'_> {
+    type RootRepr = JsErrorRootRepr;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Value::to_root_repr(value.value()).map(JsErrorRootRepr)
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Value::from_root_repr(&value.0).map(JsError)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        JsErrorRootRepr(Value::from_heap_ref(heap_ref))
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        Value::from_heap_data(heap_data).map(JsError)
+    }
+}
+
+impl HeapMarkAndSweep for JsError<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         self.0.mark_values(queues);
     }
@@ -446,12 +470,12 @@ impl Agent {
         &mut self[id]
     }
 
-    pub fn create_exception_with_static_message(
+    pub fn create_exception_with_static_message<'a>(
         &mut self,
         kind: ExceptionType,
         message: &'static str,
-        gc: NoGcScope,
-    ) -> Value {
+        gc: NoGcScope<'a, '_>,
+    ) -> Value<'a> {
         let message = String::from_static_str(self, message, gc).unbind();
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
@@ -459,24 +483,24 @@ impl Agent {
     }
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
-    pub fn throw_exception_with_static_message(
+    pub fn throw_exception_with_static_message<'a>(
         &mut self,
         kind: ExceptionType,
         message: &'static str,
-        gc: NoGcScope,
-    ) -> JsError {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
         JsError(
             self.create_exception_with_static_message(kind, message, gc)
                 .unbind(),
         )
     }
 
-    pub fn throw_exception(
+    pub fn throw_exception<'a>(
         &mut self,
         kind: ExceptionType,
         message: std::string::String,
-        gc: NoGcScope,
-    ) -> JsError {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
         let message = String::from_string(self, message, gc).unbind();
         JsError(
             self.heap
@@ -485,15 +509,17 @@ impl Agent {
         )
     }
 
-    pub fn throw_exception_with_message(
+    pub fn throw_exception_with_message<'a>(
         &mut self,
         kind: ExceptionType,
         message: String,
-    ) -> JsError {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
-                .into_value(),
+                .into_value()
+                .bind(gc),
         )
     }
 
@@ -620,7 +646,13 @@ impl Agent {
             Err(err) => {
                 let message =
                     String::from_string(self, err.first().unwrap().message.to_string(), gc.nogc());
-                return Err(self.throw_exception_with_message(ExceptionType::SyntaxError, message));
+                return Err(self
+                    .throw_exception_with_message(
+                        ExceptionType::SyntaxError,
+                        message.unbind(),
+                        gc.into_nogc(),
+                    )
+                    .unbind());
             }
         };
         script_evaluation(self, script.unbind(), gc)

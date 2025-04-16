@@ -12,7 +12,7 @@ use crate::{
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::context::{Bindable, GcScope, NoGcScope},
 };
 
 pub(crate) struct BooleanPrototype;
@@ -106,9 +106,11 @@ fn this_boolean_value(agent: &mut Agent, value: Value, gc: NoGcScope) -> JsResul
         }
     }
     // 3. Throw a TypeError exception.
-    Err(agent.throw_exception_with_static_message(
-        ExceptionType::TypeError,
-        "Not a Boolean or Boolean object",
-        gc,
-    ))
+    Err(agent
+        .throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Not a Boolean or Boolean object",
+            gc,
+        )
+        .unbind())
 }

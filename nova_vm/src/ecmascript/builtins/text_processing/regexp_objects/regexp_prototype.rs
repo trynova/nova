@@ -198,11 +198,13 @@ impl RegExpPrototype {
 
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(r) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "value is not object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "value is not object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Let codeUnits be a new empty List.
@@ -467,7 +469,9 @@ impl RegExpPrototype {
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         };
         if let Object::RegExp(r) = r {
             // Fast path for RegExp objects: This is not actually proper as it

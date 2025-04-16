@@ -152,22 +152,18 @@ pub(crate) fn get_value<'gc>(
                             "Cannot read property '{}' of undefined.",
                             referenced_name.as_display(agent)
                         );
-                        Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc.nogc(),
-                        ))
+                        Err(agent
+                            .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                            .unbind())
                     }
                     Value::Null => {
                         let error_message = format!(
                             "Cannot read property '{}' of null.",
                             referenced_name.as_display(agent)
                         );
-                        Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc.nogc(),
-                        ))
+                        Err(agent
+                            .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                            .unbind())
                     }
                     Value::Boolean(_) => agent
                         .current_realm_record()
@@ -225,7 +221,9 @@ pub(crate) fn get_value<'gc>(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.as_display(agent)
             );
-            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
+            Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
+                .unbind())
         }
     }
 }
@@ -267,22 +265,18 @@ pub(crate) fn try_get_value<'gc>(
                             "Cannot read property '{}' of undefined.",
                             referenced_name.as_display(agent)
                         );
-                        TryResult::Continue(Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc,
-                        )))
+                        TryResult::Continue(Err(agent
+                            .throw_exception(ExceptionType::TypeError, error_message, gc)
+                            .unbind()))
                     }
                     Value::Null => {
                         let error_message = format!(
                             "Cannot read property '{}' of null.",
                             referenced_name.as_display(agent)
                         );
-                        TryResult::Continue(Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc,
-                        )))
+                        TryResult::Continue(Err(agent
+                            .throw_exception(ExceptionType::TypeError, error_message, gc)
+                            .unbind()))
                     }
                     Value::Boolean(_) => TryResult::Continue(Ok(agent
                         .current_realm_record()
@@ -342,11 +336,9 @@ pub(crate) fn try_get_value<'gc>(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.as_display(agent)
             );
-            TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                error_message,
-                gc,
-            )))
+            TryResult::Continue(Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                .unbind()))
         }
     }
 }
@@ -371,11 +363,9 @@ pub(crate) fn put_value(
                 "Cannot assign to undeclared variable '{}'.",
                 v.referenced_name.as_display(agent)
             );
-            return Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                error_message,
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
+                .unbind());
         }
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent, gc.nogc());
@@ -416,7 +406,9 @@ pub(crate) fn put_value(
                 referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                .unbind());
         }
         // e. Return UNUSED.
         Ok(())
@@ -460,11 +452,9 @@ pub(crate) fn try_put_value<'a>(
                 "Cannot assign to undeclared variable '{}'.",
                 v.referenced_name.as_display(agent)
             );
-            return TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                error_message,
-                gc,
-            )));
+            return TryResult::Continue(Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                .unbind()));
         }
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent, gc);
@@ -503,11 +493,9 @@ pub(crate) fn try_put_value<'a>(
                 referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
-            return TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                error_message,
-                gc,
-            )));
+            return TryResult::Continue(Err(agent
+                .throw_exception(ExceptionType::TypeError, error_message, gc)
+                .unbind()));
         }
         // e. Return UNUSED.
         TryResult::Continue(Ok(()))

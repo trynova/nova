@@ -278,11 +278,13 @@ pub(crate) fn create_dynamic_function<'a>(
                     agent.heap.source_codes.len()
                 );
             }
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::SyntaxError,
-                "Invalid function source text.",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::SyntaxError,
+                    "Invalid function source text.",
+                    gc.nogc(),
+                )
+                .unbind());
         }
     };
 

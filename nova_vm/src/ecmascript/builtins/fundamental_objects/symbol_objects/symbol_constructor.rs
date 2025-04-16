@@ -67,11 +67,13 @@ impl SymbolConstructor {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         if new_target.is_some() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Symbol is not a constructor",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Symbol is not a constructor",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         let description = arguments.get(0).bind(gc.nogc());
         let desc_string = if description.is_undefined() {

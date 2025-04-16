@@ -90,11 +90,13 @@ impl MapConstructor {
 
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Constructor Map requires 'new'",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Constructor Map requires 'new'",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%Map.prototype%", « [[MapData]] »).
@@ -150,11 +152,13 @@ impl MapConstructor {
         };
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder, gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Map.prototype.set is not callable",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Map.prototype.set is not callable",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
         add_entries_from_iterable_map_constructor(
@@ -448,7 +452,7 @@ pub(crate) fn add_entries_from_iterable<'a>(
         .unbind()
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()));
+        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
     };
 
     let iterator = iterator.scope(agent, gc.nogc());
@@ -478,7 +482,12 @@ pub(crate) fn add_entries_from_iterable<'a>(
                 gc.nogc(),
             );
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, iterator.get(agent), Err(error), gc.reborrow());
+            return iterator_close(
+                agent,
+                iterator.get(agent),
+                Err(error.unbind()),
+                gc.reborrow(),
+            );
         };
         let next = next.unbind().bind(gc.nogc());
         let scoped_next = next.scope(agent, gc.nogc());

@@ -205,11 +205,13 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     // 7. NOTE: Bounds checking is not a synchronizing operation when view's backing buffer is a growable SharedArrayBuffer.
     // 8. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
     if is_view_out_of_bounds(agent, &view_record, gc) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "DataView is out of bounds",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+                gc,
+            )
+            .unbind());
     }
 
     // 9. Let viewSize be GetViewByteLength(viewRecord).
@@ -220,11 +222,13 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
 
     // 11. If getIndex + elementSize > viewSize, throw a RangeError exception.
     if get_index + element_size > view_size {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Index out of bounds",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Index out of bounds",
+                gc,
+            )
+            .unbind());
     }
 
     // 12. Let bufferIndex be getIndex + viewOffset.
@@ -317,11 +321,13 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     // 9. NOTE: Bounds checking is not a synchronizing operation when view's backing buffer is a growable SharedArrayBuffer.
     // 10. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
     if is_view_out_of_bounds(agent, &view_record, gc) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "DataView is out of bounds",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+                gc,
+            )
+            .unbind());
     }
 
     // 11. Let viewSize be GetViewByteLength(viewRecord).
@@ -331,11 +337,13 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     let element_size = size_of::<T>();
     // 13. If getIndex + elementSize > viewSize, throw a RangeError exception.
     if get_index + element_size > view_size {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Index out of bounds",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Index out of bounds",
+                gc,
+            )
+            .unbind());
     }
 
     // 14. Let bufferIndex be getIndex + viewOffset.

@@ -95,11 +95,13 @@ impl TypedArrayIntrinsicObject {
         _new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Err(agent.throw_exception_with_static_message(
-            crate::ecmascript::execution::agent::ExceptionType::TypeError,
-            "Abstract class TypedArray not directly constructable",
-            gc.nogc(),
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                crate::ecmascript::execution::agent::ExceptionType::TypeError,
+                "Abstract class TypedArray not directly constructable",
+                gc.nogc(),
+            )
+            .unbind())
     }
 
     /// ### [23.2.2.1 %TypedArray%.from ( source [ , mapper [ , thisArg ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.from)
@@ -118,11 +120,13 @@ impl TypedArrayIntrinsicObject {
         let c = this_value;
         // 2. If IsConstructor(C) is false, throw a TypeError exception.
         let Some(c) = is_constructor(agent, c) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a constructor",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a constructor",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 3. If mapper is undefined, then
         let mapping = if mapper.is_undefined() {
@@ -132,11 +136,13 @@ impl TypedArrayIntrinsicObject {
             // 3. Else,
             //  a. If IsCallable(mapper) is false, throw a TypeError exception.
             let Some(mapper) = is_callable(mapper, gc.nogc()) else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "The map function of Array.from is not callable",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "The map function of Array.from is not callable",
+                        gc.nogc(),
+                    )
+                    .unbind());
             };
             //  b. Let mapping be true.
             Some(mapper.scope(agent, gc.nogc()))
@@ -161,7 +167,7 @@ impl TypedArrayIntrinsicObject {
                 gc.reborrow(),
             )?
             else {
-                return Err(throw_not_callable(agent, gc.into_nogc()));
+                return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
             };
             let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
             // b. Let len be the number of elements in values.
@@ -301,11 +307,13 @@ impl TypedArrayIntrinsicObject {
         let c = this_value;
         // 3. If IsConstructor(C) is false, throw a TypeError exception.
         let Some(c) = is_constructor(agent, c) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not a constructor",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a constructor",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 4. Let newObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
         let len = len.to_i64().unwrap();
@@ -1081,11 +1089,13 @@ impl TypedArrayPrototype {
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not callable",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not callable",
+                    nogc,
+                )
+                .unbind());
         };
         let callback = callback.scope(agent, nogc);
         let this_arg = this_arg.scope(agent, nogc);
@@ -1474,11 +1484,13 @@ impl TypedArrayPrototype {
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not callable",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not callable",
+                    nogc,
+                )
+                .unbind());
         };
         let callback = callback.scope(agent, nogc);
         let this_arg = this_arg.scope(agent, nogc);
@@ -2367,19 +2379,23 @@ impl TypedArrayPrototype {
         } as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not callable",
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not callable",
+                    gc.into_nogc(),
+                )
+                .unbind());
         };
         // 5. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Array length is 0 and no initial value provided",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length is 0 and no initial value provided",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 6. Let k be 0.
         let mut k = 0;
@@ -2472,19 +2488,23 @@ impl TypedArrayPrototype {
         } as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not callable",
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not callable",
+                    gc.into_nogc(),
+                )
+                .unbind());
         };
         // 5. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Array length is 0 and no initial value provided",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length is 0 and no initial value provided",
+                    gc.nogc(),
+                )
+                .unbind());
         };
         // 6. Let k be len - 1.
         let mut k = len - 1;
@@ -2652,11 +2672,13 @@ impl TypedArrayPrototype {
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not callable",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Callback is not callable",
+                    nogc,
+                )
+                .unbind());
         };
         let callback = callback.scope(agent, nogc);
         let this_arg = this_arg.scope(agent, nogc);
@@ -2758,9 +2780,9 @@ impl TypedArrayPrototype {
         } as i64;
         let scoped_o = o.scope(agent, gc.nogc());
         // 4. Let A be ? TypedArrayCreateSameType(O, « 𝔽(length) »).
-        let a = typed_array_create_same_type(agent, scoped_o.get(agent), len, gc.reborrow())
+        let a = typed_array_create_same_type(agent, scoped_o.get(agent), len, gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())?;
+            .bind(gc.nogc());
         let scope_a = a.scope(agent, gc.nogc());
         // 5. Let k be 0.
         let mut k = 0;
@@ -2938,11 +2960,13 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
 ) -> JsResult<TypedArray<'a>> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     TypedArray::try_from(o.unbind()).map_err(|_| {
-        agent.throw_exception_with_static_message(
-            crate::ecmascript::execution::agent::ExceptionType::TypeError,
-            "Expected this to be TypedArray",
-            gc,
-        )
+        agent
+            .throw_exception_with_static_message(
+                crate::ecmascript::execution::agent::ExceptionType::TypeError,
+                "Expected this to be TypedArray",
+                gc,
+            )
+            .unbind()
     })
 }
 
@@ -2984,11 +3008,13 @@ fn search_typed_element<T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
     // guaranteed by align_to itself.
     let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
     if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray is not properly aligned",
+                gc,
+            )
+            .unbind());
     }
     // Length of the TypedArray may have changed between when we measured it
     // and here: We'll never try to access past the boundary of the slice if
@@ -3035,11 +3061,13 @@ fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
     };
     let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
     if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray is not properly aligned",
+                gc,
+            )
+            .unbind());
     }
     let slice = &mut slice[..len];
     slice.reverse();
@@ -3060,11 +3088,13 @@ fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
         .min(before_len - target_index) as usize;
     let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
     if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Callback is not callable",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc,
+            )
+            .unbind());
     }
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
@@ -3088,11 +3118,13 @@ fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
     };
     let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
     if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray is not properly aligned",
+                gc,
+            )
+            .unbind());
     }
     let slice = &mut slice[..len];
     let start_bound = start_index as usize;
@@ -3175,11 +3207,13 @@ fn fill_typed_array<'a, T: Viewable>(
     let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
     // 15. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
     if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Callback is not callable",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc,
+            )
+            .unbind());
     };
     // 16. Set len to TypedArrayLength(taRecord).
     let len = typed_array_length::<T>(agent, &ta_record, gc) as i64;
@@ -3216,11 +3250,13 @@ fn fill_typed_array<'a, T: Viewable>(
     };
     let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
     if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray is not properly aligned",
+                gc,
+            )
+            .unbind());
     }
     if k >= end_index {
         return Ok(ta);

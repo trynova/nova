@@ -130,11 +130,13 @@ pub(crate) fn get_iterator_from_method<'a>(
 
     // 2. If iterator is not an Object, throw a TypeError exception.
     let Ok(iterator) = Object::try_from(iterator) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Iterator is not an object",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator is not an object",
+                gc.nogc(),
+            )
+            .unbind());
     };
 
     let scoped_iterator = iterator.scope(agent, gc.nogc());
@@ -195,11 +197,13 @@ pub(crate) fn get_iterator<'a>(
             )?
             else {
                 // ii. If syncMethod is undefined, throw a TypeError exception.
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "No iterator on object",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "No iterator on object",
+                        gc.nogc(),
+                    )
+                    .unbind());
             };
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
@@ -228,11 +232,13 @@ pub(crate) fn get_iterator<'a>(
 
     // 3. If method is undefined, throw a TypeError exception.
     let Some(method) = method else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Iterator method cannot be undefined",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator method cannot be undefined",
+                gc.nogc(),
+            )
+            .unbind());
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
@@ -270,13 +276,13 @@ pub(crate) fn iterator_next<'a>(
 
     // 3. If result is not an Object, throw a TypeError exception.
     // 4. Return result.
-    result
-        .try_into()
-        .or(Err(agent.throw_exception_with_static_message(
+    result.try_into().or(Err(agent
+        .throw_exception_with_static_message(
             ExceptionType::TypeError,
             "The iterator result was not an object",
             gc,
-        )))
+        )
+        .unbind()))
 }
 
 /// ### [7.4.7 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
@@ -460,22 +466,25 @@ pub(crate) fn iterator_close<T>(
     let inner_result = inner_result?;
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     if !inner_result.is_object() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Invalid iterator 'return' method return value",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid iterator 'return' method return value",
+                gc.nogc(),
+            )
+            .unbind());
     }
     // 8. Return ? completion.
     Ok(completion)
 }
 
-pub(crate) fn iterator_close_with_error(
+pub(crate) fn iterator_close_with_error<'a>(
     agent: &mut Agent,
     iterator: Object,
     completion: JsError,
-    mut gc: GcScope,
-) -> JsError {
+    mut gc: GcScope<'a, '_>,
+) -> JsError<'a> {
+    let completion = completion.scope(agent, gc.nogc());
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
@@ -490,7 +499,8 @@ pub(crate) fn iterator_close_with_error(
         // a. Let return be innerResult.[[Value]].
         // b. If return is undefined, return ? completion.
         let Some(r#return) = r#return else {
-            return completion;
+            // SAFETY: completion is not shared.
+            return unsafe { completion.take(agent) };
         };
         // c. Set innerResult to Completion(Call(return, iterator)).
         let _ = call_function(
@@ -502,7 +512,8 @@ pub(crate) fn iterator_close_with_error(
         );
     }
     // 5. If completion.[[Type]] is throw, return ? completion.
-    completion
+    // SAFETY: completion is not shared.
+    unsafe { completion.take(agent) }
 }
 
 /// ### [7.4.11 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
@@ -560,9 +571,9 @@ macro_rules! if_abrupt_close_iterator {
                 crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close_with_error(
                     $agent,
                     $iterator_record.iterator.unbind(),
-                    err,
+                    err.unbind(),
                     $gc
-                )
+                ).unbind()
             );
         } else if let Ok(value) = $value {
             value.unbind().bind($gc.nogc())

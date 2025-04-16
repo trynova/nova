@@ -98,11 +98,13 @@ impl PromisePrototype {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "'this' is not a promise",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' is not a promise",
+                    gc,
+                )
+                .unbind());
         };
 
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).

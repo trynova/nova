@@ -275,11 +275,9 @@ impl DeclarativeEnvironment<'_> {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                return Err(agent.throw_exception(
-                    ExceptionType::ReferenceError,
-                    error_message,
-                    gc,
-                ));
+                return Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                    .unbind());
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -304,7 +302,9 @@ impl DeclarativeEnvironment<'_> {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
+            return Err(agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                .unbind());
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -323,7 +323,9 @@ impl DeclarativeEnvironment<'_> {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
+                return Err(agent
+                    .throw_exception(ExceptionType::TypeError, error_message, gc)
+                    .unbind());
             }
         }
 
@@ -354,7 +356,9 @@ impl DeclarativeEnvironment<'_> {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
+                Err(agent
+                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                    .unbind())
             }
         }
     }

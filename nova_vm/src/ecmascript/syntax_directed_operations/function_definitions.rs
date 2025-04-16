@@ -355,6 +355,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
                 .resolve(agent, result.unbind(), gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
+            let err = err.unbind().bind(gc.nogc());
             let promise = promise.get(agent).bind(gc.nogc());
             let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)

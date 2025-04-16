@@ -8,7 +8,7 @@ use ahash::AHashSet;
 
 use super::{
     operations_on_iterator_objects::{
-        IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close,
+        IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
     },
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
     type_conversion::{
@@ -258,14 +258,16 @@ pub(crate) fn set(
     let success = o.internal_set(agent, p.unbind(), v, o.into_value(), gc.reborrow())?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
-        return Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            format!(
-                "Could not set property '{}'.",
-                scoped_p.get(agent).bind(gc.nogc()).as_display(agent)
-            ),
-            gc.into_nogc(),
-        ));
+        return Err(agent
+            .throw_exception(
+                ExceptionType::TypeError,
+                format!(
+                    "Could not set property '{}'.",
+                    scoped_p.get(agent).bind(gc.nogc()).as_display(agent)
+                ),
+                gc.into_nogc(),
+            )
+            .unbind());
     }
     // 3. Return UNUSED.
     Ok(())
@@ -290,11 +292,13 @@ pub(crate) fn try_set(
     let success = o.try_set(agent, p, v, o.into_value(), gc)?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
-        return TryResult::Continue(Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            format!("Could not set property '{}'.", p.as_display(agent)),
-            gc,
-        )));
+        return TryResult::Continue(Err(agent
+            .throw_exception(
+                ExceptionType::TypeError,
+                format!("Could not set property '{}'.", p.as_display(agent)),
+                gc,
+            )
+            .unbind()));
     }
     // 3. Return UNUSED.
     TryResult::Continue(Ok(()))
@@ -381,14 +385,16 @@ pub(crate) fn try_create_data_property_or_throw<'a>(
 ) -> TryResult<JsResult<()>> {
     let success = try_create_data_property(agent, object, property_key, value, gc)?;
     if !success {
-        TryResult::Continue(Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            format!(
-                "Could not create property '{}'.",
-                property_key.as_display(agent)
-            ),
-            gc,
-        )))
+        TryResult::Continue(Err(agent
+            .throw_exception(
+                ExceptionType::TypeError,
+                format!(
+                    "Could not create property '{}'.",
+                    property_key.as_display(agent)
+                ),
+                gc,
+            )
+            .unbind()))
     } else {
         TryResult::Continue(Ok(()))
     }
@@ -412,17 +418,19 @@ pub(crate) fn create_data_property_or_throw<'a>(
     let scoped_property_key = property_key.scope(agent, gc.nogc());
     let success = create_data_property(agent, object, property_key.unbind(), value, gc.reborrow())?;
     if !success {
-        Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            format!(
-                "Could not create property '{}'.",
-                scoped_property_key
-                    .get(agent)
-                    .bind(gc.nogc())
-                    .as_display(agent)
-            ),
-            gc.into_nogc(),
-        ))
+        Err(agent
+            .throw_exception(
+                ExceptionType::TypeError,
+                format!(
+                    "Could not create property '{}'.",
+                    scoped_property_key
+                        .get(agent)
+                        .bind(gc.nogc())
+                        .as_display(agent)
+                ),
+                gc.into_nogc(),
+            )
+            .unbind())
     } else {
         Ok(())
     }
@@ -447,11 +455,13 @@ pub(crate) fn try_define_property_or_throw<'a>(
     let success = object.try_define_own_property(agent, property_key, desc, gc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        TryResult::Continue(Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Failed to defined property on object",
-            gc,
-        )))
+        TryResult::Continue(Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Failed to defined property on object",
+                gc,
+            )
+            .unbind()))
     } else {
         // 3. Return UNUSED.
         TryResult::Continue(Ok(()))
@@ -484,11 +494,13 @@ pub(crate) fn define_property_or_throw<'a>(
     )?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Failed to defined property on object",
-            gc.into_nogc(),
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Failed to defined property on object",
+                gc.into_nogc(),
+            )
+            .unbind())
     } else {
         // 3. Return UNUSED.
         Ok(())
@@ -511,11 +523,13 @@ pub(crate) fn try_delete_property_or_throw<'a>(
     let success = o.try_delete(agent, p, gc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        TryResult::Continue(Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Failed to delete property",
-            gc,
-        )))
+        TryResult::Continue(Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Failed to delete property",
+                gc,
+            )
+            .unbind()))
     } else {
         // 3. Return unused.
         TryResult::Continue(Ok(()))
@@ -539,11 +553,13 @@ pub(crate) fn delete_property_or_throw<'a>(
     let success = o.internal_delete(agent, p.unbind(), gc.reborrow())?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Failed to delete property",
-            gc.into_nogc(),
-        ))
+        Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Failed to delete property",
+                gc.into_nogc(),
+            )
+            .unbind())
     } else {
         // 3. Return unused.
         Ok(())
@@ -645,11 +661,13 @@ fn get_method_internal<'a>(
     // 3. If IsCallable(func) is false, throw a TypeError exception.
     let func = is_callable(func, gc);
     if func.is_none() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Not a callable object",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a callable object",
+                gc,
+            )
+            .unbind());
     }
     // 4. Return func.
     Ok(func)
@@ -753,7 +771,7 @@ pub(crate) fn call<'gc>(
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     match is_callable(f, gc.nogc()) {
-        None => Err(throw_not_callable(agent, gc.into_nogc())),
+        None => Err(throw_not_callable(agent, gc.into_nogc()).unbind()),
         // 3. Return ? F.[[Call]](V, argumentsList).
         Some(f) => {
             let current_stack_size = agent.stack_refs.borrow().len();
@@ -766,7 +784,7 @@ pub(crate) fn call<'gc>(
 
 #[cold]
 #[inline(never)]
-pub(crate) fn throw_not_callable(agent: &mut Agent, gc: NoGcScope) -> JsError {
+pub(crate) fn throw_not_callable<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<'a> {
     agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a callable object", gc)
 }
 
@@ -1180,11 +1198,13 @@ pub(crate) fn create_list_from_array_like<'gc>(
             Ok(list.into_iter().map(|v| v.get(agent).bind(gc)).collect())
         }
         // 2. If obj is not an Object, throw a TypeError exception.
-        _ => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Not an object",
-            gc.into_nogc(),
-        )),
+        _ => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not an object",
+                gc.into_nogc(),
+            )
+            .unbind()),
     }
 }
 
@@ -1204,11 +1224,13 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
     // 1. If validElementTypes is not present, set validElementTypes to all.
     // 2. If obj is not an Object, throw a TypeError exception.
     let Ok(object) = Object::try_from(obj) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Not an object",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not an object",
+                gc.nogc(),
+            )
+            .unbind());
     };
     let object = object.bind(gc.nogc());
     let scoped_object = object.scope(agent, gc.nogc());
@@ -1248,7 +1270,7 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
                 ExceptionType::TypeError,
                 "proxy [[OwnPropertyKeys]] must return an array with only string and symbol elements",
                 gc.nogc(),
-            ));
+            ).unbind());
             }
         }
         index += 1;
@@ -1373,11 +1395,13 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     )?;
     // 5. If P is not an Object, throw a TypeError exception.
     let Ok(p) = Object::try_from(p) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Non-object prototype found",
-            gc.into_nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Non-object prototype found",
+                gc.into_nogc(),
+            )
+            .unbind());
     };
     // 6. Repeat,
     is_prototype_of_loop(agent, p.unbind(), o.unbind(), gc)
@@ -2457,11 +2481,13 @@ pub(crate) fn group_by_property<'gc, 'scope>(
 
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
     let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Callback is not callable",
-            gc.into_nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc.into_nogc(),
+            )
+            .unbind());
     };
     let callback_fn = callback_fn.scope(agent, gc.nogc());
 
@@ -2477,7 +2503,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         .unbind()
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()));
+        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
     };
 
     let iterator = iterator.scope(agent, gc.nogc());
@@ -2499,7 +2525,9 @@ pub(crate) fn group_by_property<'gc, 'scope>(
             );
 
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, iterator.get(agent), Err(error), gc);
+            return Err(
+                iterator_close_with_error(agent, iterator.get(agent), error.unbind(), gc).unbind(),
+            );
         }
 
         // b. Let next be ? IteratorStepValue(iteratorRecord).
@@ -2581,11 +2609,13 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
 
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
     let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Callback is not callable",
-            gc.into_nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc.into_nogc(),
+            )
+            .unbind());
     };
     let callback_fn = callback_fn.scope(agent, gc.nogc());
 
@@ -2601,7 +2631,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         .unbind()
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()));
+        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
     };
 
     let iterator = iterator.scope(agent, gc.nogc());
@@ -2623,7 +2653,9 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
             );
 
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, iterator.get(agent), Err(error), gc);
+            return Err(
+                iterator_close_with_error(agent, iterator.get(agent), error.unbind(), gc).unbind(),
+            );
         }
 
         // b. Let next be ? IteratorStepValue(iteratorRecord).

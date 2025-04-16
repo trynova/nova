@@ -209,7 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                     Ok(ok_result.get(agent).bind(gc.into_nogc()))
                                 }
-                                Err(_) => result.bind(gc.into_nogc()),
+                                Err(_) => result.unbind(),
                             }
                         }
 
@@ -232,6 +232,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "Uncaught exception: {}",
                                     error
                                         .value()
+                                        .unbind()
                                         .string_repr(agent, gc.reborrow())
                                         .as_str(agent)
                                 );

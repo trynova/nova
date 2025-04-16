@@ -183,11 +183,13 @@ impl ArrayBufferPrototype {
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
         let mut o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
         if !o.is_resizable(agent) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Attempted to resize fixed length ArrayBuffer",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Attempted to resize fixed length ArrayBuffer",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 4. Let newByteLength be ? ToIndex(newLength).
         let new_byte_length =
@@ -201,19 +203,23 @@ impl ArrayBufferPrototype {
             };
         // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Cannot resize a detached ArrayBuffer",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Cannot resize a detached ArrayBuffer",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 6. If newByteLength > O.[[ArrayBufferMaxByteLength]], throw a RangeError exception.
         if new_byte_length > o.max_byte_length(agent) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Attempted to resize beyond ArrayBuffer maxByteLength",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Attempted to resize beyond ArrayBuffer maxByteLength",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 7. Let hostHandled be ? HostResizeArrayBuffer(O, newByteLength).
         // 8. If hostHandled is handled, return undefined.
@@ -251,11 +257,13 @@ impl ArrayBufferPrototype {
         let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
         // 4. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Cannot slice a detached ArrayBuffer",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Cannot slice a detached ArrayBuffer",
+                    gc.nogc(),
+                )
+                .unbind());
         }
         // 5. Let len be O.[[ArrayBufferByteLength]].
         let len = o.byte_length(agent);
@@ -316,37 +324,45 @@ impl ArrayBufferPrototype {
         // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
         // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
         if is_detached_buffer(agent, new) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Construction produced a detached ArrayBuffer",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Construction produced a detached ArrayBuffer",
+                    gc,
+                )
+                .unbind());
         }
         // 20. If SameValue(new, O) is true, throw a TypeError exception.
         let o = scoped_o.get(agent).bind(gc);
         if new == o {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Construction returned the original ArrayBuffer",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Construction returned the original ArrayBuffer",
+                    gc,
+                )
+                .unbind());
         }
         // 21. If new.[[ArrayBufferByteLength]] < newLen, throw a TypeError exception.
         if new.byte_length(agent) < new_len {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Construction returned a smaller ArrayBuffer than requested",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Construction returned a smaller ArrayBuffer than requested",
+                    gc,
+                )
+                .unbind());
         }
         // 22. NOTE: Side-effects of the above steps may have detached or resized O.
         // 23. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Construction detached ArrayBuffer being sliced",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Construction detached ArrayBuffer being sliced",
+                    gc,
+                )
+                .unbind());
         }
         // 24. Let fromBuf be O.[[ArrayBufferData]].
         // 25. Let toBuf be new.[[ArrayBufferData]].
@@ -431,10 +447,12 @@ pub(crate) fn require_internal_slot_array_buffer<'a>(
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
         Value::ArrayBuffer(array_buffer) => Ok(array_buffer.unbind()),
-        _ => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Expected this to be ArrayBuffer",
-            gc,
-        )),
+        _ => Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected this to be ArrayBuffer",
+                gc,
+            )
+            .unbind()),
     }
 }

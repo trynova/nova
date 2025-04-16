@@ -730,11 +730,13 @@ fn typed_array_constructor<'gc, T: Viewable>(
     };
     // 1. If NewTarget is undefined, throw a TypeError exception.
     let Some(new_target) = new_target else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "calling a builtin TypedArray constructor without new is forbidden",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "calling a builtin TypedArray constructor without new is forbidden",
+                gc.nogc(),
+            )
+            .unbind());
     };
     let mut new_target = Function::try_from(new_target).unwrap();
 
@@ -886,7 +888,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
                     gc.reborrow(),
                 )?
                 else {
-                    return Err(throw_not_callable(agent, gc.into_nogc()));
+                    return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
                 };
                 let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
                 // b. Perform ? InitializeTypedArrayFromList(O, values).

@@ -465,11 +465,9 @@ pub(crate) fn global_declaration_instantiation(
                 "Redeclaration of restricted global property '{}'.",
                 name_atom.as_str()
             );
-            return Err(agent.throw_exception(
-                ExceptionType::SyntaxError,
-                error_message,
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception(ExceptionType::SyntaxError, error_message, gc.nogc())
+                .unbind());
         }
     }
 
@@ -481,11 +479,9 @@ pub(crate) fn global_declaration_instantiation(
         if env.has_lexical_declaration(agent, name) {
             let error_message =
                 format!("Redeclaration of lexical binding '{}'.", name.as_str(agent));
-            return Err(agent.throw_exception(
-                ExceptionType::SyntaxError,
-                error_message,
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception(ExceptionType::SyntaxError, error_message, gc.nogc())
+                .unbind());
         }
     }
 
@@ -521,11 +517,9 @@ pub(crate) fn global_declaration_instantiation(
                         "Cannot declare of global function '{}'.",
                         function_name.as_str()
                     );
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        error_message,
-                        gc.nogc(),
-                    ));
+                    return Err(agent
+                        .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                        .unbind());
                 }
                 // 3. Append fn to declaredFunctionNames.
                 // 4. Insert d as the first element of functionsToInitialize.
@@ -561,11 +555,9 @@ pub(crate) fn global_declaration_instantiation(
                     if !vn_definable {
                         let error_message =
                             format!("Cannot declare global variable '{}'.", vn.as_str(agent));
-                        return Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc.nogc(),
-                        ));
+                        return Err(agent
+                            .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
+                            .unbind());
                     }
                     // c. If declaredVarNames does not contain vn, then
                     // i. Append vn to declaredVarNames.

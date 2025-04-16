@@ -151,11 +151,13 @@ impl ReflectObject {
 
         // 1. If IsCallable(target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target, nogc) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not callable",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not callable",
+                    nogc,
+                )
+                .unbind());
         };
         let target = target.scope(agent, nogc);
         let this_argument = this_argument.scope(agent, nogc);
@@ -187,11 +189,13 @@ impl ReflectObject {
 
         // 1. If IsConstructor(target) is false, throw a TypeError exception.
         let Some(target) = is_constructor(agent, target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not a constructor",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not a constructor",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. If newTarget is not present, set newTarget to target.
@@ -199,11 +203,13 @@ impl ReflectObject {
         let new_target = if arguments.len() > 2 {
             let new_target = arguments.get(2).bind(nogc);
             let Some(new_target) = is_constructor(agent, new_target) else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Value is not a constructor",
-                    nogc,
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Value is not a constructor",
+                        nogc,
+                    )
+                    .unbind());
             };
             new_target
         } else {
@@ -241,11 +247,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
         let mut target = target.bind(nogc);
 
@@ -311,11 +319,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
@@ -356,11 +366,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
         let mut target = target.bind(nogc);
 
@@ -400,11 +412,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
         let mut target = target.bind(nogc);
 
@@ -443,11 +457,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                gc.into_nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    gc.into_nogc(),
+                )
+                .unbind());
         };
 
         // 2. Return ? target.[[GetPrototypeOf]]().
@@ -470,11 +486,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
         let mut target = target.bind(nogc);
 
@@ -509,11 +527,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. Return ? target.[[IsExtensible]]().
@@ -533,11 +553,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. Let keys be ? target.[[OwnPropertyKeys]]().
@@ -567,11 +589,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. Return ? target.[[PreventExtensions]]().
@@ -598,11 +622,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
@@ -647,11 +673,13 @@ impl ReflectObject {
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not an object",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Value is not an object",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 2. If proto is not an Object and proto is not null, throw a TypeError exception.
@@ -660,11 +688,13 @@ impl ReflectObject {
         } else if proto.is_null() {
             None
         } else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Prototype must be an object or null",
-                nogc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Prototype must be an object or null",
+                    nogc,
+                )
+                .unbind());
         };
 
         // 3. Return ? target.[[SetPrototypeOf]](proto).

@@ -62,11 +62,13 @@ impl Generator<'_> {
                 // 3. Assert: state is either suspended-start or suspended-yield.
             }
             GeneratorState::Executing => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "The generator is currently running",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "The generator is currently running",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
@@ -152,7 +154,7 @@ impl Generator<'_> {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
-                Err(err)
+                Err(err.unbind())
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 // Yield:
@@ -205,11 +207,13 @@ impl Generator<'_> {
                 // 4. Assert: state is suspended-yield.
             }
             GeneratorState::Executing => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "The generator is currently running",
-                    gc.into_nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "The generator is currently running",
+                        gc.into_nogc(),
+                    )
+                    .unbind());
             }
             GeneratorState::Completed => {
                 // 3. If state is completed, then
@@ -264,7 +268,7 @@ impl Generator<'_> {
             }
             ExecutionResult::Throw(err) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
-                Err(err)
+                Err(err.unbind())
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 agent[self].generator_state =

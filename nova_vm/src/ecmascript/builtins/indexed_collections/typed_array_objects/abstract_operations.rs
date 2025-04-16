@@ -695,11 +695,13 @@ pub(crate) fn validate_typed_array<'a>(
         TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc),
         TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc),
     } {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray out of bounds",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc,
+            )
+            .unbind());
     }
 
     // 5. Return taRecord.
@@ -787,11 +789,13 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
 
     // 8. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
     if is_typed_array_out_of_bounds::<Src>(agent, &src_record, gc) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray out of bounds",
-            gc,
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc,
+            )
+            .unbind());
     }
 
     // 9. Let elementLength be TypedArrayLength(srcRecord).
@@ -818,11 +822,13 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
 
         // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
         if O::IS_BIGINT != Src::IS_BIGINT {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "TypedArray content type mismatch",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "TypedArray content type mismatch",
+                    gc,
+                )
+                .unbind());
         }
 
         // c. Let srcByteIndex be srcByteOffset.
@@ -911,11 +917,13 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
 
     // 3. If offset modulo elementSize ≠ 0, throw a RangeError exception.
     if offset % element_size != 0 {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "offset is not a multiple of the element size",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "offset is not a multiple of the element size",
+                gc.nogc(),
+            )
+            .unbind());
     }
 
     let buffer = scoped_buffer.get(agent).bind(gc.nogc());
@@ -932,11 +940,13 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
     let buffer = scoped_buffer.get(agent).bind(gc.nogc());
     // 6. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
     if is_detached_buffer(agent, buffer) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "attempting to access detached ArrayBuffer",
-            gc.nogc(),
-        ));
+        return Err(agent
+            .throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "attempting to access detached ArrayBuffer",
+                gc.nogc(),
+            )
+            .unbind());
     }
 
     // 7. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
@@ -949,11 +959,13 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
     if length.is_none() && !buffer_is_fixed_length {
         // a. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "offset is outside the bounds of the buffer",
-                gc.nogc(),
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "offset is outside the bounds of the buffer",
+                    gc.nogc(),
+                )
+                .unbind());
         }
 
         // b. Set O.[[ByteLength]] to auto.
@@ -968,11 +980,13 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
             let new_byte_length = new_length * element_size;
             // ii. If offset + newByteLength > bufferByteLength, throw a RangeError exception.
             if offset + new_byte_length > buffer_byte_length {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "offset is outside the bounds of the buffer",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "offset is outside the bounds of the buffer",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
 
             new_byte_length
@@ -980,11 +994,13 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
             // a. If length is undefined, then
             // i. If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception.
             if buffer_byte_length % element_size != 0 {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "buffer length is not a multiple of the element size",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "buffer length is not a multiple of the element size",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
 
             // ii. Let newByteLength be bufferByteLength - offset.
@@ -992,11 +1008,13 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
                 new_byte_length
             } else {
                 // iii. If newByteLength < 0, throw a RangeError exception.
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "new byte length is negative",
-                    gc.nogc(),
-                ));
+                return Err(agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "new byte length is negative",
+                        gc.nogc(),
+                    )
+                    .unbind());
             }
         };
 
@@ -1220,11 +1238,13 @@ fn typed_array_create_from_constructor_internal<'a>(
                 is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
             }
         } {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "TypedArray out of bounds",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "TypedArray out of bounds",
+                    gc,
+                )
+                .unbind());
         }
         // b. Let length be TypedArrayLength(taRecord).
         let len = match o {
@@ -1246,11 +1266,13 @@ fn typed_array_create_from_constructor_internal<'a>(
         } as i64;
         // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
         if len < first_arg {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "TypedArray out of bounds",
-                gc,
-            ));
+            return Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "TypedArray out of bounds",
+                    gc,
+                )
+                .unbind());
         };
     }
     // 4. Return newTypedArray.
