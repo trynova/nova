@@ -35,7 +35,7 @@ impl ErrorPrototype {
         this_value: Value,
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let this_value = this_value.bind(gc.nogc());
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -43,7 +43,7 @@ impl ErrorPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "'this' is not an object",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
         let scoped_o = o.scope(agent, gc.nogc());
@@ -53,14 +53,16 @@ impl ErrorPrototype {
             o.unbind(),
             PropertyKey::from(BUILTIN_STRING_MEMORY.name),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // 4. If name is undefined, set name to "Error"; otherwise set name to ? ToString(name).
         let name = if name.is_undefined() {
             None
         } else {
             Some(
-                to_string(agent, name.unbind(), gc.reborrow())?
-                    .unbind()
+                to_string(agent, name.unbind(), gc.reborrow())
+                    .unbind()?
                     .scope(agent, gc.nogc()),
             )
         };
@@ -70,12 +72,16 @@ impl ErrorPrototype {
             scoped_o.get(agent),
             BUILTIN_STRING_MEMORY.message.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
             String::EMPTY_STRING
         } else {
-            to_string(agent, msg.unbind(), gc.reborrow())?
+            to_string(agent, msg.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
         };
         // No more GC can be triggered.
         let msg = msg.unbind();

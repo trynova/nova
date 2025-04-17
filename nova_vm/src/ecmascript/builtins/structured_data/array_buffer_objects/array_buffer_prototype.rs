@@ -98,11 +98,11 @@ impl ArrayBufferPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let o = require_internal_slot_array_buffer(agent, this_value, gc.into_nogc())?;
         // 4. If IsDetachedBuffer(O) is true, return +0𝔽.
         // 5. Let length be O.[[ArrayBufferByteLength]].
         // 6. Return 𝔽(length).
@@ -120,11 +120,11 @@ impl ArrayBufferPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let o = require_internal_slot_array_buffer(agent, this_value, gc.into_nogc())?;
         // 4. Return IsDetachedBuffer(O).
         Ok(is_detached_buffer(agent, o).into())
     }
@@ -137,11 +137,11 @@ impl ArrayBufferPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let o = require_internal_slot_array_buffer(agent, this_value, gc.into_nogc())?;
         // 4. If IsDetachedBuffer(O) is true, return +0𝔽.
         // 5. If IsFixedLengthArrayBuffer(O) is true, then
         // a. Let length be O.[[ArrayBufferByteLength]].
@@ -159,11 +159,11 @@ impl ArrayBufferPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let o = require_internal_slot_array_buffer(agent, this_value, gc.into_nogc())?;
         // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise return false.
         Ok((!is_fixed_length_array_buffer(agent, o)).into())
     }
@@ -176,26 +176,30 @@ impl ArrayBufferPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let new_length = arguments.get(0).bind(gc.nogc());
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let mut o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let mut o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         if !o.is_resizable(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Attempted to resize fixed length ArrayBuffer",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         // 4. Let newByteLength be ? ToIndex(newLength).
         let new_byte_length =
             if let TryResult::Continue(res) = try_to_index(agent, new_length, gc.nogc()) {
-                res? as usize
+                res.unbind()? as usize
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
-                let res = to_index(agent, new_length.unbind(), gc.reborrow())?;
+                let res = to_index(agent, new_length.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 o = scoped_o.get(agent).bind(gc.nogc());
                 res as usize
             };
@@ -204,7 +208,7 @@ impl ArrayBufferPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Cannot resize a detached ArrayBuffer",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         // 6. If newByteLength > O.[[ArrayBufferMaxByteLength]], throw a RangeError exception.
@@ -212,7 +216,7 @@ impl ArrayBufferPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Attempted to resize beyond ArrayBuffer maxByteLength",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         // 7. Let hostHandled be ? HostResizeArrayBuffer(O, newByteLength).
@@ -242,19 +246,21 @@ impl ArrayBufferPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let start = arguments.get(0).bind(gc.nogc());
         let end = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 4. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Cannot slice a detached ArrayBuffer",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         // 5. Let len be O.[[ArrayBufferByteLength]].
@@ -262,7 +268,8 @@ impl ArrayBufferPrototype {
 
         let scoped_o = o.scope(agent, gc.nogc());
         // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())?;
+        let relative_start =
+            to_integer_or_infinity(agent, start.unbind(), gc.reborrow()).unbind()?;
         // 7. If relativeStart = -∞, let first be 0.
         let first = if relative_start.is_neg_infinity() {
             0
@@ -280,7 +287,8 @@ impl ArrayBufferPrototype {
             len
         } else {
             // else let relativeEnd be ? ToIntegerOrInfinity(end).
-            let relative_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow())?;
+            let relative_end =
+                to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
             // 11. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity() {
                 0
@@ -306,8 +314,9 @@ impl ArrayBufferPrototype {
                 .unwrap()])),
             None,
             gc.reborrow(),
-        )?
-        .unbind() else {
+        )
+        .unbind()?
+        else {
             unreachable!();
         };
         let gc = gc.into_nogc();
@@ -371,7 +380,7 @@ impl ArrayBufferPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, preserve-resizability).
         todo!()
@@ -385,7 +394,7 @@ impl ArrayBufferPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, fixed-length).
         todo!()
@@ -426,7 +435,7 @@ pub(crate) fn require_internal_slot_array_buffer<'a>(
     agent: &mut Agent,
     o: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<ArrayBuffer<'a>> {
+) -> JsResult<'a, ArrayBuffer<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.

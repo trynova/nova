@@ -44,11 +44,11 @@ impl VmIterator {
         &mut self,
         agent: &mut Agent,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<Value<'gc>>> {
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
         match self {
-            VmIterator::InvalidIterator => Err(throw_not_callable(agent, gc.into_nogc())),
+            VmIterator::InvalidIterator => Err(throw_not_callable(agent, gc.into_nogc()).unbind()),
             VmIterator::ObjectProperties(iter) => {
-                let result = iter.next(agent, gc.reborrow())?;
+                let result = iter.next(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
                 if let Some(result) = result {
                     let result = result.unbind();
                     let gc = gc.into_nogc();
@@ -78,12 +78,14 @@ impl VmIterator {
                     iterator.into_value().unbind(),
                     None,
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 let Ok(result) = Object::try_from(result) else {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "Iterator returned a non-object result",
-                        gc.nogc(),
+                        gc.into_nogc(),
                     ));
                 };
                 let result = result.unbind().bind(gc.nogc());
@@ -94,7 +96,9 @@ impl VmIterator {
                     result.unbind(),
                     BUILTIN_STRING_MEMORY.done.into(),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 let done = to_boolean(agent, done);
                 // SAFETY: Neither is shared.
                 unsafe {
@@ -139,7 +143,11 @@ impl VmIterator {
     /// Iterator Record or a throw completion.
     ///
     /// This method version performs the SYNC version of the method.
-    pub(super) fn from_value(agent: &mut Agent, value: Value, mut gc: GcScope) -> JsResult<Self> {
+    pub(super) fn from_value<'a>(
+        agent: &mut Agent,
+        value: Value,
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         let value = value.bind(gc.nogc());
         let scoped_value = value.scope(agent, gc.nogc());
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
@@ -148,15 +156,15 @@ impl VmIterator {
             value.unbind(),
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
             gc.reborrow(),
-        )?
-        .unbind()
+        )
+        .unbind()?
         .bind(gc.nogc());
         // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Iterator method cannot be undefined",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
 
@@ -226,13 +234,15 @@ impl ObjectPropertiesIterator {
         &mut self,
         agent: &mut Agent,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Option<PropertyKey<'a>>> {
+    ) -> JsResult<'a, Option<PropertyKey<'a>>> {
         let mut object = self.object.scope(agent, gc.nogc());
         loop {
             if !self.object_was_visited {
                 let keys = object
                     .get(agent)
-                    .internal_own_property_keys(agent, gc.reborrow())?;
+                    .internal_own_property_keys(agent, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
@@ -249,7 +259,9 @@ impl ObjectPropertiesIterator {
                 }
                 let desc = object
                     .get(agent)
-                    .internal_get_own_property(agent, r, gc.reborrow())?;
+                    .internal_get_own_property(agent, r, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
                     if desc.enumerable == Some(true) {
@@ -259,7 +271,9 @@ impl ObjectPropertiesIterator {
             }
             let prototype = object
                 .get(agent)
-                .internal_get_prototype_of(agent, gc.reborrow())?;
+                .internal_get_prototype_of(agent, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype.unbind();
@@ -291,7 +305,7 @@ impl ArrayValuesIterator {
         &mut self,
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<Value<'gc>>> {
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
         // b. Repeat,
         let array = self.array.bind(gc.nogc());
         // iv. Let indexNumber be 𝔽(index).

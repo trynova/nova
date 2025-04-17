@@ -34,7 +34,7 @@ pub(crate) fn array_create<'a>(
     capacity: usize,
     proto: Option<Object>,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<Array<'a>> {
+) -> JsResult<'a, Array<'a>> {
     // 1. If length > 2**32 - 1, throw a RangeError exception.
     if length > (2usize.pow(32) - 1) {
         return Err(agent.throw_exception_with_static_message(
@@ -97,11 +97,11 @@ pub(crate) fn array_species_create<'a>(
     original_array: Object,
     length: usize,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Object<'a>> {
+) -> JsResult<'a, Object<'a>> {
     let nogc = gc.nogc();
     let original_array = original_array.bind(nogc);
     // 1. Let isArray be ? IsArray(originalArray).
-    let original_is_array = is_array(agent, original_array, nogc)?;
+    let original_is_array = is_array(agent, original_array, nogc).unbind()?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
@@ -113,15 +113,17 @@ pub(crate) fn array_species_create<'a>(
         original_array.unbind(),
         BUILTIN_STRING_MEMORY.constructor.into(),
         gc.reborrow(),
-    )?
-    .unbind()
+    )
+    .unbind()?
     .bind(gc.nogc());
     // 4. If IsConstructor(C) is true, then
     if let Some(c_func) = is_constructor(agent, c) {
         // a. Let thisRealm be the current Realm Record.
         let this_realm = agent.current_realm(gc.nogc());
         // b. Let realmC be ? GetFunctionRealm(C).
-        let realm_c = get_function_realm(agent, c_func, gc.nogc())?;
+        let realm_c = get_function_realm(agent, c_func, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // c. If thisRealm and realmC are not the same Realm Record, then
         if this_realm != realm_c {
             // i. If SameValue(C, realmC.[[Intrinsics]].[[%Array%]]) is true, set C to undefined.
@@ -142,8 +144,8 @@ pub(crate) fn array_species_create<'a>(
             c_obj.unbind(),
             WellKnownSymbolIndexes::Species.into(),
             gc.reborrow(),
-        )?
-        .unbind()
+        )
+        .unbind()?
         .bind(gc.nogc());
         // b. If C is null, set C to undefined.
         if c.is_null() {
@@ -160,7 +162,7 @@ pub(crate) fn array_species_create<'a>(
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Not a constructor",
-            gc.nogc(),
+            gc.into_nogc(),
         ));
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
@@ -177,12 +179,12 @@ pub(crate) fn array_species_create<'a>(
 /// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
 ///
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
-pub(crate) fn array_set_length(
+pub(crate) fn array_set_length<'a>(
     agent: &mut Agent,
     a: Array,
     desc: PropertyDescriptor,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     let a = a.bind(gc.nogc());
     let desc = desc.bind(gc.nogc());
     // 1. If Desc does not have a [[Value]] field, then
@@ -222,20 +224,22 @@ pub(crate) fn array_set_length(
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     let a = a.scope(agent, gc.nogc());
     let scoped_desc_value = desc_value.scope(agent, gc.nogc());
-    let new_len = to_uint32(agent, desc_value.unbind(), gc.reborrow())?;
+    let new_len = to_uint32(agent, desc_value.unbind(), gc.reborrow()).unbind()?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let number_len = to_number(
         agent,
         // SAFETY: scoped_desc_value is not shared.
         unsafe { scoped_desc_value.take(agent) },
         gc.reborrow(),
-    )?;
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "invalid array length",
-            gc.nogc(),
+            gc.into_nogc(),
         ));
     }
     let gc = gc.into_nogc();

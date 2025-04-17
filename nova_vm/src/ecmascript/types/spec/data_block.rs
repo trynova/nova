@@ -806,7 +806,11 @@ impl DataBlock {
     /// The abstract operation CreateByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Data Block or a throw completion.
-    pub fn create_byte_data_block(agent: &mut Agent, size: u64, gc: NoGcScope) -> JsResult<Self> {
+    pub fn create_byte_data_block<'a>(
+        agent: &mut Agent,
+        size: u64,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
@@ -836,11 +840,11 @@ impl DataBlock {
     /// The abstract operation CreateSharedByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Shared Data Block or a throw completion.
-    pub fn create_shared_byte_data_block(
+    pub fn create_shared_byte_data_block<'a>(
         agent: &mut Agent,
         size: u64,
-        gc: NoGcScope,
-    ) -> JsResult<Self> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = usize::try_from(size) {
             // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.

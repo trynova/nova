@@ -281,11 +281,11 @@ pub(crate) fn evaluate_function_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    //function_declaration_instantiation(agent, function_object, arguments_list)?;
+    //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
     // 2. Return ? Evaluation of FunctionStatementList.
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
@@ -355,6 +355,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
                 .resolve(agent, result.unbind(), gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
+            let err = err.unbind().bind(gc.nogc());
             let promise = promise.get(agent).bind(gc.nogc());
             let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -412,11 +413,11 @@ pub(crate) fn evaluate_generator_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let mut arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    //function_declaration_instantiation(agent, function_object, arguments_list)?;
+    //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
 
     // Note: Rooting here is 99% unnecessary: OrdinaryCreateFromConstructor
     // [[Get]]'s the "prototype" property of the constructor which is very
@@ -442,11 +443,13 @@ pub(crate) fn evaluate_generator_body<'gc>(
                     )
                 },
                 gc.reborrow(),
-            )?
-            .unbind();
+            )
+            .unbind()?
+            .bind(gc.nogc());
         arguments_list = args;
         generator
     };
+    let generator = generator.unbind();
     let gc = gc.into_nogc();
     let generator = generator.bind(gc);
     let Object::Generator(generator) = generator else {
@@ -461,9 +464,9 @@ pub(crate) fn evaluate_generator_body<'gc>(
         vm_or_args: VmOrArguments::Arguments(
             arguments_list
                 .as_slice()
-                .iter()
-                .map(|v| v.unbind())
-                .collect(),
+                .to_vec()
+                .unbind()
+                .into_boxed_slice(),
         ),
         executable: executable.unbind(),
         execution_context: agent.running_execution_context().clone(),
@@ -484,7 +487,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     let mut arguments_list = arguments_list.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
@@ -509,8 +512,8 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
                     )
                 },
                 gc.reborrow(),
-            )?
-            .unbind()
+            )
+            .unbind()?
             .bind(gc.nogc());
         arguments_list = args.bind(gc.nogc());
         generator
@@ -541,9 +544,9 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
         arguments: arguments_list
             .as_slice()
-            .iter()
-            .map(|v| v.unbind())
-            .collect(),
+            .to_vec()
+            .unbind()
+            .into_boxed_slice(),
         execution_context: agent.running_execution_context().clone(),
         queue: VecDeque::new(),
     });

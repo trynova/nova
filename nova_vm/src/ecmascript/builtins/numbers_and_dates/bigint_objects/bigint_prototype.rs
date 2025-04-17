@@ -49,7 +49,7 @@ impl BigIntPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
@@ -58,8 +58,10 @@ impl BigIntPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _x = this_big_int_value(agent, this_value, gc.nogc())?;
+    ) -> JsResult<'gc, Value<'gc>> {
+        let _x = this_big_int_value(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let radix = arguments.get(0).bind(gc.nogc());
         if radix.is_undefined() || radix == Value::from(10u8) {
             // BigInt::to_string_radix_10(agent, x).map(|result| result.into_value())
@@ -74,8 +76,8 @@ impl BigIntPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value().unbind())
+    ) -> JsResult<'gc, Value<'gc>> {
+        this_big_int_value(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -112,7 +114,7 @@ fn this_big_int_value<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<BigInt<'a>> {
+) -> JsResult<'a, BigInt<'a>> {
     match value {
         // 1. If value is a BigInt, return value.
         Value::BigInt(value) => Ok(value.unbind().into()),

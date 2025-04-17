@@ -109,7 +109,7 @@ impl PromiseConstructor {
         args: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let executor = args.get(0).bind(gc.nogc());
 
         // 1. If NewTarget is undefined, throw a TypeError exception.
@@ -117,7 +117,7 @@ impl PromiseConstructor {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Promise Constructor requires 'new'",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
         let new_target = new_target.unbind().bind(gc.nogc());
@@ -138,10 +138,10 @@ impl PromiseConstructor {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Not a callable value",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
-        let executor = executor.unbind().bind(gc.nogc()).scope(agent, gc.nogc());
+        let executor = executor.unbind().scope(agent, gc.nogc());
 
         // 3. Let promise be ? OrdinaryCreateFromConstructor(NewTarget, "%Promise.prototype%", « [[PromiseState]], [[PromiseResult]], [[PromiseFulfillReactions]], [[PromiseRejectReactions]], [[PromiseIsHandled]] »).
         // 4. Set promise.[[PromiseState]] to pending.
@@ -153,8 +153,9 @@ impl PromiseConstructor {
             Function::try_from(new_target.unbind()).unwrap(),
             ProtoIntrinsics::Promise,
             gc.reborrow(),
-        )?
-        else {
+        )
+        .unbind()?
+        .bind(gc.nogc()) else {
             unreachable!()
         };
         let promise = promise.unbind().bind(gc.nogc());
@@ -194,7 +195,7 @@ impl PromiseConstructor {
             // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
             let promise_capability =
                 PromiseCapability::from_promise(scoped_promise.get(agent), true);
-            promise_capability.reject(agent, err.value(), gc.nogc());
+            promise_capability.reject(agent, err.value().unbind(), gc.nogc());
         }
 
         // 11. Return promise.
@@ -206,7 +207,7 @@ impl PromiseConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -215,7 +216,7 @@ impl PromiseConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn any<'gc>(
@@ -223,7 +224,7 @@ impl PromiseConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn race<'gc>(
@@ -231,7 +232,7 @@ impl PromiseConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -240,7 +241,7 @@ impl PromiseConstructor {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let r = arguments.get(0).bind(gc.nogc());
         // We currently don't support Promise subclassing.
         assert_eq!(
@@ -273,7 +274,7 @@ impl PromiseConstructor {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -296,7 +297,7 @@ impl PromiseConstructor {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let callback_fn = arguments.get(0).bind(gc.nogc());
         let args = arguments.slice_from(1).bind(gc.nogc());
         // 1. Let C be the this value.
@@ -305,7 +306,7 @@ impl PromiseConstructor {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Expected the this value to be a constructor.",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         // We currently don't support Promise subclassing.
@@ -347,7 +348,7 @@ impl PromiseConstructor {
             }
         };
         // 7. Return promiseCapability.[[Promise]].
-        Ok(promise.into_value())
+        Ok(promise.into_value().unbind())
     }
 
     fn with_resolvers<'gc>(
@@ -355,13 +356,13 @@ impl PromiseConstructor {
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Expected the this value to be a constructor.",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         // We currently don't support Promise subclassing.
@@ -429,7 +430,7 @@ impl PromiseConstructor {
         this_value: Value,
         _: ArgumentsList,
         _: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Ok(this_value.unbind())
     }
 

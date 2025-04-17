@@ -261,14 +261,14 @@ impl DeclarativeEnvironment<'_> {
     /// the value V. A binding for N normally already exists, but in rare cases
     /// it may not. If the binding is an immutable binding, a TypeError is
     /// thrown if S is true.
-    pub(crate) fn set_mutable_binding(
+    pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         mut is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<()> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &mut agent[self];
         // 1. If envRec does not have a binding for N, then
         let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
@@ -339,13 +339,13 @@ impl DeclarativeEnvironment<'_> {
     /// throw completion. It returns the value of its bound identifier whose
     /// name is N. If the binding exists but is uninitialized a ReferenceError
     /// is thrown, regardless of the value of S.
-    pub(crate) fn get_binding_value<'gc>(
+    pub(crate) fn get_binding_value<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {

@@ -53,7 +53,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Object<'a>> {
+    ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -65,7 +65,7 @@ impl Generator<'_> {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "The generator is currently running",
-                    gc.nogc(),
+                    gc.into_nogc(),
                 ));
             }
             GeneratorState::Completed => {
@@ -152,7 +152,7 @@ impl Generator<'_> {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
-                Err(err)
+                Err(err.unbind())
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 // Yield:
@@ -181,7 +181,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Object<'a>> {
+    ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -264,7 +264,7 @@ impl Generator<'_> {
             }
             ExecutionResult::Throw(err) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
-                Err(err)
+                Err(err.unbind())
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 agent[self].generator_state =

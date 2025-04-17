@@ -249,7 +249,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> JsResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let property_key = property_key.bind(gc.nogc());
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -271,12 +271,11 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self
-                        .internal_get(agent, property_key.unbind(), self.into_value(), gc)?
-                        .unbind();
+                    let value =
+                        self.internal_get(agent, property_key.unbind(), self.into_value(), gc)?;
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
-                        value: Some(value),
+                        value: Some(value.unbind()),
                         writable: Some(true),
                         get: None,
                         set: None,
@@ -344,13 +343,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-defineownproperty-p-desc)
-    fn internal_define_own_property(
+    fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let o = self.bind(gc.nogc());
         let property_key = property_key.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
@@ -532,7 +531,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_key: PropertyKey,
         receiver: Value,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
 
         // NOTE: ResolveExport is side-effect free. Each time this operation
@@ -599,7 +598,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         None => Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
                             format!("Could not resolve module '{}'.", key.as_str(agent)),
-                            gc.nogc(),
+                            gc.into_nogc(),
                         )),
                         Some(_target_env) => {
                             // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).

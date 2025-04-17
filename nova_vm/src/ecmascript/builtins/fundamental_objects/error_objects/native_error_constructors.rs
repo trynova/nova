@@ -102,7 +102,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let scoped_message = arguments.get(0).scope(agent, nogc);
         let options = arguments.get(1).scope(agent, nogc);
@@ -131,19 +131,20 @@ impl NativeErrorConstructors {
             Function::try_from(new_target.unbind()).unwrap(),
             intrinsic,
             gc.reborrow(),
-        )?
-        .unbind()
-        .bind(gc.nogc())
+        )
+        .unbind()?
         .scope(agent, gc.nogc());
         let message = scoped_message.get(agent);
         let msg = if !message.is_undefined() {
-            let msg = to_string(agent, message.unbind(), gc.reborrow())?;
+            let msg = to_string(agent, message.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
             // Safety: scoped_message is never shared.
             Some(unsafe { scoped_message.replace_self(agent, msg.unbind()) })
         } else {
             None
         };
-        let cause = get_error_cause(agent, options.get(agent), gc.reborrow())?.unbind();
+        let cause = get_error_cause(agent, options.get(agent), gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
         let cause = cause.bind(gc);
         let o = Error::try_from(o.get(agent).bind(gc)).unwrap();
@@ -162,7 +163,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
 
@@ -172,7 +173,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
 
@@ -182,7 +183,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::constructor(
             agent,
             ExceptionType::ReferenceError,
@@ -198,7 +199,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
 
@@ -208,7 +209,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
 
@@ -218,7 +219,7 @@ impl NativeErrorConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 

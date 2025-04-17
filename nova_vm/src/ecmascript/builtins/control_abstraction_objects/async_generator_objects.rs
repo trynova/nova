@@ -552,7 +552,7 @@ unsafe impl Bindable for AsyncGeneratorRequest<'_> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
     Ok(Value<'a>),
-    Err(JsError),
+    Err(JsError<'a>),
     Return(Value<'a>),
 }
 

@@ -306,12 +306,12 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         ordinary_try_has_property_entry(agent, self, property_key, gc)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if string.get_property_value(agent, property_key).is_some() {
@@ -380,7 +380,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(value) = string.get_property_value(agent, property_key) {
@@ -426,14 +426,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if string.get_property_value(agent, property_key).is_some() {

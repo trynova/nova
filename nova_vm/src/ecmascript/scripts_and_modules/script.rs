@@ -314,11 +314,11 @@ pub fn parse_script<'a>(
 /// The abstract operation ScriptEvaluation takes argument scriptRecord (a
 /// Script Record) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub fn script_evaluation<'gc>(
+pub fn script_evaluation<'a>(
     agent: &mut Agent,
     script: Script,
-    mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
     let script = script.bind(gc.nogc());
     let script_record = &agent[script];
     let realm_id = script_record.realm;
@@ -370,7 +370,9 @@ pub fn script_evaluation<'gc>(
         script.unbind(),
         global_env.unbind(),
         gc.reborrow(),
-    );
+    )
+    .unbind()
+    .bind(gc.nogc());
 
     let Some(ScriptOrModule::Script(script)) = agent.running_execution_context().script_or_module
     else {
@@ -379,18 +381,23 @@ pub fn script_evaluation<'gc>(
     let script = script.bind(gc.nogc());
 
     // 13. If result.[[Type]] is normal, then
-    let result: JsResult<Value> = if result.is_ok() {
-        let bytecode = Executable::compile_script(agent, script, gc.nogc()).scope(agent, gc.nogc());
-        // a. Set result to Completion(Evaluation of script).
-        // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
-        // i. Set result to NormalCompletion(undefined).
-        let result = Vm::execute(agent, bytecode.clone(), None, gc).into_js_result();
-        // SAFETY: The bytecode is not accessible by anyone anymore and no one
-        // will try to re-run it.
-        unsafe { bytecode.take(agent).try_drop(agent) };
-        result
-    } else {
-        Err(result.err().unwrap())
+    let result: JsResult<Value> = match result {
+        Ok(_) => {
+            let bytecode =
+                Executable::compile_script(agent, script, gc.nogc()).scope(agent, gc.nogc());
+            // a. Set result to Completion(Evaluation of script).
+            // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
+            // i. Set result to NormalCompletion(undefined).
+            let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
+                .into_js_result()
+                .unbind()
+                .bind(gc.into_nogc());
+            // SAFETY: The bytecode is not accessible by anyone anymore and no one
+            // will try to re-run it.
+            unsafe { bytecode.take(agent).try_drop(agent) };
+            result
+        }
+        Err(err) => Err(err.unbind().bind(gc.into_nogc())),
     };
 
     // 14. Suspend scriptContext and remove it from the execution context stack.
@@ -415,12 +422,13 @@ pub fn script_evaluation<'gc>(
 /// returns either a normal completion containing UNUSED or a throw completion.
 /// script is the Script for which the execution context is being established.
 /// env is the global environment in which bindings are to be created.
-pub(crate) fn global_declaration_instantiation(
+pub(crate) fn global_declaration_instantiation<'a>(
     agent: &mut Agent,
     script: Script,
     env: GlobalEnvironment,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let script = script.bind(gc.nogc());
     let env = env.bind(gc.nogc());
     let scoped_env = env.scope(agent, gc.nogc());
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
@@ -459,7 +467,7 @@ pub(crate) fn global_declaration_instantiation(
             || env.has_lexical_declaration(agent, name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-            || env.unbind().has_restricted_global_property(agent, name.unbind(), gc.reborrow())?
+            || env.unbind().has_restricted_global_property(agent, name.unbind(), gc.reborrow()).unbind()?.bind(gc.nogc())
         {
             let error_message = format!(
                 "Redeclaration of restricted global property '{}'.",
@@ -468,7 +476,7 @@ pub(crate) fn global_declaration_instantiation(
             return Err(agent.throw_exception(
                 ExceptionType::SyntaxError,
                 error_message,
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
     }
@@ -484,7 +492,7 @@ pub(crate) fn global_declaration_instantiation(
             return Err(agent.throw_exception(
                 ExceptionType::SyntaxError,
                 error_message,
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
     }
@@ -510,11 +518,11 @@ pub(crate) fn global_declaration_instantiation(
             if declared_function_names.insert(function_name) {
                 // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
                 let fn_name = String::from_str(agent, function_name.as_str(), gc.nogc());
-                let fn_definable = scoped_env.get(agent).can_declare_global_function(
-                    agent,
-                    fn_name.unbind(),
-                    gc.reborrow(),
-                )?;
+                let fn_definable = scoped_env
+                    .get(agent)
+                    .can_declare_global_function(agent, fn_name.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 // 2. If fnDefinable is false, throw a TypeError exception.
                 if !fn_definable {
                     let error_message = format!(
@@ -524,7 +532,7 @@ pub(crate) fn global_declaration_instantiation(
                     return Err(agent.throw_exception(
                         ExceptionType::TypeError,
                         error_message,
-                        gc.nogc(),
+                        gc.into_nogc(),
                     ));
                 }
                 // 3. Append fn to declaredFunctionNames.
@@ -553,10 +561,11 @@ pub(crate) fn global_declaration_instantiation(
                     // CanDeclareGlobalVar can trigger GC, but we also need to
                     // hash the strings to eliminate duplicates...
                     let vn = String::from_str(agent, vn.as_str(), gc.nogc()).unbind();
-                    let vn_definable =
-                        scoped_env
-                            .get(agent)
-                            .can_declare_global_var(agent, vn, gc.reborrow())?;
+                    let vn_definable = scoped_env
+                        .get(agent)
+                        .can_declare_global_var(agent, vn, gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
                         let error_message =
@@ -564,7 +573,7 @@ pub(crate) fn global_declaration_instantiation(
                         return Err(agent.throw_exception(
                             ExceptionType::TypeError,
                             error_message,
-                            gc.nogc(),
+                            gc.into_nogc(),
                         ));
                     }
                     // c. If declaredVarNames does not contain vn, then
@@ -616,12 +625,16 @@ pub(crate) fn global_declaration_instantiation(
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? env.CreateImmutableBinding(dn, true).
-            env.create_immutable_binding(agent, dn, true, gc.nogc())?;
+            env.create_immutable_binding(agent, dn, true, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? env.CreateMutableBinding(dn, false).
-            env.create_mutable_binding(agent, dn, false, gc.nogc())?;
+            env.create_mutable_binding(agent, dn, false, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
         }
     }
 
@@ -639,13 +652,16 @@ pub(crate) fn global_declaration_instantiation(
             instantiate_function_object(agent, f, Environment::Global(env), private_env, gc.nogc());
         let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc());
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
-        env.unbind().create_global_function_binding(
-            agent,
-            function_name.unbind(),
-            fo.into_value().unbind(),
-            false,
-            gc.reborrow(),
-        )?;
+        env.unbind()
+            .create_global_function_binding(
+                agent,
+                function_name.unbind(),
+                fo.into_value().unbind(),
+                false,
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
     }
 
     // 17. For each String vn of declaredVarNames, do
@@ -653,7 +669,9 @@ pub(crate) fn global_declaration_instantiation(
         // a. Perform ? env.CreateGlobalVarBinding(vn, false).
         scoped_env
             .get(agent)
-            .create_global_var_binding(agent, vn, false, gc.reborrow())?;
+            .create_global_var_binding(agent, vn, false, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
     }
     // 18. Return UNUSED.
     Ok(())
@@ -1150,7 +1168,7 @@ mod test {
             _: Value,
             arguments: ArgumentsList,
             _: GcScope<'a, '_>,
-        ) -> JsResult<Value<'a>> {
+        ) -> JsResult<'a, Value<'a>> {
             let arg_0 = arguments.get(0);
             if Value::Boolean(true) == arg_0 {
                 Ok(Value::from(3))

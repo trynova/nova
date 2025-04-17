@@ -50,7 +50,7 @@ impl RegExpConstructor {
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!();
     }
 
@@ -59,7 +59,7 @@ impl RegExpConstructor {
         this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Ok(this_value.unbind())
     }
 

@@ -176,18 +176,20 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Numeric<'gc>> {
+) -> JsResult<'gc, Numeric<'gc>> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
-    let mut view = require_internal_slot_data_view(agent, view, gc.nogc())?;
+    let mut view = require_internal_slot_data_view(agent, view, gc.nogc())
+        .unbind()?
+        .bind(gc.nogc());
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
     let get_index = if let TryResult::Continue(res) = try_to_index(agent, request_index, gc.nogc())
     {
-        res? as usize
+        res.unbind()? as usize
     } else {
         let scoped_view = view.scope(agent, gc.nogc());
-        let res = to_index(agent, request_index, gc.reborrow())? as usize;
+        let res = to_index(agent, request_index, gc.reborrow()).unbind()? as usize;
         view = scoped_view.get(agent).bind(gc.nogc());
         res
     };
@@ -258,18 +260,20 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     is_little_endian: bool,
     value: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
-    let mut view = require_internal_slot_data_view(agent, view, gc.nogc())?;
+    let mut view = require_internal_slot_data_view(agent, view, gc.nogc())
+        .unbind()?
+        .bind(gc.nogc());
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
     let get_index = if let TryResult::Continue(res) = try_to_index(agent, request_index, gc.nogc())
     {
-        res? as usize
+        res.unbind()? as usize
     } else {
         let scoped_view = view.scope(agent, gc.nogc());
-        let res = to_index(agent, request_index, gc.reborrow())? as usize;
+        let res = to_index(agent, request_index, gc.reborrow()).unbind()? as usize;
         view = scoped_view.get(agent).bind(gc.nogc());
         res
     };
@@ -280,9 +284,9 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
             v.into_numeric()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
-            let v = to_big_int(agent, value, gc.reborrow())?
+            let v = to_big_int(agent, value, gc.reborrow())
+                .unbind()?
                 .into_numeric()
-                .unbind()
                 .bind(gc.nogc());
             view = scoped_view.get(agent).bind(gc.nogc());
             v
@@ -293,9 +297,9 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
             v.into_numeric()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
-            let v = to_number(agent, value, gc.reborrow())?
+            let v = to_number(agent, value, gc.reborrow())
+                .unbind()?
                 .into_numeric()
-                .unbind()
                 .bind(gc.nogc());
             view = scoped_view.get(agent).bind(gc.nogc());
             v

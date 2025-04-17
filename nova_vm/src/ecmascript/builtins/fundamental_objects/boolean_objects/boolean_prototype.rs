@@ -41,8 +41,8 @@ impl BooleanPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let b = this_boolean_value(agent, this_value, gc.nogc())?;
+    ) -> JsResult<'gc, Value<'gc>> {
+        let b = this_boolean_value(agent, this_value, gc.into_nogc())?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
         } else {
@@ -55,8 +55,8 @@ impl BooleanPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        this_boolean_value(agent, this_value, gc.nogc()).map(|result| result.into())
+    ) -> JsResult<'gc, Value<'gc>> {
+        this_boolean_value(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -92,7 +92,11 @@ impl BooleanPrototype {
 /// The abstract operation ThisBooleanValue takes argument value (an
 /// ECMAScript language value) and returns either a normal completion
 /// containing a Boolean or a throw completion.
-fn this_boolean_value(agent: &mut Agent, value: Value, gc: NoGcScope) -> JsResult<bool> {
+fn this_boolean_value<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     // 1. If value is a Boolean, return value.
     if let Value::Boolean(value) = value {
         return Ok(value);

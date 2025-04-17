@@ -33,13 +33,13 @@ impl IteratorConstructor {
         _args: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. If NewTarget is either undefined or the active function object, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Iterator Constructor requires 'new'",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
         if new_target

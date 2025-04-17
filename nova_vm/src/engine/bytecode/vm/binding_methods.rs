@@ -6,7 +6,9 @@ use ahash::AHashSet;
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::get,
+        abstract_operations::{
+            operations_on_iterator_objects::iterator_close_with_value, operations_on_objects::get,
+        },
         execution::{Agent, JsResult},
         types::{IntoValue, Object, PropertyKey, Value},
     },
@@ -14,8 +16,8 @@ use crate::{
         Scoped,
         bytecode::vm::{
             Environment, Executable, Instruction, Vm, VmIterator, array_create,
-            copy_data_properties_into_object, initialize_referenced_binding, iterator_close,
-            put_value, resolve_binding, to_object, try_create_data_property_or_throw,
+            copy_data_properties_into_object, initialize_referenced_binding, put_value,
+            resolve_binding, to_object, try_create_data_property_or_throw,
         },
         context::{Bindable, GcScope},
         rootable::Scopable,
@@ -23,14 +25,14 @@ use crate::{
     },
 };
 
-pub(super) fn execute_simple_array_binding(
+pub(super) fn execute_simple_array_binding<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    executable: Scoped<'_, Executable>,
+    executable: Scoped<Executable>,
     mut iterator: VmIterator,
     environment: Option<Scoped<Environment>>,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     let mut iterator_is_done = false;
 
     loop {
@@ -41,7 +43,10 @@ pub(super) fn execute_simple_array_binding(
             Instruction::BindingPatternBind
             | Instruction::BindingPatternGetValue
             | Instruction::BindingPatternSkip => {
-                let result = iterator.step_value(agent, gc.reborrow())?;
+                let result = iterator
+                    .step_value(agent, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 iterator_is_done = result.is_none();
 
                 if instr.kind == Instruction::BindingPatternSkip {
@@ -61,7 +66,11 @@ pub(super) fn execute_simple_array_binding(
                         .unwrap()
                         .scope(agent, gc.nogc());
                     let mut idx = 0u32;
-                    while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
+                    while let Some(result) = iterator
+                        .step_value(agent, gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc())
+                    {
                         unwrap_try(try_create_data_property_or_throw(
                             agent,
                             rest.get(agent),
@@ -91,16 +100,22 @@ pub(super) fn execute_simple_array_binding(
                     binding_id.unbind(),
                     environment.as_ref().map(|v| v.get(agent)),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 if environment.is_none() {
-                    put_value(agent, &lhs.unbind(), value.get(agent), gc.reborrow())?;
+                    put_value(agent, &lhs.unbind(), value.get(agent), gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
                 } else {
                     initialize_referenced_binding(
                         agent,
                         lhs.unbind(),
                         value.get(agent),
                         gc.reborrow(),
-                    )?;
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
                 }
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
@@ -111,7 +126,9 @@ pub(super) fn execute_simple_array_binding(
                     value.unbind(),
                     environment.clone(),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
             }
             _ => unreachable!(),
         }
@@ -127,26 +144,21 @@ pub(super) fn execute_simple_array_binding(
     // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
     if !iterator_is_done {
         if let VmIterator::GenericIterator(iterator_record) = iterator {
-            iterator_close(
-                agent,
-                iterator_record.iterator,
-                Ok(Value::Undefined),
-                gc.reborrow(),
-            )?;
+            iterator_close_with_value(agent, iterator_record.iterator, Value::Undefined, gc)?;
         }
     }
 
     Ok(())
 }
 
-pub(super) fn execute_simple_object_binding(
+pub(super) fn execute_simple_object_binding<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    executable: Scoped<'_, Executable>,
+    executable: Scoped<Executable>,
     object: Object,
     environment: Option<Scoped<Environment>>,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     let object = object.scope(agent, gc.nogc());
     let mut excluded_names = AHashSet::new();
 
@@ -178,18 +190,20 @@ pub(super) fn execute_simple_object_binding(
                     binding_id.unbind(),
                     environment.as_ref().map(|v| v.get(agent)),
                     gc.reborrow(),
-                )?
-                .unbind();
+                )
+                .unbind()?;
                 let v = get(
                     agent,
                     object.get(agent),
                     property_key.unbind(),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 if environment.is_none() {
-                    put_value(agent, &lhs, v.unbind(), gc.reborrow())?;
+                    put_value(agent, &lhs, v.unbind(), gc.reborrow()).unbind()?;
                 } else {
-                    initialize_referenced_binding(agent, lhs, v.unbind(), gc.reborrow())?;
+                    initialize_referenced_binding(agent, lhs, v.unbind(), gc.reborrow()).unbind()?
                 }
             }
             Instruction::BindingPatternGetValueNamed => {
@@ -210,7 +224,9 @@ pub(super) fn execute_simple_object_binding(
                     object.get(agent),
                     property_key.unbind(),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 execute_nested_simple_binding(
                     agent,
                     vm,
@@ -218,7 +234,8 @@ pub(super) fn execute_simple_object_binding(
                     v.unbind(),
                     environment.clone(),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?;
             }
             Instruction::BindingPatternBindRest => {
                 // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
@@ -230,8 +247,8 @@ pub(super) fn execute_simple_object_binding(
                     binding_id.unbind(),
                     environment.as_ref().map(|v| v.get(agent)),
                     gc.reborrow(),
-                )?
-                .unbind();
+                )
+                .unbind()?;
                 // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                 // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                 let rest_obj = copy_data_properties_into_object(
@@ -239,14 +256,17 @@ pub(super) fn execute_simple_object_binding(
                     object.get(agent),
                     &excluded_names,
                     gc.reborrow(),
-                )?
+                )
+                .unbind()?
+                .bind(gc.nogc())
                 .into_value();
                 // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                 // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                 if environment.is_none() {
-                    put_value(agent, &lhs, rest_obj.unbind(), gc.reborrow())?;
+                    put_value(agent, &lhs, rest_obj.unbind(), gc.reborrow()).unbind()?;
                 } else {
-                    initialize_referenced_binding(agent, lhs, rest_obj.unbind(), gc.reborrow())?;
+                    initialize_referenced_binding(agent, lhs, rest_obj.unbind(), gc.reborrow())
+                        .unbind()?;
                 }
                 break;
             }
@@ -257,36 +277,38 @@ pub(super) fn execute_simple_object_binding(
     Ok(())
 }
 
-pub(super) fn execute_nested_simple_binding(
+pub(super) fn execute_nested_simple_binding<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    executable: Scoped<'_, Executable>,
+    executable: Scoped<Executable>,
     value: Value,
     environment: Option<Scoped<Environment>>,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
     match instr.kind {
         Instruction::BeginSimpleArrayBindingPattern => {
-            let new_iterator = VmIterator::from_value(agent, value, gc.reborrow())?;
+            let new_iterator = VmIterator::from_value(agent, value, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
             execute_simple_array_binding(
                 agent,
                 vm,
                 executable,
                 new_iterator,
                 environment.clone(),
-                gc.reborrow(),
+                gc,
             )
         }
         Instruction::BeginSimpleObjectBindingPattern => {
-            let object = to_object(agent, value, gc.nogc())?;
+            let object = to_object(agent, value, gc.nogc()).unbind()?.bind(gc.nogc());
             execute_simple_object_binding(
                 agent,
                 vm,
                 executable,
                 object.unbind(),
                 environment.clone(),
-                gc.reborrow(),
+                gc,
             )
         }
         _ => unreachable!(),

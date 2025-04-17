@@ -64,7 +64,7 @@ impl SetConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let iterable = arguments.get(0).bind(nogc);
         let new_target = new_target.bind(nogc);
@@ -73,7 +73,7 @@ impl SetConstructor {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Cannot call Set as a function",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
@@ -89,12 +89,16 @@ impl SetConstructor {
             .map(|o| o.into_value());
         }
         let scoped_iterable = iterable.scope(agent, nogc);
-        let set = Set::try_from(ordinary_create_from_constructor(
-            agent,
-            new_target.unbind(),
-            ProtoIntrinsics::Set,
-            gc.reborrow(),
-        )?)
+        let set = Set::try_from(
+            ordinary_create_from_constructor(
+                agent,
+                new_target.unbind(),
+                ProtoIntrinsics::Set,
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc()),
+        )
         .unwrap()
         .unbind()
         .bind(gc.nogc());
@@ -107,13 +111,15 @@ impl SetConstructor {
             set.into_object().unbind(),
             BUILTIN_STRING_MEMORY.add.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder.unbind(), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid adder function",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
         let adder = adder.scope(agent, gc.nogc());
@@ -126,13 +132,16 @@ impl SetConstructor {
                     iterable.unbind().into_value(),
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                     gc.reborrow(),
-                )? == Some(
-                    agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .array_prototype_values()
-                        .into_function(),
                 )
+                .unbind()?
+                .bind(gc.nogc())
+                    == Some(
+                        agent
+                            .current_realm_record()
+                            .intrinsics()
+                            .array_prototype_values()
+                            .into_function(),
+                    )
             {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
@@ -198,8 +207,8 @@ impl SetConstructor {
         let Some(IteratorRecord {
             iterator,
             next_method,
-        }) = get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())?
-            .unbind()
+        }) = get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())
+            .unbind()?
             .bind(gc.nogc())
         else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
@@ -218,7 +227,9 @@ impl SetConstructor {
                     next_method: next_method.get(agent),
                 },
                 gc.reborrow(),
-            )?;
+            )
+            .unbind()?
+            .bind(gc.nogc());
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(scoped_set.get(agent).into_value());
@@ -245,7 +256,7 @@ impl SetConstructor {
         this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Ok(this_value.unbind())
     }
 

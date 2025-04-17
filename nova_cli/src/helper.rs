@@ -27,7 +27,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         _this: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let args = args.bind(gc.nogc());
         if args.is_empty() {
             println!();
@@ -43,25 +43,33 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         _: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let args = args.bind(gc.nogc());
         if args.len() != 1 {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
                 "Expected 1 argument",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
         let Ok(path) = String::try_from(args.get(0)) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
                 "Expected a string argument",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
 
-        let file = std::fs::read_to_string(path.as_str(agent))
-            .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string(), gc.nogc()))?;
+        let file = match std::fs::read_to_string(path.as_str(agent)) {
+            Ok(file) => file,
+            Err(e) => {
+                return Err(agent.throw_exception(
+                    ExceptionType::Error,
+                    e.to_string(),
+                    gc.into_nogc(),
+                ));
+            }
+        };
         Ok(String::from_string(agent, file, gc.into_nogc()).into_value())
     }
 
@@ -71,12 +79,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         BuiltinFunctionArgs::new(1, "print"),
         gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc()).unbind();
+    let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc());
     global
         .get(agent)
         .internal_define_own_property(
             agent,
-            property_key,
+            property_key.unbind(),
             PropertyDescriptor {
                 value: Some(function.into_value().unbind()),
                 writable: Some(true),
@@ -94,12 +102,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         BuiltinFunctionArgs::new(1, "readTextFile"),
         gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc()).unbind();
+    let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc());
     global
         .get(agent)
         .internal_define_own_property(
             agent,
-            property_key,
+            property_key.unbind(),
             PropertyDescriptor {
                 value: Some(function.into_value().unbind()),
                 writable: Some(true),
@@ -119,16 +127,16 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         _this: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let args = args.bind(gc.nogc());
         let Value::ArrayBuffer(array_buffer) = args.get(0) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
                 "Cannot detach non ArrayBuffer argument",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
-        array_buffer.detach(agent, None, gc.nogc())?;
+        array_buffer.detach(agent, None, gc.nogc()).unbind()?;
         Ok(Value::Undefined)
     }
 
@@ -137,7 +145,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         _this: Value,
         _args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
             None;
         let create_global_this_value: Option<
@@ -155,11 +163,11 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     initialize_global_object(agent, global, gc.reborrow());
 
     let nova_obj = OrdinaryObject::create_empty_object(agent, gc.nogc()).scope(agent, gc.nogc());
-    let property_key = PropertyKey::from_static_str(agent, "__nova__", gc.nogc()).unbind();
+    let property_key = PropertyKey::from_static_str(agent, "__nova__", gc.nogc());
     global
         .internal_define_own_property(
             agent,
-            property_key,
+            property_key.unbind(),
             PropertyDescriptor {
                 value: Some(nova_obj.get(agent).into_value()),
                 writable: Some(true),
@@ -177,12 +185,12 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         BuiltinFunctionArgs::new(1, "detachArrayBuffer"),
         gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, "detachArrayBuffer", gc.nogc()).unbind();
+    let property_key = PropertyKey::from_static_str(agent, "detachArrayBuffer", gc.nogc());
     nova_obj
         .get(agent)
         .internal_define_own_property(
             agent,
-            property_key,
+            property_key.unbind(),
             PropertyDescriptor {
                 value: Some(function.into_value().unbind()),
                 writable: Some(true),
@@ -200,12 +208,12 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         BuiltinFunctionArgs::new(1, "createRealm"),
         gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, "createRealm", gc.nogc()).unbind();
+    let property_key = PropertyKey::from_static_str(agent, "createRealm", gc.nogc());
     nova_obj
         .get(agent)
         .internal_define_own_property(
             agent,
-            property_key,
+            property_key.unbind(),
             PropertyDescriptor {
                 value: Some(function.into_value().unbind()),
                 writable: Some(true),

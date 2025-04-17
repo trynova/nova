@@ -43,7 +43,7 @@ pub(crate) fn allocate_array_buffer<'a>(
     byte_length: u64,
     max_byte_length: Option<u64>,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<ArrayBuffer<'a>> {
+) -> JsResult<'a, ArrayBuffer<'a>> {
     // 1. Let slots be « [[ArrayBufferData]], [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] ».
     // 2. If maxByteLength is present and maxByteLength is not EMPTY, let allocatingResizableBuffer be true; otherwise let allocatingResizableBuffer be false.
     let allocating_resizable_buffer = max_byte_length.is_some();
@@ -118,12 +118,12 @@ pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bo
 /// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer) and optional argument *key* (anything) and returns either a
 /// normal completion containing UNUSED or a throw completion.
-pub(crate) fn detach_array_buffer(
+pub(crate) fn detach_array_buffer<'a>(
     agent: &mut Agent,
     array_buffer: ArrayBuffer,
     key: Option<DetachKey>,
-    gc: NoGcScope,
-) -> JsResult<()> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
     // TODO: SharedArrayBuffer that we can even take here.
 
@@ -158,7 +158,7 @@ pub(crate) fn clone_array_buffer<'a>(
     src_byte_offset: usize,
     src_length: usize,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<ArrayBuffer<'a>> {
+) -> JsResult<'a, ArrayBuffer<'a>> {
     // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
     debug_assert!(!src_buffer.is_detached(agent));
     let array_buffer_constructor = agent.current_realm_record().intrinsics().array_buffer();
@@ -169,7 +169,9 @@ pub(crate) fn clone_array_buffer<'a>(
         src_length as u64,
         None,
         gc,
-    )?;
+    )
+    .unbind()?
+    .bind(gc);
     let Heap { array_buffers, .. } = &mut agent.heap;
     let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
     let target_buffer_data = target_buffer_data.as_mut().unwrap();
@@ -194,11 +196,11 @@ pub(crate) fn clone_array_buffer<'a>(
 /// options (an ECMAScript language value) and returns either a normal
 /// completion containing either a non-negative integer or EMPTY, or a throw
 /// completion.
-pub(crate) fn get_array_buffer_max_byte_length_option(
+pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope,
-) -> JsResult<Option<i64>> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Option<i64>> {
     let options = options.bind(gc.nogc());
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
@@ -212,7 +214,9 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
         options.unbind(),
         BUILTIN_STRING_MEMORY.maxByteLength.into(),
         gc.reborrow(),
-    )?;
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {
         return Ok(None);

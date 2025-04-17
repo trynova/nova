@@ -195,12 +195,12 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
             Ok(true)
@@ -254,7 +254,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value
@@ -327,14 +327,14 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Note: lastIndex is an unconfigurable data property: It cannot
             // become a getter or setter and will thus never call into

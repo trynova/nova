@@ -94,7 +94,7 @@ impl SetPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         let value = arguments.get(0).bind(gc);
@@ -158,7 +158,7 @@ impl SetPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
@@ -184,7 +184,7 @@ impl SetPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         let value = arguments.get(0).bind(gc);
@@ -237,7 +237,7 @@ impl SetPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
@@ -287,20 +287,22 @@ impl SetPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
         let callback_fn = arguments.get(0).bind(nogc);
         let this_arg = arguments.get(1).bind(nogc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let mut s = require_set_data_internal_slot(agent, this_value, nogc)?;
+        let mut s = require_set_data_internal_slot(agent, this_value, nogc)
+            .unbind()?
+            .bind(nogc);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
-                nogc,
+                gc.into_nogc(),
             ));
         };
         // 4. Let entries be S.[[SetData]].
@@ -334,7 +336,8 @@ impl SetPrototype {
                         s.into_value().unbind(),
                     ])),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 s = scoped_s.get(agent).bind(gc.nogc());
@@ -351,7 +354,7 @@ impl SetPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         let value = arguments.get(0).bind(gc);
@@ -401,7 +404,7 @@ impl SetPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
@@ -418,7 +421,7 @@ impl SetPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
@@ -482,7 +485,7 @@ fn require_set_data_internal_slot<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<Set<'a>> {
+) -> JsResult<'a, Set<'a>> {
     match value {
         Value::Set(map) => Ok(map.bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(

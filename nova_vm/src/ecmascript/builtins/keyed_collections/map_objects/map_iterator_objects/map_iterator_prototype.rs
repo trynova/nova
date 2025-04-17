@@ -38,7 +38,7 @@ impl MapIteratorPrototype {
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
