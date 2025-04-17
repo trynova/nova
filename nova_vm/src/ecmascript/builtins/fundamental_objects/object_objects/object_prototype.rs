@@ -174,11 +174,10 @@ impl ObjectPrototype {
             // 8. Else if O has an [[ErrorData]] internal slot, let builtinTag be "Error".
             Value::Error(_) => Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value()),
             // 7. Else if O has a [[Call]] internal method, let builtinTag be "Function".
-            Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => {
-                Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value())
-            }
-            // TODO: Check for [[Call]] slot of Proxy
-            Value::Proxy(_) => todo!(),
+            Value::BoundFunction(_)
+            | Value::BuiltinFunction(_)
+            | Value::ECMAScriptFunction(_)
+            | Value::Proxy(_) => Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value()),
             // TODO: Check for [[Call]] slot of EmbedderObject
             Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
