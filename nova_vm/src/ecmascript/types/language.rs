@@ -14,6 +14,7 @@ mod primitive;
 mod string;
 mod symbol;
 mod value;
+mod language_value;
 
 pub use bigint::{BigInt, BigIntHeapData};
 pub(crate) use function::{
