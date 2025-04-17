@@ -122,9 +122,7 @@ pub(crate) fn bound_function_create<'a>(
             .unbind()
             .internal_get_prototype_of(agent, gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
-            .map(|p| p.unbind())
-            .map(|p| p.bind(gc.nogc()));
+            .bind(gc.nogc());
         target_function = scoped_target_function.get(agent).bind(gc.nogc());
         proto
     };

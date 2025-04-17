@@ -2464,7 +2464,6 @@ pub(crate) fn add_value_to_keyed_group<
     Ok(())
 }
 
-#[derive(Debug)]
 pub(crate) struct GroupByRecord<'scope, K: 'static + Rootable + Copy + Into<Value<'static>>> {
     pub(crate) key: Scoped<'scope, K>,
     pub(crate) elements: Vec<Scoped<'scope, Value<'static>>>,
@@ -2601,7 +2600,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
 
         // g. If keyCoercion is property, then
         // i. Set key to Completion(ToPropertyKey(key)).
-        let key = to_property_key(agent, key.unbind(), gc.reborrow()).map(|pk| pk.unbind());
+        let key = to_property_key(agent, key.unbind(), gc.reborrow()).unbind();
 
         // ii. IfAbruptCloseIterator(key, iteratorRecord).
         let iterator_record = IteratorRecord {

@@ -124,13 +124,11 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         // v. If result is not an Object, return result.
         Primitive::try_from(result).map_err(|_| {
             // vi. Throw a TypeError exception.
-            agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Invalid toPrimitive return value",
-                    gc,
-                )
-                .unbind()
+            agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid toPrimitive return value",
+                gc,
+            )
         })
     } else {
         // c. If preferredType is not present, let preferredType be NUMBER.
@@ -1424,7 +1422,6 @@ pub(crate) fn to_index<'a>(
     // 1. Let integer be ? ToIntegerOrInfinity(value).
     let integer = to_integer_or_infinity(agent, argument, gc.reborrow())
         .unbind()?
-        .bind(gc.nogc())
         .into_i64();
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.

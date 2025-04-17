@@ -85,11 +85,11 @@ impl AggregateErrorConstructor {
             .unbind()?
             .bind(gc.nogc());
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let message: Option<String<'_>> = message.map(|message| message.get(agent));
+        let message = message.map(|message| message.get(agent).bind(gc.nogc()));
         let heap_data = &mut agent[o];
         heap_data.kind = ExceptionType::Error;
-        heap_data.message = message;
-        heap_data.cause = cause.map(|c| c.unbind());
+        heap_data.message = message.unbind();
+        heap_data.cause = cause.unbind();
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
         let Some(iterator_record) = get_iterator(agent, errors.get(agent), false, gc.reborrow())
             .unbind()?

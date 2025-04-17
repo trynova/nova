@@ -1469,7 +1469,7 @@ pub(crate) fn ordinary_create_from_constructor<'a>(
     Ok(ordinary_object_create_with_intrinsics(
         agent,
         Some(intrinsic_default_proto),
-        proto.map(|f| f.unbind()),
+        proto.unbind(),
         gc.into_nogc(),
     ))
 }

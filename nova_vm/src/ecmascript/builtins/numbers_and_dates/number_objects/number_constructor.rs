@@ -82,7 +82,7 @@ impl NumberConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let value = arguments.get(0).bind(nogc);
-        let mut new_target = new_target.map(|n| n.bind(nogc));
+        let mut new_target = new_target.bind(nogc);
 
         // 1. If value is present, then
         let n = if !value.is_undefined() {

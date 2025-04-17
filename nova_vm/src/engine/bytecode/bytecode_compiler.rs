@@ -219,12 +219,8 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     pub(super) fn finish(self) -> Executable<'gc> {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
-            constants: self.constants.iter().map(|v| v.unbind()).collect(),
-            function_expressions: self
-                .function_expressions
-                .into_iter()
-                .map(|f| f.unbind())
-                .collect(),
+            constants: self.constants.unbind().into_boxed_slice(),
+            function_expressions: self.function_expressions.unbind().into_boxed_slice(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
             class_initializer_bytecodes: self
                 .class_initializer_bytecodes

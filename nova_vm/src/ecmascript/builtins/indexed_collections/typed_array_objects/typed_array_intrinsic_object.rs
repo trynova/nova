@@ -1606,13 +1606,12 @@ impl TypedArrayPrototype {
         let from_index_is_undefined = from_index.is_undefined();
         let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, from_index, nogc)
         {
-            n.unbind()?.bind(nogc)
+            n.unbind()?
         } else {
             let scoped_o = o.scope(agent, nogc);
             let scoped_search_element = search_element.scope(agent, nogc);
-            let result = to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let result =
+                to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow()).unbind()?;
             let gc = gc.nogc();
             o = scoped_o.get(agent).bind(gc);
             search_element = scoped_search_element.get(agent).bind(gc);
@@ -1719,13 +1718,12 @@ impl TypedArrayPrototype {
         let n = if let TryResult::Continue(n) =
             try_to_integer_or_infinity(agent, from_index, gc.nogc())
         {
-            n.unbind()?.bind(gc.nogc())
+            n.unbind()?
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
             let scoped_search_element = search_element.scope(agent, gc.nogc());
-            let result = to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let result =
+                to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow()).unbind()?;
             o = scoped_o.get(agent).bind(gc.nogc());
             search_element = scoped_search_element.get(agent).bind(gc.nogc());
             result

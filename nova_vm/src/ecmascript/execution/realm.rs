@@ -426,7 +426,9 @@ pub(crate) fn set_default_global_bindings<'a>(
             };
 
             // c. Perform ? DefinePropertyOrThrow(global, name, desc).
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow()).unbind()?.bind(gc.nogc());
+            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         };
     }
 
@@ -695,10 +697,11 @@ pub(crate) fn initialize_host_defined_realm(
     // 7. If the host requires use of an exotic object to serve as realm's global object,
     // let global be such an object created in a host-defined manner.
     // Otherwise, let global be undefined, indicating that an ordinary object should be created as the global object.
-    let global = create_global_this_value
-        .map(|create_global_this_value| create_global_this_value(agent, gc.reborrow()))
-        .map(|g| g.unbind())
-        .map(|g| g.scope(agent, gc.nogc()));
+    let global = create_global_this_value.map(|create_global_this_value| {
+        create_global_this_value(agent, gc.reborrow())
+            .unbind()
+            .scope(agent, gc.nogc())
+    });
 
     // 8. If the host requires that the this binding in realm's global scope return an object other than the global object,
     // let thisValue be such an object created in a host-defined manner.

@@ -386,7 +386,7 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        agent[self.unbind()].prototype = prototype.map(|p| p.unbind());
+        agent[self.unbind()].prototype = prototype.unbind();
     }
 }
 

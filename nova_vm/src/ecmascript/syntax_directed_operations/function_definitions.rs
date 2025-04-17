@@ -464,9 +464,9 @@ pub(crate) fn evaluate_generator_body<'gc>(
         vm_or_args: VmOrArguments::Arguments(
             arguments_list
                 .as_slice()
-                .iter()
-                .map(|v| v.unbind())
-                .collect(),
+                .to_vec()
+                .unbind()
+                .into_boxed_slice(),
         ),
         executable: executable.unbind(),
         execution_context: agent.running_execution_context().clone(),
@@ -544,9 +544,9 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
         arguments: arguments_list
             .as_slice()
-            .iter()
-            .map(|v| v.unbind())
-            .collect(),
+            .to_vec()
+            .unbind()
+            .into_boxed_slice(),
         execution_context: agent.running_execution_context().clone(),
         queue: VecDeque::new(),
     });

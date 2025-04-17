@@ -949,9 +949,7 @@ impl GlobalObject {
             to_int32_number(agent, radix)
         } else {
             let s_root = s.scope(agent, gc.nogc());
-            let radix = to_int32(agent, radix.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let radix = to_int32(agent, radix.unbind(), gc.reborrow()).unbind()?;
             s = s_root.get(agent).bind(gc.nogc());
             radix
         };

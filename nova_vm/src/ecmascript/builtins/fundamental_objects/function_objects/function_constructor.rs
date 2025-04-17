@@ -298,9 +298,7 @@ pub(crate) fn create_dynamic_function<'a>(
             gc.reborrow(),
         )
         .unbind()?
-        .bind(gc.nogc())
-        .map(|p| p.unbind())
-        .map(|p| p.bind(gc.nogc())),
+        .bind(gc.nogc()),
         // SAFETY: source_code was not shared.
         source_code: Some(unsafe { source_code.take(agent) }),
         source_text: function.span,

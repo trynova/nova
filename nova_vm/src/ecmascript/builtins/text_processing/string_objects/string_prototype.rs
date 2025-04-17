@@ -688,10 +688,7 @@ impl StringPrototype {
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            if is_reg_exp(agent, search_string.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
-            {
+            if is_reg_exp(agent, search_string.get(agent), gc.reborrow()).unbind()? {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "searchString is RegExp",
@@ -792,10 +789,7 @@ impl StringPrototype {
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            if is_reg_exp(agent, search_string.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
-            {
+            if is_reg_exp(agent, search_string.get(agent), gc.reborrow()).unbind()? {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "searchString is RegExp",
@@ -1231,12 +1225,10 @@ impl StringPrototype {
         let count = unsafe { count.take(agent) };
         let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, count, gc.nogc())
         {
-            n.unbind()?.bind(gc.nogc())
+            n.unbind()?
         } else {
             let scoped_s = s.scope(agent, gc.nogc());
-            let result = to_integer_or_infinity(agent, count, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let result = to_integer_or_infinity(agent, count, gc.reborrow()).unbind()?;
             s = scoped_s.get(agent).bind(gc.nogc());
             result
         };
@@ -1802,10 +1794,7 @@ impl StringPrototype {
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            if is_reg_exp(agent, search_string.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
-            {
+            if is_reg_exp(agent, search_string.get(agent), gc.reborrow()).unbind()? {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "searchString is RegExp",
@@ -1899,9 +1888,8 @@ impl StringPrototype {
             int_start.unbind()?
         } else {
             let local_scoped_s = s.scope(agent, gc.nogc());
-            let int_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let int_start =
+                to_integer_or_infinity(agent, start.unbind(), gc.reborrow()).unbind()?;
             s = local_scoped_s.get(agent).bind(gc.nogc());
             scoped_s = Some(local_scoped_s);
             int_start
@@ -1916,9 +1904,7 @@ impl StringPrototype {
             Some(int_end.unbind()?)
         } else {
             let local_scoped_s = scoped_s.unwrap_or_else(|| s.scope(agent, gc.nogc()));
-            let int_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let int_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
             s = local_scoped_s.get(agent).bind(gc.nogc());
             Some(int_end)
         };
@@ -2268,9 +2254,7 @@ impl StringPrototype {
         let size = s.utf16_len(agent) as i64;
 
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
-        let int_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let int_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow()).unbind()?;
 
         // 5. If intStart = -∞, set intStart to 0.
         let int_start = if int_start.is_neg_infinity() {

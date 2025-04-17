@@ -12,7 +12,7 @@ use crate::{
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::context::{GcScope, NoGcScope},
 };
 
 pub(crate) struct BooleanPrototype;
@@ -42,9 +42,7 @@ impl BooleanPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let b = this_boolean_value(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let b = this_boolean_value(agent, this_value, gc.into_nogc())?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
         } else {

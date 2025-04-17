@@ -519,12 +519,10 @@ impl MathObject {
         // 1. Let ny be ? ToNumber(y).
         let ny = to_number(agent, x.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .into_f64(agent);
         // 2. Let nx be ? ToNumber(x).
         let nx = to_number(agent, y.get(agent), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .into_f64(agent);
 
         // 3. If ny is NaN or nx is NaN, return NaN.
@@ -724,9 +722,7 @@ impl MathObject {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let n be ? ToUint32(x).
-        let n = to_uint32(agent, arguments.get(0), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let n = to_uint32(agent, arguments.get(0), gc.reborrow()).unbind()?;
 
         // 2. Let p be the number of leading zero bits in the unsigned 32-bit binary representation of n.
         let p = n.leading_zeros();
@@ -744,7 +740,6 @@ impl MathObject {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .into_f64(agent);
 
         // 2. If n is not finite, return NaN.
@@ -770,7 +765,6 @@ impl MathObject {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .into_f64(agent);
 
         // 2. If n is NaN, return NaN.
@@ -947,7 +941,6 @@ impl MathObject {
             // a. Let n be ? ToNumber(arg).
             let n = to_number(agent, arg, gc.reborrow())
                 .unbind()?
-                .bind(gc.nogc())
                 .into_f64(agent);
 
             // 3. For each element number of coerced, do

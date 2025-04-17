@@ -101,7 +101,7 @@ pub(crate) fn array_species_create<'a>(
     let nogc = gc.nogc();
     let original_array = original_array.bind(nogc);
     // 1. Let isArray be ? IsArray(originalArray).
-    let original_is_array = is_array(agent, original_array, nogc).unbind()?.bind(nogc);
+    let original_is_array = is_array(agent, original_array, nogc).unbind()?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
@@ -224,9 +224,7 @@ pub(crate) fn array_set_length<'a>(
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     let a = a.scope(agent, gc.nogc());
     let scoped_desc_value = desc_value.scope(agent, gc.nogc());
-    let new_len = to_uint32(agent, desc_value.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let new_len = to_uint32(agent, desc_value.unbind(), gc.reborrow()).unbind()?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let number_len = to_number(
         agent,

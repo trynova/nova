@@ -125,7 +125,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
+            return Err(iterator_close_with_error(
+                agent,
+                o.unbind(),
+                error.unbind(),
+                gc,
+            ));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
@@ -186,7 +191,12 @@ impl IteratorPrototype {
 
             // e. If ToBoolean(result) is false, return ? IteratorClose(iterated, NormalCompletion(false)).
             if !to_boolean(agent, result) {
-                return iterator_close_with_value(agent, iterator.get(agent), false.into(), gc);
+                return iterator_close_with_value(
+                    agent,
+                    iterator.get(agent),
+                    false.into_value(),
+                    gc,
+                );
             }
 
             // f. Set counter to counter + 1.
@@ -225,7 +235,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
+            return Err(iterator_close_with_error(
+                agent,
+                o.unbind(),
+                error.unbind(),
+                gc,
+            ));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
@@ -334,7 +349,12 @@ impl IteratorPrototype {
                 gc.nogc(),
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
+            return Err(iterator_close_with_error(
+                agent,
+                o.unbind(),
+                error.unbind(),
+                gc,
+            ));
         };
         let scoped_procedure = Value::from(procedure).scope(agent, nogc);
 
@@ -431,7 +451,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
+            return Err(iterator_close_with_error(
+                agent,
+                o.unbind(),
+                error.unbind(),
+                gc,
+            ));
         };
         let scoped_reducer = Value::from(reducer).scope(agent, nogc);
 
@@ -557,7 +582,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(agent, o.unbind(), error.unbind(), gc).unbind());
+            return Err(iterator_close_with_error(
+                agent,
+                o.unbind(),
+                error.unbind(),
+                gc,
+            ));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
@@ -618,7 +648,12 @@ impl IteratorPrototype {
 
             // e. If ToBoolean(result) is true, return ? IteratorClose(iterated, NormalCompletion(true)).
             if to_boolean(agent, result) {
-                return iterator_close_with_value(agent, iterator.get(agent), true.into(), gc);
+                return iterator_close_with_value(
+                    agent,
+                    iterator.get(agent),
+                    true.into_value(),
+                    gc,
+                );
             }
 
             // f. Set counter to counter + 1.

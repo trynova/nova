@@ -73,7 +73,7 @@ impl StringConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let value = arguments.get(0).bind(nogc);
-        let new_target = new_target.map(|n| n.bind(nogc));
+        let new_target = new_target.bind(nogc);
 
         // 1. If value is not present, then
         let (s, new_target) = if arguments.is_empty() {

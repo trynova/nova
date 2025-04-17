@@ -3267,9 +3267,8 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let relative_start =
+            to_integer_or_infinity(agent, start.get(agent), gc.reborrow()).unbind()?;
         let actual_start = if relative_start.is_neg_infinity() {
             // 4. If relativeStart = -∞, let actualStart be 0.
             0
@@ -3293,9 +3292,8 @@ impl ArrayPrototype {
         } else {
             // 10. Else,
             // a. Let dc be ? ToIntegerOrInfinity(deleteCount).
-            let dc = to_integer_or_infinity(agent, delete_count.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let dc =
+                to_integer_or_infinity(agent, delete_count.get(agent), gc.reborrow()).unbind()?;
             // b. Let actualDeleteCount be the result of clamping dc between 0 and len - actualStart.
             (dc.into_i64().max(0) as usize).min(len as usize - actual_start)
         };
@@ -3621,9 +3619,8 @@ impl ArrayPrototype {
             usize::try_from(length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?)
                 .unwrap();
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let relative_start =
+            to_integer_or_infinity(agent, start.get(agent), gc.reborrow()).unbind()?;
         let actual_start = if relative_start.is_neg_infinity() {
             // 4. If relativeStart = -∞, let actualStart be 0.
             0
@@ -3647,9 +3644,8 @@ impl ArrayPrototype {
         } else {
             // 10. Else,
             // a. Let dc be ? ToIntegerOrInfinity(skipCount).
-            let dc = to_integer_or_infinity(agent, skip_count.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let dc =
+                to_integer_or_infinity(agent, skip_count.get(agent), gc.reborrow()).unbind()?;
             // b. Let actualSkipCount be the result of clamping dc between 0 and len - actualStart.
             (dc.into_i64().max(0) as usize).min(len - actual_start)
         };

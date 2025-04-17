@@ -560,7 +560,6 @@ impl DatePrototype {
         // 4. Let dt be ? ToNumber(date).
         let dt = to_number(agent, date.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If t is NaN, return NaN.
         let Some(t) = t.get_f64() else {
@@ -610,7 +609,6 @@ impl DatePrototype {
         // 4. Let y be ? ToNumber(year).
         let y = to_number(agent, year.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If t is NaN, set t to +0𝔽; otherwise, set t to LocalTime(t).
         let t = if let Some(t) = t.get_f64() {
@@ -680,14 +678,12 @@ impl DatePrototype {
         // 4. Let h be ? ToNumber(hour).
         let h = to_number(agent, hour.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If min is present, let m be ? ToNumber(min).
         let m = if arguments.len() > 1 {
             Some(
                 to_number(agent, min.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -698,7 +694,6 @@ impl DatePrototype {
             Some(
                 to_number(agent, sec.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -709,7 +704,6 @@ impl DatePrototype {
             Some(
                 to_number(agent, ms.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -756,7 +750,6 @@ impl DatePrototype {
         // 4. Set ms to ? ToNumber(ms).
         let ms = to_number(agent, ms.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If t is NaN, return NaN.
         let Some(t) = t.get_f64() else {
@@ -808,14 +801,12 @@ impl DatePrototype {
         // 4. Let m be ? ToNumber(min).
         let m = to_number(agent, min.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If sec is present, let s be ? ToNumber(sec).
         let s = if arguments.len() > 1 {
             Some(
                 to_number(agent, sec.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -826,7 +817,6 @@ impl DatePrototype {
             Some(
                 to_number(agent, ms.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -879,14 +869,12 @@ impl DatePrototype {
         // 4. Let m be ? ToNumber(month).
         let m = to_number(agent, month.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If date is present, let dt be ? ToNumber(date).
         let dt = if arguments.len() > 1 {
             Some(
                 to_number(agent, date.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -940,14 +928,12 @@ impl DatePrototype {
         // 4. Let s be ? ToNumber(sec).
         let s = to_number(agent, sec.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 5. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 1 {
             Some(
                 to_number(agent, ms.get(agent), gc.reborrow())
                     .unbind()?
-                    .bind(gc.nogc())
                     .to_real(agent),
             )
         } else {
@@ -991,7 +977,6 @@ impl DatePrototype {
         // 3. Let t be ? ToNumber(time).
         let t = to_number(agent, time.unbind(), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc())
             .to_real(agent);
         // 4. Let v be TimeClip(t).
         let v = time_clip(t);

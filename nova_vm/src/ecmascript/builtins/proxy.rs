@@ -267,7 +267,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let nogc = gc.nogc();
-        let mut prototype = prototype.map(|p| p.bind(nogc));
+        let mut prototype = prototype.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -297,9 +297,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 BUILTIN_STRING_MEMORY.setPrototypeOf.into(),
                 gc.reborrow(),
             )
-            .unbind()?;
+            .unbind()?
+            .bind(gc.nogc());
             let gc = gc.nogc();
-            let trap = trap.map(|t| t.bind(gc));
             target = scoped_target.get(agent).bind(gc);
             handler = scoped_handler.get(agent).bind(gc);
             prototype = scoped_prototype.as_ref().map(|p| p.get(agent).bind(gc));
@@ -397,8 +397,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 BUILTIN_STRING_MEMORY.isExtensible.into(),
                 gc.reborrow(),
             )
-            .unbind()?;
-            let trap = trap.map(|t| t.bind(gc.nogc()));
+            .unbind()?
+            .bind(gc.nogc());
             handler = scoped_handler.get(agent).bind(gc.nogc());
             trap
         };
@@ -476,8 +476,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 BUILTIN_STRING_MEMORY.preventExtensions.into(),
                 gc.reborrow(),
             )
-            .unbind()?;
-            let trap = trap.map(|f| f.bind(gc.nogc()));
+            .unbind()?
+            .bind(gc.nogc());
             handler = scoped_handler.get(agent).bind(gc.nogc());
             trap
         };

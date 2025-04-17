@@ -268,10 +268,7 @@ impl JSONObject {
             // 5. If replacer is an Object, then
             // b. Else,
             // i. Let isArray be ? IsArray(replacer).
-            if is_array(agent, replacer, gc.nogc())
-                .unbind()?
-                .bind(gc.nogc())
-            {
+            if is_array(agent, replacer, gc.nogc()).unbind()? {
                 let scoped_replacer = replacer.scope(agent, gc.nogc());
                 // ii. If isArray is true, then
                 // 2. Let len be ? LengthOfArrayLike(replacer).
@@ -787,7 +784,7 @@ fn serialize_json_property_value<'a, 'b>(
             debug_assert!(is_callable(value, gc.nogc()).is_none());
             // a. Let isArray be ? IsArray(value).
             // b. If isArray is true, return ? SerializeJSONArray(state, value).
-            if is_array(agent, value, gc.nogc()).unbind()?.bind(gc.nogc()) {
+            if is_array(agent, value, gc.nogc()).unbind()? {
                 let value = value.scope(agent, gc.nogc());
                 serialize_json_array(agent, state, value.clone(), gc)?;
                 // SAFETY: value should've been popped off of state.stack at
