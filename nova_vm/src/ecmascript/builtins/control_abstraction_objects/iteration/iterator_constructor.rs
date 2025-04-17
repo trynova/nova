@@ -33,16 +33,14 @@ impl IteratorConstructor {
         _args: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. If NewTarget is either undefined or the active function object, throw a TypeError exception.
         let Some(new_target) = new_target else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Iterator Constructor requires 'new'",
-                    gc.nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator Constructor requires 'new'",
+                gc.into_nogc(),
+            ));
         };
         if new_target
             == agent
@@ -51,13 +49,11 @@ impl IteratorConstructor {
                 .unwrap()
                 .into_object()
         {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Iterator constructor can't be used directly",
-                    gc.into_nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator constructor can't be used directly",
+                gc.into_nogc(),
+            ));
         }
 
         // 2. Return ? OrdinaryCreateFromConstructor(NewTarget, "%Iterator.prototype%").

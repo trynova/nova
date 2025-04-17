@@ -70,7 +70,7 @@ impl StringConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let value = arguments.get(0).bind(nogc);
         let new_target = new_target.map(|n| n.bind(nogc));
@@ -95,9 +95,10 @@ impl StringConstructor {
                 (s, new_target)
             } else {
                 let new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
-                let s = to_string(agent, value.unbind(), gc.reborrow())?.unbind();
-                let nogc = gc.nogc();
-                (s.bind(nogc), new_target.map(|n| n.get(agent).bind(nogc)))
+                let s = to_string(agent, value.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                (s, new_target.map(|n| n.get(agent).bind(gc.nogc())))
             }
         };
         // 3. If NewTarget is undefined, return s.
@@ -111,9 +112,9 @@ impl StringConstructor {
             Function::try_from(new_target.unbind()).unwrap(),
             ProtoIntrinsics::String,
             gc.reborrow(),
-        )?
-        .map(|p| p.unbind())
-        .map(|p| p.bind(gc.nogc()));
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // StringCreate: Returns a String exotic object.
         // 1. Let S be MakeBasicObject(« [[Prototype]], [[Extensible]], [[StringData]] »).
         let s = PrimitiveObject::try_from(ordinary_object_create_with_intrinsics(
@@ -149,7 +150,7 @@ impl StringConstructor {
         _this_value: Value,
         code_units: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let result be the empty String.
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
@@ -162,7 +163,7 @@ impl StringConstructor {
 
         // fast path: only a single valid code unit
         if code_units.len() == 1 {
-            let cu = code_units.get(0).to_uint16(agent, gc.reborrow())?;
+            let cu = code_units.get(0).to_uint16(agent, gc.reborrow()).unbind()?;
             if let Some(cu) = char::from_u32(cu as u32) {
                 return Ok(SmallString::from(cu).into());
             }
@@ -182,9 +183,10 @@ impl StringConstructor {
                 .iter()
                 .map(|cu| {
                     let next = cu.get(agent);
-                    next.to_uint16(agent, gc.reborrow())
+                    next.to_uint16(agent, gc.reborrow()).unbind()
                 })
                 .collect::<JsResult<Vec<_>>>()?
+                .bind(gc.nogc())
         };
 
         let result = std::string::String::from_utf16_lossy(&buf);
@@ -201,7 +203,7 @@ impl StringConstructor {
         _this_value: Value,
         code_points: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
             return Ok(String::EMPTY_STRING.into_value());
@@ -216,13 +218,11 @@ impl StringConstructor {
             };
             let next_cp = next_cp.into_i64();
             if !(0..=0x10FFFF).contains(&next_cp) {
-                return Err(agent
-                    .throw_exception(
-                        ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp),
-                        gc.nogc(),
-                    )
-                    .unbind());
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{:?} is not a valid code point", next_cp),
+                    gc.into_nogc(),
+                ));
             }
             // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
             if let Some(cu) = char::from_u32(next_cp as u32) {
@@ -241,13 +241,11 @@ impl StringConstructor {
                 let next_cp = next_cp.into_i64();
                 // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
                 if !(0..=0x10FFFF).contains(&next_cp) {
-                    return Err(agent
-                        .throw_exception(
-                            ExceptionType::RangeError,
-                            format!("{:?} is not a valid code point", next_cp),
-                            gc.nogc(),
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp),
+                        gc.into_nogc(),
+                    ));
                 }
                 // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
                 result.push(char::from_u32(next_cp as u32).unwrap());
@@ -260,27 +258,25 @@ impl StringConstructor {
             // 2. For each element next of codePoints, do
             for next in code_points.into_iter() {
                 // a. Let nextCP be ? ToNumber(next).
-                let next_cp = to_number(agent, next.get(agent), gc.reborrow())?;
+                let next_cp = to_number(agent, next.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
                 if !is_integral_number(agent, next_cp) {
-                    return Err(agent
-                        .throw_exception(
-                            ExceptionType::RangeError,
-                            format!("{:?} is not a valid code point", next_cp.to_real(agent)),
-                            gc.nogc(),
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp.to_real(agent)),
+                        gc.into_nogc(),
+                    ));
                 }
                 // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
                 let next_cp = next_cp.into_i64(agent);
                 if !(0..=0x10FFFF).contains(&next_cp) {
-                    return Err(agent
-                        .throw_exception(
-                            ExceptionType::RangeError,
-                            format!("{:?} is not a valid code point", next_cp),
-                            gc.nogc(),
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp),
+                        gc.into_nogc(),
+                    ));
                 }
                 // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
                 result.push(char::from_u32(next_cp as u32).unwrap());
@@ -295,7 +291,7 @@ impl StringConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!();
     }
 

@@ -73,10 +73,12 @@ impl SymbolPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
-        let sym = this_symbol_value(agent, this_value, gc.nogc())?;
+        let sym = this_symbol_value(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.into_nogc());
         // 3. Return sym.[[Description]].
         agent[sym]
             .descriptor
@@ -88,11 +90,11 @@ impl SymbolPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let symb = this_symbol_value(agent, this_value, gc.nogc())?;
-        Ok(symbol_descriptive_string(agent, symb, gc.nogc())
-            .into_value()
-            .unbind())
+    ) -> JsResult<'gc, Value<'gc>> {
+        let symb = this_symbol_value(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        Ok(symbol_descriptive_string(agent, symb.unbind(), gc.into_nogc()).into_value())
     }
 
     fn value_of<'gc>(
@@ -100,8 +102,8 @@ impl SymbolPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value().unbind())
+    ) -> JsResult<'gc, Value<'gc>> {
+        this_symbol_value(agent, this_value, gc.into_nogc()).map(|res| res.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -179,7 +181,7 @@ fn this_symbol_value<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<Symbol<'a>> {
+) -> JsResult<'a, Symbol<'a>> {
     match value {
         Value::Symbol(symbol) => Ok(symbol.unbind()),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
@@ -190,7 +192,7 @@ fn this_symbol_value<'a>(
             ExceptionType::TypeError,
             "this is not a symbol",
             gc,
-        ).unbind()),
+        )),
     }
 }
 

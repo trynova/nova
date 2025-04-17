@@ -393,7 +393,7 @@ pub(crate) fn set_default_global_bindings<'a>(
     agent: &mut Agent,
     realm_id: Realm,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Object<'a>> {
+) -> JsResult<'a, Object<'a>> {
     // 1. Let global be realmRec.[[GlobalObject]].
     let global = agent[realm_id].global_object.scope(agent, gc.nogc());
 
@@ -426,7 +426,7 @@ pub(crate) fn set_default_global_bindings<'a>(
             };
 
             // c. Perform ? DefinePropertyOrThrow(global, name, desc).
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow()).unbind()?.bind(gc.nogc());
         };
     }
 

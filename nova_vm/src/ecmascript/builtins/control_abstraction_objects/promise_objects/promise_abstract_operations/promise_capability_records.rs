@@ -201,7 +201,7 @@ impl<'a> PromiseCapability<'a> {
                     promise: promise.get(agent),
                     must_be_unresolved,
                 }
-                .internal_reject(agent, err.value(), gc.nogc());
+                .internal_reject(agent, err.value().unbind(), gc.nogc());
                 // b. Return undefined.
                 return;
             }

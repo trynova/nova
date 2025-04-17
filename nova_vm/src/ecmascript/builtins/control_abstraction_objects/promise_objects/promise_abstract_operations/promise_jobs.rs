@@ -33,7 +33,7 @@ pub(crate) struct PromiseResolveThenableJob {
     then: Global<Function<'static>>,
 }
 impl PromiseResolveThenableJob {
-    pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
+    pub(crate) fn run<'a>(self, agent: &mut Agent, mut gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let Self {
             promise_to_resolve,
             thenable,
@@ -128,7 +128,7 @@ pub(crate) struct PromiseReactionJob {
     argument: Global<Value<'static>>,
 }
 impl PromiseReactionJob {
-    pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
+    pub(crate) fn run<'a>(self, agent: &mut Agent, mut gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let Self { reaction, argument } = self;
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());

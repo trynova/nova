@@ -192,7 +192,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<i8>(agent, arguments, new_target, gc)
     }
 
@@ -202,7 +202,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<u8>(agent, arguments, new_target, gc)
     }
 
@@ -212,7 +212,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<U8Clamped>(agent, arguments, new_target, gc)
     }
 
@@ -222,7 +222,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<i16>(agent, arguments, new_target, gc)
     }
 
@@ -232,7 +232,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<u16>(agent, arguments, new_target, gc)
     }
 
@@ -242,7 +242,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<i32>(agent, arguments, new_target, gc)
     }
 
@@ -252,7 +252,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<u32>(agent, arguments, new_target, gc)
     }
 
@@ -262,7 +262,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<i64>(agent, arguments, new_target, gc)
     }
 
@@ -272,7 +272,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<u64>(agent, arguments, new_target, gc)
     }
 
@@ -283,7 +283,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<f16>(agent, arguments, new_target, gc)
     }
 
@@ -293,7 +293,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<f32>(agent, arguments, new_target, gc)
     }
 
@@ -303,7 +303,7 @@ impl TypedArrayConstructors {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         typed_array_constructor::<f64>(agent, arguments, new_target, gc)
     }
 
@@ -711,7 +711,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
     arguments: ArgumentsList,
     new_target: Option<Object>,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let new_target = new_target.bind(gc.nogc());
     // 4. Let numberOfArgs be the number of elements in args.
     let number_of_args = arguments.len();
@@ -730,13 +730,11 @@ fn typed_array_constructor<'gc, T: Viewable>(
     };
     // 1. If NewTarget is undefined, throw a TypeError exception.
     let Some(new_target) = new_target else {
-        return Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "calling a builtin TypedArray constructor without new is forbidden",
-                gc.nogc(),
-            )
-            .unbind());
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "calling a builtin TypedArray constructor without new is forbidden",
+            gc.into_nogc(),
+        ));
     };
     let mut new_target = Function::try_from(new_target).unwrap();
 
@@ -757,8 +755,8 @@ fn typed_array_constructor<'gc, T: Viewable>(
     if first_argument_is_object {
         let scoped_first_argument = first_argument.scope(agent, gc.nogc());
         // i. Let O be ? AllocateTypedArray(constructorName, NewTarget, proto).
-        let o = allocate_typed_array::<T>(agent, new_target.unbind(), proto, None, gc.reborrow())?
-            .unbind()
+        let o = allocate_typed_array::<T>(agent, new_target.unbind(), proto, None, gc.reborrow())
+            .unbind()?
             .bind(gc.nogc());
         let scoped_o = o.scope(agent, gc.nogc());
         let first_argument = scoped_first_argument.get(agent).bind(gc.nogc());
@@ -773,74 +771,98 @@ fn typed_array_constructor<'gc, T: Viewable>(
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Uint8Array(_) => initialize_typed_array_from_typed_array::<T, u8>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Uint8ClampedArray(_) => initialize_typed_array_from_typed_array::<
                     T,
                     U8Clamped,
                 >(
                     agent, o, first_argument, gc.nogc()
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Int16Array(_) => initialize_typed_array_from_typed_array::<T, i16>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Uint16Array(_) => initialize_typed_array_from_typed_array::<T, u16>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Int32Array(_) => initialize_typed_array_from_typed_array::<T, i32>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Uint32Array(_) => initialize_typed_array_from_typed_array::<T, u32>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::BigInt64Array(_) => initialize_typed_array_from_typed_array::<T, i64>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::BigUint64Array(_) => initialize_typed_array_from_typed_array::<T, u64>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => initialize_typed_array_from_typed_array::<T, f16>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Float32Array(_) => initialize_typed_array_from_typed_array::<T, f32>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
                 TypedArray::Float64Array(_) => initialize_typed_array_from_typed_array::<T, f64>(
                     agent,
                     o,
                     first_argument,
                     gc.nogc(),
-                )?,
+                )
+                .unbind()?
+                .bind(gc.nogc()),
             }
         } else if let Ok(first_argument) = ArrayBuffer::try_from(first_argument) {
             let first_argument = first_argument.bind(gc.nogc());
@@ -876,7 +898,9 @@ fn typed_array_constructor<'gc, T: Viewable>(
                 first_argument.unbind(),
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 gc.reborrow(),
-            )?;
+            )
+            .unbind()?
+            .bind(gc.nogc());
 
             // 3. If usingIterator is not undefined, then
             if let Some(using_iterator) = using_iterator {
@@ -886,18 +910,16 @@ fn typed_array_constructor<'gc, T: Viewable>(
                     scoped_first_argument.get(agent),
                     using_iterator.unbind(),
                     gc.reborrow(),
-                )?
-                else {
+                )
+                .unbind()?
+                .bind(gc.nogc()) else {
                     return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
                 };
-                let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
+                let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 // b. Perform ? InitializeTypedArrayFromList(O, values).
-                initialize_typed_array_from_list::<T>(
-                    agent,
-                    scoped_o.clone(),
-                    values,
-                    gc.reborrow(),
-                )?;
+                initialize_typed_array_from_list::<T>(agent, scoped_o.clone(), values, gc)?;
             } else {
                 // 4. Else,
                 // a. NOTE: firstArgument is not an iterable object, so assume
@@ -908,7 +930,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
                     agent,
                     scoped_o.clone(),
                     first_argument,
-                    gc.reborrow(),
+                    gc,
                 )?;
             }
         }
@@ -925,10 +947,10 @@ fn typed_array_constructor<'gc, T: Viewable>(
     let element_length = if let TryResult::Continue(element_length) =
         try_to_index(agent, first_argument, gc.nogc())
     {
-        element_length?
+        element_length.unbind()?
     } else {
         let scoped_new_target = new_target.scope(agent, gc.nogc());
-        let element_length = to_index(agent, first_argument.unbind(), gc.reborrow())?;
+        let element_length = to_index(agent, first_argument.unbind(), gc.reborrow()).unbind()?;
         new_target = scoped_new_target.get(agent).bind(gc.nogc());
         element_length
     };

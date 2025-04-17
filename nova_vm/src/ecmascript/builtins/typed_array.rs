@@ -427,12 +427,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.3 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-hasproperty)
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         if let PropertyKey::Integer(_) = property_key {
             Ok(unwrap_try(self.try_has_property(
                 agent,
@@ -506,13 +506,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.4 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-typedarray-defineownproperty)
-    fn internal_define_own_property(
+    fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let o = self.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
         // 1. If P is a String, then
@@ -616,7 +616,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let o = self.bind(gc.nogc());
         let property_key = property_key.bind(gc.nogc());
         let receiver = receiver.bind(gc.nogc());
@@ -695,14 +695,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then

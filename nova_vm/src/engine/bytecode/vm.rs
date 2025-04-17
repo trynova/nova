@@ -17,7 +17,7 @@ use crate::{ecmascript::execution::Realm, heap::heap_gc::heap_gc};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::iterator_close,
+            operations_on_iterator_objects::iterator_close_with_value,
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
                 copy_data_properties_into_object, create_data_property_or_throw,
@@ -92,7 +92,7 @@ pub(crate) enum ExecutionResult<'a> {
     },
 }
 impl<'a> ExecutionResult<'a> {
-    pub(crate) fn into_js_result(self) -> JsResult<Value<'a>> {
+    pub(crate) fn into_js_result(self) -> JsResult<'a, Value<'a>> {
         match self {
             ExecutionResult::Return(value) => Ok(value),
             ExecutionResult::Throw(err) => Err(err.unbind()),
@@ -224,7 +224,7 @@ impl SuspendedVm {
     }
 }
 
-impl<'a> Vm {
+impl Vm {
     fn new() -> Self {
         Self {
             ip: 0,
@@ -241,11 +241,7 @@ impl<'a> Vm {
         SuspendedVm {
             ip: self.ip,
             stack: self.stack.into_boxed_slice(),
-            reference_stack: unsafe {
-                core::mem::transmute::<Box<[Reference<'a>]>, Box<[Reference<'static>]>>(
-                    self.reference_stack.into_boxed_slice(),
-                )
-            },
+            reference_stack: self.reference_stack.into_boxed_slice(),
             iterator_stack: self.iterator_stack.into_boxed_slice(),
             exception_jump_target_stack: self.exception_jump_target_stack.into_boxed_slice(),
         }
@@ -412,7 +408,7 @@ impl<'a> Vm {
                 }
                 Err(err) => {
                     if !self.handle_error(agent, err) {
-                        return ExecutionResult::Throw(err);
+                        return ExecutionResult::Throw(err.unbind().bind(gc.into_nogc()));
                     }
                 }
             }
@@ -434,21 +430,26 @@ impl<'a> Vm {
         }
     }
 
-    fn execute_instruction(
+    fn execute_instruction<'a>(
         agent: &mut Agent,
         vm: &mut Vm,
         executable: Scoped<'_, Executable>,
         instr: &Instr,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<ContinuationKind> {
+    ) -> JsResult<'a, ContinuationKind> {
         if agent.options.print_internals {
             eprintln!("Executing instruction {:?}", instr.kind);
         }
         match instr.kind {
             Instruction::ArrayCreate => {
-                let result =
-                    array_create(agent, 0, instr.args[0].unwrap() as usize, None, gc.nogc())?
-                        .into_value();
+                let result = array_create(
+                    agent,
+                    0,
+                    instr.args[0].unwrap() as usize,
+                    None,
+                    gc.into_nogc(),
+                )?
+                .into_value();
                 vm.stack.push(result.unbind());
             }
             Instruction::ArrayPush => {
@@ -533,8 +534,13 @@ impl<'a> Vm {
                 // 2. Return ? envRec.GetThisBinding().
                 let result = match env_rec {
                     Environment::Declarative(_) => unreachable!(),
-                    Environment::Function(idx) => idx.get_this_binding(agent, gc.nogc())?,
-                    Environment::Global(idx) => idx.get_this_binding(agent, gc.nogc()).into_value(),
+                    Environment::Function(idx) => {
+                        idx.unbind().get_this_binding(agent, gc.into_nogc())?
+                    }
+                    Environment::Global(idx) => idx
+                        .unbind()
+                        .get_this_binding(agent, gc.into_nogc())
+                        .into_value(),
                     Environment::Object(_) => unreachable!(),
                 };
                 vm.result = Some(result.unbind());
@@ -602,7 +608,7 @@ impl<'a> Vm {
             }
             Instruction::ToObject => {
                 vm.result = Some(
-                    to_object(agent, vm.result.unwrap(), gc.nogc())?
+                    to_object(agent, vm.result.unwrap(), gc.into_nogc())?
                         .into_value()
                         .unbind(),
                 );
@@ -627,7 +633,9 @@ impl<'a> Vm {
                     vm,
                     |agent, gc| to_property_key(agent, key, gc),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 let key = key.unbind().bind(gc.nogc());
                 let value = vm.result.take().unwrap().bind(gc.nogc());
                 let object = vm.stack.last().unwrap().bind(gc.nogc());
@@ -657,8 +665,8 @@ impl<'a> Vm {
                     vm,
                     |agent, gc| to_property_key(agent, prop_key, gc),
                     gc.reborrow(),
-                )?
-                .unbind()
+                )
+                .unbind()?
                 .bind(gc.nogc());
                 let object = Object::try_from(*vm.stack.last().unwrap())
                     .unwrap()
@@ -757,8 +765,8 @@ impl<'a> Vm {
                     vm,
                     |agent, gc| to_property_key(agent, prop_key, gc),
                     gc.reborrow(),
-                )?
-                .unbind()
+                )
+                .unbind()?
                 .bind(gc.nogc());
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 let env = agent.current_lexical_environment(gc.nogc());
@@ -853,8 +861,8 @@ impl<'a> Vm {
                     vm,
                     |agent, gc| to_property_key(agent, prop_key, gc),
                     gc.reborrow(),
-                )?
-                .unbind()
+                )
+                .unbind()?
                 .bind(gc.nogc());
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 let env = agent.current_lexical_environment(gc.nogc());
@@ -916,7 +924,7 @@ impl<'a> Vm {
                     agent,
                     vm,
                     |agent, gc| define_property_or_throw(agent, object, prop_key, desc, gc),
-                    gc.reborrow(),
+                    gc,
                 )?;
                 // c. Return unused.
             }
@@ -993,8 +1001,8 @@ impl<'a> Vm {
                             vm,
                             |agent, gc| get_value(agent, &reference, gc),
                             gc.reborrow(),
-                        )?
-                        .unbind()
+                        )
+                        .unbind()?
                         .bind(gc.nogc())
                     }
                 } else {
@@ -1132,10 +1140,11 @@ impl<'a> Vm {
                                 vm,
                                 |agent, gc| to_property_key_complex(agent, pk_value, gc),
                                 gc.reborrow(),
-                            )?
-                            .unbind()
+                            )
+                            .unbind()?
                             .bind(gc.nogc());
-                            function = scoped_function.get(agent).bind(gc.nogc());
+                            // SAFETY: not shared.
+                            function = unsafe { scoped_function.take(agent).bind(gc.nogc()) };
                             pk
                         }
                     };
@@ -1180,8 +1189,8 @@ impl<'a> Vm {
                             Err(pk) => Ok(pk.bind(gc.into_nogc())),
                         },
                         gc.reborrow(),
-                    )?
-                    .unbind()
+                    )
+                    .unbind()?
                     .bind(gc.nogc());
                     (name, agent.current_lexical_environment(gc.nogc()), false)
                 } else if let Some(binding_identifier) = &function_expression.id {
@@ -1431,18 +1440,15 @@ impl<'a> Vm {
                     agent,
                     vm,
                     |agent, mut gc| {
-                        let func_ref = resolve_binding(
-                            agent,
-                            BUILTIN_STRING_MEMORY.eval,
-                            None,
-                            gc.reborrow(),
-                        )?
-                        .unbind();
-                        get_value(agent, &func_ref, gc)
+                        let func_ref =
+                            resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None, gc.reborrow())
+                                .unbind()?
+                                .bind(gc.nogc());
+                        get_value(agent, &func_ref.unbind(), gc)
                     },
                     gc.reborrow(),
-                )?
-                .unbind()
+                )
+                .unbind()?
                 .bind(gc.nogc());
                 let args = vm.get_call_args(instr, gc.nogc());
 
@@ -1538,7 +1544,7 @@ impl<'a> Vm {
                             gc,
                         )
                     },
-                    gc.reborrow(),
+                    gc,
                 )?;
                 vm.result = Some(result.unbind());
             }
@@ -1559,9 +1565,11 @@ impl<'a> Vm {
                         "'{}' is not a constructor.",
                         constructor_string.as_str(agent)
                     );
-                    return Err(agent
-                        .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        error_message,
+                        gc.into_nogc(),
+                    ));
                 };
 
                 let constructor = constructor.unbind();
@@ -1617,9 +1625,11 @@ impl<'a> Vm {
                         },
                         gc.reborrow(),
                     );
-                    return Err(agent
-                        .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        error_message,
+                        gc.into_nogc(),
+                    ));
                 };
                 // 6. Let result be ? Construct(func, argList, newTarget).
                 let result = {
@@ -1639,7 +1649,9 @@ impl<'a> Vm {
                             )
                         },
                         gc.reborrow(),
-                    )?;
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
                     result.unbind().bind(gc.nogc())
                 };
                 // 7. Let thisER be GetThisEnvironment().
@@ -1647,7 +1659,10 @@ impl<'a> Vm {
                     unreachable!();
                 };
                 // 8. Perform ? thisER.BindThisValue(result).
-                this_er.bind_this_value(agent, result.into_value(), gc.nogc())?;
+                this_er
+                    .bind_this_value(agent, result.into_value(), gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
                 // 9. Let F be thisER.[[FunctionObject]].
                 // 10. Assert: F is an ECMAScript function object.
                 let Function::ECMAScriptFunction(_f) = agent[this_er].function_object else {
@@ -1680,8 +1695,8 @@ impl<'a> Vm {
                             vm,
                             |agent, gc| to_property_key(agent, property_name_value, gc),
                             gc.reborrow(),
-                        )?
-                        .unbind()
+                        )
+                        .unbind()?
                         .bind(gc.nogc())
                     };
                 let base_value = vm.stack.pop().unwrap().bind(gc.nogc());
@@ -1821,9 +1836,11 @@ impl<'a> Vm {
                         },
                         gc.reborrow(),
                     );
-                    return Err(agent
-                        .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        error_message,
+                        gc.into_nogc(),
+                    ));
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
                 let property_key = if lval.is_string() || lval.is_integer() {
@@ -1836,10 +1853,11 @@ impl<'a> Vm {
                         vm,
                         |agent, gc| to_property_key(agent, lval, gc),
                         gc.reborrow(),
-                    )?
-                    .unbind()
+                    )
+                    .unbind()?
                     .bind(gc.nogc());
-                    rval = scoped_rval.get(agent).bind(gc.nogc());
+                    // SAFETY: not shared.
+                    rval = unsafe { scoped_rval.take(agent).bind(gc.nogc()) };
                     property_key
                 };
                 let result = if let TryResult::Continue(result) =
@@ -1917,7 +1935,9 @@ impl<'a> Vm {
                 let w = vm.result.take().unwrap();
                 // Note: https://tc39.es/ecma262/#sec-initializereferencedbinding
                 // suggests this cannot call user code, hence NoGC.
-                unwrap_try(try_initialize_referenced_binding(agent, v, w, gc.nogc()))?;
+                unwrap_try(try_initialize_referenced_binding(agent, v, w, gc.nogc()))
+                    .unbind()?
+                    .bind(gc.nogc());
             }
             Instruction::InitializeVariableEnvironment => {
                 let num_variables = instr.args[0].unwrap();
@@ -2019,9 +2039,11 @@ impl<'a> Vm {
 
                 let exception_type = ExceptionType::try_from(exception_type_immediate).unwrap();
 
-                return Err(agent
-                    .throw_exception_with_message(exception_type, message, gc.into_nogc())
-                    .unbind());
+                return Err(agent.throw_exception_with_message(
+                    exception_type,
+                    message,
+                    gc.into_nogc(),
+                ));
             }
             Instruction::PushExceptionJumpTarget => {
                 vm.exception_jump_target_stack.push(ExceptionJumpTarget {
@@ -2057,7 +2079,7 @@ impl<'a> Vm {
                     None
                 };
                 let iterator = vm.iterator_stack.pop().unwrap().bind(gc.nogc());
-                execute_simple_array_binding(agent, vm, executable, iterator, env, gc.reborrow())?
+                execute_simple_array_binding(agent, vm, executable, iterator, env, gc)?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -2072,15 +2094,10 @@ impl<'a> Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                let object = to_object(agent, vm.stack.pop().unwrap(), gc.nogc())?;
-                execute_simple_object_binding(
-                    agent,
-                    vm,
-                    executable,
-                    object.unbind(),
-                    env,
-                    gc.reborrow(),
-                )?
+                let object = to_object(agent, vm.stack.pop().unwrap(), gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                execute_simple_object_binding(agent, vm, executable, object.unbind(), env, gc)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
@@ -2122,7 +2139,7 @@ impl<'a> Vm {
                         .iter_mut()
                         .map(|v| v.scope(agent, gc.nogc()))
                         .collect::<Vec<_>>();
-                    with_vm_gc(
+                    with_vm_gc::<JsResult<()>>(
                         agent,
                         vm,
                         |agent, mut gc| {
@@ -2131,8 +2148,9 @@ impl<'a> Vm {
                                 if maybe_string.is_string() {
                                     continue;
                                 }
-                                let string =
-                                    to_string(agent, maybe_string.unbind(), gc.reborrow())?;
+                                let string = to_string(agent, maybe_string.unbind(), gc.reborrow())
+                                    .unbind()?
+                                    .bind(gc.nogc());
                                 length += string.len(agent);
                                 let string = string.into_value();
                                 // SAFETY: args are never shared
@@ -2141,7 +2159,9 @@ impl<'a> Vm {
                             Ok(())
                         },
                         gc.reborrow(),
-                    )?;
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
                     let gc = gc.nogc();
                     let args = args
                         .into_iter()
@@ -2168,16 +2188,14 @@ impl<'a> Vm {
                         debug_assert!(!is_private_reference(&refer));
                         // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
                         if is_super_reference(&refer) {
-                            return Err(agent
-                                .throw_exception_with_static_message(
-                                    ExceptionType::ReferenceError,
-                                    "Invalid delete involving 'super'.",
-                                    gc.into_nogc(),
-                                )
-                                .unbind());
+                            return Err(agent.throw_exception_with_static_message(
+                                ExceptionType::ReferenceError,
+                                "Invalid delete involving 'super'.",
+                                gc.into_nogc(),
+                            ));
                         }
                         // c. Let baseObj be ? ToObject(ref.[[Base]]).
-                        let base_obj = to_object(agent, base, gc.nogc())?;
+                        let base_obj = to_object(agent, base, gc.nogc()).unbind()?.bind(gc.nogc());
                         // d. If ref.[[ReferencedName]] is not a property key, then
                         // TODO: Is this relevant?
                         // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
@@ -2195,17 +2213,17 @@ impl<'a> Vm {
                                 vm,
                                 |agent, gc| base_obj.internal_delete(agent, referenced_name, gc),
                                 gc.reborrow(),
-                            )?
+                            )
+                            .unbind()?
+                            .bind(gc.nogc())
                         };
                         // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
                         if !delete_status && strict {
-                            return Err(agent
-                                .throw_exception_with_static_message(
-                                    ExceptionType::TypeError,
-                                    "Cannot delete property",
-                                    gc.into_nogc(),
-                                )
-                                .unbind());
+                            return Err(agent.throw_exception_with_static_message(
+                                ExceptionType::TypeError,
+                                "Cannot delete property",
+                                gc.into_nogc(),
+                            ));
                         }
                         // g. Return deleteStatus.
                         vm.result = Some(delete_status.into());
@@ -2223,7 +2241,7 @@ impl<'a> Vm {
                         let result = if let TryResult::Continue(result) =
                             base.try_delete_binding(agent, referenced_name, gc.nogc())
                         {
-                            result?
+                            result.unbind()?
                         } else {
                             let referenced_name = referenced_name.unbind();
                             let base = base.unbind();
@@ -2315,15 +2333,20 @@ impl<'a> Vm {
             Instruction::IteratorRestIntoArray => {
                 let mut iterator = vm.iterator_stack.pop().unwrap();
                 let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                let array =
-                    array_create(agent, 0, capacity, None, gc.nogc())?.scope(agent, gc.nogc());
+                let array = array_create(agent, 0, capacity, None, gc.nogc())
+                    .unbind()?
+                    .scope(agent, gc.nogc());
 
-                with_vm_gc(
+                with_vm_gc::<JsResult<()>>(
                     agent,
                     vm,
                     |agent, mut gc| {
                         let mut idx: u32 = 0;
-                        while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
+                        while let Some(value) = iterator
+                            .step_value(agent, gc.reborrow())
+                            .unbind()?
+                            .bind(gc.nogc())
+                        {
                             let key = PropertyKey::Integer(idx.into());
                             unwrap_try(try_create_data_property(
                                 agent,
@@ -2347,7 +2370,9 @@ impl<'a> Vm {
                     with_vm_gc(
                         agent,
                         vm,
-                        |agent, gc| iterator_close(agent, iterator_record.iterator, Ok(result), gc),
+                        |agent, gc| {
+                            iterator_close_with_value(agent, iterator_record.iterator, result, gc)
+                        },
                         gc,
                     )?;
                 }
@@ -2423,7 +2448,7 @@ fn apply_string_or_numeric_binary_operator<'gc>(
     op_text: BinaryOperator,
     rval: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let lval = lval.bind(gc.nogc());
     let rval = rval.bind(gc.nogc());
     let lnum: Numeric<'gc>;
@@ -2441,26 +2466,31 @@ fn apply_string_or_numeric_binary_operator<'gc>(
             }
             (Ok(lprim), Err(_)) => {
                 let lprim = lprim.scope(agent, gc.nogc());
-                let rprim = to_primitive(agent, rval.unbind(), None, gc.reborrow())?.unbind();
+                let rprim = to_primitive(agent, rval.unbind(), None, gc.reborrow()).unbind()?;
                 let gc = gc.into_nogc();
-                let lprim = lprim.get(agent);
+                // SAFETY: not shared.
+                let lprim = unsafe { lprim.take(agent) };
                 (lprim.bind(gc), rprim.bind(gc), gc)
             }
             (Err(_), Ok(rprim)) => {
                 let rprim = rprim.scope(agent, gc.nogc());
-                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())?.unbind();
+                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow()).unbind()?;
                 let gc = gc.into_nogc();
-                let rprim = rprim.get(agent);
+                // SAFETY: not shared.
+                let rprim = unsafe { rprim.take(agent) };
                 (lprim.bind(gc), rprim.bind(gc), gc)
             }
             (Err(_), Err(_)) => {
                 let rval = rval.scope(agent, gc.nogc());
-                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())?
-                    .unbind()
+                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())
+                    .unbind()?
                     .scope(agent, gc.nogc());
-                let rprim = to_primitive(agent, rval.get(agent), None, gc.reborrow())?.unbind();
+                // SAFETY: not shared.
+                let rprim = to_primitive(agent, unsafe { rval.take(agent) }, None, gc.reborrow())
+                    .unbind()?;
                 let gc = gc.into_nogc();
-                let lprim = lprim.get(agent);
+                // SAFETY: not shared.
+                let lprim = unsafe { lprim.take(agent) };
                 (lprim.bind(gc), rprim.bind(gc), gc)
             }
         };
@@ -2472,14 +2502,14 @@ fn apply_string_or_numeric_binary_operator<'gc>(
                 return Ok(String::concat(agent, [lstr, rstr], gc).into_value());
             }
             (Ok(lstr), Err(_)) => {
-                let lstr = lstr.bind(gc).scope(agent, gc);
+                let lstr = lstr.scope(agent, gc);
                 // ii. Let rstr be ? ToString(rprim).
                 let rstr = to_string_primitive(agent, rprim, gc)?;
                 // iii. Return the string-concatenation of lstr and rstr.
                 return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into_value());
             }
             (Err(_), Ok(rstr)) => {
-                let rstr = rstr.bind(gc).scope(agent, gc);
+                let rstr = rstr.scope(agent, gc);
                 // i. Let lstr be ? ToString(lprim).
                 let lstr = to_string_primitive(agent, lprim, gc)?;
                 // iii. Return the string-concatenation of lstr and rstr.
@@ -2499,13 +2529,16 @@ fn apply_string_or_numeric_binary_operator<'gc>(
     } else {
         let rval = rval.scope(agent, gc.nogc());
         // 3. Let lnum be ? ToNumeric(lval).
-        let scoped_lnum = to_numeric(agent, lval.unbind(), gc.reborrow())?
-            .unbind()
+        let scoped_lnum = to_numeric(agent, lval.unbind(), gc.reborrow())
+            .unbind()?
             .scope(agent, gc.nogc());
         // 4. Let rnum be ? ToNumeric(rval).
-        rnum = to_numeric(agent, rval.get(agent), gc.reborrow())?.unbind();
+        // SAFETY: not shared.
+        let local_rnum = to_numeric(agent, unsafe { rval.take(agent) }, gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
-        lnum = scoped_lnum.get(agent).bind(gc);
+        rnum = local_rnum.bind(gc);
+        // SAFETY: not shared.
+        lnum = unsafe { scoped_lnum.take(agent) }.bind(gc);
         gc
     };
 
@@ -2583,13 +2616,11 @@ fn apply_string_or_numeric_binary_operator<'gc>(
         })
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
-        Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "The left and right-hand sides do not have the same type.",
-                gc,
-            )
-            .unbind())
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "The left and right-hand sides do not have the same type.",
+            gc,
+        ))
     }
 }
 
@@ -2695,12 +2726,12 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
 /// > that did not use a @@hasInstance method to define the instanceof operator
 /// > semantics. If an object does not define or inherit @@hasInstance it uses
 /// > the default instanceof semantics.
-pub(crate) fn instanceof_operator<'a>(
+pub(crate) fn instanceof_operator<'a, 'b>(
     agent: &mut Agent,
-    value: impl IntoValue<'a>,
-    target: impl IntoValue<'a>,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+    value: impl IntoValue<'b>,
+    target: impl IntoValue<'b>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     // 1. If target is not an Object, throw a TypeError exception.
     let Ok(target) = Object::try_from(target.into_value()) else {
         let error_message = format!(
@@ -2710,9 +2741,7 @@ pub(crate) fn instanceof_operator<'a>(
                 .string_repr(agent, gc.reborrow())
                 .as_str(agent)
         );
-        return Err(agent
-            .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
-            .unbind());
+        return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
     let inst_of_handler = get_method(
@@ -2720,7 +2749,9 @@ pub(crate) fn instanceof_operator<'a>(
         target.into_value(),
         WellKnownSymbolIndexes::HasInstance.into(),
         gc.reborrow(),
-    )?;
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 3. If instOfHandler is not undefined, then
     if let Some(inst_of_handler) = inst_of_handler {
         // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
@@ -2732,7 +2763,9 @@ pub(crate) fn instanceof_operator<'a>(
                 .into_value()
                 .unbind()])),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         Ok(to_boolean(agent, result))
     } else {
         // 4. If IsCallable(target) is false, throw a TypeError exception.
@@ -2744,9 +2777,11 @@ pub(crate) fn instanceof_operator<'a>(
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc())
-                .unbind());
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
         Ok(ordinary_has_instance(agent, target.unbind(), value, gc)?)

@@ -261,23 +261,25 @@ impl DeclarativeEnvironment<'_> {
     /// the value V. A binding for N normally already exists, but in rare cases
     /// it may not. If the binding is an immutable binding, a TypeError is
     /// thrown if S is true.
-    pub(crate) fn set_mutable_binding(
+    pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         mut is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<()> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &mut agent[self];
         // 1. If envRec does not have a binding for N, then
         let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                return Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                    .unbind());
+                return Err(agent.throw_exception(
+                    ExceptionType::ReferenceError,
+                    error_message,
+                    gc,
+                ));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -302,9 +304,7 @@ impl DeclarativeEnvironment<'_> {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                .unbind());
+            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -323,9 +323,7 @@ impl DeclarativeEnvironment<'_> {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent
-                    .throw_exception(ExceptionType::TypeError, error_message, gc)
-                    .unbind());
+                return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }
         }
 
@@ -341,13 +339,13 @@ impl DeclarativeEnvironment<'_> {
     /// throw completion. It returns the value of its bound identifier whose
     /// name is N. If the binding exists but is uninitialized a ReferenceError
     /// is thrown, regardless of the value of S.
-    pub(crate) fn get_binding_value<'gc>(
+    pub(crate) fn get_binding_value<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {
@@ -356,9 +354,7 @@ impl DeclarativeEnvironment<'_> {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                    .unbind())
+                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
             }
         }
     }

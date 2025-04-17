@@ -10,3 +10,9 @@ where
 {
     fn into_value(self) -> Value<'a>;
 }
+
+impl IntoValue<'static> for bool {
+    fn into_value(self) -> Value<'static> {
+        Value::Boolean(self)
+    }
+}

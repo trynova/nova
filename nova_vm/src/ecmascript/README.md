@@ -15,7 +15,7 @@ Found in the [`types`](./types/) folder.
 
 Currently mostly found as methods on `Value`.
 
-Maybe move to [`abstract_operations`](./abstract_operation)?
+Maybe move to [`abstract_operations`](./abstract_operation).unbind()?.bind(gc.nogc())
 
 #### 8. Syntax-Directed Operations
 
@@ -31,7 +31,7 @@ Found in the [`execution`](./execution/) folder.
 #### 10. Ordinary and Exotic Objects Behaviours
 
 Currently mostly found in `builtins` but maybe move to
-[`behaviours`](./behaviours)?
+[`behaviours`](./behaviours).unbind()?.bind(gc.nogc())
 
 On the other hand, this part of the spec also contains the subsection 10.3
 Built-in Function Objects and various other built-in related things so it might

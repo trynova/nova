@@ -53,7 +53,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Object<'a>> {
+    ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -62,13 +62,11 @@ impl Generator<'_> {
                 // 3. Assert: state is either suspended-start or suspended-yield.
             }
             GeneratorState::Executing => {
-                return Err(agent
-                    .throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "The generator is currently running",
-                        gc.nogc(),
-                    )
-                    .unbind());
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "The generator is currently running",
+                    gc.into_nogc(),
+                ));
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
@@ -183,7 +181,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Object<'a>> {
+    ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -207,13 +205,11 @@ impl Generator<'_> {
                 // 4. Assert: state is suspended-yield.
             }
             GeneratorState::Executing => {
-                return Err(agent
-                    .throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "The generator is currently running",
-                        gc.into_nogc(),
-                    )
-                    .unbind());
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "The generator is currently running",
+                    gc.into_nogc(),
+                ));
             }
             GeneratorState::Completed => {
                 // 3. If state is completed, then

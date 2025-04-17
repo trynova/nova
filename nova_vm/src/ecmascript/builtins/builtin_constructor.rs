@@ -255,12 +255,12 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         function_try_has_property(self, agent, property_key, gc)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
@@ -280,7 +280,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -295,14 +295,14 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -336,16 +336,14 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         _: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
-        Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "class constructors must be invoked with 'new'",
-                gc.nogc(),
-            )
-            .unbind())
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "class constructors must be invoked with 'new'",
+            gc.into_nogc(),
+        ))
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -360,7 +358,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         arguments_list: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, arguments_list, new_target, gc)
     }
@@ -379,7 +377,7 @@ fn builtin_call_or_construct<'a>(
     arguments_list: ArgumentsList,
     new_target: Function,
     gc: GcScope<'a, '_>,
-) -> JsResult<Object<'a>> {
+) -> JsResult<'a, Object<'a>> {
     let f = f.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());
     let new_target = new_target.bind(gc.nogc());

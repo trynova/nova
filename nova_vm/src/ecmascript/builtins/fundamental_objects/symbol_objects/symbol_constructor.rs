@@ -65,15 +65,13 @@ impl SymbolConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         if new_target.is_some() {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Symbol is not a constructor",
-                    gc.nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Symbol is not a constructor",
+                gc.into_nogc(),
+            ));
         }
         let description = arguments.get(0).bind(gc.nogc());
         let desc_string = if description.is_undefined() {
@@ -95,7 +93,7 @@ impl SymbolConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Ok(arguments.get(0).unbind())
     }
 
@@ -104,7 +102,7 @@ impl SymbolConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Ok(arguments.get(0).unbind())
     }
 

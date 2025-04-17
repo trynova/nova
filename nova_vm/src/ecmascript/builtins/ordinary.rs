@@ -570,12 +570,12 @@ pub(crate) fn ordinary_try_has_property_entry<'a>(
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
-pub(crate) fn ordinary_has_property(
+pub(crate) fn ordinary_has_property<'a>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
@@ -583,10 +583,11 @@ pub(crate) fn ordinary_has_property(
     let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
 
-    let has_own =
-        object
-            .unbind()
-            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
+    let has_own = object
+        .unbind()
+        .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
 
     // 2. If hasOwn is not undefined, return true.
     if has_own.is_some() {
@@ -602,9 +603,9 @@ pub(crate) fn ordinary_has_property(
             (
                 object
                     .unbind()
-                    .internal_get_prototype_of(agent, gc.reborrow())?
-                    .map(|f| f.unbind())
-                    .map(|f| f.bind(gc.nogc())),
+                    .internal_get_prototype_of(agent, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc()),
                 scoped_property_key.get(agent).bind(gc.nogc()),
             )
         };
@@ -621,12 +622,12 @@ pub(crate) fn ordinary_has_property(
     Ok(false)
 }
 
-pub(crate) fn ordinary_has_property_entry<'a>(
+pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
     agent: &mut Agent,
     object: impl InternalMethods<'a>,
     property_key: PropertyKey,
-    gc: GcScope,
-) -> JsResult<bool> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     let property_key = property_key.bind(gc.nogc());
     match object.get_backing_object(agent) {
         Some(backing_object) => {
@@ -706,17 +707,18 @@ pub(crate) fn ordinary_get<'gc>(
     property_key: PropertyKey,
     receiver: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
     let scoped_object = object.scope(agent, gc.nogc());
     let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) =
-        object
-            .unbind()
-            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?
+    let Some(descriptor) = object
+        .unbind()
+        .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc())
     else {
         // 2. If desc is undefined, then
 
@@ -737,7 +739,9 @@ pub(crate) fn ordinary_get<'gc>(
                 let receiver = receiver.scope(agent, gc.nogc());
                 let Some(parent) = object
                     .unbind()
-                    .internal_get_prototype_of(agent, gc.reborrow())?
+                    .internal_get_prototype_of(agent, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
                 else {
                     return Ok(Value::Undefined);
                 };
@@ -803,21 +807,23 @@ pub(crate) fn ordinary_try_set(
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
-pub(crate) fn ordinary_set(
+pub(crate) fn ordinary_set<'a>(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
     let scoped_property_key = property_key.scope(agent, gc.nogc());
 
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor =
-        object.internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
+    let own_descriptor = object
+        .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_set_with_own_descriptor(
@@ -940,15 +946,15 @@ fn ordinary_try_set_with_own_descriptor(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
-fn ordinary_set_with_own_descriptor(
+fn ordinary_set_with_own_descriptor<'a>(
     agent: &mut Agent,
     object: Object,
     scoped_property_key: Scoped<'_, PropertyKey<'static>>,
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     let mut value = value.bind(gc.nogc());
     let receiver = receiver.bind(gc.nogc());
     let property_key = scoped_property_key.get(agent).bind(gc.nogc());
@@ -1010,8 +1016,8 @@ fn ordinary_set_with_own_descriptor(
             let scoped_value = value.scope(agent, gc.nogc());
             let desc = receiver
                 .unbind()
-                .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())?
-                .unbind()
+                .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())
+                .unbind()?
                 .bind(gc.nogc());
             // SAFETY: Neither are shared.
             unsafe {
@@ -1442,7 +1448,7 @@ pub(crate) fn ordinary_create_from_constructor<'a>(
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Object<'a>> {
+) -> JsResult<'a, Object<'a>> {
     let constructor = constructor.bind(gc.nogc());
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
@@ -1454,7 +1460,9 @@ pub(crate) fn ordinary_create_from_constructor<'a>(
         constructor.unbind(),
         intrinsic_default_proto,
         gc.reborrow(),
-    )?;
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
@@ -1485,7 +1493,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Option<Object<'a>>> {
+) -> JsResult<'a, Option<Object<'a>>> {
     let mut constructor = constructor.bind(gc.nogc());
     let mut function_realm = try_get_function_realm(agent, constructor, gc.nogc());
     // NOTE: %Constructor%.prototype is an immutable property; we can thus
@@ -1597,8 +1605,8 @@ pub(crate) fn get_prototype_from_constructor<'a>(
         } else {
             let scoped_realm = function_realm.map(|r| r.scope(agent, gc.nogc()));
             let scoped_constructor = constructor.scope(agent, gc.nogc());
-            let proto = get(agent, constructor.unbind(), prototype_key, gc.reborrow())?
-                .unbind()
+            let proto = get(agent, constructor.unbind(), prototype_key, gc.reborrow())
+                .unbind()?
                 .bind(gc.nogc());
             // SAFETY: scoped_constructor is not shared.
             constructor = unsafe { scoped_constructor.take(agent) }.bind(gc.nogc());
@@ -1616,7 +1624,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             // throw an error.
             if function_realm.is_none() {
                 let err = get_function_realm(agent, constructor.unbind(), gc.nogc()).unwrap_err();
-                return Err(err);
+                return Err(err.unbind());
             }
             Ok(None)
         }

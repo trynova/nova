@@ -201,7 +201,7 @@ impl DataViewPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let gc = gc.into_nogc();
@@ -221,7 +221,7 @@ impl DataViewPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let gc = gc.into_nogc();
@@ -231,13 +231,11 @@ impl DataViewPrototype {
         let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
         // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
         if is_view_out_of_bounds(agent, &view_record, gc) {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "DataView is out of bounds",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+                gc,
+            ));
         }
         // 6. Let size be GetViewByteLength(viewRecord).
         let size = get_view_byte_length(agent, &view_record, gc) as i64;
@@ -254,7 +252,7 @@ impl DataViewPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let gc = gc.into_nogc();
@@ -264,13 +262,11 @@ impl DataViewPrototype {
         let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
         // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
         if is_view_out_of_bounds(agent, &view_record, gc) {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "DataView is out of bounds",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+                gc,
+            ));
         }
         // 6. Let offset be O.[[ByteOffset]].
         // 7. Return 𝔽(offset).
@@ -283,7 +279,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
@@ -298,7 +294,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
@@ -314,7 +310,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -330,7 +326,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -346,7 +342,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -362,7 +358,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, int8).
@@ -375,7 +371,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -391,7 +387,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -407,7 +403,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
@@ -420,7 +416,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -436,7 +432,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -452,7 +448,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         let little_endian = to_boolean(agent, arguments.get(2));
@@ -467,7 +463,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         let little_endian = to_boolean(agent, arguments.get(2));
@@ -483,7 +479,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -499,7 +495,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -515,7 +511,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -531,7 +527,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 1. Let v be the this value.
@@ -545,7 +541,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -561,7 +557,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -577,7 +573,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 1. Let v be the this value.
@@ -591,7 +587,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -607,7 +603,7 @@ impl DataViewPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -678,7 +674,7 @@ pub(crate) fn require_internal_slot_data_view<'a>(
     agent: &mut Agent,
     o: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<DataView<'a>> {
+) -> JsResult<'a, DataView<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[DataView]]).
         Value::DataView(array_buffer) => Ok(array_buffer.unbind().bind(gc)),
@@ -686,6 +682,6 @@ pub(crate) fn require_internal_slot_data_view<'a>(
             ExceptionType::TypeError,
             "Expected this to be DataView",
             gc,
-        ).unbind()),
+        )),
     }
 }

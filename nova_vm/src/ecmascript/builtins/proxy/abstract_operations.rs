@@ -18,6 +18,27 @@ pub(crate) struct NonRevokedProxy<'a> {
     pub(crate) handler: Object<'a>,
 }
 
+// SAFETY: Performs no unsafe operations.
+unsafe impl Bindable for NonRevokedProxy<'_> {
+    type Of<'a> = NonRevokedProxy<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        NonRevokedProxy {
+            target: self.target.unbind(),
+            handler: self.handler.unbind(),
+        }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        NonRevokedProxy {
+            target: self.target.bind(gc),
+            handler: self.handler.bind(gc),
+        }
+    }
+}
+
 /// ### [10.5.14 ValidateNonRevokedProxy ( proxy )](https://tc39.es/ecma262/#sec-validatenonrevokedproxy)
 ///
 /// The abstract operation ValidateNonRevokedProxy takes argument
@@ -28,7 +49,7 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     agent: &mut Agent,
     proxy: Proxy,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<NonRevokedProxy<'a>> {
+) -> JsResult<'a, NonRevokedProxy<'a>> {
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
@@ -36,13 +57,11 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.
-        return Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Proxy target is missing",
-                gc,
-            )
-            .unbind());
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Proxy target is missing",
+            gc,
+        ));
     };
 
     // 3. Return unused.

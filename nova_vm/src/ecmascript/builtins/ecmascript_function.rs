@@ -416,12 +416,12 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         function_try_has_property(self, agent, property_key, gc)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
@@ -441,7 +441,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -456,14 +456,14 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -497,7 +497,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         this_argument: Value,
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
 
@@ -555,7 +555,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         arguments: ArgumentsList,
         new_target: Function,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
         let mut arguments_list = arguments.bind(gc.nogc());
@@ -583,8 +583,8 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
                         )
                     },
                     gc.reborrow(),
-                )?
-                .unbind()
+                )
+                .unbind()?
                 .bind(gc.nogc());
             self_fn = scoped_self_fn.get(agent).bind(gc.nogc());
             new_target = scoped_new_target.get(agent).bind(gc.nogc());
@@ -644,7 +644,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         // 10. If result is a return completion, then
         // 11. Else,
         //   a. ReturnIfAbrupt(result).
-        let value = result?;
+        let value = result.unbind()?.bind(gc.nogc());
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
         if let Ok(value) = Object::try_from(value) {
@@ -664,26 +664,24 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
                     .as_str(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
-            Err(agent
-                .throw_exception_with_message(
-                    ExceptionType::TypeError,
-                    message.unbind(),
-                    gc.into_nogc(),
-                )
-                .unbind())
+            Err(agent.throw_exception_with_message(
+                ExceptionType::TypeError,
+                message.unbind(),
+                gc.into_nogc(),
+            ))
         } else {
             // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
             // 13. Assert: thisBinding is an Object.
             let Ok(this_binding) = Object::try_from(
                 scoped_constructor_env
                     .get(agent)
-                    .get_this_binding(agent, gc.nogc())?,
+                    .get_this_binding(agent, gc.into_nogc())?,
             ) else {
                 unreachable!();
             };
 
             // 14. Return thisBinding.
-            Ok(this_binding.unbind())
+            Ok(this_binding)
         }
     }
 }
@@ -807,7 +805,7 @@ pub(crate) fn evaluate_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
@@ -878,7 +876,7 @@ pub(crate) fn ordinary_call_evaluate_body<'gc>(
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
     evaluate_body(agent, f, arguments_list, gc)
 }
@@ -1161,23 +1159,21 @@ pub(crate) fn set_function_name<'a>(
 }
 
 /// ### [10.2.10 SetFunctionLength ( F, length )](https://tc39.es/ecma262/#sec-setfunctionlength)
-fn set_ecmascript_function_length(
+fn set_ecmascript_function_length<'a>(
     agent: &mut Agent,
     function: &mut ECMAScriptFunctionHeapData,
     length: usize,
-    gc: NoGcScope,
-) -> JsResult<()> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     // TODO: 1. Assert: F is an extensible object that does not have a "length" own property.
 
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     if length > u8::MAX as usize {
-        return Err(agent
-            .throw_exception_with_static_message(
-                SyntaxError,
-                "Too many arguments in function call (only 255 allowed)",
-                gc,
-            )
-            .unbind());
+        return Err(agent.throw_exception_with_static_message(
+            SyntaxError,
+            "Too many arguments in function call (only 255 allowed)",
+            gc,
+        ));
     }
     function.length = length as u8;
 

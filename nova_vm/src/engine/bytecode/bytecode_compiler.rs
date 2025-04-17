@@ -74,7 +74,7 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     current_break: Option<Vec<JumpIndex>>,
     /// `?.` chain jumps that were present in a chain expression.
     optional_chains: Option<Vec<JumpIndex>>,
-    /// In a `(a?.b)?.()` chain the evaluation of `(a?.b)` must be considered a
+    /// In a `(a?.b).unbind()?.bind(gc.nogc()).()` chain the evaluation of `(a?.b)` must be considered a
     /// reference.
     is_call_optional_chain_this: bool,
 }

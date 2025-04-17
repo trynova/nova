@@ -155,19 +155,19 @@ impl ObjectEnvironment<'_> {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if its
     /// associated binding object has a property whose name is N.
-    pub(crate) fn has_binding(
+    pub(crate) fn has_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
-        mut gc: GcScope,
-    ) -> JsResult<bool> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from(n);
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
-        let found_binding = has_property(agent, binding_object, name, gc.reborrow())?;
+        let found_binding = has_property(agent, binding_object, name, gc.reborrow()).unbind()?;
         // 3. If foundBinding is false, return false.
         if !found_binding {
             return Ok(false);
@@ -182,11 +182,15 @@ impl ObjectEnvironment<'_> {
             binding_object,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = get(agent, unscopables.unbind(), name, gc.reborrow())?;
+            let blocked = get(agent, unscopables.unbind(), name, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Ok(!blocked)
@@ -205,13 +209,13 @@ impl ObjectEnvironment<'_> {
     /// object a property whose name is N and initializes it to the value
     /// undefined. If D is true, the new property's [[Configurable]] attribute
     /// is set to true; otherwise it is set to false.
-    pub(crate) fn try_create_mutable_binding(
+    pub(crate) fn try_create_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
         d: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -248,13 +252,13 @@ impl ObjectEnvironment<'_> {
     /// object a property whose name is N and initializes it to the value
     /// undefined. If D is true, the new property's [[Configurable]] attribute
     /// is set to true; otherwise it is set to false.
-    pub(crate) fn create_mutable_binding(
+    pub(crate) fn create_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
         d: bool,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -297,13 +301,13 @@ impl ObjectEnvironment<'_> {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn try_initialize_binding(
+    pub(crate) fn try_initialize_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
         v: Value,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
         self.try_set_mutable_binding(agent, n, v, false, gc)
@@ -322,13 +326,13 @@ impl ObjectEnvironment<'_> {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn initialize_binding(
+    pub(crate) fn initialize_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
         v: Value,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         self.set_mutable_binding(agent, n, v, false, gc)?;
         // 2. Return UNUSED.
@@ -351,14 +355,14 @@ impl ObjectEnvironment<'_> {
     /// N to the value V. A property named N normally already exists but if it
     /// does not or is not currently writable, error handling is determined by
     /// S.
-    pub(crate) fn try_set_mutable_binding(
+    pub(crate) fn try_set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
         v: Value,
         s: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -371,9 +375,11 @@ impl ObjectEnvironment<'_> {
                 "Property '{}' does not exist in object.",
                 n.as_display(agent)
             );
-            TryResult::Continue(Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                .unbind()))
+            TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc,
+            )))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             // 5. Return UNUSED.
@@ -391,20 +397,20 @@ impl ObjectEnvironment<'_> {
     /// N to the value V. A property named N normally already exists but if it
     /// does not or is not currently writable, error handling is determined by
     /// S.
-    pub(crate) fn set_mutable_binding(
+    pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         n: String,
         v: Value,
         s: bool,
-        mut gc: GcScope,
-    ) -> JsResult<()> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let n = PropertyKey::from(n);
-        let still_exists = has_property(agent, binding_object, n, gc.reborrow())?;
+        let still_exists = has_property(agent, binding_object, n, gc.reborrow()).unbind()?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
             let binding_object_repr = binding_object
@@ -415,9 +421,7 @@ impl ObjectEnvironment<'_> {
                 n.as_display(agent),
                 binding_object_repr.as_str(agent)
             );
-            Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
-                .unbind())
+            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.into_nogc()))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             set(agent, binding_object, n, v, s, gc)?;
@@ -434,13 +438,13 @@ impl ObjectEnvironment<'_> {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn try_get_binding_value<'gc>(
+    pub(crate) fn try_get_binding_value<'a>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<JsResult<Value<'gc>>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, Value<'a>>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -457,9 +461,11 @@ impl ObjectEnvironment<'_> {
                     "Property '{}' does not exist in object.",
                     name.as_display(agent)
                 );
-                TryResult::Continue(Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                    .unbind()))
+                TryResult::Continue(Err(agent.throw_exception(
+                    ExceptionType::ReferenceError,
+                    error_message,
+                    gc,
+                )))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
@@ -475,19 +481,19 @@ impl ObjectEnvironment<'_> {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn get_binding_value<'gc>(
+    pub(crate) fn get_binding_value<'a>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(n);
         // 2. Let value be ? HasProperty(bindingObject, N).
-        let value = has_property(agent, binding_object, name, gc.reborrow())?;
+        let value = has_property(agent, binding_object, name, gc.reborrow()).unbind()?;
         // 3. If value is false, then
         if !value {
             // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
@@ -502,9 +508,11 @@ impl ObjectEnvironment<'_> {
                     name.as_display(agent),
                     binding_object_repr.as_str(agent)
                 );
-                Err(agent
-                    .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
-                    .unbind())
+                Err(agent.throw_exception(
+                    ExceptionType::ReferenceError,
+                    error_message,
+                    gc.into_nogc(),
+                ))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
@@ -540,12 +548,12 @@ impl ObjectEnvironment<'_> {
     /// completion containing a Boolean or a throw completion. It can only
     /// delete bindings that correspond to properties of the environment
     /// object whose [[Configurable]] attribute have the value true.
-    pub(crate) fn delete_binding(
+    pub(crate) fn delete_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;

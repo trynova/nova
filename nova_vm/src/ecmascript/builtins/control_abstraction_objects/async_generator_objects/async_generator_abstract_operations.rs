@@ -79,7 +79,7 @@ pub(super) fn async_generator_validate<'a>(
     generator: Value,
     _generator_brand: (),
     gc: NoGcScope<'a, '_>,
-) -> JsResult<AsyncGenerator<'a>> {
+) -> JsResult<'a, AsyncGenerator<'a>> {
     // 1. Perform ? RequireInternalSlot(generator, [[AsyncGeneratorContext]]).
     // 2. Perform ? RequireInternalSlot(generator, [[AsyncGeneratorState]]).
     // 3. Perform ? RequireInternalSlot(generator, [[AsyncGeneratorQueue]]).
@@ -88,13 +88,11 @@ pub(super) fn async_generator_validate<'a>(
     if let Value::AsyncGenerator(generator) = generator {
         Ok(generator.unbind())
     } else {
-        Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Not an async generator object",
-                gc,
-            )
-            .unbind())
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Not an async generator object",
+            gc,
+        ))
     }
 }
 

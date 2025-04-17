@@ -38,19 +38,17 @@ impl MapIteratorPrototype {
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let this_value = this_value.bind(gc);
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "MapIterator expected",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "MapIterator expected",
+                gc,
+            ));
         };
 
         // 24.1.5.1 CreateMapIterator ( map, kind ), step 2

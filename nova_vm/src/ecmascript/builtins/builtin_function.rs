@@ -315,14 +315,14 @@ impl core::fmt::Debug for ScopedArgumentsList<'_> {
 }
 
 pub type RegularFn =
-    for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<Value<'gc>>;
+    for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>>;
 pub type ConstructorFn = for<'gc> fn(
     &mut Agent,
     Value,
     ArgumentsList,
     Option<Object>,
     GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>>;
+) -> JsResult<'gc, Value<'gc>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -582,12 +582,12 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         function_try_has_property(self, agent, property_key, gc)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
@@ -607,7 +607,7 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -622,14 +622,14 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -663,7 +663,7 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         this_argument: Value,
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
     }
@@ -680,7 +680,7 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         arguments_list: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
             .map(|result| result.try_into().unwrap())
@@ -701,7 +701,7 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     arguments_list: ArgumentsList,
     new_target: Option<Function>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let f = f.bind(gc.nogc());
     let this_argument = this_argument.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());
@@ -740,13 +740,11 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
-                Err(agent
-                    .throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Not a constructor",
-                        gc.nogc(),
-                    )
-                    .unbind())
+                Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Not a constructor",
+                    gc.into_nogc(),
+                ))
             } else {
                 func(
                     agent,

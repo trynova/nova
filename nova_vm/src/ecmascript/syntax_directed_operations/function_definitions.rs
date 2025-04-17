@@ -281,11 +281,11 @@ pub(crate) fn evaluate_function_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    //function_declaration_instantiation(agent, function_object, arguments_list)?;
+    //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
     // 2. Return ? Evaluation of FunctionStatementList.
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
@@ -413,11 +413,11 @@ pub(crate) fn evaluate_generator_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let mut arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    //function_declaration_instantiation(agent, function_object, arguments_list)?;
+    //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
 
     // Note: Rooting here is 99% unnecessary: OrdinaryCreateFromConstructor
     // [[Get]]'s the "prototype" property of the constructor which is very
@@ -443,11 +443,13 @@ pub(crate) fn evaluate_generator_body<'gc>(
                     )
                 },
                 gc.reborrow(),
-            )?
-            .unbind();
+            )
+            .unbind()?
+            .bind(gc.nogc());
         arguments_list = args;
         generator
     };
+    let generator = generator.unbind();
     let gc = gc.into_nogc();
     let generator = generator.bind(gc);
     let Object::Generator(generator) = generator else {
@@ -485,7 +487,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     let mut arguments_list = arguments_list.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
@@ -510,8 +512,8 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
                     )
                 },
                 gc.reborrow(),
-            )?
-            .unbind()
+            )
+            .unbind()?
             .bind(gc.nogc());
         arguments_list = args.bind(gc.nogc());
         generator

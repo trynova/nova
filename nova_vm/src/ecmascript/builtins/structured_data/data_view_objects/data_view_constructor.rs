@@ -48,16 +48,14 @@ impl DataViewConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target.bind(gc.nogc()) else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "calling a builtin DataView constructor without new is forbidden",
-                    gc.nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "calling a builtin DataView constructor without new is forbidden",
+                gc.into_nogc(),
+            ));
         };
         let new_target = Function::try_from(new_target)
             .unwrap()
@@ -68,22 +66,23 @@ impl DataViewConstructor {
         let byte_length = arguments.get(2).scope(agent, gc.nogc());
 
         // 2. Perform ? RequireInternalSlot(buffer, [[ArrayBufferData]]).
-        let scoped_buffer =
-            require_internal_slot_array_buffer(agent, buffer, gc.nogc())?.scope(agent, gc.nogc());
+        let scoped_buffer = require_internal_slot_array_buffer(agent, buffer, gc.nogc())
+            .unbind()?
+            .scope(agent, gc.nogc());
 
         // 3. Let offset be ? ToIndex(byteOffset).
-        let offset = to_index(agent, byte_offset.unbind(), gc.reborrow())? as usize;
+        let offset = to_index(agent, byte_offset.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc()) as usize;
 
         // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         let buffer = scoped_buffer.get(agent).bind(gc.nogc());
         if is_detached_buffer(agent, buffer) {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "attempting to access detached ArrayBuffer",
-                    gc.nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "attempting to access detached ArrayBuffer",
+                gc.into_nogc(),
+            ));
         }
 
         // 5. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
@@ -91,13 +90,11 @@ impl DataViewConstructor {
 
         // 6. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "offset is outside the bounds of the buffer",
-                    gc.nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "offset is outside the bounds of the buffer",
+                gc.into_nogc(),
+            ));
         }
 
         // 7. Let bufferIsFixedLength be IsFixedLengthArrayBuffer(buffer).
@@ -118,16 +115,16 @@ impl DataViewConstructor {
         } else {
             // 9. Else,
             // a. Let viewByteLength be ? ToIndex(byteLength).
-            let view_byte_length = to_index(agent, byte_length.unbind(), gc.reborrow())? as usize;
+            let view_byte_length = to_index(agent, byte_length.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc()) as usize;
             // b. If offset + viewByteLength > bufferByteLength, throw a RangeError exception.
             if offset + view_byte_length > buffer_byte_length {
-                return Err(agent
-                    .throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "offset is outside the bounds of the buffer",
-                        gc.nogc(),
-                    )
-                    .unbind());
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "offset is outside the bounds of the buffer",
+                    gc.into_nogc(),
+                ));
             }
             Some(view_byte_length)
         };
@@ -138,21 +135,18 @@ impl DataViewConstructor {
             new_target.get(agent),
             ProtoIntrinsics::DataView,
             gc.reborrow(),
-        )?
-        .unbind();
-
+        )
+        .unbind()?;
         let gc = gc.into_nogc();
         let o = o.bind(gc);
         let buffer = scoped_buffer.get(agent).bind(gc);
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "attempting to access detached ArrayBuffer",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "attempting to access detached ArrayBuffer",
+                gc,
+            ));
         }
 
         // 12. Set bufferByteLength to ArrayBufferByteLength(buffer, seq-cst).
@@ -160,26 +154,22 @@ impl DataViewConstructor {
 
         // 13. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "offset is outside the bounds of the buffer",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "offset is outside the bounds of the buffer",
+                gc,
+            ));
         }
 
         // 14. If byteLength is not undefined, then
         if let Some(view_byte_length) = view_byte_length {
             // a. If offset + viewByteLength > bufferByteLength, throw a RangeError exception.
             if offset + view_byte_length > buffer_byte_length {
-                return Err(agent
-                    .throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "offset is outside the bounds of the buffer",
-                        gc,
-                    )
-                    .unbind());
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "offset is outside the bounds of the buffer",
+                    gc,
+                ));
             }
         }
 

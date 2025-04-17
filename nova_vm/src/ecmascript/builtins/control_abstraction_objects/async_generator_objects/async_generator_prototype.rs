@@ -58,7 +58,7 @@ impl AsyncGeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let value = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
@@ -115,7 +115,7 @@ impl AsyncGeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let value = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
@@ -174,7 +174,7 @@ impl AsyncGeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let exception = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());

@@ -43,7 +43,7 @@ impl GeneratorFunctionConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let new_target = new_target.bind(gc.nogc());
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -70,8 +70,8 @@ impl GeneratorFunctionConstructor {
             parameter_args,
             body_arg.unbind(),
             gc.reborrow(),
-        )?
-        .unbind();
+        )
+        .unbind()?;
         let gc = gc.into_nogc();
         let f = f.bind(gc);
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )

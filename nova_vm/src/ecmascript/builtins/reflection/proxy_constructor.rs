@@ -45,19 +45,17 @@ impl ProxyConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let target = arguments.get(0).bind(gc);
         let handler = arguments.get(1).bind(gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         if new_target.is_none() {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "calling a builtin Proxy constructor without new is forbidden",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "calling a builtin Proxy constructor without new is forbidden",
+                gc,
+            ));
         }
         // 2. Return ? ProxyCreate(target, handler).
         proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
@@ -68,7 +66,7 @@ impl ProxyConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 

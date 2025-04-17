@@ -28,7 +28,7 @@ pub struct Options {
     pub print_internals: bool,
 }
 
-pub type JsResult<T> = core::result::Result<T, JsError<'static>>;
+pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(transparent)]
@@ -115,7 +115,7 @@ impl Job {
         self.realm
     }
 
-    pub fn run(self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
+    pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm(gc.nogc()) != realm {
@@ -149,7 +149,11 @@ pub enum PromiseRejectionTrackerOperation {
 
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
-    fn host_ensure_can_compile_strings(&self, _callee_realm: &mut RealmRecord) -> JsResult<()> {
+    fn host_ensure_can_compile_strings<'a>(
+        &self,
+        _callee_realm: &mut RealmRecord,
+        _gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
         Ok(())
     }
@@ -639,7 +643,7 @@ impl Agent {
         &mut self,
         source_text: String,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let realm = self.current_realm(gc.nogc());
         let script = match parse_script(self, source_text, realm, false, None, gc.nogc()) {
             Ok(script) => script,
@@ -728,7 +732,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     name: String<'b>,
     env: Option<Environment>,
     gc: GcScope<'a, 'b>,
-) -> JsResult<Reference<'a>> {
+) -> JsResult<'a, Reference<'a>> {
     let name = name.bind(gc.nogc());
     let env = env
         .unwrap_or_else(|| {

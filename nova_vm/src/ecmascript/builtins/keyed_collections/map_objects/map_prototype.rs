@@ -107,7 +107,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -131,7 +131,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -188,7 +188,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY+VALUE).
@@ -229,23 +229,23 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
         let callback_fn = arguments.get(0).bind(nogc);
         let this_arg = arguments.get(1).bind(nogc);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let mut m = require_map_data_internal_slot(agent, this_value, nogc)?;
+        let mut m = require_map_data_internal_slot(agent, this_value, nogc)
+            .unbind()?
+            .bind(nogc);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, nogc) else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Callback function parameter is not callable",
-                    nogc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback function parameter is not callable",
+                gc.into_nogc(),
+            ));
         };
 
         // 4. Let entries be M.[[MapData]].
@@ -280,7 +280,8 @@ impl MapPrototype {
                         m.into_value().unbind(),
                     ])),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?;
                 // ii. NOTE: The number of elements in entries may have
                 //     increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
@@ -298,7 +299,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
@@ -350,7 +351,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
@@ -394,7 +395,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY).
@@ -411,7 +412,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let key = arguments.get(0).bind(gc);
         let value = arguments.get(1).bind(gc);
@@ -481,7 +482,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         let count = agent[m].size();
@@ -493,7 +494,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, VALUE).
@@ -550,16 +551,14 @@ fn require_map_data_internal_slot<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<Map<'a>> {
+) -> JsResult<'a, Map<'a>> {
     match value {
         Value::Map(map) => Ok(map.bind(gc)),
-        _ => Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Object is not a Map",
-                gc,
-            )
-            .unbind()),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Object is not a Map",
+            gc,
+        )),
     }
 }
 

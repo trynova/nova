@@ -144,7 +144,7 @@ impl<'a> Array<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
@@ -436,13 +436,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
     }
 
-    fn internal_define_own_property(
+    fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -481,12 +481,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         TryResult::Continue(false)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         // Note: GetOwnProperty cannot fail in Array.
         let has_own =
@@ -573,7 +573,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(self.len(agent).into())

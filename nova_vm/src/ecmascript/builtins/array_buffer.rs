@@ -82,7 +82,12 @@ impl ArrayBuffer<'_> {
         }
     }
 
-    pub fn detach(self, agent: &mut Agent, key: Option<DetachKey>, gc: NoGcScope) -> JsResult<()> {
+    pub fn detach<'a>(
+        self,
+        agent: &mut Agent,
+        key: Option<DetachKey>,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         detach_array_buffer(agent, self, key, gc)
     }
 

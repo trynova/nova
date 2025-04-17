@@ -51,18 +51,16 @@ impl ArrayIteratorPrototype {
         this_value: Value,
         _arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let this_value = this_value.bind(gc.nogc());
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "ArrayIterator expected",
-                    gc.into_nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "ArrayIterator expected",
+                gc.into_nogc(),
+            ));
         };
         let mut iterator = iterator.bind(gc.nogc());
 
@@ -128,13 +126,11 @@ impl ArrayIteratorPrototype {
                         is_typed_array_out_of_bounds::<f64>(agent, &ta_record, nogc)
                     }
                 } {
-                    return Err(agent
-                        .throw_exception_with_static_message(
-                            ExceptionType::TypeError,
-                            "TypedArray out of bounds",
-                            nogc,
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "TypedArray out of bounds",
+                        gc.into_nogc(),
+                    ));
                 }
 
                 // 3. Let len be TypedArrayLength(taRecord).
@@ -194,7 +190,7 @@ impl ArrayIteratorPrototype {
             _ => {
                 let scoped_iterator = iterator.scope(agent, gc.nogc());
                 let scoped_array = array.scope(agent, gc.nogc());
-                let res = length_of_array_like(agent, array.unbind(), gc.reborrow())?;
+                let res = length_of_array_like(agent, array.unbind(), gc.reborrow()).unbind()?;
                 array = unsafe { scoped_array.take(agent) }.bind(gc.nogc());
                 iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
                 res
@@ -241,7 +237,9 @@ impl ArrayIteratorPrototype {
                         array.unbind(),
                         index.try_into().unwrap(),
                         gc.reborrow(),
-                    )?,
+                    )
+                    .unbind()?
+                    .bind(gc.nogc()),
                 }
             }
             // 4. Else,
@@ -263,7 +261,9 @@ impl ArrayIteratorPrototype {
                         array.unbind(),
                         index.try_into().unwrap(),
                         gc.reborrow(),
-                    )?,
+                    )
+                    .unbind()?
+                    .bind(gc.nogc()),
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).

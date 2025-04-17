@@ -142,12 +142,12 @@ pub(crate) fn function_try_has_property<'a>(
     }
 }
 
-pub(crate) fn function_internal_has_property<'a>(
+pub(crate) fn function_internal_has_property<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
-    gc: GcScope,
-) -> JsResult<bool> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_has_property(agent, property_key.unbind(), gc)
@@ -194,7 +194,7 @@ pub(crate) fn function_internal_get<'gc, 'a>(
     property_key: PropertyKey,
     receiver: Value,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_get(agent, property_key.unbind(), receiver, gc)
@@ -235,14 +235,14 @@ pub(crate) fn function_try_set<'a>(
     }
 }
 
-pub(crate) fn function_internal_set<'a>(
+pub(crate) fn function_internal_set<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    gc: GcScope,
-) -> JsResult<bool> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_set(agent, property_key.unbind(), value, receiver, gc)

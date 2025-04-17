@@ -25,7 +25,7 @@ pub(crate) fn base_class_default_constructor<'a>(
     agent: &mut Agent,
     new_target: Object,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Object<'a>> {
+) -> JsResult<'a, Object<'a>> {
     let new_target = new_target.bind(gc.nogc());
     // ii. If NewTarget is undefined, throw a TypeError exception.
     // Note: We've already checked this at an earlier level.
@@ -44,12 +44,12 @@ pub(crate) fn base_class_default_constructor<'a>(
         Function::try_from(new_target.unbind()).unwrap(),
         ProtoIntrinsics::Object,
         gc.reborrow(),
-    )?
-    .unbind()
+    )
+    .unbind()?
     .bind(gc.nogc());
     let scoped_result = result.scope(agent, gc.nogc());
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result.unbind(), f.get(agent), gc.reborrow())?;
+    initialize_instance_elements(agent, result.unbind(), f.get(agent), gc.reborrow()).unbind()?;
 
     // vii. Return result.
     Ok(scoped_result.get(agent).bind(gc.into_nogc()))
@@ -60,7 +60,7 @@ pub(crate) fn derived_class_default_constructor<'a>(
     args: ArgumentsList,
     new_target: Object,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Object<'a>> {
+) -> JsResult<'a, Object<'a>> {
     let new_target = new_target.bind(gc.nogc());
     // i. Let args be the List of arguments that was passed to this function by [[Call]] or [[Construct]].
     // ii. If NewTarget is undefined, throw a TypeError exception.
@@ -79,13 +79,11 @@ pub(crate) fn derived_class_default_constructor<'a>(
     let func = unwrap_try(f.try_get_prototype_of(agent, gc.nogc()));
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
-        return Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Expected callable function",
-                gc.nogc(),
-            )
-            .unbind());
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected callable function",
+            gc.into_nogc(),
+        ));
     };
     let f = f.scope(agent, gc.nogc());
     // 4. Let result be ? Construct(func, args, NewTarget).
@@ -95,12 +93,12 @@ pub(crate) fn derived_class_default_constructor<'a>(
         Some(args),
         Some(Function::try_from(new_target.unbind()).unwrap()),
         gc.reborrow(),
-    )?
-    .unbind()
+    )
+    .unbind()?
     .bind(gc.nogc());
     let scoped_result = result.scope(agent, gc.nogc());
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result.unbind(), f.get(agent), gc.reborrow())?;
+    initialize_instance_elements(agent, result.unbind(), f.get(agent), gc.reborrow()).unbind()?;
 
     // vii. Return result.
     Ok(scoped_result.get(agent).bind(gc.into_nogc()))

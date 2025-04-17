@@ -317,10 +317,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -339,10 +341,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -361,10 +365,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -383,10 +389,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -405,10 +413,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -427,10 +437,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -449,10 +461,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -471,10 +485,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -493,10 +509,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Return dateObject.[[DateValue]].
         Ok(date_object.date_value(agent).into_value())
     }
@@ -506,10 +524,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
@@ -527,16 +547,21 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let date = arguments.get(0).bind(gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Let dt be ? ToNumber(date).
-        let dt = to_number(agent, date.unbind(), gc.reborrow())?.to_real(agent);
+        let dt = to_number(agent, date.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If t is NaN, return NaN.
         let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
@@ -570,18 +595,23 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let year = arguments.get(0).bind(gc.nogc());
         let month = arguments.get(1).scope(agent, gc.nogc());
         let date = arguments.get(2).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Let y be ? ToNumber(year).
-        let y = to_number(agent, year.unbind(), gc.reborrow())?.to_real(agent);
+        let y = to_number(agent, year.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If t is NaN, set t to +0𝔽; otherwise, set t to LocalTime(t).
         let t = if let Some(t) = t.get_f64() {
             local_or_utc_time::<UTC>(agent, t)
@@ -594,7 +624,9 @@ impl DatePrototype {
         } else {
             month
                 .get(agent)
-                .to_number(agent, gc.reborrow())?
+                .to_number(agent, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
                 .into_f64(agent)
         };
         // 7. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
@@ -602,7 +634,9 @@ impl DatePrototype {
             date_from_time(t) as f64
         } else {
             date.get(agent)
-                .to_number(agent, gc.reborrow())?
+                .to_number(agent, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
                 .into_f64(agent)
         };
         // 8. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
@@ -630,34 +664,54 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let hour = arguments.get(0).bind(gc.nogc());
         let min = arguments.get(1).scope(agent, gc.nogc());
         let sec = arguments.get(2).scope(agent, gc.nogc());
         let ms = arguments.get(3).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Let h be ? ToNumber(hour).
-        let h = to_number(agent, hour.unbind(), gc.reborrow())?.to_real(agent);
+        let h = to_number(agent, hour.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If min is present, let m be ? ToNumber(min).
         let m = if arguments.len() > 1 {
-            Some(to_number(agent, min.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, min.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
         // 6. If sec is present, let s be ? ToNumber(sec).
         let s = if arguments.len() > 2 {
-            Some(to_number(agent, sec.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, sec.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
         // 7. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 3 {
-            Some(to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, ms.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
@@ -689,16 +743,21 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let ms = arguments.get(0).bind(gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Set ms to ? ToNumber(ms).
-        let ms = to_number(agent, ms.unbind(), gc.reborrow())?.to_real(agent);
+        let ms = to_number(agent, ms.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If t is NaN, return NaN.
         let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
@@ -734,27 +793,42 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let min = arguments.get(0).bind(gc.nogc());
         let sec = arguments.get(1).scope(agent, gc.nogc());
         let ms = arguments.get(2).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Let m be ? ToNumber(min).
-        let m = to_number(agent, min.unbind(), gc.reborrow())?.to_real(agent);
+        let m = to_number(agent, min.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If sec is present, let s be ? ToNumber(sec).
         let s = if arguments.len() > 1 {
-            Some(to_number(agent, sec.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, sec.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
         // 6. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 2 {
-            Some(to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, ms.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
@@ -791,20 +865,30 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let month = arguments.get(0).bind(gc.nogc());
         let date = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Let m be ? ToNumber(month).
-        let m = to_number(agent, month.unbind(), gc.reborrow())?.to_real(agent);
+        let m = to_number(agent, month.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If date is present, let dt be ? ToNumber(date).
         let dt = if arguments.len() > 1 {
-            Some(to_number(agent, date.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, date.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
@@ -842,20 +926,30 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let sec = arguments.get(0).bind(gc.nogc());
         let ms = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Let s be ? ToNumber(sec).
-        let s = to_number(agent, sec.unbind(), gc.reborrow())?.to_real(agent);
+        let s = to_number(agent, sec.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 5. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 1 {
-            Some(to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent))
+            Some(
+                to_number(agent, ms.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                    .to_real(agent),
+            )
         } else {
             None
         };
@@ -886,14 +980,19 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let time = arguments.get(0).bind(gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be ? ToNumber(time).
-        let t = to_number(agent, time.unbind(), gc.reborrow())?.to_real(agent);
+        let t = to_number(agent, time.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .to_real(agent);
         // 4. Let v be TimeClip(t).
         let v = time_clip(t);
         // 5. Set dateObject.[[DateValue]] to v.
@@ -908,10 +1007,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
@@ -934,21 +1035,21 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, throw a RangeError exception.
         let Some(tv) = tv.get_f64() else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "Invalid Date",
-                    gc.into_nogc(),
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Invalid Date",
+                gc.into_nogc(),
+            ));
         };
         // 5. Assert: tv is an integral Number.
         assert!(tv.fract() == 0.0);
@@ -991,11 +1092,15 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, gc.nogc())
+            .unbind()?
+            .scope(agent, gc.nogc());
         // 2. Let tv be ? ToPrimitive(O, number).
-        let tv = ordinary_to_primitive(agent, o.get(agent), PreferredType::Number, gc.reborrow())?;
+        let tv = ordinary_to_primitive(agent, o.get(agent), PreferredType::Number, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. If tv is a Number and tv is not finite, return null.
         if let Ok(tv) = Number::try_from(tv) {
             if !tv.is_finite(agent) {
@@ -1029,7 +1134,7 @@ impl DatePrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -1053,7 +1158,7 @@ impl DatePrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -1078,7 +1183,7 @@ impl DatePrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -1099,10 +1204,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. Return ToDateString(tv).
@@ -1116,10 +1223,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
@@ -1151,10 +1260,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]])
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
@@ -1219,10 +1330,12 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Return dateObject.[[DateValue]].
         Ok(date_object.date_value(agent).into_value())
     }
@@ -1240,7 +1353,7 @@ impl DatePrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let hint = arguments.get(0).bind(gc.nogc());
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -1249,9 +1362,11 @@ impl DatePrototype {
                 "{} is not an object",
                 this_value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                .unbind());
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         };
         // 3. If hint is either "string" or "default", then
         let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
@@ -1272,14 +1387,16 @@ impl DatePrototype {
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                .unbind());
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
-        Ok(ordinary_to_primitive(agent, o, try_first, gc.reborrow())?
+        Ok(ordinary_to_primitive(agent, o, try_first, gc.reborrow())
+            .unbind()?
             .into_value()
-            .unbind()
             .bind(gc.into_nogc()))
     }
 
@@ -1346,16 +1463,14 @@ fn require_internal_slot_date<'a>(
     agent: &mut Agent,
     this_value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<Date<'a>> {
+) -> JsResult<'a, Date<'a>> {
     match this_value {
         Value::Date(date) => Ok(date.bind(gc)),
-        _ => Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "this is not a Date object.",
-                gc,
-            )
-            .unbind()),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "this is not a Date object.",
+            gc,
+        )),
     }
 }
 

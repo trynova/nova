@@ -339,39 +339,33 @@ impl<'a> BigInt<'a> {
         base: Self,
         exponent: Self,
         gc: NoGcScope<'a, '_>,
-    ) -> JsResult<Self> {
+    ) -> JsResult<'a, Self> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
             BigInt::BigInt(x) => agent[x].data < 0.into(),
             _ => false,
         } {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "exponent must be positive",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "exponent must be positive",
+                gc,
+            ));
         }
 
         let BigInt::SmallBigInt(exponent) = exponent else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "exponent over bounds",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "exponent over bounds",
+                gc,
+            ));
         };
         let Ok(exponent) = u32::try_from(exponent.into_i64()) else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "exponent over bounds",
-                    gc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "exponent over bounds",
+                gc,
+            ));
         };
 
         if exponent == 1 {
@@ -493,18 +487,21 @@ impl<'a> BigInt<'a> {
     }
 
     /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
-    pub(crate) fn divide(agent: &mut Agent, x: Self, y: Self, gc: NoGcScope) -> JsResult<Self> {
+    pub(crate) fn divide(
+        agent: &mut Agent,
+        x: Self,
+        y: Self,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
                 match y {
-                    0 => Err(agent
-                        .throw_exception_with_static_message(
-                            ExceptionType::RangeError,
-                            "Division by zero",
-                            gc,
-                        )
-                        .unbind()),
+                    0 => Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    )),
                     1 => Ok(BigInt::SmallBigInt(x)),
                     y => Ok(BigInt::SmallBigInt(
                         SmallBigInt::try_from(x.into_i64() / y).unwrap(),
@@ -520,13 +517,11 @@ impl<'a> BigInt<'a> {
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
                 match y {
-                    0 => Err(agent
-                        .throw_exception_with_static_message(
-                            ExceptionType::RangeError,
-                            "Division by zero",
-                            gc,
-                        )
-                        .unbind()),
+                    0 => Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    )),
                     1 => Ok(BigInt::BigInt(x)),
                     y => Ok(Self::from_num_bigint(agent, &agent[x].data / y)),
                 }
@@ -556,17 +551,20 @@ impl<'a> BigInt<'a> {
     }
 
     /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
-    pub(crate) fn remainder(agent: &mut Agent, n: Self, d: Self, gc: NoGcScope) -> JsResult<Self> {
+    pub(crate) fn remainder(
+        agent: &mut Agent,
+        n: Self,
+        d: Self,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         match (n, d) {
             (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
-                    return Err(agent
-                        .throw_exception_with_static_message(
-                            ExceptionType::RangeError,
-                            "Division by zero",
-                            gc,
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    ));
                 }
                 let (n, d) = (n.into_i64(), d.into_i64());
                 let result = n % d;
@@ -578,13 +576,11 @@ impl<'a> BigInt<'a> {
             }
             (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
-                    return Err(agent
-                        .throw_exception_with_static_message(
-                            ExceptionType::RangeError,
-                            "Division by zero",
-                            gc,
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    ));
                 }
                 Ok(Self::SmallBigInt(
                     SmallBigInt::try_from(

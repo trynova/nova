@@ -123,7 +123,7 @@ pub(crate) fn get_value<'gc>(
     agent: &mut Agent,
     reference: &Reference,
     gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     let referenced_name = reference.referenced_name.bind(gc.nogc());
     match reference.base {
         Base::Value(value) => {
@@ -152,18 +152,22 @@ pub(crate) fn get_value<'gc>(
                             "Cannot read property '{}' of undefined.",
                             referenced_name.as_display(agent)
                         );
-                        Err(agent
-                            .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                            .unbind())
+                        Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc.into_nogc(),
+                        ))
                     }
                     Value::Null => {
                         let error_message = format!(
                             "Cannot read property '{}' of null.",
                             referenced_name.as_display(agent)
                         );
-                        Err(agent
-                            .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                            .unbind())
+                        Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc.into_nogc(),
+                        ))
                     }
                     Value::Boolean(_) => agent
                         .current_realm_record()
@@ -221,9 +225,7 @@ pub(crate) fn get_value<'gc>(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.as_display(agent)
             );
-            Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
-                .unbind())
+            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.into_nogc()))
         }
     }
 }
@@ -236,7 +238,7 @@ pub(crate) fn try_get_value<'gc>(
     agent: &mut Agent,
     reference: &Reference,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<JsResult<Value<'gc>>> {
+) -> TryResult<JsResult<'gc, Value<'gc>>> {
     let referenced_name = reference.referenced_name.bind(gc);
     match reference.base {
         Base::Value(value) => {
@@ -265,18 +267,22 @@ pub(crate) fn try_get_value<'gc>(
                             "Cannot read property '{}' of undefined.",
                             referenced_name.as_display(agent)
                         );
-                        TryResult::Continue(Err(agent
-                            .throw_exception(ExceptionType::TypeError, error_message, gc)
-                            .unbind()))
+                        TryResult::Continue(Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc,
+                        )))
                     }
                     Value::Null => {
                         let error_message = format!(
                             "Cannot read property '{}' of null.",
                             referenced_name.as_display(agent)
                         );
-                        TryResult::Continue(Err(agent
-                            .throw_exception(ExceptionType::TypeError, error_message, gc)
-                            .unbind()))
+                        TryResult::Continue(Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc,
+                        )))
                     }
                     Value::Boolean(_) => TryResult::Continue(Ok(agent
                         .current_realm_record()
@@ -336,9 +342,11 @@ pub(crate) fn try_get_value<'gc>(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.as_display(agent)
             );
-            TryResult::Continue(Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                .unbind()))
+            TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc,
+            )))
         }
     }
 }
@@ -348,12 +356,12 @@ pub(crate) fn try_get_value<'gc>(
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
 /// either a normal completion containing UNUSED or an abrupt completion.
-pub(crate) fn put_value(
+pub(crate) fn put_value<'a>(
     agent: &mut Agent,
     v: &Reference,
     w: Value,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
@@ -363,9 +371,11 @@ pub(crate) fn put_value(
                 "Cannot assign to undeclared variable '{}'.",
                 v.referenced_name.as_display(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc())
-                .unbind());
+            return Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc.into_nogc(),
+            ));
         }
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent, gc.nogc());
@@ -381,7 +391,7 @@ pub(crate) fn put_value(
             Base::Value(value) => value,
             Base::Environment(_) | Base::Unresolvable => unreachable!(),
         };
-        let base_obj = to_object(agent, base, gc.nogc())?;
+        let base_obj = to_object(agent, base, gc.nogc()).unbind()?.bind(gc.nogc());
         // b. If IsPrivateReference(V) is true, then
         if is_private_reference(v) {
             // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
@@ -391,10 +401,10 @@ pub(crate) fn put_value(
         let this_value = get_this_value(v);
         let referenced_name = v.referenced_name;
         let scoped_base_obj = base_obj.scope(agent, gc.nogc());
-        let succeeded =
-            base_obj
-                .unbind()
-                .internal_set(agent, referenced_name, w, this_value, gc.reborrow())?;
+        let succeeded = base_obj
+            .unbind()
+            .internal_set(agent, referenced_name, w, this_value, gc.reborrow())
+            .unbind()?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
             let base_obj_repr = scoped_base_obj
@@ -406,9 +416,11 @@ pub(crate) fn put_value(
                 referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                .unbind());
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         }
         // e. Return UNUSED.
         Ok(())
@@ -442,7 +454,7 @@ pub(crate) fn try_put_value<'a>(
     v: &Reference<'a>,
     w: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<()>> {
+) -> TryResult<JsResult<'a, ()>> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
@@ -452,9 +464,11 @@ pub(crate) fn try_put_value<'a>(
                 "Cannot assign to undeclared variable '{}'.",
                 v.referenced_name.as_display(agent)
             );
-            return TryResult::Continue(Err(agent
-                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
-                .unbind()));
+            return TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc,
+            )));
         }
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent, gc);
@@ -493,9 +507,11 @@ pub(crate) fn try_put_value<'a>(
                 referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
-            return TryResult::Continue(Err(agent
-                .throw_exception(ExceptionType::TypeError, error_message, gc)
-                .unbind()));
+            return TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc,
+            )));
         }
         // e. Return UNUSED.
         TryResult::Continue(Ok(()))
@@ -523,12 +539,12 @@ pub(crate) fn try_put_value<'a>(
 /// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
 /// (an ECMAScript language value) and returns either a normal completion containing unused or an
 /// abrupt completion.
-pub(crate) fn initialize_referenced_binding(
+pub(crate) fn initialize_referenced_binding<'a>(
     agent: &mut Agent,
     v: Reference,
     w: Value,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     debug_assert!(!is_unresolvable_reference(&v));
     // 2. Let base be V.[[Base]].
@@ -543,7 +559,7 @@ pub(crate) fn initialize_referenced_binding(
         _ => unreachable!(),
     };
     // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
-    base.initialize_binding(agent, referenced_name, w, gc.reborrow())
+    base.initialize_binding(agent, referenced_name.unbind(), w, gc)
 }
 
 /// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
@@ -555,7 +571,7 @@ pub(crate) fn try_initialize_referenced_binding<'a>(
     v: Reference<'a>,
     w: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<()>> {
+) -> TryResult<JsResult<'a, ()>> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     debug_assert!(!is_unresolvable_reference(&v));
     // 2. Let base be V.[[Base]].

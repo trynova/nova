@@ -49,7 +49,7 @@ impl AggregateErrorConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let errors = arguments.get(0).scope(agent, gc.nogc());
         let message = arguments.get(1).scope(agent, gc.nogc());
         let options = arguments.get(2);
@@ -64,22 +64,26 @@ impl AggregateErrorConstructor {
             new_target.unbind(),
             ProtoIntrinsics::AggregateError,
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let o = Error::try_from(o.unbind()).unwrap();
         // 3. If message is not undefined, then
         let message = message.get(agent).bind(gc.nogc());
         let message = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
             Some(
-                to_string(agent, message.unbind(), gc.reborrow())?
-                    .unbind()
+                to_string(agent, message.unbind(), gc.reborrow())
+                    .unbind()?
                     .scope(agent, gc.nogc()),
             )
         } else {
             None
         };
         // 4. Perform ? InstallErrorCause(O, options).
-        let cause = get_error_cause(agent, options, gc.reborrow())?;
+        let cause = get_error_cause(agent, options, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message: Option<String<'_>> = message.map(|message| message.get(agent));
         let heap_data = &mut agent[o];
@@ -87,11 +91,15 @@ impl AggregateErrorConstructor {
         heap_data.message = message;
         heap_data.cause = cause.map(|c| c.unbind());
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
-        let Some(iterator_record) = get_iterator(agent, errors.get(agent), false, gc.reborrow())?
+        let Some(iterator_record) = get_iterator(agent, errors.get(agent), false, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
         else {
             return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
         };
-        let errors_list = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
+        let errors_list = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // 6. Perform ! DefinePropertyOrThrow(O, "errors", PropertyDescriptor {
         let property_descriptor = PropertyDescriptor {
             // [[Configurable]]: true,
@@ -114,7 +122,8 @@ impl AggregateErrorConstructor {
             PropertyKey::from(BUILTIN_STRING_MEMORY.errors),
             property_descriptor,
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?;
         // }).
         // 7. Return O.
         Ok(o.into_value())

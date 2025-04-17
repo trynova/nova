@@ -404,12 +404,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_has_property(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.internal_has_property(agent, property_key, gc),
@@ -453,7 +453,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         match self {
             Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
             Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver, gc),
@@ -494,14 +494,14 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.internal_set(agent, property_key, value, receiver, gc),
             Function::BuiltinFunction(x) => {
@@ -563,7 +563,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         this_argument: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         match self {
             Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
             Function::BuiltinFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
@@ -586,7 +586,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         arguments: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         match self {
             Function::BoundFunction(x) => x.internal_construct(agent, arguments, new_target, gc),
             Function::BuiltinFunction(x) => x.internal_construct(agent, arguments, new_target, gc),
@@ -641,7 +641,7 @@ impl Function<'_> {
         this_argument: Value<'static>,
         args: &mut [Value<'static>],
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         self.internal_call(
             agent,
             this_argument,

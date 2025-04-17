@@ -1159,7 +1159,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         self,
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<Object<'gc>>> {
+    ) -> JsResult<'gc, Option<Object<'gc>>> {
         match self {
             Object::Object(data) => data.internal_get_prototype_of(agent, gc),
             Object::Array(data) => data.internal_get_prototype_of(agent, gc),
@@ -1366,12 +1366,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_set_prototype_of(
+    fn internal_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Array(data) => data.internal_set_prototype_of(agent, prototype, gc),
@@ -1563,7 +1563,11 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent, gc: GcScope) -> JsResult<bool> {
+    fn internal_is_extensible<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(data) => data.internal_is_extensible(agent, gc),
             Object::Array(data) => data.internal_is_extensible(agent, gc),
@@ -1759,7 +1763,11 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_prevent_extensions(self, agent: &mut Agent, gc: GcScope) -> JsResult<bool> {
+    fn internal_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(data) => data.internal_prevent_extensions(agent, gc),
             Object::Array(data) => data.internal_prevent_extensions(agent, gc),
@@ -1973,7 +1981,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> JsResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self {
             Object::Object(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Array(data) => data.internal_get_own_property(agent, property_key, gc),
@@ -2276,13 +2284,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_define_own_property(
+    fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2551,12 +2559,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(data) => data.internal_has_property(agent, property_key, gc),
             Object::Array(data) => data.internal_has_property(agent, property_key, gc),
@@ -2774,7 +2782,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         match self {
             Object::Object(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Array(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -2999,14 +3007,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(data) => data.internal_set(agent, property_key, value, receiver, gc),
             Object::Array(data) => data.internal_set(agent, property_key, value, receiver, gc),
@@ -3261,12 +3269,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_delete(
+    fn internal_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self {
             Object::Object(data) => data.internal_delete(agent, property_key, gc),
             Object::Array(data) => data.internal_delete(agent, property_key, gc),
@@ -3472,7 +3480,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         self,
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Vec<PropertyKey<'gc>>> {
+    ) -> JsResult<'gc, Vec<PropertyKey<'gc>>> {
         match self {
             Object::Object(data) => data.internal_own_property_keys(agent, gc),
             Object::Array(data) => data.internal_own_property_keys(agent, gc),
@@ -3578,7 +3586,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         match self {
             Object::BoundFunction(data) => data.internal_call(agent, this_value, arguments, gc),
             Object::BuiltinFunction(data) => data.internal_call(agent, this_value, arguments, gc),
@@ -3596,7 +3604,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         arguments: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         match self {
             Object::BoundFunction(data) => {
                 data.internal_construct(agent, arguments, new_target, gc)

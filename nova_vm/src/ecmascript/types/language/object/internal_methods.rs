@@ -56,7 +56,7 @@ where
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<Object<'gc>>> {
+    ) -> JsResult<'gc, Option<Object<'gc>>> {
         // Note: ordinary_get_prototype_of cannot call JS or trigger
         // GC: No object should ever have a try_proto method that can
         // return None while also using this default impl.
@@ -85,13 +85,13 @@ where
 
     /// ## \[\[SetPrototypeOf\]\]
     #[inline(always)]
-    fn internal_set_prototype_of(
+    fn internal_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
         prototype: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         match self.try_set_prototype_of(agent, prototype, gc.into_nogc()) {
             TryResult::Continue(t) => Ok(t),
             TryResult::Break(_) => unreachable!(),
@@ -120,12 +120,12 @@ where
 
     /// ## \[\[IsExtensible\]\]
     #[inline(always)]
-    fn internal_is_extensible(
+    fn internal_is_extensible<'gc>(
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can call JS.
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         Ok(unwrap_try(self.try_is_extensible(agent, gc.into_nogc())))
     }
 
@@ -149,7 +149,11 @@ where
 
     /// ## \[\[PreventExtensions\]\]
     #[inline(always)]
-    fn internal_prevent_extensions(self, agent: &mut Agent, gc: GcScope) -> JsResult<bool> {
+    fn internal_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         Ok(unwrap_try(
             self.try_prevent_extensions(agent, gc.into_nogc()),
         ))
@@ -182,7 +186,7 @@ where
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> JsResult<'gc, Option<PropertyDescriptor<'gc>>> {
         Ok(unwrap_try(self.try_get_own_property(
             agent,
             property_key,
@@ -218,13 +222,13 @@ where
 
     /// ## \[\[DefineOwnProperty\]\]
     #[inline(always)]
-    fn internal_define_own_property(
+    fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         Ok(unwrap_try(self.try_define_own_property(
             agent,
             property_key,
@@ -268,12 +272,12 @@ where
     }
 
     /// ## \[\[HasProperty\]\]
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        mut gc: GcScope,
-    ) -> JsResult<bool> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
@@ -283,7 +287,10 @@ where
             None => {
                 let property_key = property_key.scope(agent, gc.nogc());
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
+                let parent = self
+                    .internal_get_prototype_of(agent, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
@@ -338,7 +345,7 @@ where
         property_key: PropertyKey,
         receiver: Value,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
@@ -348,7 +355,11 @@ where
             None => {
                 let property_key = property_key.scope(agent, gc.nogc());
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
+                let Some(parent) = self
+                    .internal_get_prototype_of(agent, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+                else {
                     // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
@@ -383,14 +394,14 @@ where
 
     /// ## \[\[Set\]\]
     #[inline(always)]
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
         ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
     }
@@ -417,12 +428,12 @@ where
 
     /// ## \[\[Delete\]\]
     #[inline(always)]
-    fn internal_delete(
+    fn internal_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         Ok(unwrap_try(self.try_delete(
             agent,
             property_key,
@@ -454,7 +465,7 @@ where
         self,
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Vec<PropertyKey<'gc>>> {
+    ) -> JsResult<'gc, Vec<PropertyKey<'gc>>> {
         Ok(unwrap_try(
             self.try_own_property_keys(agent, gc.into_nogc()),
         ))
@@ -467,7 +478,7 @@ where
         _this_value: Value,
         _arguments_list: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         unreachable!()
     }
 
@@ -478,7 +489,7 @@ where
         _arguments_list: ArgumentsList,
         _new_target: Function,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         unreachable!()
     }
 }

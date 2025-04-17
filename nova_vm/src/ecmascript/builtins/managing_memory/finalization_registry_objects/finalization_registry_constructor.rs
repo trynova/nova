@@ -32,7 +32,7 @@ impl FinalizationRegistryConstructor {
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 

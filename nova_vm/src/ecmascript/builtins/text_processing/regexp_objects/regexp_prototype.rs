@@ -172,7 +172,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -181,7 +181,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -191,20 +191,18 @@ impl RegExpPrototype {
         this_value: Value,
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         // 1. Let R be the this value.
         let r = this_value.bind(nogc);
 
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(r) else {
-            return Err(agent
-                .throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "value is not object",
-                    nogc,
-                )
-                .unbind());
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "value is not object",
+                gc.into_nogc(),
+            ));
         };
 
         // 3. Let codeUnits be a new empty List.
@@ -218,7 +216,9 @@ impl RegExpPrototype {
             r.unbind(),
             BUILTIN_STRING_MEMORY.hasIndices.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let has_indices = to_boolean(agent, has_indices_args);
 
         // 5. If hasIndices is true, append the code unit 0x0064 (LATIN SMALL LETTER D) to codeUnits.
@@ -233,7 +233,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.global.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let global = to_boolean(agent, global_args);
 
         // 7. If global is true, append the code unit 0x0067 (LATIN SMALL LETTER G) to codeUnits.
@@ -248,7 +250,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.ignoreCase.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let ignore_case = to_boolean(agent, ignore_case_args);
 
         // 9. If ignoreCase is true, append the code unit 0x0069 (LATIN SMALL LETTER I) to codeUnits.
@@ -263,7 +267,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.multiline.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let multiline = to_boolean(agent, mutliline_args);
 
         // 11. If multiline is true, append the code unit 0x006D (LATIN SMALL LETTER M) to codeUnits.
@@ -277,7 +283,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.dotAll.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let dot_all = to_boolean(agent, dot_all_args);
 
         // 13. If dotAll is true, append the code unit 0x0073 (LATIN SMALL LETTER S) to codeUnits.
@@ -292,7 +300,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.unicode.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let unicode = to_boolean(agent, unicode_args);
 
         // 15. If unicode is true, append the code unit 0x0075 (LATIN SMALL LETTER U) to codeUnits.
@@ -307,7 +317,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.unicodeSets.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let unicode_sets = to_boolean(agent, unicode_sets_args);
 
         // 17. If unicodeSets is true, append the code unit 0x0076 (LATIN SMALL LETTER V) to codeUnits.
@@ -322,7 +334,9 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.sticky.into(),
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?
+        .bind(gc.nogc());
         let sticky = to_boolean(agent, sticky_args);
 
         // 19. If sticky is true, append the code unit 0x0079 (LATIN SMALL LETTER Y) to codeUnits.
@@ -341,7 +355,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -350,7 +364,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -359,7 +373,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -368,7 +382,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -377,7 +391,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -386,7 +400,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -395,7 +409,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -404,7 +418,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -413,7 +427,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -422,7 +436,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -431,7 +445,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -440,7 +454,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -456,7 +470,7 @@ impl RegExpPrototype {
         this_value: Value,
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
         // 1. Let R be the this value.
@@ -469,9 +483,11 @@ impl RegExpPrototype {
                     .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
-            return Err(agent
-                .throw_exception(ExceptionType::TypeError, error_message, gc.nogc())
-                .unbind());
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         };
         if let Object::RegExp(r) = r {
             // Fast path for RegExp objects: This is not actually proper as it
@@ -498,9 +514,11 @@ impl RegExpPrototype {
             r.unbind(),
             BUILTIN_STRING_MEMORY.source.into(),
             gc.reborrow(),
-        )?;
-        let pattern = to_string(agent, pattern.unbind(), gc.reborrow())?
-            .unbind()
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let pattern = to_string(agent, pattern.unbind(), gc.reborrow())
+            .unbind()?
             .scope(agent, gc.nogc());
         // 4. Let flags be ? ToString(? Get(R, "flags")).
         let flags = get(
@@ -508,9 +526,11 @@ impl RegExpPrototype {
             scoped_r.get(agent),
             BUILTIN_STRING_MEMORY.flags.into(),
             gc.reborrow(),
-        )?;
-        let flags = to_string(agent, flags.unbind(), gc.reborrow())?
-            .unbind()
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = to_string(agent, flags.unbind(), gc.reborrow())
+            .unbind()?
             .bind(gc.nogc());
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!(
@@ -528,7 +548,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -537,7 +557,7 @@ impl RegExpPrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 

@@ -153,7 +153,7 @@ pub fn perform_eval<'gc>(
     direct: bool,
     strict_caller: bool,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     // 1. Assert: If direct is false, then strictCaller is also false.
     assert!(direct || !strict_caller);
 
@@ -169,7 +169,8 @@ pub fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .host_ensure_can_compile_strings(&mut agent[eval_realm])?;
+        .host_ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
+        .unbind()?;
 
     // 6. Let inFunction be false.
     let mut _in_function = false;
@@ -226,13 +227,11 @@ pub fn perform_eval<'gc>(
     // b. If script is a List of errors, throw a SyntaxError exception.
     let Ok((script, source_code)) = parse_result else {
         // TODO: Include error messages in the exception.
-        return Err(agent
-            .throw_exception_with_static_message(
-                ExceptionType::SyntaxError,
-                "Invalid eval source text.",
-                gc.nogc(),
-            )
-            .unbind());
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "Invalid eval source text.",
+            gc.into_nogc(),
+        ));
     };
 
     // c. If script Contains ScriptBody is false, return undefined.
@@ -340,20 +339,24 @@ pub fn perform_eval<'gc>(
         ecmascript_code.private_environment,
         strict_eval,
         gc.reborrow(),
-    );
+    )
+    .unbind()
+    .bind(gc.nogc());
 
     // 29. If result is a normal completion, then
-    let result = if result.is_ok() {
-        let exe = Executable::compile_eval_body(agent, &script, gc.nogc()).scope(agent, gc.nogc());
-        // a. Set result to Completion(Evaluation of body).
-        // 30. If result is a normal completion and result.[[Value]] is empty, then
-        // a. Set result to NormalCompletion(undefined).
-        let result = Vm::execute(agent, exe.clone(), None, gc.reborrow()).into_js_result();
-        // SAFETY: No one can access the bytecode anymore.
-        unsafe { exe.take(agent).try_drop(agent) };
-        result
-    } else {
-        Err(result.err().unwrap())
+    let result = match result {
+        Ok(_) => {
+            let exe =
+                Executable::compile_eval_body(agent, &script, gc.nogc()).scope(agent, gc.nogc());
+            // a. Set result to Completion(Evaluation of body).
+            // 30. If result is a normal completion and result.[[Value]] is empty, then
+            // a. Set result to NormalCompletion(undefined).
+            let result = Vm::execute(agent, exe.clone(), None, gc).into_js_result();
+            // SAFETY: No one can access the bytecode anymore.
+            unsafe { exe.take(agent).try_drop(agent) };
+            result
+        }
+        Err(err) => Err(err.unbind().bind(gc.into_nogc())),
     };
 
     // 31. Suspend evalContext and remove it from the execution context stack.
@@ -363,7 +366,7 @@ pub fn perform_eval<'gc>(
     // 32. Resume the context that is now on the top of the execution context stack as the running execution context.
 
     // 33. Return ? result.
-    result.map(|v| v.unbind())
+    result
 }
 
 /// ### [19.2.1.3 EvalDeclarationInstantiation ( body, varEnv, lexEnv, privateEnv, strict )](https://tc39.es/ecma262/#sec-evaldeclarationinstantiation)
@@ -373,15 +376,15 @@ pub fn perform_eval<'gc>(
 /// Declarative Environment Record), privateEnv (a PrivateEnvironment Record or
 /// null), and strict (a Boolean) and returns either a normal completion
 /// containing UNUSED or a throw completion.
-pub fn eval_declaration_instantiation(
+pub fn eval_declaration_instantiation<'a>(
     agent: &mut Agent,
     script: &Program,
     var_env: Environment,
     lex_env: Environment,
     private_env: Option<PrivateEnvironment>,
     strict_eval: bool,
-    mut gc: GcScope,
-) -> JsResult<()> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
     let mut var_env = var_env.bind(gc.nogc());
     let lex_env = lex_env.bind(gc.nogc());
     let scoped_lex_env = lex_env.scope(agent, gc.nogc());
@@ -406,16 +409,14 @@ pub fn eval_declaration_instantiation(
                 // 2. NOTE: eval will not create a global var declaration that
                 //    would be shadowed by a global lexical declaration.
                 if var_env.has_lexical_declaration(agent, name) {
-                    return Err(agent
-                        .throw_exception(
-                            ExceptionType::SyntaxError,
-                            format!(
-                                "Redeclaration of lexical declaration '{}'",
-                                name.as_str(agent)
-                            ),
-                            gc.nogc(),
-                        )
-                        .unbind());
+                    return Err(agent.throw_exception(
+                        ExceptionType::SyntaxError,
+                        format!(
+                            "Redeclaration of lexical declaration '{}'",
+                            name.as_str(agent)
+                        ),
+                        gc.into_nogc(),
+                    ));
                 }
             }
         }
@@ -446,13 +447,11 @@ pub fn eval_declaration_instantiation(
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics
                         //     for the above step.
-                        return Err(agent
-                            .throw_exception(
-                                ExceptionType::SyntaxError,
-                                format!("Redeclaration of variable '{}'", name),
-                                gc.nogc(),
-                            )
-                            .unbind());
+                        return Err(agent.throw_exception(
+                            ExceptionType::SyntaxError,
+                            format!("Redeclaration of variable '{}'", name),
+                            gc.into_nogc(),
+                        ));
                     }
                     this_env = scoped_this_env.get(agent).bind(gc.nogc());
                 }
@@ -518,24 +517,22 @@ pub fn eval_declaration_instantiation(
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
                     let function_name = String::from_str(agent, function_name.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
-                    let fn_definable = var_env.unbind().can_declare_global_function(
-                        agent,
-                        function_name.get(agent),
-                        gc.reborrow(),
-                    )?;
+                    let fn_definable = var_env
+                        .unbind()
+                        .can_declare_global_function(agent, function_name.get(agent), gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
-                        return Err(agent
-                            .throw_exception(
-                                ExceptionType::TypeError,
-                                format!(
-                                    "Cannot declare global function '{}'.",
-                                    function_name.as_str(agent)
-                                ),
-                                gc.nogc(),
-                            )
-                            .unbind());
+                        return Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            format!(
+                                "Cannot declare global function '{}'.",
+                                function_name.as_str(agent)
+                            ),
+                            gc.into_nogc(),
+                        ));
                     }
                 }
 
@@ -568,23 +565,18 @@ pub fn eval_declaration_instantiation(
                     if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc())
                     {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
-                        let vn_definable = var_env.unbind().can_declare_global_var(
-                            agent,
-                            vn.get(agent),
-                            gc.reborrow(),
-                        )?;
+                        let vn_definable = var_env
+                            .unbind()
+                            .can_declare_global_var(agent, vn.get(agent), gc.reborrow())
+                            .unbind()?
+                            .bind(gc.nogc());
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
-                            return Err(agent
-                                .throw_exception(
-                                    ExceptionType::TypeError,
-                                    format!(
-                                        "Cannot declare global variable '{}'.",
-                                        vn.as_str(agent)
-                                    ),
-                                    gc.nogc(),
-                                )
-                                .unbind());
+                            return Err(agent.throw_exception(
+                                ExceptionType::TypeError,
+                                format!("Cannot declare global variable '{}'.", vn.as_str(agent)),
+                                gc.into_nogc(),
+                            ));
                         }
                     }
                     // b. If declaredVarNames does not contain vn, then
@@ -644,17 +636,18 @@ pub fn eval_declaration_instantiation(
             // 1. Perform ? lexEnv.CreateImmutableBinding(dn, true).
             scoped_lex_env
                 .get(agent)
-                .create_immutable_binding(agent, dn, true, gc.nogc())?;
+                .create_immutable_binding(agent, dn, true, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
-            scoped_lex_env.get(agent).create_mutable_binding(
-                agent,
-                dn.get(agent),
-                false,
-                gc.reborrow(),
-            )?;
+            scoped_lex_env
+                .get(agent)
+                .create_mutable_binding(agent, dn.get(agent), false, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         }
     }
 
@@ -683,13 +676,17 @@ pub fn eval_declaration_instantiation(
             let function_name =
                 String::from_str(agent, function_name.unwrap().as_str(), gc.nogc()).unbind();
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
-            var_env.unbind().create_global_function_binding(
-                agent,
-                function_name.unbind(),
-                fo.unbind(),
-                true,
-                gc.reborrow(),
-            )?;
+            var_env
+                .unbind()
+                .create_global_function_binding(
+                    agent,
+                    function_name.unbind(),
+                    fo.unbind(),
+                    true,
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
         } else {
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
@@ -739,12 +736,11 @@ pub fn eval_declaration_instantiation(
         // a. If varEnv is a Global Environment Record, then
         if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-            var_env.unbind().create_global_var_binding(
-                agent,
-                vn.get(agent),
-                true,
-                gc.reborrow(),
-            )?;
+            var_env
+                .unbind()
+                .create_global_var_binding(agent, vn.get(agent), true, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         } else {
             // b. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(vn).
@@ -782,12 +778,12 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
         let x = arguments.get(0).bind(gc.nogc());
 
         // 1. Return ? PerformEval(x, false, false).
-        perform_eval(agent, x.unbind(), false, false, gc.reborrow()).map(|v| v.unbind())
+        perform_eval(agent, x.unbind(), false, false, gc)
     }
 
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
@@ -798,10 +794,12 @@ impl GlobalObject {
         _: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let number = arguments.get(0).bind(gc.nogc());
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number.unbind(), gc.reborrow())?;
+        let num = to_number(agent, number.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
         Ok(num.is_finite(agent).into())
@@ -819,10 +817,12 @@ impl GlobalObject {
         _: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let number = arguments.get(0).bind(gc.nogc());
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number.unbind(), gc.reborrow())?;
+        let num = to_number(agent, number.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())
@@ -837,7 +837,7 @@ impl GlobalObject {
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         if arguments.is_empty() {
             return Ok(Value::nan());
         }
@@ -845,7 +845,9 @@ impl GlobalObject {
         let string = arguments.get(0).bind(gc.nogc());
 
         // 1. Let inputString be ? ToString(string).
-        let input_string = to_string(agent, string.unbind(), gc.reborrow())?;
+        let input_string = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
         let trimmed_string = input_string
@@ -906,7 +908,7 @@ impl GlobalObject {
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let string = arguments.get(0).bind(gc.nogc());
         let radix = arguments.get(1).bind(gc.nogc());
 
@@ -930,8 +932,8 @@ impl GlobalObject {
         let radix = radix.scope(agent, gc.nogc());
 
         // 1. Let inputString be ? ToString(string).
-        let mut s = to_string(agent, string.unbind(), gc.reborrow())?
-            .unbind()
+        let mut s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
             .bind(gc.nogc());
 
         // 6. Let R be ℝ(? ToInt32(radix)).
@@ -941,11 +943,15 @@ impl GlobalObject {
         } else if radix.is_undefined() {
             0
         } else if let Ok(radix) = Primitive::try_from(radix) {
-            let radix = to_number_primitive(agent, radix, gc.nogc())?;
+            let radix = to_number_primitive(agent, radix, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
             to_int32_number(agent, radix)
         } else {
             let s_root = s.scope(agent, gc.nogc());
-            let radix = to_int32(agent, radix.unbind(), gc.reborrow())?;
+            let radix = to_int32(agent, radix.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
             s = s_root.get(agent).bind(gc.nogc());
             radix
         };
@@ -1086,7 +1092,7 @@ impl GlobalObject {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn decode_uri_component<'gc>(
@@ -1094,7 +1100,7 @@ impl GlobalObject {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn encode_uri<'gc>(
@@ -1102,7 +1108,7 @@ impl GlobalObject {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn encode_uri_component<'gc>(
@@ -1110,7 +1116,7 @@ impl GlobalObject {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn escape<'gc>(
@@ -1118,7 +1124,7 @@ impl GlobalObject {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
     fn unescape<'gc>(
@@ -1126,7 +1132,7 @@ impl GlobalObject {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
