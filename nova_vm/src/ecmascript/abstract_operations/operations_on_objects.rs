@@ -1067,7 +1067,7 @@ pub(crate) fn create_array_from_list<'a>(
 
 pub(crate) fn create_array_from_scoped_list<'a>(
     agent: &mut Agent,
-    elements: Vec<Scoped<'_, Value>>,
+    elements: Vec<Scoped<Value>>,
     gc: NoGcScope<'a, '_>,
 ) -> Array<'a> {
     let len = elements.len();
@@ -1693,7 +1693,7 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
 
 fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
     agent: &mut Agent,
-    o: Scoped<'_, Object<'static>>,
+    o: Scoped<Object>,
     own_keys: Vec<PropertyKey>,
     results: Vec<Value>,
     mut gc: GcScope<'gc, '_>,
@@ -1906,7 +1906,7 @@ fn enumerable_own_keys_fast<'gc>(
 
 fn enumerable_own_keys_slow<'gc>(
     agent: &mut Agent,
-    o: Scoped<'_, Object<'static>>,
+    o: Scoped<Object>,
     own_keys: Vec<PropertyKey>,
     results: Vec<PropertyKey>,
     mut gc: GcScope<'gc, '_>,
@@ -2118,8 +2118,8 @@ pub(crate) fn copy_data_properties<'a>(
 
 fn copy_data_properties_slow<'a>(
     agent: &mut Agent,
-    target: Scoped<'_, OrdinaryObject<'static>>,
-    from: Scoped<'_, Object<'static>>,
+    target: Scoped<OrdinaryObject>,
+    from: Scoped<Object>,
     keys: Vec<PropertyKey>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
@@ -2301,13 +2301,13 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     }
 }
 
-fn copy_data_properties_into_object_slow<'a, 'b>(
+fn copy_data_properties_into_object_slow<'a>(
     agent: &mut Agent,
-    from: Scoped<'b, Object<'static>>,
+    from: Scoped<Object>,
     excluded_items: &AHashSet<PropertyKey>,
     keys: Vec<PropertyKey>,
     object: OrdinaryObject,
-    mut gc: GcScope<'a, 'b>,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, OrdinaryObject<'a>> {
     let keys = keys.bind(gc.nogc());
     let object = object.scope(agent, gc.nogc());

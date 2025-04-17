@@ -949,7 +949,7 @@ fn ordinary_try_set_with_own_descriptor(
 fn ordinary_set_with_own_descriptor<'a>(
     agent: &mut Agent,
     object: Object,
-    scoped_property_key: Scoped<'_, PropertyKey<'static>>,
+    scoped_property_key: Scoped<PropertyKey>,
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,

@@ -1489,7 +1489,7 @@ fn get_own_symbol_property_keys<'gc>(
 
 fn get_own_property_descriptors_slow<'gc>(
     agent: &mut Agent,
-    obj: Scoped<'_, Object<'static>>,
+    obj: Scoped<Object>,
     own_keys: Vec<PropertyKey>,
     descriptors: OrdinaryObject,
     mut gc: GcScope<'gc, '_>,

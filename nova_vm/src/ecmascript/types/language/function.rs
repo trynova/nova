@@ -638,8 +638,8 @@ impl Function<'_> {
     pub fn call<'gc>(
         self,
         agent: &mut Agent,
-        this_argument: Value<'static>,
-        args: &mut [Value<'static>],
+        this_argument: Value,
+        args: &mut [Value],
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         self.internal_call(

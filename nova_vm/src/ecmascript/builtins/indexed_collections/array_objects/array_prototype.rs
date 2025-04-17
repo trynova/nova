@@ -1036,7 +1036,7 @@ impl ArrayPrototype {
         let mut k = 0;
         // 6. Let to be 0.
         let mut to: u32 = 0;
-        let mut scoped_k_value: Scoped<Value<'static>> = Value::Undefined.scope_static(gc.nogc());
+        let mut scoped_k_value: Scoped<Value> = Value::Undefined.scope_static(gc.nogc());
         // 7. Repeat, while k < len,
         while k < len {
             // a. Let Pk be ! ToString(𝔽(k)).
@@ -4218,8 +4218,8 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
     o: Scoped<T>,
     len: i64,
     ascending: bool,
-    predicate: Scoped<Value<'static>>,
-    this_arg: Scoped<Value<'static>>,
+    predicate: Scoped<Value>,
+    this_arg: Scoped<Value>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (i64, Value<'gc>)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
@@ -4237,8 +4237,8 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
     fn check<'gc, T: 'static + Rootable + InternalMethods<'static>>(
         agent: &mut Agent,
         o: Scoped<T>,
-        predicate: Scoped<Function<'static>>,
-        this_arg: Scoped<Value<'static>>,
+        predicate: Scoped<Function>,
+        this_arg: Scoped<Value>,
         k: i64,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<(i64, Value<'gc>)>> {
@@ -4330,13 +4330,13 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
 #[allow(clippy::too_many_arguments)]
 fn flatten_into_array<'a>(
     agent: &mut Agent,
-    target: Scoped<Object<'static>>,
-    source: Scoped<Object<'static>>,
+    target: Scoped<Object>,
+    source: Scoped<Object>,
     source_len: usize,
     start: usize,
     depth: Option<usize>,
-    mapper_function: Option<Scoped<Function<'static>>>,
-    this_arg: Option<Scoped<Value<'static>>>,
+    mapper_function: Option<Scoped<Function>>,
+    this_arg: Option<Scoped<Value>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, usize> {
     // 1. Assert: If mapperFunction is present, then IsCallable(mapperFunction) is true, thisArg is present, and depth is 1.
@@ -4563,9 +4563,9 @@ fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool, const TYPED_ARRA
 /// completion containing a Number or an abrupt completion.
 fn compare_array_elements<'a>(
     agent: &mut Agent,
-    scoped_x: &Scoped<Value<'static>>,
-    scoped_y: &Scoped<Value<'static>>,
-    comparator: Option<Scoped<Function<'static>>>,
+    scoped_x: &Scoped<Value>,
+    scoped_y: &Scoped<Value>,
+    comparator: Option<Scoped<Function>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Ordering> {
     let x = scoped_x.get(agent).bind(gc.nogc());

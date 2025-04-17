@@ -257,7 +257,7 @@ impl JSONObject {
         // 1. Let stack be a new empty List.
         let stack = Vec::new();
         // 3. Let PropertyList be undefined.
-        let mut property_list: Option<Vec<Scoped<'_, PropertyKey<'static>>>> = None;
+        let mut property_list: Option<Vec<Scoped<PropertyKey>>> = None;
 
         // 4. Let ReplacerFunction be undefined.
         // a. If IsCallable(replacer) is true, then
@@ -478,13 +478,13 @@ impl JSONObject {
 /// > Note 2
 /// > In the case where there are duplicate name Strings within an object,
 /// > lexically preceding values for the same key shall be overwritten.
-fn internalize_json_property<'gc, 'a>(
+fn internalize_json_property<'a>(
     agent: &mut Agent,
-    holder: Scoped<'a, Object<'static>>,
-    name: Scoped<'a, PropertyKey<'static>>,
-    reviver: Scoped<'a, Function<'static>>,
-    mut gc: GcScope<'gc, 'a>,
-) -> JsResult<'gc, Value<'gc>> {
+    holder: Scoped<Object>,
+    name: Scoped<PropertyKey>,
+    reviver: Scoped<Function>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
     // 1. Let val be ? Get(holder, name).
     let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())
         .unbind()?
@@ -627,12 +627,12 @@ struct JSONSerializationRecord<'a> {
 ///
 /// > Note: This performs steps 1 through 4, and 10 and 12 of the
 /// > SerializeJSONProperty abstract operation.
-fn get_serializable_json_property_value<'a, 'b>(
+fn get_serializable_json_property_value<'a>(
     agent: &mut Agent,
-    replacer_function: Option<Scoped<'b, Function<'static>>>,
-    key: Scoped<'b, PropertyKey<'static>>,
-    holder: Scoped<'b, Object<'static>>,
-    mut gc: GcScope<'a, 'b>,
+    replacer_function: Option<Scoped<Function>>,
+    key: Scoped<PropertyKey>,
+    holder: Scoped<Object>,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Option<Value<'a>>> {
     // 1. Let value be ? Get(holder, key).
     let mut value = get(agent, holder.get(agent), key.get(agent), gc.reborrow())

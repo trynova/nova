@@ -198,7 +198,7 @@ impl SuspendedVm {
     pub(crate) fn resume<'gc>(
         self,
         agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         value: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -209,7 +209,7 @@ impl SuspendedVm {
     pub(crate) fn resume_throw<'gc>(
         self,
         agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -262,7 +262,7 @@ impl Vm {
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute<'gc>(
         agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         arguments: Option<&mut [Value<'static>]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -298,12 +298,7 @@ impl Vm {
         }
     }
 
-    fn print_internals(
-        &self,
-        agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
-        gc: NoGcScope,
-    ) {
+    fn print_internals(&self, agent: &mut Agent, executable: Scoped<Executable>, gc: NoGcScope) {
         eprintln!();
         eprintln!("=== Executing Executable ===");
         eprintln!("Constants: {:?}", executable.get_constants(agent, gc));
@@ -320,7 +315,7 @@ impl Vm {
     pub fn resume<'gc>(
         mut self,
         agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         value: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -331,7 +326,7 @@ impl Vm {
     pub fn resume_throw<'gc>(
         mut self,
         agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -346,7 +341,7 @@ impl Vm {
     fn inner_execute<'gc>(
         mut self,
         agent: &mut Agent,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         mut gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
         #[cfg(feature = "interleaved-gc")]
@@ -433,7 +428,7 @@ impl Vm {
     fn execute_instruction<'a>(
         agent: &mut Agent,
         vm: &mut Vm,
-        executable: Scoped<'_, Executable>,
+        executable: Scoped<Executable>,
         instr: &Instr,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {

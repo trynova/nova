@@ -1023,8 +1023,8 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
 /// either a normal completion containing unused or a throw completion.
 pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
     agent: &mut Agent,
-    scoped_o: Scoped<'_, TypedArray<'static>>,
-    values: Vec<Scoped<'_, Value<'static>>>,
+    scoped_o: Scoped<TypedArray>,
+    values: Vec<Scoped<Value>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let mut o = scoped_o.get(agent).bind(gc.nogc());
@@ -1079,7 +1079,7 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
 /// throw completion.
 pub(crate) fn initialize_typed_array_from_array_like<'a, T: Viewable>(
     agent: &mut Agent,
-    o: Scoped<'_, TypedArray<'static>>,
+    o: Scoped<TypedArray>,
     array_like: Object,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {

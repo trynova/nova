@@ -230,7 +230,7 @@ pub(super) fn async_generator_resume(
 pub(super) fn resume_handle_result(
     agent: &mut Agent,
     execution_result: ExecutionResult,
-    scoped_generator: Scoped<'_, AsyncGenerator>,
+    scoped_generator: Scoped<AsyncGenerator>,
     mut gc: GcScope,
 ) {
     match execution_result {
@@ -303,7 +303,7 @@ pub(super) fn resume_handle_result(
 
 fn async_generator_perform_await(
     agent: &mut Agent,
-    scoped_generator: Scoped<'_, AsyncGenerator>,
+    scoped_generator: Scoped<AsyncGenerator>,
     vm: SuspendedVm,
     awaited_value: Value,
     kind: AsyncGeneratorAwaitKind,
@@ -379,7 +379,7 @@ fn async_generator_unwrap_yield_resumption(
 pub(super) fn async_generator_yield(
     agent: &mut Agent,
     value: Value,
-    generator: Scoped<'_, AsyncGenerator>,
+    generator: Scoped<AsyncGenerator>,
     vm: SuspendedVm,
     mut gc: GcScope,
 ) {
@@ -462,7 +462,7 @@ pub(super) fn async_generator_yield(
 /// (an AsyncGenerator) and returns unused.
 pub(super) fn async_generator_await_return(
     agent: &mut Agent,
-    scoped_generator: Scoped<'_, AsyncGenerator<'static>>,
+    scoped_generator: Scoped<AsyncGenerator>,
     mut gc: GcScope,
 ) {
     let generator = scoped_generator.get(agent).bind(gc.nogc());
@@ -566,7 +566,7 @@ pub(crate) fn async_generator_await_return_on_rejected(
 /// holds a return completion.
 fn async_generator_drain_queue(
     agent: &mut Agent,
-    scoped_generator: Scoped<'_, AsyncGenerator<'static>>,
+    scoped_generator: Scoped<AsyncGenerator>,
     mut gc: GcScope,
 ) {
     let generator = scoped_generator.get(agent).bind(gc.nogc());

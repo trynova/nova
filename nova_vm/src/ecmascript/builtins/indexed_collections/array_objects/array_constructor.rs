@@ -638,7 +638,7 @@ impl ArrayConstructor {
 fn array_of_generic<'gc>(
     agent: &mut Agent,
     c: Function,
-    args: Vec<Scoped<'_, Value<'static>>>,
+    args: Vec<Scoped<Value>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let c = c.bind(gc.nogc());
