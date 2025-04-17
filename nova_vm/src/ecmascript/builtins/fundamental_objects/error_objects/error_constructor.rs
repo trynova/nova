@@ -134,7 +134,7 @@ impl ErrorConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        is_error(_agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
+        is_error(_agent, arguments.get(0), gc.into_nogc()).map(Value::Boolean)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -179,11 +179,11 @@ pub(super) fn get_error_cause<'gc>(
 /// The abstract operation IsError takes argument argument (an Ecmascript
 /// language value) and returns a Boolean. It returns a boolean indicating
 /// whether the argument is a built-in Error instance or not.
-pub(super) fn is_error<'a>(
+pub(super) fn is_error<'a, 'gc>(
     _agent: &mut Agent,
     argument: impl IntoValue<'a>,
-    gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     let argument = argument.into_value().bind(gc);
     match argument {
         // 1. If argument is not an Object, return false.

@@ -22,7 +22,7 @@ use crate::{
 #[cfg(feature = "proposal-math-sum")]
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_iterator_objects::{get_iterator, iterator_close, iterator_step_value},
+        operations_on_iterator_objects::{get_iterator, iterator_step_value},
         testing_and_comparison::require_object_coercible,
     },
     execution::agent::ExceptionType,
@@ -1762,7 +1762,12 @@ impl MathObject {
                     gc.nogc(),
                 );
                 // 2. Return ? IteratorClose(iteratorRecord, error).
-                return iterator_close_with_error(agent, iterator.get(agent), error, gc);
+                return Err(iterator_close_with_error(
+                    agent,
+                    iterator.get(agent),
+                    error.unbind(),
+                    gc,
+                ));
             }
 
             // v. Let n be next.
@@ -1808,7 +1813,12 @@ impl MathObject {
                     gc.nogc(),
                 );
                 // 2. Return ? IteratorClose(iteratorRecord, error).
-                return iterator_close_with_error(agent, iterator.get(agent), error, gc);
+                return Err(iterator_close_with_error(
+                    agent,
+                    iterator.get(agent),
+                    error.unbind(),
+                    gc,
+                ));
             }
         }
 
