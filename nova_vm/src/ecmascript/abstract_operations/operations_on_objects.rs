@@ -1193,7 +1193,7 @@ pub(crate) fn create_list_from_array_like<'gc>(
                 .unbind()?
                 .bind(gc.nogc());
                 // d. Append next to list.
-                list.push(next.unbind().scope(agent, gc.nogc()));
+                list.push(next.scope(agent, gc.nogc()));
                 // e. Set index to index + 1.
             }
             // 7. Return list.
@@ -1329,31 +1329,30 @@ pub(crate) fn invoke<'a>(
     let v = v.bind(gc.nogc());
     let p = p.bind(gc.nogc());
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
-    let arguments_list = arguments_list.unwrap_or_default();
+    let mut arguments_list = arguments_list.unwrap_or_default();
     // 2. Let func be ? GetV(V, P).
     // 3. Return ? Call(func, V, argumentsList).
     if let TryResult::Continue(func) = try_get_v(agent, v, p, gc.nogc()) {
         call(agent, func.unbind()?, v.unbind(), Some(arguments_list), gc)
     } else {
         // We couldn't get the func without calling into Javascript: No
-        // choice, we must allocate the arguments onto the heap.
+        // choice, we must scope v and the arguments.
         let scoped_v = v.scope(agent, gc.nogc());
-        let scoped_arguments = arguments_list
-            .iter()
-            .map(|v| v.scope(agent, gc.nogc()))
-            .collect::<Box<[_]>>();
-        let func = get_v(agent, v.unbind(), p.unbind(), gc.reborrow())
+        let v_unbound = v.unbind();
+        let p_unbound = p.unbind();
+        let func = arguments_list
+            .with_scoped(
+                agent,
+                |agent, _, gc| get_v(agent, v_unbound, p_unbound, gc),
+                gc.reborrow(),
+            )
             .unbind()?
             .bind(gc.nogc());
-        let mut arguments = scoped_arguments
-            .into_iter()
-            .map(|v| v.get(agent))
-            .collect::<Box<[Value<'static>]>>();
         call(
             agent,
             func.unbind(),
             scoped_v.get(agent),
-            Some(ArgumentsList::from_mut_slice(&mut arguments)),
+            Some(arguments_list),
             gc,
         )
     }
@@ -2529,7 +2528,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         .unbind()?
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+        return Err(throw_not_callable(agent, gc.into_nogc()));
     };
 
     let iterator = iterator.scope(agent, gc.nogc());
@@ -2663,7 +2662,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         .unbind()?
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+        return Err(throw_not_callable(agent, gc.into_nogc()));
     };
 
     let iterator = iterator.scope(agent, gc.nogc());

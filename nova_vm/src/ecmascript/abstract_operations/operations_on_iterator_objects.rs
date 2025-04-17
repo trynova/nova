@@ -183,9 +183,7 @@ pub(crate) fn get_iterator<'a>(
             PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
             gc.reborrow(),
         )
-        .unbind()
         .unbind()?
-        .bind(gc.nogc())
         .bind(gc.nogc());
 
         // b. If method is undefined, then
@@ -296,17 +294,10 @@ pub(crate) fn iterator_next<'a>(
 fn iterator_complete<'a>(
     agent: &mut Agent,
     iter_result: Object,
-    mut gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
-    let done = get(
-        agent,
-        iter_result,
-        BUILTIN_STRING_MEMORY.done.into(),
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    let done = get(agent, iter_result, BUILTIN_STRING_MEMORY.done.into(), gc)?;
     Ok(to_boolean(agent, done))
 }
 
@@ -348,9 +339,7 @@ pub(crate) fn iterator_step<'a>(
     let scoped_result = result.scope(agent, gc.nogc());
 
     // 2. Let done be ? IteratorComplete(result).
-    let done = iterator_complete(agent, result.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let done = iterator_complete(agent, result.unbind(), gc.reborrow()).unbind()?;
 
     // 3. If done is true, return false.
     if done {
@@ -454,7 +443,9 @@ pub(crate) fn iterator_close_with_value<'a>(
         iterator.into_value(),
         BUILTIN_STRING_MEMORY.r#return.into(),
         gc.reborrow(),
-    );
+    )
+    .unbind()
+    .bind(gc.nogc());
     // 4. If innerResult.[[Type]] is normal, then
     let inner_result = match inner_result {
         Ok(return_function) => {
@@ -472,9 +463,14 @@ pub(crate) fn iterator_close_with_value<'a>(
                 None,
                 gc.reborrow(),
             )
+            .unbind()
+            .bind(gc.nogc())
         }
         Err(inner_result) => Err(inner_result),
     };
+    // SAFETY: completion is not shared.
+    let completion = unsafe { completion.take(agent) }.bind(gc.nogc());
+
     // 5. If completion.[[Type]] is throw, return ? completion.
     // 6. If innerResult.[[Type]] is throw, return ? innerResult.
     let inner_result = inner_result.unbind()?.bind(gc.nogc());
@@ -487,8 +483,7 @@ pub(crate) fn iterator_close_with_value<'a>(
         ));
     }
     // 8. Return ? completion.
-    // SAFETY: completion is not shared.
-    Ok(unsafe { completion.take(agent) })
+    Ok(completion.unbind())
 }
 
 /// ### [7.4.11 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)

@@ -1334,7 +1334,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
         .unbind()?
         .bind(gc.nogc())
     else {
-        return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+        return Err(throw_not_callable(agent, gc.into_nogc()));
     };
 
     let iterator = iterator.scope(agent, gc.nogc());

@@ -211,7 +211,7 @@ impl SetConstructor {
             .unbind()?
             .bind(gc.nogc())
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
 
         let iterator = iterator.scope(agent, gc.nogc());

@@ -139,7 +139,7 @@ impl IteratorPrototype {
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -239,7 +239,7 @@ impl IteratorPrototype {
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -348,7 +348,7 @@ impl IteratorPrototype {
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -445,7 +445,7 @@ impl IteratorPrototype {
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -571,7 +571,7 @@ impl IteratorPrototype {
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
@@ -656,7 +656,7 @@ impl IteratorPrototype {
             ..
         }) = iterated
         else {
-            return Err(throw_not_callable(agent, gc.into_nogc()).unbind());
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
