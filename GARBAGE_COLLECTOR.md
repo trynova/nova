@@ -92,7 +92,7 @@ lifetime, and for calling methods that are guaranteed to not call JavaScript
 and/or perform garbage collection.
 
 > Note 1: "Scoped" `Value`s do not restrict garbage collection from being
-> performed. They have a different type, `Scoped<'_, Value<'_>>`, and are thus
+> performed. They have a different type, `Scoped<Value>`, and are thus
 > not `Value`s in the sense mentioned in the previous paragraph.
 
 > Note 2: Currently, Nova makes no difference between methods that can call into
@@ -251,7 +251,7 @@ fn call<'a>(agent: &mut Agent, a: Value, gc: GcToken<'a, '_>) -> JsResult<'a, Va
 }
 ```
 
-### Always immediately bind `Scoped<'_ Value>::get` results
+### Always immediately bind `Scoped<Value>::get` results
 
 Example:
 
@@ -344,7 +344,7 @@ let a = a.scope(agent, gc.nogc());
 // etc...
 ```
 
-A `Scoped<'_, Value<'static>>` is valid for the entire call (at least) and are
+A `Scoped<Value>` is valid for the entire call (at least) and are
 trivially cloneable (they're currently not `Copy` but there is no real reason
 they couldn't be). Creating one from a `Value` is however a non-trivial
 operation that always includes allocating new heap space (though this is
