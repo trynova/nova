@@ -345,7 +345,7 @@ impl TypedArrayIntrinsicObject {
                 for k in 0..len {
                     // a. Let kValue be items[k].
                     // b. Let Pk be ! ToString(𝔽(k)).
-                    let pk = PropertyKey::try_from(k).unwrap();
+                    let pk = k.into();
                     let k_value = arguments.get(agent, k, gc.nogc());
                     // c. Perform ? Set(newObj, Pk, kValue, true).
                     set(

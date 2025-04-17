@@ -31,7 +31,7 @@ pub struct Scoped<'a, T: 'static + Rootable> {
     _scope: PhantomData<&'a ScopeToken>,
 }
 
-impl<'a, T: 'static + Rootable> core::fmt::Debug for Scoped<'a, T> {
+impl<'_, T: 'static + Rootable> core::fmt::Debug for Scoped<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Scoped<{}>", core::any::type_name::<T>())
     }
