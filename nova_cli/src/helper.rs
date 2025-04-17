@@ -136,10 +136,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
                 gc.into_nogc(),
             ));
         };
-        array_buffer
-            .detach(agent, None, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        array_buffer.detach(agent, None, gc.nogc()).unbind()?;
         Ok(Value::Undefined)
     }
 
