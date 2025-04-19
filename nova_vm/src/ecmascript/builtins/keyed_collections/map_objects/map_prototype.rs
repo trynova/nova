@@ -21,7 +21,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::{Map, data::MapData},
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, HeapNumber, IntoValue, PropertyKey, String, Value},
     },
     heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
@@ -107,7 +107,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -131,7 +131,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -188,7 +188,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY+VALUE).
@@ -229,20 +229,22 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
         let callback_fn = arguments.get(0).bind(nogc);
         let this_arg = arguments.get(1).bind(nogc);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let mut m = require_map_data_internal_slot(agent, this_value, nogc)?;
+        let mut m = require_map_data_internal_slot(agent, this_value, nogc)
+            .unbind()?
+            .bind(nogc);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
-                nogc,
+                gc.into_nogc(),
             ));
         };
 
@@ -278,7 +280,8 @@ impl MapPrototype {
                         m.into_value().unbind(),
                     ])),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?;
                 // ii. NOTE: The number of elements in entries may have
                 //     increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
@@ -296,7 +299,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
@@ -348,7 +351,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
@@ -392,7 +395,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY).
@@ -409,7 +412,7 @@ impl MapPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let key = arguments.get(0).bind(gc);
         let value = arguments.get(1).bind(gc);
@@ -479,7 +482,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         let count = agent[m].size();
@@ -491,7 +494,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, VALUE).
@@ -502,7 +505,7 @@ impl MapPrototype {
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
@@ -548,7 +551,7 @@ fn require_map_data_internal_slot<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<Map<'a>> {
+) -> JsResult<'a, Map<'a>> {
     match value {
         Value::Map(map) => Ok(map.bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(

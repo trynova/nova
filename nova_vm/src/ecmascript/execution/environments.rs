@@ -81,7 +81,7 @@ macro_rules! create_environment_index {
 
         impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                write!(f, "$index({:?})", self.0)
+                write!(f, "$index({:?})", self.into_u32_index())
             }
         }
 
@@ -230,12 +230,19 @@ impl<'a> From<ObjectEnvironment<'a>> for Environment<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ModuleEnvironment<'a>(
     NonZeroU32,
     PhantomData<DeclarativeEnvironmentRecord>,
     PhantomData<&'a GcToken>,
 );
+
+impl core::fmt::Debug for ModuleEnvironment<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "ModuleEnvironment({:?})", self.into_index())
+    }
+}
+
 impl ModuleEnvironment<'_> {
     /// Creates a new index from a u32.
     ///
@@ -364,12 +371,12 @@ impl Environment<'_> {
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
-    pub(crate) fn has_binding(
+    pub(crate) fn has_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         match self {
             Environment::Declarative(idx) => Ok(idx.has_binding(agent, name)),
             Environment::Function(idx) => Ok(idx.has_binding(agent, name)),
@@ -383,13 +390,13 @@ impl Environment<'_> {
     /// Create a new but uninitialized mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If the
     /// Boolean argument D is true the binding may be subsequently deleted.
-    pub(crate) fn try_create_mutable_binding(
+    pub(crate) fn try_create_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         match self {
             Environment::Declarative(idx) => {
                 idx.create_mutable_binding(agent, name, is_deletable);
@@ -413,13 +420,13 @@ impl Environment<'_> {
     /// Create a new but uninitialized mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If the
     /// Boolean argument D is true the binding may be subsequently deleted.
-    pub(crate) fn create_mutable_binding(
+    pub(crate) fn create_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(idx) => {
                 idx.create_mutable_binding(agent, name, is_deletable);
@@ -430,7 +437,7 @@ impl Environment<'_> {
                 Ok(())
             }
             Environment::Global(idx) => {
-                idx.create_mutable_binding(agent, name, is_deletable, gc.nogc())
+                idx.create_mutable_binding(agent, name, is_deletable, gc.into_nogc())
             }
             Environment::Object(idx) => idx.create_mutable_binding(agent, name, is_deletable, gc),
         }
@@ -443,13 +450,13 @@ impl Environment<'_> {
     /// then attempts to set it after it has been initialized will always throw
     /// an exception, regardless of the strict mode setting of operations that
     /// reference that binding.
-    pub(crate) fn create_immutable_binding(
+    pub(crate) fn create_immutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<()> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(idx) => {
                 idx.create_immutable_binding(agent, name, is_strict);
@@ -473,13 +480,13 @@ impl Environment<'_> {
     /// Environment Record. The String value N is the text of the bound name.
     /// V is the value for the binding and is a value of any ECMAScript
     /// language type.
-    pub(crate) fn try_initialize_binding(
+    pub(crate) fn try_initialize_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         match self {
             Environment::Declarative(idx) => {
                 idx.initialize_binding(agent, name, value);
@@ -500,13 +507,13 @@ impl Environment<'_> {
     /// Environment Record. The String value N is the text of the bound name.
     /// V is the value for the binding and is a value of any ECMAScript
     /// language type.
-    pub(crate) fn initialize_binding(
+    pub(crate) fn initialize_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(idx) => {
                 idx.initialize_binding(agent, name, value);
@@ -528,14 +535,14 @@ impl Environment<'_> {
     /// value for the binding and may be a value of any ECMAScript language
     /// type. S is a Boolean flag. If S is true and the binding cannot be set
     /// throw a TypeError exception.
-    pub(crate) fn try_set_mutable_binding(
+    pub(crate) fn try_set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         match self {
             Environment::Declarative(idx) => {
                 TryResult::Continue(idx.set_mutable_binding(agent, name, value, is_strict, gc))
@@ -559,20 +566,20 @@ impl Environment<'_> {
     /// value for the binding and may be a value of any ECMAScript language
     /// type. S is a Boolean flag. If S is true and the binding cannot be set
     /// throw a TypeError exception.
-    pub(crate) fn set_mutable_binding(
+    pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         is_strict: bool,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(idx) => {
-                idx.set_mutable_binding(agent, name, value, is_strict, gc.nogc())
+                idx.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
             }
             Environment::Function(idx) => {
-                idx.set_mutable_binding(agent, name, value, is_strict, gc.nogc())
+                idx.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
             }
             Environment::Global(idx) => idx.set_mutable_binding(agent, name, value, is_strict, gc),
             Environment::Object(idx) => idx.set_mutable_binding(agent, name, value, is_strict, gc),
@@ -588,13 +595,13 @@ impl Environment<'_> {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn try_get_binding_value<'gc>(
+    pub(crate) fn try_get_binding_value<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<JsResult<Value<'gc>>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, Value<'a>>> {
         match self {
             Environment::Declarative(idx) => {
                 TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
@@ -616,13 +623,13 @@ impl Environment<'_> {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn get_binding_value<'gc>(
+    pub(crate) fn get_binding_value<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
         match self {
             Environment::Declarative(idx) => {
                 idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
@@ -641,12 +648,12 @@ impl Environment<'_> {
     /// text of the bound name. If a binding for N exists, remove the binding
     /// and return true. If the binding exists but cannot be removed return
     /// false.
-    pub(crate) fn try_delete_binding(
+    pub(crate) fn try_delete_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<bool>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, bool>> {
         match self {
             Environment::Declarative(idx) => {
                 TryResult::Continue(Ok(idx.delete_binding(agent, name)))
@@ -665,12 +672,12 @@ impl Environment<'_> {
     /// text of the bound name. If a binding for N exists, remove the binding
     /// and return true. If the binding exists but cannot be removed return
     /// false.
-    pub(crate) fn delete_binding(
+    pub(crate) fn delete_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         match self {
             Environment::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
             Environment::Function(idx) => Ok(idx.delete_binding(agent, name)),
@@ -737,10 +744,12 @@ unsafe impl Bindable for Environment<'_> {
 impl core::fmt::Debug for Environment<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Environment::Declarative(d) => write!(f, "DeclarativeEnvironment({:?})", d.0),
-            Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.0),
-            Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.0),
-            Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.0),
+            Environment::Declarative(d) => {
+                write!(f, "DeclarativeEnvironment({:?})", d.into_u32_index())
+            }
+            Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.into_u32_index()),
+            Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.into_u32_index()),
+            Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.into_u32_index()),
             // EnvironmentIndex::Module(d) => {}
         }
     }
@@ -905,7 +914,7 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     name: String<'b>,
     strict: bool,
     mut gc: GcScope<'a, 'b>,
-) -> JsResult<Reference<'a>> {
+) -> JsResult<'a, Reference<'a>> {
     let env = env.bind(gc.nogc());
     let mut name = name.bind(gc.nogc());
 
@@ -934,7 +943,9 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         let name_scoped = name.scope(agent, gc.nogc());
         let result = env
             .unbind()
-            .has_binding(agent, name.unbind(), gc.reborrow())?;
+            .has_binding(agent, name.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         env = env_scoped.get(agent);
         name = name_scoped.get(agent);
         result

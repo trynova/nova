@@ -16,7 +16,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
             primitive_objects::PrimitiveObjectData,
         },
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -87,12 +87,14 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let p = to_property_key(agent, arguments.get(0), gc.reborrow())?
-            .unbind()
+    ) -> JsResult<'gc, Value<'gc>> {
+        let p = to_property_key(agent, arguments.get(0), gc.reborrow())
+            .unbind()?
             .bind(gc.nogc());
-        let o = to_object(agent, this_value, gc.nogc())?;
-        has_own_property(agent, o.unbind(), p.unbind(), gc.reborrow()).map(|result| result.into())
+        let o = to_object(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        has_own_property(agent, o.unbind(), p.unbind(), gc).map(|result| result.into_value())
     }
 
     fn is_prototype_of<'gc>(
@@ -100,14 +102,16 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let v = arguments.get(0).bind(gc.nogc());
         let Ok(v) = Object::try_from(v) else {
             return Ok(false.into());
         };
-        let o = to_object(agent, this_value, gc.nogc())?;
+        let o = to_object(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let result = is_prototype_of_loop(agent, o.unbind(), v.unbind(), gc)?;
-        Ok(result.into())
+        Ok(result.into_value())
     }
 
     fn property_is_enumerable<'gc>(
@@ -115,14 +119,18 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let p = to_property_key(agent, arguments.get(0), gc.reborrow())?
-            .unbind()
+    ) -> JsResult<'gc, Value<'gc>> {
+        let p = to_property_key(agent, arguments.get(0), gc.reborrow())
+            .unbind()?
             .bind(gc.nogc());
-        let o = to_object(agent, this_value, gc.nogc())?;
+        let o = to_object(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         let desc = o
             .unbind()
-            .internal_get_own_property(agent, p.unbind(), gc.reborrow())?;
+            .internal_get_own_property(agent, p.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -135,7 +143,7 @@ impl ObjectPrototype {
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
         invoke(agent, o, p, None, gc)
@@ -146,7 +154,7 @@ impl ObjectPrototype {
         this_value: Value,
         _arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         match this_value.bind(gc.nogc()) {
             // 1. If the this value is undefined, return "[object Undefined]".
             Value::Undefined => Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
@@ -208,7 +216,9 @@ impl ObjectPrototype {
                         o.unbind(),
                         WellKnownSymbolIndexes::ToStringTag.into(),
                         gc.reborrow(),
-                    )?;
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
                     if let Ok(tag) = String::try_from(tag) {
                         let str = format!("[object {}]", tag.as_str(agent));
                         Ok(Value::from_string(agent, str, gc.into_nogc()))
@@ -229,7 +239,9 @@ impl ObjectPrototype {
                     o.unbind(),
                     WellKnownSymbolIndexes::ToStringTag.into(),
                     gc.reborrow(),
-                )?;
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 if let Ok(tag) = String::try_from(tag) {
                     let str = format!("[object {}]", tag.as_str(agent));
                     Ok(Value::from_string(agent, str, gc.into_nogc()))
@@ -247,11 +259,11 @@ impl ObjectPrototype {
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         to_object(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         // The Object prototype object:
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         // is %Object.prototype%.

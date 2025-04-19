@@ -76,7 +76,7 @@ use crate::{
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
         },
-        execution::{Environments, Realm, RealmIdentifier},
+        execution::{Environments, Realm, RealmRecord},
         scripts_and_modules::{
             script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
@@ -144,7 +144,7 @@ pub struct Heap {
     pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
     pub promises: Vec<Option<PromiseHeapData<'static>>>,
     pub proxys: Vec<Option<ProxyHeapData<'static>>>,
-    pub realms: Vec<Option<Realm<'static>>>,
+    pub realms: Vec<Option<RealmRecord<'static>>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData<'static>>>,
     #[cfg(feature = "set")]
@@ -178,6 +178,9 @@ pub struct Heap {
     pub strings: Vec<Option<StringHeapData>>,
     pub string_lookup_table: HashTable<HeapString<'static>>,
     pub string_hasher: ahash::RandomState,
+    /// Counts allocations for garbage collection triggering.
+    #[cfg(feature = "interleaved-gc")]
+    pub(crate) alloc_counter: usize,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -288,6 +291,8 @@ impl Heap {
             weak_refs: Vec::with_capacity(0),
             #[cfg(feature = "weak-refs")]
             weak_sets: Vec::with_capacity(0),
+            #[cfg(feature = "interleaved-gc")]
+            alloc_counter: 0,
         };
 
         for builtin_string in BUILTIN_STRINGS_LIST {
@@ -303,16 +308,20 @@ impl Heap {
         _: NoGcScope<'a, '_>,
     ) -> Module<'a> {
         self.modules.push(Some(module.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ModuleHeapData<'static>>>();
+        }
         Module::last(&self.modules)
     }
 
-    pub(crate) fn add_realm<'a>(
-        &mut self,
-        realm: Realm,
-        _: NoGcScope<'a, '_>,
-    ) -> RealmIdentifier<'a> {
+    pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
         self.realms.push(Some(realm.unbind()));
-        RealmIdentifier::last(&self.realms)
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<RealmRecord<'static>>>();
+        }
+        Realm::last(&self.realms)
     }
 
     pub(crate) fn add_script<'a>(
@@ -321,6 +330,10 @@ impl Heap {
         _: NoGcScope<'a, '_>,
     ) -> Script<'a> {
         self.scripts.push(Some(script.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
+        }
         Script::last(&self.scripts)
     }
 
@@ -420,6 +433,10 @@ impl Heap {
     pub unsafe fn alloc_number<'gc>(&mut self, number: f64) -> HeapNumber<'gc> {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
+        }
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
@@ -435,6 +452,10 @@ impl Heap {
             prototype: None,
         };
         self.objects.push(Some(object_data));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
+        }
         ObjectIndex::last(&self.objects).into()
     }
 
@@ -451,6 +472,10 @@ impl Heap {
             prototype: Some(prototype.unbind()),
         };
         self.objects.push(Some(object_data));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
+        }
         ObjectIndex::last(&self.objects).into()
     }
 }

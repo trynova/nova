@@ -114,10 +114,11 @@ impl AwaitReactionIdentifier<'_> {
                 agent.execution_context_stack.pop();
                 // 2. g. i. Assert: result is a throw completion.
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
-                agent[self]
-                    .return_promise_capability
-                    .clone()
-                    .reject(agent, err.value(), gc.nogc());
+                agent[self].return_promise_capability.clone().reject(
+                    agent,
+                    err.value().unbind(),
+                    gc.nogc(),
+                );
             }
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
@@ -198,6 +199,10 @@ pub(crate) struct AwaitReaction<'a> {
 impl<'a> CreateHeapData<AwaitReaction<'a>, AwaitReactionIdentifier<'a>> for Heap {
     fn create(&mut self, data: AwaitReaction<'a>) -> AwaitReactionIdentifier<'a> {
         self.await_reactions.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<AwaitReaction<'static>>>();
+        }
         AwaitReactionIdentifier::last(&self.await_reactions)
     }
 }

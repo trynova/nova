@@ -339,7 +339,7 @@ impl<'a> BigInt<'a> {
         base: Self,
         exponent: Self,
         gc: NoGcScope<'a, '_>,
-    ) -> JsResult<Self> {
+    ) -> JsResult<'a, Self> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
@@ -487,7 +487,12 @@ impl<'a> BigInt<'a> {
     }
 
     /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
-    pub(crate) fn divide(agent: &mut Agent, x: Self, y: Self, gc: NoGcScope) -> JsResult<Self> {
+    pub(crate) fn divide(
+        agent: &mut Agent,
+        x: Self,
+        y: Self,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
@@ -546,7 +551,12 @@ impl<'a> BigInt<'a> {
     }
 
     /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
-    pub(crate) fn remainder(agent: &mut Agent, n: Self, d: Self, gc: NoGcScope) -> JsResult<Self> {
+    pub(crate) fn remainder(
+        agent: &mut Agent,
+        n: Self,
+        d: Self,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         match (n, d) {
             (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
@@ -783,6 +793,10 @@ impl IndexMut<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
 impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
     fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
         self.bigints.push(Some(data));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<BigIntHeapData>>();
+        }
         BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
     }
 }

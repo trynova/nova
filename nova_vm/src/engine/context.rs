@@ -4,6 +4,8 @@
 
 use core::marker::PhantomData;
 
+use super::{Scoped, rootable::Rootable};
+
 /// # ZST type representing access to the garbage collector.
 ///
 /// Access to a garbage collected type's heap data should mainly require
@@ -367,15 +369,53 @@ pub unsafe trait Bindable: Sized {
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a>;
 }
 
+macro_rules! trivially_bindable {
+    ($self:ty) => {
+        // SAFETY: Trivially safe.
+        unsafe impl Bindable for $self {
+            type Of<'a> = $self;
+
+            #[inline(always)]
+            fn unbind(self) -> Self::Of<'static> {
+                self
+            }
+
+            #[inline(always)]
+            fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+                self
+            }
+        }
+    };
+}
+
+trivially_bindable!(());
+trivially_bindable!(bool);
+trivially_bindable!(i8);
+trivially_bindable!(u8);
+trivially_bindable!(i16);
+trivially_bindable!(u16);
+trivially_bindable!(i32);
+trivially_bindable!(u32);
+trivially_bindable!(i64);
+trivially_bindable!(u64);
+trivially_bindable!(isize);
+trivially_bindable!(usize);
+trivially_bindable!(f32);
+trivially_bindable!(f64);
+
 // SAFETY: Trivially safe.
-unsafe impl Bindable for () {
-    type Of<'a> = ();
+unsafe impl<'b, T: 'static + Rootable> Bindable for Scoped<'b, T> {
+    type Of<'a> = Scoped<'b, T>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {}
+    fn unbind(self) -> Self::Of<'static> {
+        self
+    }
 
     #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {}
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        self
+    }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.

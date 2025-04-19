@@ -14,7 +14,7 @@ use crate::{
             ArgumentsList, Builtin,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
     },
 };
@@ -81,14 +81,16 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let fraction_digits = arguments.get(0).bind(nogc);
         // Let x be ? ThisNumberValue(this value).
         let fraction_digits_is_undefined = fraction_digits.is_undefined();
-        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
+        let x = this_number_value(agent, this_value, nogc)
+            .unbind()?
+            .scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
-        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow())?;
+        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow()).unbind()?;
         // No GC can happen after this point.
         let gc = gc.into_nogc();
         let x = x.get(agent).bind(gc);
@@ -128,14 +130,16 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let fraction_digits = arguments.get(0).bind(nogc);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
+        let x = this_number_value(agent, this_value, nogc)
+            .unbind()?
+            .scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
         let fraction_digits_is_undefined = fraction_digits.is_undefined();
-        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow())?;
+        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow()).unbind()?;
         // No GC is possible after this point.
         let gc = gc.into_nogc();
         let x = x.get(agent).bind(gc);
@@ -174,7 +178,7 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
@@ -187,27 +191,27 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let precision = arguments.get(0).bind(nogc);
 
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, nogc)?;
+        let x = this_number_value(agent, this_value, nogc)
+            .unbind()?
+            .bind(nogc);
 
         // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x, nogc)
-                .unbind()
-                .into_value());
+            return Ok(Number::to_string_radix_10(agent, x.unbind(), gc.into_nogc()).into_value());
         }
 
         let x = x.scope(agent, nogc);
 
         // 3. Let p be ? ToIntegerOrInfinity(precision).
-        let p = to_integer_or_infinity(agent, precision.unbind(), gc.reborrow())?;
+        let p = to_integer_or_infinity(agent, precision.unbind(), gc.reborrow()).unbind()?;
         // No GC can occur after this point.
         let gc = gc.into_nogc();
 
@@ -434,7 +438,7 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.into_nogc();
         let x = this_number_value(agent, this_value, nogc)?;
         let radix = arguments.get(0).bind(nogc);
@@ -452,11 +456,11 @@ impl NumberPrototype {
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        this_number_value(agent, this_value, gc.nogc()).map(|result| result.unbind().into_value())
+    ) -> JsResult<'gc, Value<'gc>> {
+        this_number_value(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.number_prototype();
@@ -519,10 +523,10 @@ fn this_number_value<'gc>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'gc, '_>,
-) -> JsResult<Number<'gc>> {
+) -> JsResult<'gc, Number<'gc>> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
-        return Ok(value.unbind());
+        return Ok(value.bind(gc));
     }
     // 2. If value is an Object and value has a [[NumberData]] internal slot, then
     if let Ok(value) = PrimitiveObject::try_from(value) {
@@ -531,7 +535,7 @@ fn this_number_value<'gc>(
             // b. Assert: n is a Number.
             let n: Number = agent[value].data.try_into().unwrap();
             // c. Return n.
-            return Ok(n);
+            return Ok(n.bind(gc));
         }
     }
     // 3. Throw a TypeError exception.

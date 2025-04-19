@@ -545,11 +545,19 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn to_number<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<Number<'gc>> {
+    pub fn to_number<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Number<'gc>> {
         to_number(agent, self, gc)
     }
 
-    pub fn to_bigint<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<BigInt<'gc>> {
+    pub fn to_bigint<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, BigInt<'gc>> {
         to_big_int(agent, self, gc)
     }
 
@@ -557,27 +565,31 @@ impl<'a> Value<'a> {
         self,
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Numeric<'gc>> {
+    ) -> JsResult<'gc, Numeric<'gc>> {
         to_numeric(agent, self, gc)
     }
 
-    pub fn to_int32(self, agent: &mut Agent, gc: GcScope) -> JsResult<i32> {
+    pub fn to_int32<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i32> {
         to_int32(agent, self, gc)
     }
 
-    pub fn to_uint32(self, agent: &mut Agent, gc: GcScope) -> JsResult<u32> {
+    pub fn to_uint32<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u32> {
         to_uint32(agent, self, gc)
     }
 
-    pub fn to_int16(self, agent: &mut Agent, gc: GcScope) -> JsResult<i16> {
+    pub fn to_int16<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i16> {
         to_int16(agent, self, gc)
     }
 
-    pub fn to_uint16(self, agent: &mut Agent, gc: GcScope) -> JsResult<u16> {
+    pub fn to_uint16<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u16> {
         to_uint16(agent, self, gc)
     }
 
-    pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<String<'gc>> {
+    pub fn to_string<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, String<'gc>> {
         to_string(agent, self, gc)
     }
 
@@ -585,7 +597,7 @@ impl<'a> Value<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<JsResult<String<'gc>>> {
+    ) -> TryResult<JsResult<'gc, String<'gc>>> {
         try_to_string(agent, self, gc)
     }
 
@@ -625,7 +637,7 @@ impl<'a> Value<'a> {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent, gc: GcScope) -> JsResult<f64> {
+    pub fn to_real<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, f64> {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,

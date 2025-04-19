@@ -10,7 +10,7 @@ use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
@@ -45,7 +45,7 @@ impl ProxyConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let target = arguments.get(0).bind(gc);
         let handler = arguments.get(1).bind(gc);
@@ -66,11 +66,11 @@ impl ProxyConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ProxyConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_builtin_function_property::<ProxyRevocable>()

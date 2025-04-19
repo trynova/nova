@@ -8,7 +8,7 @@ use crate::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -53,13 +53,13 @@ impl GeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Generator expected",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
 
@@ -72,7 +72,7 @@ impl GeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
@@ -129,13 +129,13 @@ impl GeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Generator expected",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
 
@@ -147,7 +147,7 @@ impl GeneratorPrototype {
             .into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let iterator_prototype = intrinsics.iterator_prototype();
         let generator_function_prototype = intrinsics.generator_function_prototype();

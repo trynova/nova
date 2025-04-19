@@ -7,7 +7,7 @@ use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
@@ -32,11 +32,11 @@ impl WeakRefConstructor {
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let weak_ref_prototype = intrinsics.weak_ref_prototype();
 

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::RealmIdentifier;
+use super::Realm;
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::keyed_collections::set_objects::{
     set_constructor::SetConstructor,
@@ -269,11 +269,7 @@ impl Intrinsics {
         }
     }
 
-    pub(crate) fn create_intrinsics(
-        agent: &mut Agent,
-        realm: RealmIdentifier<'static>,
-        gc: NoGcScope,
-    ) {
+    pub(crate) fn create_intrinsics(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         GlobalObject::create_intrinsic(agent, realm);
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);

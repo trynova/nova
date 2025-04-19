@@ -15,7 +15,7 @@ use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
@@ -79,22 +79,22 @@ impl NumberConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let value = arguments.get(0).bind(nogc);
-        let mut new_target = new_target.map(|n| n.bind(nogc));
+        let mut new_target = new_target.bind(nogc);
 
         // 1. If value is present, then
         let n = if !value.is_undefined() {
             // a. Let prim be ? ToNumeric(value).
             let prim = if let Ok(prim) = Primitive::try_from(value) {
-                to_numeric_primitive(agent, prim, nogc)?
+                to_numeric_primitive(agent, prim, nogc).unbind()?.bind(nogc)
             } else {
                 let scoped_new_target = new_target.map(|n| n.scope(agent, nogc));
                 let prim = value
                     .unbind()
-                    .to_numeric(agent, gc.reborrow())?
-                    .unbind()
+                    .to_numeric(agent, gc.reborrow())
+                    .unbind()?
                     .bind(gc.nogc());
                 new_target = scoped_new_target.map(|n| n.get(agent));
                 prim
@@ -134,12 +134,16 @@ impl NumberConstructor {
         let new_target = Function::try_from(new_target).unwrap();
 
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
-        let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
-            agent,
-            new_target.unbind(),
-            ProtoIntrinsics::Number,
-            gc.reborrow(),
-        )?)
+        let o = PrimitiveObject::try_from(
+            ordinary_create_from_constructor(
+                agent,
+                new_target.unbind(),
+                ProtoIntrinsics::Number,
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc()),
+        )
         .unwrap();
         let n = n.get(agent).unbind();
         // 5. Set O.[[NumberData]] to n.
@@ -158,7 +162,7 @@ impl NumberConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let maybe_number = arguments.get(0).bind(gc);
 
@@ -178,7 +182,7 @@ impl NumberConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let maybe_number = arguments.get(0).bind(gc);
 
@@ -192,7 +196,7 @@ impl NumberConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let maybe_number = arguments.get(0).bind(gc);
 
@@ -212,7 +216,7 @@ impl NumberConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let maybe_number = arguments.get(0).bind(gc);
 
@@ -224,11 +228,7 @@ impl NumberConstructor {
         Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier<'static>,
-        gc: NoGcScope,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
         let parse_float = intrinsics.parse_float().into_value();

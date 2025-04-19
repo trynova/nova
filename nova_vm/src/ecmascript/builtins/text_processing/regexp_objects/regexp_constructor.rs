@@ -10,7 +10,7 @@ use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::IntoObject;
@@ -50,7 +50,7 @@ impl RegExpConstructor {
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!();
     }
 
@@ -59,11 +59,11 @@ impl RegExpConstructor {
         this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         Ok(this_value.unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let regexp_prototype = intrinsics.reg_exp_prototype();
 

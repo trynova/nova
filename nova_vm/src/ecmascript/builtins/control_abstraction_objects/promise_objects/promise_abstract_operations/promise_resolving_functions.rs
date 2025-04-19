@@ -182,12 +182,12 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         function_try_has_property(self, agent, property_key, gc)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
@@ -207,7 +207,7 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -222,14 +222,14 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -256,7 +256,7 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         _this_value: Value,
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let arguments_list = arguments_list.get(0).bind(gc.nogc());
         let promise_capability = agent[self].promise_capability.clone();
         match agent[self].resolve_type {
@@ -342,6 +342,11 @@ impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseReso
         data: PromiseResolvingFunctionHeapData<'a>,
     ) -> BuiltinPromiseResolvingFunction<'a> {
         self.promise_resolving_functions.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter +=
+                core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();
+        }
         BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
 }

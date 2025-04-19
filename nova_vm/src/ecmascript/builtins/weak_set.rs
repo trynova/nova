@@ -149,7 +149,10 @@ impl TryFrom<HeapRootData> for WeakSet<'_> {
 impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
     fn create(&mut self, data: WeakSetHeapData<'a>) -> WeakSet<'a> {
         self.weak_sets.push(Some(data.unbind()));
-        // TODO: The type should be checked based on data or something equally stupid
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<WeakSetHeapData<'static>>>();
+        }
         WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }

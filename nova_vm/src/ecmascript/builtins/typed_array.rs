@@ -21,7 +21,7 @@ use crate::{
     engine::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, Scopable},
+        rootable::HeapRootData,
         unwrap_try,
     },
     heap::{
@@ -427,12 +427,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.3 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-hasproperty)
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         if let PropertyKey::Integer(_) = property_key {
             Ok(unwrap_try(self.try_has_property(
                 agent,
@@ -506,13 +506,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.4 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-typedarray-defineownproperty)
-    fn internal_define_own_property(
+    fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let o = self.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
         // 1. If P is a String, then
@@ -615,36 +615,48 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let o = self.bind(gc.nogc());
+        let property_key = property_key.bind(gc.nogc());
+        let receiver = receiver.bind(gc.nogc());
+
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
         if property_key.is_array_index() {
             Ok(unwrap_try(self.try_get(
                 agent,
-                property_key,
-                receiver,
+                property_key.unbind(),
+                receiver.unbind(),
                 gc.into_nogc(),
             )))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
-                Some(backing_object) => {
-                    ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
-                }
+                Some(backing_object) => ordinary_get(
+                    agent,
+                    backing_object,
+                    property_key.unbind(),
+                    receiver.unbind(),
+                    gc,
+                ),
                 None => {
-                    let property_key = property_key.scope(agent, gc.nogc());
                     // a. Let parent be ? O.[[GetPrototypeOf]]().
-                    let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
+                    // Note: [[GetPrototypeOf]] of TypedArray cannot call into
+                    // JavaScript.
+                    let Some(parent) = unwrap_try(o.try_get_prototype_of(agent, gc.nogc())) else {
                         // b. If parent is null, return undefined.
                         return Ok(Value::Undefined);
                     };
 
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent
-                        .unbind()
-                        .internal_get(agent, property_key.get(agent), receiver, gc)
+                    parent.unbind().internal_get(
+                        agent,
+                        property_key.unbind(),
+                        receiver.unbind(),
+                        gc,
+                    )
                 }
             }
         }
@@ -683,14 +695,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
@@ -843,6 +855,10 @@ impl TryFrom<HeapRootData> for TypedArray<'_> {
 impl<'a> CreateHeapData<TypedArrayHeapData<'a>, TypedArray<'a>> for Heap {
     fn create(&mut self, data: TypedArrayHeapData<'a>) -> TypedArray<'a> {
         self.typed_arrays.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<TypedArrayHeapData<'static>>>();
+        }
         // TODO: The type should be checked based on data or something equally stupid
         TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
     }

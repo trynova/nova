@@ -141,15 +141,20 @@ impl<'a> PromiseCapability<'a> {
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
     pub fn resolve(self, agent: &mut Agent, resolution: Value, mut gc: GcScope) {
+        let promise_capability = self.bind(gc.nogc());
+        let resolution = resolution.bind(gc.nogc());
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
         // 4. Let alreadyResolved be F.[[AlreadyResolved]].
         // 5. If alreadyResolved.[[Value]] is true, return undefined.
-        if self.is_already_resolved(agent) {
+        if promise_capability.is_already_resolved(agent) {
             return;
         }
-        let PromiseCapability { promise, .. } = self;
+        let PromiseCapability {
+            promise,
+            must_be_unresolved,
+        } = promise_capability;
         let promise = promise.bind(gc.nogc());
         // 6. Set alreadyResolved.[[Value]] to true.
         promise.set_already_resolved(agent);
@@ -165,7 +170,7 @@ impl<'a> PromiseCapability<'a> {
                     gc.nogc(),
                 )
                 .unbind();
-            self.internal_reject(agent, exception, gc.nogc());
+            promise_capability.internal_reject(agent, exception, gc.nogc());
             // c. Return undefined.
             return;
         }
@@ -173,16 +178,17 @@ impl<'a> PromiseCapability<'a> {
         // 8. If resolution is not an Object, then
         let Ok(resolution) = Object::try_from(resolution) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution, gc.nogc());
+            promise_capability.internal_fulfill(agent, resolution, gc.nogc());
             // b. Return undefined.
             return;
         };
 
         let promise = promise.scope(agent, gc.nogc());
+        let scoped_resolution = resolution.scope(agent, gc.nogc());
         // 9. Let then be Completion(Get(resolution, "then")).
         let then_action = match get(
             agent,
-            resolution,
+            resolution.unbind(),
             BUILTIN_STRING_MEMORY.then.into(),
             gc.reborrow(),
         ) {
@@ -191,17 +197,26 @@ impl<'a> PromiseCapability<'a> {
             // 10. If then is an abrupt completion, then
             Err(err) => {
                 // a. Perform RejectPromise(promise, then.[[Value]]).
-                self.internal_reject(agent, err.value(), gc.nogc());
+                PromiseCapability {
+                    promise: promise.get(agent),
+                    must_be_unresolved,
+                }
+                .internal_reject(agent, err.value().unbind(), gc.nogc());
                 // b. Return undefined.
                 return;
             }
         };
 
+        let resolution = scoped_resolution.get(agent).bind(gc.nogc());
         // 12. If IsCallable(thenAction) is false, then
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value(), gc.nogc());
+            PromiseCapability {
+                promise: promise.get(agent),
+                must_be_unresolved,
+            }
+            .internal_fulfill(agent, resolution.into_value().unbind(), gc.nogc());
             // b. Return undefined.
             return;
         };

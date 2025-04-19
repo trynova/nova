@@ -53,7 +53,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Object<'a>> {
+    ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -65,7 +65,7 @@ impl Generator<'_> {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "The generator is currently running",
-                    gc.nogc(),
+                    gc.into_nogc(),
                 ));
             }
             GeneratorState::Completed => {
@@ -105,8 +105,8 @@ impl Generator<'_> {
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
-            VmOrArguments::Arguments(args) => {
-                Vm::execute(agent, executable.clone(), Some(&args), gc.reborrow())
+            VmOrArguments::Arguments(mut args) => {
+                Vm::execute(agent, executable.clone(), Some(&mut args), gc.reborrow())
             }
             VmOrArguments::Vm(vm) => {
                 vm.resume(agent, executable.clone(), value.unbind(), gc.reborrow())
@@ -152,7 +152,7 @@ impl Generator<'_> {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
-                Err(err)
+                Err(err.unbind())
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 // Yield:
@@ -181,7 +181,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<Object<'a>> {
+    ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -264,7 +264,7 @@ impl Generator<'_> {
             }
             ExecutionResult::Throw(err) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
-                Err(err)
+                Err(err.unbind())
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 agent[self].generator_state =
@@ -349,6 +349,10 @@ impl<'a> InternalMethods<'a> for Generator<'a> {}
 impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
     fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
         self.generators.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<GeneratorHeapData<'static>>>();
+        }
         Generator(GeneratorIndex::last(&self.generators))
     }
 }
@@ -460,7 +464,7 @@ impl HeapMarkAndSweep for SuspendedGeneratorState {
         } = self;
         match vm_or_args {
             VmOrArguments::Vm(vm) => vm.sweep_values(compactions),
-            VmOrArguments::Arguments(args) => args.as_ref().sweep_values(compactions),
+            VmOrArguments::Arguments(args) => args.as_mut().sweep_values(compactions),
         }
         executable.sweep_values(compactions);
         execution_context.sweep_values(compactions);

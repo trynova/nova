@@ -469,7 +469,7 @@ impl Instr {
         &self,
         agent: &mut Agent,
         ip: usize,
-        exe: Scoped<'_, Executable>,
+        exe: Scoped<Executable>,
         gc: NoGcScope,
     ) {
         match self.kind.argument_count() {
@@ -503,7 +503,7 @@ impl Instr {
         agent: &mut Agent,
         kind: Instruction,
         arg: IndexType,
-        exe: Scoped<'_, Executable>,
+        exe: Scoped<Executable>,
         gc: NoGcScope,
     ) -> std::string::String {
         let index = arg as usize;
@@ -558,7 +558,7 @@ impl Instr {
         kind: Instruction,
         arg0: IndexType,
         arg1: IndexType,
-        exe: Scoped<'_, Executable>,
+        exe: Scoped<Executable>,
         gc: NoGcScope,
     ) -> std::string::String {
         let index0 = arg0 as usize;
@@ -594,7 +594,7 @@ impl Instr {
 
 fn debug_print_constant(
     agent: &mut Agent,
-    exe: Scoped<'_, Executable>,
+    exe: Scoped<Executable>,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
@@ -611,7 +611,7 @@ fn debug_print_constant(
 
 fn debug_print_identifier(
     agent: &Agent,
-    exe: Scoped<'_, Executable>,
+    exe: Scoped<Executable>,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {

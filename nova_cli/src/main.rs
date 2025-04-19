@@ -200,16 +200,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             host_hooks: &CliHostHooks,
                             result: JsResult<Value>,
                             mut gc: GcScope<'gc, '_>,
-                        ) -> JsResult<Value<'gc>> {
+                        ) -> JsResult<'gc, Value<'gc>> {
                             match result.bind(gc.nogc()) {
                                 Ok(result) => {
                                     let ok_result = result.unbind().scope(agent, gc.nogc());
                                     while let Some(job) = host_hooks.pop_promise_job() {
-                                        job.run(agent, gc.reborrow())?;
+                                        job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
                                     }
                                     Ok(ok_result.get(agent).bind(gc.into_nogc()))
                                 }
-                                Err(_) => result.bind(gc.into_nogc()),
+                                Err(_) => result.unbind(),
                             }
                         }
 
@@ -232,6 +232,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "Uncaught exception: {}",
                                     error
                                         .value()
+                                        .unbind()
                                         .string_repr(agent, gc.reborrow())
                                         .as_str(agent)
                                 );
@@ -311,10 +312,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Err(error) => {
                             eprintln!(
                                 "Uncaught exception: {}",
-                                error
-                                    .value()
-                                    .string_repr(agent, gc.reborrow())
-                                    .as_str(agent)
+                                error.value().unbind().string_repr(agent, gc).as_str(agent)
                             );
                         }
                     }

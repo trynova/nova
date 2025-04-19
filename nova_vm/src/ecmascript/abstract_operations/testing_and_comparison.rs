@@ -39,7 +39,7 @@ pub(crate) fn require_object_coercible<'gc>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'gc, '_>,
-) -> JsResult<Value<'gc>> {
+) -> JsResult<'gc, Value<'gc>> {
     if argument.is_undefined() || argument.is_null() {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -56,11 +56,11 @@ pub(crate) fn require_object_coercible<'gc>(
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array<'a>(
+pub(crate) fn is_array<'a, 'gc>(
     agent: &mut Agent,
     argument: impl IntoValue<'a>,
-    gc: NoGcScope,
-) -> JsResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     let argument = argument.into_value().bind(gc);
 
     match argument {
@@ -149,7 +149,11 @@ pub(crate) fn try_is_extensible(agent: &mut Agent, o: Object, gc: NoGcScope) -> 
 ///
 /// The abstract operation IsRegExp takes argument
 /// argument (an ECMAScript language value) and returns either a normal completion containing a Boolean or a throw completion.
-pub(crate) fn is_reg_exp(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<bool> {
+pub(crate) fn is_reg_exp<'a>(
+    agent: &mut Agent,
+    argument: Value,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     // 1. If argument is not an Object, return false.
     if !argument.is_object() {
         return Ok(false);
@@ -183,7 +187,11 @@ pub(crate) fn is_reg_exp(agent: &mut Agent, argument: Value, gc: GcScope) -> JsR
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn is_extensible(agent: &mut Agent, o: Object, gc: GcScope) -> JsResult<bool> {
+pub(crate) fn is_extensible<'a>(
+    agent: &mut Agent,
+    o: Object,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.internal_is_extensible(agent, gc)
 }
@@ -345,7 +353,7 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
     x: impl Into<Value<'a>> + Copy,
     y: impl Into<Value<'a>> + Copy,
     mut gc: GcScope,
-) -> JsResult<Option<bool>> {
+) -> JsResult<'a, Option<bool>> {
     let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
         (Ok(px), Ok(py)) => {
             let gc = gc.into_nogc();
@@ -353,16 +361,16 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
         }
         (Ok(px), Err(_)) => {
             let px = px.scope(agent, gc.nogc());
-            let py =
-                to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())?.unbind();
+            let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())
+                .unbind()?;
             let gc = gc.into_nogc();
             let px = px.get(agent);
             (px.bind(gc), py.bind(gc), gc)
         }
         (Err(_), Ok(py)) => {
             let py = py.scope(agent, gc.nogc());
-            let px =
-                to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())?.unbind();
+            let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())
+                .unbind()?;
             let gc = gc.into_nogc();
             let py = py.get(agent);
             (px.bind(gc), py.bind(gc), gc)
@@ -374,16 +382,16 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
                 // b. Let py be ? ToPrimitive(y, NUMBER).
                 let y: Value = y.into();
                 let y = y.scope(agent, gc.nogc());
-                let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())?
-                    .unbind()
+                let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())
+                    .unbind()?
                     .scope(agent, gc.nogc());
                 let py = to_primitive(
                     agent,
                     y.get(agent),
                     Some(PreferredType::Number),
                     gc.reborrow(),
-                )?
-                .unbind();
+                )
+                .unbind()?;
                 let gc = gc.into_nogc();
                 let px = px.get(agent);
                 (px.bind(gc), py.bind(gc), gc)
@@ -394,16 +402,16 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
                 // c. Let px be ? ToPrimitive(x, NUMBER).
                 let x: Value = x.into();
                 let x = x.scope(agent, gc.nogc());
-                let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())?
-                    .unbind()
+                let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())
+                    .unbind()?
                     .scope(agent, gc.nogc());
                 let px = to_primitive(
                     agent,
                     x.get(agent),
                     Some(PreferredType::Number),
                     gc.reborrow(),
-                )?
-                .unbind();
+                )
+                .unbind()?;
                 let gc = gc.into_nogc();
                 let py = py.get(agent);
                 (px.bind(gc), py.bind(gc), gc)
@@ -441,7 +449,7 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
             };
 
             // i. Let ny be StringToBigInt(py).
-            let ny = string_to_big_int(agent, py, gc)?;
+            let ny = string_to_big_int(agent, py, gc).unbind()?.bind(gc);
             // ii. If ny is undefined, return undefined.
             // iii. Return BigInt::lessThan(px, ny).
             return Ok(Some(BigInt::less_than(agent, px, ny)));
@@ -457,7 +465,7 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
             };
 
             // i. Let nx be StringToBigInt(px).
-            let nx = string_to_big_int(agent, px, gc)?;
+            let nx = string_to_big_int(agent, px, gc).unbind()?.bind(gc);
             // ii. If nx is undefined, return undefined.
             // iii. Return BigInt::lessThan(nx, py).
             return Ok(Some(BigInt::less_than(agent, nx, py)));
@@ -465,10 +473,10 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
         // d. Let nx be ? ToNumeric(px).
-        let nx = to_numeric_primitive(agent, px, gc)?;
+        let nx = to_numeric_primitive(agent, px, gc).unbind()?.bind(gc);
 
         // e. Let ny be ? ToNumeric(py).
-        let ny = to_numeric_primitive(agent, py, gc)?;
+        let ny = to_numeric_primitive(agent, py, gc).unbind()?.bind(gc);
 
         // f. If Type(nx) is Type(ny), then
         if is_same_type(nx, ny) {
@@ -548,8 +556,8 @@ pub(crate) fn is_loosely_equal<'a>(
     agent: &mut Agent,
     x: impl Into<Value<'a>> + Copy,
     y: impl Into<Value<'a>> + Copy,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -638,15 +646,19 @@ pub(crate) fn is_loosely_equal<'a>(
     // 11. If x is either a String, a Number, a BigInt, or a Symbol and y is an Object, return ! IsLooselyEqual(x, ? ToPrimitive(y)).
     if (x.is_string() || x.is_number() || x.is_bigint() || x.is_symbol()) && y.is_object() {
         let x = x.scope(agent, gc.nogc());
-        let y = to_primitive(agent, y, None, gc.reborrow())?.unbind();
-        return Ok(is_loosely_equal(agent, x.get(agent), y, gc).unwrap());
+        let y = to_primitive(agent, y, None, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        return Ok(is_loosely_equal(agent, x.get(agent), y.unbind(), gc).unwrap());
     }
 
     // 12. If x is an Object and y is either a String, a Number, a BigInt, or a Symbol, return ! IsLooselyEqual(? ToPrimitive(x), y).
     if x.is_object() && (y.is_string() || y.is_number() || y.is_bigint() || y.is_symbol()) {
         let y = y.scope(agent, gc.nogc());
-        let x = to_primitive(agent, x, None, gc.reborrow())?.unbind();
-        return Ok(is_loosely_equal(agent, x, y.get(agent), gc).unwrap());
+        let x = to_primitive(agent, x, None, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        return Ok(is_loosely_equal(agent, x.unbind(), y.get(agent), gc).unwrap());
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then

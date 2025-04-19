@@ -109,7 +109,7 @@ pub(crate) fn bound_function_create<'a>(
     bound_this: Value,
     bound_args: &[Value],
     mut gc: GcScope<'a, '_>,
-) -> JsResult<BoundFunction<'a>> {
+) -> JsResult<'a, BoundFunction<'a>> {
     let mut target_function = target_function.bind(gc.nogc());
     // 1. Let proto be ? targetFunction.[[GetPrototypeOf]]().
     let proto = if let TryResult::Continue(proto) =
@@ -120,9 +120,9 @@ pub(crate) fn bound_function_create<'a>(
         let scoped_target_function = target_function.scope(agent, gc.nogc());
         let proto = target_function
             .unbind()
-            .internal_get_prototype_of(agent, gc.reborrow())?
-            .map(|p| p.unbind())
-            .map(|p| p.bind(gc.nogc()));
+            .internal_get_prototype_of(agent, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         target_function = scoped_target_function.get(agent).bind(gc.nogc());
         proto
     };
@@ -231,12 +231,12 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_try_has_property(self, agent, property_key, gc)
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
@@ -256,7 +256,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -271,14 +271,14 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -312,14 +312,15 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         _: Value,
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
+        let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[self].bound_target_function;
+        let target = agent[f].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].
-        let bound_this = agent[self].bound_this;
+        let bound_this = agent[f].bound_this;
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = agent[self].bound_arguments;
+        let bound_args = agent[f].bound_arguments;
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
@@ -361,7 +362,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         arguments_list: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Object<'gc>> {
+    ) -> JsResult<'gc, Object<'gc>> {
         let arguments_list = arguments_list.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
@@ -434,6 +435,10 @@ impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'stati
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
         self.bound_functions.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<BoundFunctionHeapData<'static>>>();
+        }
         BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
     }
 }

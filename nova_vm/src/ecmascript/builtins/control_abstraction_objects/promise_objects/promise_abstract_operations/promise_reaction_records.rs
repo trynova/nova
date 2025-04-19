@@ -17,7 +17,9 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
-    heap::{CreateHeapData, Heap, HeapMarkAndSweep, indexes::BaseIndex},
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+    },
 };
 
 use super::promise_capability_records::PromiseCapability;
@@ -48,6 +50,28 @@ pub(crate) enum PromiseReactionHandler<'a> {
     Await(AwaitReactionIdentifier<'a>),
     AsyncGenerator(AsyncGenerator<'a>),
     Empty,
+}
+
+impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Self::JobCallback(function) => function.mark_values(queues),
+            Self::Await(await_reaction_identifier) => await_reaction_identifier.mark_values(queues),
+            Self::AsyncGenerator(async_generator) => async_generator.mark_values(queues),
+            Self::Empty => {}
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::JobCallback(function) => function.sweep_values(compactions),
+            Self::Await(await_reaction_identifier) => {
+                await_reaction_identifier.sweep_values(compactions)
+            }
+            Self::AsyncGenerator(async_generator) => async_generator.sweep_values(compactions),
+            Self::Empty => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -131,11 +155,11 @@ unsafe impl Bindable for PromiseReaction<'_> {
 }
 
 impl HeapMarkAndSweep for PromiseReaction<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.promise_reaction_records.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions
             .promise_reaction_records
             .shift_index(&mut self.0);
@@ -182,24 +206,34 @@ unsafe impl Bindable for PromiseReactionRecord<'_> {
 }
 
 impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        self.capability.mark_values(queues);
-        if let PromiseReactionHandler::JobCallback(_) = self.handler {
-            todo!();
-        }
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            capability,
+            reaction_type: _,
+            handler,
+        } = self;
+        capability.mark_values(queues);
+        handler.mark_values(queues);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        self.capability.sweep_values(compactions);
-        if let PromiseReactionHandler::JobCallback(_) = self.handler {
-            todo!();
-        }
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            capability,
+            reaction_type: _,
+            handler,
+        } = self;
+        capability.sweep_values(compactions);
+        handler.sweep_values(compactions);
     }
 }
 
 impl<'a> CreateHeapData<PromiseReactionRecord<'a>, PromiseReaction<'a>> for Heap {
     fn create(&mut self, data: PromiseReactionRecord<'a>) -> PromiseReaction<'a> {
         self.promise_reaction_records.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<PromiseReactionRecord<'static>>>();
+        }
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }
 }

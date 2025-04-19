@@ -38,7 +38,7 @@ fn object_prototype_tests() {
             panic!(
                 "Test '{}' failed: {:?}",
                 d.display(),
-                err.to_string(agent, gc).as_str(agent)
+                err.unbind().to_string(agent, gc).as_str(agent)
             )
         }
     });

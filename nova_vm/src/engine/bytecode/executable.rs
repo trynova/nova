@@ -107,13 +107,19 @@ pub(crate) struct ArrowFunctionExpression {
 }
 
 /// Reference to a heap-allocated executable VM bytecode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Executable<'a>(
     NonZeroU32,
     PhantomData<ExecutableHeapData<'static>>,
     PhantomData<&'a GcToken>,
 );
+
+impl core::fmt::Debug for Executable<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Executable({:?})", self.get_index())
+    }
+}
 
 const EXECUTABLE_OPTION_SIZE_IS_U32: () =
     assert!(size_of::<Executable<'_>>() == size_of::<Option<Executable<'_>>>());
@@ -466,6 +472,10 @@ impl Rootable for Executable<'_> {
 impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
     fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
         self.executables.push(data.unbind());
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ExecutableHeapData<'static>>>();
+        }
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         // SAFETY: After pushing to executables, the vector cannot be empty.
         Executable(

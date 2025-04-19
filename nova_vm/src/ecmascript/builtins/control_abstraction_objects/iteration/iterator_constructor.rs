@@ -9,7 +9,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::ordinary_create_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, Object, String, Value},
     },
     engine::context::{Bindable, GcScope},
@@ -33,13 +33,13 @@ impl IteratorConstructor {
         _args: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. If NewTarget is either undefined or the active function object, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Iterator Constructor requires 'new'",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         };
         if new_target
@@ -66,7 +66,7 @@ impl IteratorConstructor {
         .map(Into::into)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let iterator_prototype = intrinsics.iterator_prototype();
         let function_prototype = intrinsics.function_prototype();

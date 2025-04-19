@@ -158,7 +158,8 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
             bindings,
         } = self;
         outer_env.mark_values(queues);
-        for binding in bindings.values() {
+        for (key, binding) in bindings.iter() {
+            key.mark_values(queues);
             binding.value.mark_values(queues);
         }
     }
@@ -169,18 +170,28 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
             bindings,
         } = self;
         outer_env.sweep_values(compactions);
-        for binding in bindings.values_mut() {
+        let mut replacements = Vec::new();
+        // Sweep all binding values, while also sweeping keys and making note
+        // of all changes in them: Those need to be updated in a separate loop.
+        for (key, binding) in bindings.iter_mut() {
             binding.value.sweep_values(compactions);
-        }
-        let keys = bindings.keys().copied().collect::<Box<[_]>>();
-        for key in keys.iter() {
-            let mut new_key = *key;
-            new_key.sweep_values(compactions);
-            if *key != new_key {
-                let mut binding = bindings.remove(key).unwrap();
-                binding.value.sweep_values(compactions);
-                bindings.insert(new_key, binding);
+            if let String::String(old_key) = key {
+                let old_key = *old_key;
+                let mut new_key = old_key;
+                new_key.sweep_values(compactions);
+                if old_key != new_key {
+                    replacements.push((old_key, new_key));
+                }
             }
+        }
+        // Note: Replacement keys are in indeterminate order, we need to sort
+        // them so that "cascading" replacements are applied in the correct
+        // order.
+        replacements.sort();
+        for (old_key, new_key) in replacements.into_iter() {
+            let binding = bindings.remove(&old_key.into()).unwrap();
+            let did_insert = bindings.insert(new_key.into(), binding).is_none();
+            assert!(did_insert, "Failed to insert binding {:#?}", new_key);
         }
     }
 }
@@ -250,14 +261,14 @@ impl DeclarativeEnvironment<'_> {
     /// the value V. A binding for N normally already exists, but in rare cases
     /// it may not. If the binding is an immutable binding, a TypeError is
     /// thrown if S is true.
-    pub(crate) fn set_mutable_binding(
+    pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         mut is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<()> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &mut agent[self];
         // 1. If envRec does not have a binding for N, then
         let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
@@ -328,13 +339,13 @@ impl DeclarativeEnvironment<'_> {
     /// throw completion. It returns the value of its bound identifier whose
     /// name is N. If the binding exists but is uninitialized a ReferenceError
     /// is thrown, regardless of the value of S.
-    pub(crate) fn get_binding_value<'gc>(
+    pub(crate) fn get_binding_value<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {

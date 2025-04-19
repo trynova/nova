@@ -234,12 +234,12 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn internal_has_property(
+    fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -293,7 +293,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -354,14 +354,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn internal_set(
+    fn internal_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -466,6 +466,10 @@ impl HeapMarkAndSweep for Error<'static> {
 impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
     fn create(&mut self, data: ErrorHeapData<'a>) -> Error<'a> {
         self.errors.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ErrorHeapData<'static>>>();
+        }
         Error(ErrorIndex::last(&self.errors))
     }
 }

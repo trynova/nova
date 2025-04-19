@@ -10,15 +10,15 @@
 use ahash::AHashMap;
 
 use super::{
-    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, Realm, RealmIdentifier
+    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, RealmRecord, Realm
 };
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule},
-        types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+        types::{Function, IntoValue, Object, Reference, String, Symbol, Value, ValueRootRepr},
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -28,18 +28,18 @@ pub struct Options {
     pub print_internals: bool,
 }
 
-pub type JsResult<T> = core::result::Result<T, JsError>;
+pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct JsError(Value<'static>);
+pub struct JsError<'a>(Value<'a>);
 
-impl JsError {
-    pub(crate) fn new(value: Value<'static>) -> Self {
+impl<'a> JsError<'a> {
+    pub(crate) fn new(value: Value<'a>) -> Self {
         Self(value)
     }
 
-    pub fn value(self) -> Value<'static> {
+    pub fn value(self) -> Value<'a> {
         self.0
     }
 
@@ -49,21 +49,45 @@ impl JsError {
 }
 
 // SAFETY: Property implemented as a recursive bind.
-unsafe impl Bindable for JsError {
-    type Of<'a> = JsError;
+unsafe impl Bindable for JsError<'_> {
+    type Of<'a> = JsError<'a>;
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
-        self
+        JsError(self.value().unbind())
     }
 
     #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        JsError(self.value().bind(gc))
     }
 }
 
-impl HeapMarkAndSweep for JsError {
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(transparent)]
+pub struct JsErrorRootRepr(ValueRootRepr);
+
+impl Rootable for JsError<'_> {
+    type RootRepr = JsErrorRootRepr;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Value::to_root_repr(value.value()).map(JsErrorRootRepr)
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Value::from_root_repr(&value.0).map(JsError)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        JsErrorRootRepr(Value::from_heap_ref(heap_ref))
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        Value::from_heap_data(heap_data).map(JsError)
+    }
+}
+
+impl HeapMarkAndSweep for JsError<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         self.0.mark_values(queues);
     }
@@ -82,16 +106,16 @@ pub(crate) enum InnerJob {
 }
 
 pub struct Job {
-    pub(crate) realm: Option<RealmIdentifier<'static>>,
+    pub(crate) realm: Option<Realm<'static>>,
     pub(crate) inner: InnerJob,
 }
 
 impl Job {
-    fn realm(&self) -> Option<RealmIdentifier<'static>> {
+    fn realm(&self) -> Option<Realm<'static>> {
         self.realm
     }
 
-    pub fn run(self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
+    pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm(gc.nogc()) != realm {
@@ -125,7 +149,11 @@ pub enum PromiseRejectionTrackerOperation {
 
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
-    fn host_ensure_can_compile_strings(&self, _callee_realm: &mut Realm) -> JsResult<()> {
+    fn host_ensure_can_compile_strings<'a>(
+        &self,
+        _callee_realm: &mut RealmRecord,
+        _gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
         Ok(())
     }
@@ -160,7 +188,7 @@ pub trait HostHooks: core::fmt::Debug {
 /// collection on the Agent heap.
 pub struct GcAgent {
     agent: Agent,
-    realm_roots: Vec<Option<RealmIdentifier<'static>>>,
+    realm_roots: Vec<Option<Realm<'static>>>,
 }
 
 /// ECMAScript Realm root
@@ -183,7 +211,7 @@ impl GcAgent {
         }
     }
 
-    fn root_realm(&mut self, identifier: RealmIdentifier<'static>) -> RealmRoot {
+    fn root_realm(&mut self, identifier: Realm<'static>) -> RealmRoot {
         let index = if let Some((index, deleted_entry)) = self
             .realm_roots
             .iter_mut()
@@ -315,7 +343,7 @@ impl Agent {
         }
     }
 
-    fn get_created_realm_root(&mut self) -> RealmIdentifier<'static> {
+    fn get_created_realm_root(&mut self) -> Realm<'static> {
         assert!(!self.execution_context_stack.is_empty());
         let identifier = self.current_realm_id_internal();
         let _ = self.execution_context_stack.pop();
@@ -335,7 +363,7 @@ impl Agent {
         >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
         gc: GcScope<'gc, '_>,
-    ) -> RealmIdentifier<'gc> {
+    ) -> Realm<'gc> {
         initialize_host_defined_realm(
             self,
             create_global_object,
@@ -355,7 +383,7 @@ impl Agent {
             impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
         >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
-    ) -> RealmIdentifier<'static> {
+    ) -> Realm<'static> {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -372,7 +400,7 @@ impl Agent {
     /// Creates a default realm suitable for basic testing only.
     ///
     /// This is intended for usage within BuiltinFunction calls.
-    fn create_default_realm(&mut self) -> RealmIdentifier {
+    fn create_default_realm(&mut self) -> Realm {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -380,7 +408,7 @@ impl Agent {
         self.get_created_realm_root()
     }
 
-    pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
+    pub fn run_in_realm<F, R>(&mut self, realm: Realm, func: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
@@ -416,42 +444,42 @@ impl Agent {
     }
 
     /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
-    pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> RealmIdentifier<'a> {
+    pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> Realm<'a> {
         self.current_realm_id_internal().bind(gc)
     }
 
     /// Set the current executiono context's Realm.
-    pub(crate) fn set_current_realm(&mut self, realm: RealmIdentifier) {
+    pub(crate) fn set_current_realm(&mut self, realm: Realm) {
         self.execution_context_stack.last_mut().unwrap().realm = realm.unbind();
     }
 
     /// Internal method to get current Realm's identifier without binding.
-    pub(crate) fn current_realm_id_internal(&self) -> RealmIdentifier<'static> {
+    pub(crate) fn current_realm_id_internal(&self) -> Realm<'static> {
         self.execution_context_stack.last().unwrap().realm
     }
 
-    pub(crate) fn current_realm_record(&self) -> &Realm {
+    pub(crate) fn current_realm_record(&self) -> &RealmRecord {
         self.get_realm_record_by_id(self.current_realm_id_internal())
     }
 
-    pub(crate) fn current_realm_record_mut(&mut self) -> &mut Realm<'static> {
+    pub(crate) fn current_realm_record_mut(&mut self) -> &mut RealmRecord<'static> {
         self.get_realm_record_by_id_mut(self.current_realm_id_internal())
     }
 
-    pub(crate) fn get_realm_record_by_id(&self, id: RealmIdentifier) -> &Realm {
+    pub(crate) fn get_realm_record_by_id(&self, id: Realm) -> &RealmRecord {
         &self[id]
     }
 
-    fn get_realm_record_by_id_mut(&mut self, id: RealmIdentifier) -> &mut Realm<'static> {
+    fn get_realm_record_by_id_mut(&mut self, id: Realm) -> &mut RealmRecord<'static> {
         &mut self[id]
     }
 
-    pub fn create_exception_with_static_message(
+    pub fn create_exception_with_static_message<'a>(
         &mut self,
         kind: ExceptionType,
         message: &'static str,
-        gc: NoGcScope,
-    ) -> Value {
+        gc: NoGcScope<'a, '_>,
+    ) -> Value<'a> {
         let message = String::from_static_str(self, message, gc).unbind();
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
@@ -459,24 +487,24 @@ impl Agent {
     }
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
-    pub fn throw_exception_with_static_message(
+    pub fn throw_exception_with_static_message<'a>(
         &mut self,
         kind: ExceptionType,
         message: &'static str,
-        gc: NoGcScope,
-    ) -> JsError {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
         JsError(
             self.create_exception_with_static_message(kind, message, gc)
                 .unbind(),
         )
     }
 
-    pub fn throw_exception(
+    pub fn throw_exception<'a>(
         &mut self,
         kind: ExceptionType,
         message: std::string::String,
-        gc: NoGcScope,
-    ) -> JsError {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
         let message = String::from_string(self, message, gc).unbind();
         JsError(
             self.heap
@@ -485,15 +513,17 @@ impl Agent {
         )
     }
 
-    pub fn throw_exception_with_message(
+    pub fn throw_exception_with_message<'a>(
         &mut self,
         kind: ExceptionType,
         message: String,
-    ) -> JsError {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
-                .into_value(),
+                .into_value()
+                .bind(gc),
         )
     }
 
@@ -613,14 +643,20 @@ impl Agent {
         &mut self,
         source_text: String,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let realm = self.current_realm(gc.nogc());
         let script = match parse_script(self, source_text, realm, false, None, gc.nogc()) {
             Ok(script) => script,
             Err(err) => {
                 let message =
                     String::from_string(self, err.first().unwrap().message.to_string(), gc.nogc());
-                return Err(self.throw_exception_with_message(ExceptionType::SyntaxError, message));
+                return Err(self
+                    .throw_exception_with_message(
+                        ExceptionType::SyntaxError,
+                        message.unbind(),
+                        gc.into_nogc(),
+                    )
+                    .unbind());
             }
         };
         script_evaluation(self, script.unbind(), gc)
@@ -696,7 +732,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     name: String<'b>,
     env: Option<Environment>,
     gc: GcScope<'a, 'b>,
-) -> JsResult<Reference<'a>> {
+) -> JsResult<'a, Reference<'a>> {
     let name = name.bind(gc.nogc());
     let env = env
         .unwrap_or_else(|| {

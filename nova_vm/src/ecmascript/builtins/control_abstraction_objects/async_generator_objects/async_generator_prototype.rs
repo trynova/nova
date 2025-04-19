@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, Realm},
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
@@ -58,7 +58,7 @@ impl AsyncGeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let value = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
@@ -115,7 +115,7 @@ impl AsyncGeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let value = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
@@ -174,7 +174,7 @@ impl AsyncGeneratorPrototype {
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let exception = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
@@ -232,7 +232,7 @@ impl AsyncGeneratorPrototype {
         Ok(promise.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();

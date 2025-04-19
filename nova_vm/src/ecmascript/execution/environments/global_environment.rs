@@ -182,12 +182,12 @@ impl GlobalEnvironment<'_> {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
-    pub(crate) fn has_binding(
+    pub(crate) fn has_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -211,13 +211,13 @@ impl GlobalEnvironment<'_> {
     /// binding is created in the associated DeclarativeRecord. A binding for N
     /// must not already exist in the DeclarativeRecord. If D is true, the new
     /// binding is marked as being subject to deletion.
-    pub(crate) fn create_mutable_binding(
+    pub(crate) fn create_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: NoGcScope,
-    ) -> JsResult<()> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -242,13 +242,13 @@ impl GlobalEnvironment<'_> {
     /// uninitialized. A binding must not already exist in this Environment
     /// Record for N. If S is true, the new binding is marked as a strict
     /// binding.
-    pub(crate) fn create_immutable_binding(
+    pub(crate) fn create_immutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<()> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -272,13 +272,13 @@ impl GlobalEnvironment<'_> {
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V. An
     /// uninitialized binding for N must already exist.
-    pub(crate) fn try_initialize_binding(
+    pub(crate) fn try_initialize_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -304,13 +304,13 @@ impl GlobalEnvironment<'_> {
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V. An
     /// uninitialized binding for N must already exist.
-    pub(crate) fn initialize_binding(
+    pub(crate) fn initialize_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
         let name = name.bind(nogc);
         let value = value.bind(nogc);
@@ -341,14 +341,14 @@ impl GlobalEnvironment<'_> {
     /// If the binding is an immutable binding and S is true, a TypeError is
     /// thrown. A property named N normally already exists but if it does not
     /// or is not currently writable, error handling is determined by S.
-    pub(crate) fn try_set_mutable_binding(
+    pub(crate) fn try_set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -374,14 +374,14 @@ impl GlobalEnvironment<'_> {
     /// If the binding is an immutable binding and S is true, a TypeError is
     /// thrown. A property named N normally already exists but if it does not
     /// or is not currently writable, error handling is determined by S.
-    pub(crate) fn set_mutable_binding(
+    pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         is_strict: bool,
-        gc: GcScope,
-    ) -> JsResult<()> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
         let name = name.bind(nogc);
         let value = value.bind(nogc);
@@ -391,7 +391,13 @@ impl GlobalEnvironment<'_> {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
-            dcl_rec.set_mutable_binding(agent, name, value, is_strict, gc.nogc())
+            dcl_rec.set_mutable_binding(
+                agent,
+                name.unbind(),
+                value.unbind(),
+                is_strict,
+                gc.into_nogc(),
+            )
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -410,13 +416,13 @@ impl GlobalEnvironment<'_> {
     /// ReferenceError exception. A property named N normally already exists
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
-    pub(crate) fn try_get_binding_value<'gc>(
+    pub(crate) fn try_get_binding_value<'a>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<JsResult<Value<'gc>>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, Value<'a>>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -442,13 +448,13 @@ impl GlobalEnvironment<'_> {
     /// ReferenceError exception. A property named N normally already exists
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
-    pub(crate) fn get_binding_value<'gc>(
+    pub(crate) fn get_binding_value<'a>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
         let n = n.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -471,12 +477,12 @@ impl GlobalEnvironment<'_> {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It can only delete bindings
     /// that have been explicitly designated as being subject to deletion.
-    pub(crate) fn try_delete_binding(
+    pub(crate) fn try_delete_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<bool>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, bool>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -518,12 +524,12 @@ impl GlobalEnvironment<'_> {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It can only delete bindings
     /// that have been explicitly designated as being subject to deletion.
-    pub(crate) fn delete_binding(
+    pub(crate) fn delete_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        mut gc: GcScope,
-    ) -> JsResult<bool> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -541,7 +547,7 @@ impl GlobalEnvironment<'_> {
         let n = PropertyKey::from(name);
         let scoped_name = name.scope(agent, gc.nogc());
         let existing_prop =
-            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow())?;
+            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow()).unbind()?;
         // 6. If existingProp is true, then
         if existing_prop {
             // a. Let status be ? ObjRec.DeleteBinding(N).
@@ -673,12 +679,12 @@ impl GlobalEnvironment<'_> {
     /// completion containing a Boolean or a throw completion. It determines if
     /// the argument identifier is the name of a property of the global object
     /// that must not be shadowed by a global lexical binding.
-    pub(crate) fn has_restricted_global_property(
+    pub(crate) fn has_restricted_global_property<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope,
-    ) -> JsResult<bool> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -739,12 +745,12 @@ impl GlobalEnvironment<'_> {
     /// a corresponding CreateGlobalVarBinding call would succeed if called for
     /// the same argument N. Redundant var declarations and var declarations
     /// for pre-existing global object properties are allowed.
-    pub(crate) fn can_declare_global_var(
+    pub(crate) fn can_declare_global_var<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        mut gc: GcScope,
-    ) -> JsResult<bool> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -755,7 +761,7 @@ impl GlobalEnvironment<'_> {
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let has_property =
-            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow())?;
+            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow()).unbind()?;
         // 4. If hasProperty is true, return true.
         if has_property {
             Ok(true)
@@ -811,12 +817,12 @@ impl GlobalEnvironment<'_> {
     /// completion containing a Boolean or a throw completion. It determines if
     /// a corresponding CreateGlobalFunctionBinding call would succeed if
     /// called for the same argument N.
-    pub(crate) fn can_declare_global_function(
+    pub(crate) fn can_declare_global_function<'a>(
         self,
         agent: &mut Agent,
         name: String,
-        mut gc: GcScope,
-    ) -> JsResult<bool> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -826,10 +832,11 @@ impl GlobalEnvironment<'_> {
         let scoped_global_object = global_object.scope(agent, gc.nogc());
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop =
-            global_object
-                .unbind()
-                .internal_get_own_property(agent, n.unbind(), gc.reborrow())?;
+        let existing_prop = global_object
+            .unbind()
+            .internal_get_own_property(agent, n.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
         let Some(existing_prop) = existing_prop else {
             return is_extensible(agent, scoped_global_object.get(agent), gc);
@@ -857,13 +864,13 @@ impl GlobalEnvironment<'_> {
     /// associated Object Environment Record and records the bound name in the
     /// associated \[\[VarNames]] List. If a binding already exists, it is
     /// reused and assumed to be initialized.
-    pub(crate) fn try_create_global_var_binding(
+    pub(crate) fn try_create_global_var_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -904,13 +911,13 @@ impl GlobalEnvironment<'_> {
     /// associated Object Environment Record and records the bound name in the
     /// associated \[\[VarNames]] List. If a binding already exists, it is
     /// reused and assumed to be initialized.
-    pub(crate) fn create_global_var_binding(
+    pub(crate) fn create_global_var_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        mut gc: GcScope,
-    ) -> JsResult<()> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
         let name = name.bind(nogc);
         let env_rec = &agent[self];
@@ -923,14 +930,17 @@ impl GlobalEnvironment<'_> {
         let name = name.scope(agent, nogc);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property =
-            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow())?;
+            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow()).unbind()?;
         // 4. Let extensible be ? IsExtensible(globalObject).
         let extensible =
             is_extensible(agent, scoped_global_object.get(agent), gc.reborrow()).unwrap();
         // 5. If hasProperty is false and extensible is true, then
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            obj_rec.create_mutable_binding(agent, name.get(agent), is_deletable, gc.reborrow())?;
+            obj_rec
+                .create_mutable_binding(agent, name.get(agent), is_deletable, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
             obj_rec.initialize_binding(agent, name.get(agent), Value::Undefined, gc)?;
         }
@@ -954,14 +964,14 @@ impl GlobalEnvironment<'_> {
     /// mutable binding in the associated Object Environment Record and records
     /// the bound name in the associated [[VarNames]] List. If a binding
     /// already exists, it is replaced.
-    pub(crate) fn try_create_global_function_binding(
+    pub(crate) fn try_create_global_function_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         d: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<()>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> TryResult<JsResult<'a, ()>> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -1025,14 +1035,14 @@ impl GlobalEnvironment<'_> {
     /// mutable binding in the associated Object Environment Record and records
     /// the bound name in the associated [[VarNames]] List. If a binding
     /// already exists, it is replaced.
-    pub(crate) fn create_global_function_binding(
+    pub(crate) fn create_global_function_binding<'a>(
         self,
         agent: &mut Agent,
         name: String,
         value: Value,
         d: bool,
-        mut gc: GcScope,
-    ) -> JsResult<()> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
         let name = name.bind(nogc);
         let value = value.scope(agent, nogc);
@@ -1045,10 +1055,11 @@ impl GlobalEnvironment<'_> {
         let n = PropertyKey::from(name);
         let scoped_n = n.scope(agent, nogc);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop =
-            global_object
-                .unbind()
-                .internal_get_own_property(agent, n.unbind(), gc.reborrow())?;
+        let existing_prop = global_object
+            .unbind()
+            .internal_get_own_property(agent, n.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then
         let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
             // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.
@@ -1079,7 +1090,8 @@ impl GlobalEnvironment<'_> {
             scoped_n.get(agent),
             desc,
             gc.reborrow(),
-        )?;
+        )
+        .unbind()?;
         // 7. Perform ? Set(globalObject, N, V, false).
         set(
             agent,

@@ -23,12 +23,18 @@ use super::RootableCollection;
 /// current call context. This type is intended for cheap rooting of JavaScript
 /// Values that need to be used after calling into functions that may trigger
 /// garbage collection.
-#[derive(Debug, Hash, Clone)]
+#[derive(Hash, Clone)]
 #[repr(transparent)]
 pub struct Scoped<'a, T: 'static + Rootable> {
     pub(crate) inner: T::RootRepr,
     _marker: PhantomData<T>,
     _scope: PhantomData<&'a ScopeToken>,
+}
+
+impl<T: 'static + Rootable> core::fmt::Debug for Scoped<'_, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Scoped<{}>", core::any::type_name::<T>())
+    }
 }
 
 impl<T: 'static + Rootable> Scoped<'static, T> {

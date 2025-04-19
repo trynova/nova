@@ -13,7 +13,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array_buffer::allocate_array_buffer,
         },
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
             Value,
@@ -68,14 +68,14 @@ impl ArrayBufferConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Constructor ArrayBuffer requires 'new'",
-                nogc,
+                gc.into_nogc(),
             ));
         };
         let new_target = new_target.bind(nogc);
@@ -88,7 +88,7 @@ impl ArrayBufferConstructor {
         let (byte_length, new_target, requested_max_byte_length) =
             if let (Value::Integer(integer), true) = (length, options.is_none()) {
                 (
-                    validate_index(agent, integer.into_i64(), nogc)?,
+                    validate_index(agent, integer.into_i64(), nogc).unbind()?,
                     new_target,
                     None,
                 )
@@ -96,14 +96,15 @@ impl ArrayBufferConstructor {
                 let options = options.map(|o| o.scope(agent, nogc));
                 let new_target = new_target.scope(agent, nogc);
                 // 2. Let byteLength be ? ToIndex(length).
-                let byte_length = to_index(agent, length.unbind(), gc.reborrow())? as u64;
+                let byte_length = to_index(agent, length.unbind(), gc.reborrow()).unbind()? as u64;
                 // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
                 let requested_max_byte_length = if let Some(options) = options {
                     get_array_buffer_max_byte_length_option(
                         agent,
                         options.get(agent),
                         gc.reborrow(),
-                    )?
+                    )
+                    .unbind()?
                 } else {
                     None
                 };
@@ -129,13 +130,14 @@ impl ArrayBufferConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let arg = arguments.get(0).bind(gc.into_nogc());
         // 1. If arg is not an Object, return false.
         // 2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
         // 3. Return false.
         Ok(matches!(
-            arguments.get(0),
+            arg,
             Value::DataView(_)
                 | Value::Uint8Array(_)
                 | Value::Uint8ClampedArray(_)
@@ -168,13 +170,13 @@ impl ArrayBufferConstructor {
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return the this value.
         // The value of the "name" property of this function is "get [Symbol.species]".
         Ok(this_value.bind(gc.into_nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let array_buffer_prototype = intrinsics.array_buffer_prototype();
 
@@ -193,11 +195,11 @@ impl ArrayBufferConstructor {
 /// options (an ECMAScript language value) and returns either a normal
 /// completion containing either a non-negative integer or empty, or a throw
 /// completion.
-fn get_array_buffer_max_byte_length_option(
+fn get_array_buffer_max_byte_length_option<'a>(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope,
-) -> JsResult<Option<u64>> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Option<u64>> {
     // 1. If options is not an Object, return empty.
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
@@ -208,7 +210,9 @@ fn get_array_buffer_max_byte_length_option(
         options,
         BUILTIN_STRING_MEMORY.maxByteLength.into(),
         gc.reborrow(),
-    )?;
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 3. If maxByteLength is undefined, return empty.
     if max_byte_length.is_undefined() {
         Ok(None)

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Agent, Environment, PrivateEnvironment, RealmIdentifier};
+use super::{Agent, Environment, PrivateEnvironment, Realm};
 use crate::{
     ecmascript::{
         scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
@@ -80,7 +80,7 @@ pub(crate) struct ExecutionContext {
     ///
     /// The Realm Record from which associated code accesses ECMAScript
     /// resources.
-    pub realm: RealmIdentifier<'static>,
+    pub realm: Realm<'static>,
 
     /// ### ScriptOrModule
     ///

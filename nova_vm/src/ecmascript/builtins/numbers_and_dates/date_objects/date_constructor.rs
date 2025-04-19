@@ -16,7 +16,7 @@ use crate::ecmascript::builtins::{
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
@@ -78,7 +78,7 @@ impl DateConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let arg0 = arguments.get(0).bind(gc.nogc());
         let arg1 = arguments.get(1).scope(agent, gc.nogc());
         let arg2 = arguments.get(2).scope(agent, gc.nogc());
@@ -117,17 +117,21 @@ impl DateConstructor {
                 // c. Else,
                 else {
                     // i. Let v be ? ToPrimitive(value).
-                    let v = to_primitive(agent, value.unbind(), None, gc.reborrow())?.unbind();
+                    let v = to_primitive(agent, value.unbind(), None, gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
                     // ii. If v is a String, then
                     if let Ok(v) = String::try_from(v) {
                         // 1. Assert: The next step never returns an abrupt completion because v is a String.
                         // 2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (21.4.3.2).
-                        parse_date::parse(agent, v.as_str(agent)).unwrap()
+                        parse_date::parse(agent, v.as_str(agent))
                     }
                     // iii. Else,
                     else {
                         // 1. Let tv be ? ToNumber(v).
-                        to_number(agent, v, gc.reborrow())?.to_real(agent)
+                        to_number(agent, v.unbind(), gc.reborrow())
+                            .unbind()?
+                            .to_real(agent)
                     }
                 };
                 // d. Let dv be TimeClip(tv).
@@ -138,36 +142,50 @@ impl DateConstructor {
                 // a. Assert: numberOfArgs ≥ 2.
                 assert!(number_of_args >= 2);
                 // b. Let y be ? ToNumber(values[0]).
-                let y = to_number(agent, arg0.unbind(), gc.reborrow())?.to_real(agent);
+                let y = to_number(agent, arg0.unbind(), gc.reborrow())
+                    .unbind()?
+                    .to_real(agent);
                 // c. Let m be ? ToNumber(values[1]).
-                let m = to_number(agent, arg1.get(agent), gc.reborrow())?.to_real(agent);
+                let m = to_number(agent, arg1.get(agent), gc.reborrow())
+                    .unbind()?
+                    .to_real(agent);
                 // d. If numberOfArgs > 2, let dt be ? ToNumber(values[2]); else let dt be 1𝔽.
                 let dt = if number_of_args > 2 {
-                    to_number(agent, arg2.get(agent), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg2.get(agent), gc.reborrow())
+                        .unbind()?
+                        .to_real(agent)
                 } else {
                     1.0
                 };
                 // e. If numberOfArgs > 3, let h be ? ToNumber(values[3]); else let h be +0𝔽.
                 let h = if number_of_args > 3 {
-                    to_number(agent, arg3.get(agent), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg3.get(agent), gc.reborrow())
+                        .unbind()?
+                        .to_real(agent)
                 } else {
                     0.0
                 };
                 // f. If numberOfArgs > 4, let min be ? ToNumber(values[4]); else let min be +0𝔽.
                 let min = if number_of_args > 4 {
-                    to_number(agent, arg4.get(agent), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg4.get(agent), gc.reborrow())
+                        .unbind()?
+                        .to_real(agent)
                 } else {
                     0.0
                 };
                 // g. If numberOfArgs > 5, let s be ? ToNumber(values[5]); else let s be +0𝔽.
                 let s = if number_of_args > 5 {
-                    to_number(agent, arg5.get(agent), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg5.get(agent), gc.reborrow())
+                        .unbind()?
+                        .to_real(agent)
                 } else {
                     0.0
                 };
                 // h. If numberOfArgs > 6, let milli be ? ToNumber(values[6]); else let milli be +0𝔽.
                 let milli = if number_of_args > 6 {
-                    to_number(agent, arg6.get(agent), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg6.get(agent), gc.reborrow())
+                        .unbind()?
+                        .to_real(agent)
                 } else {
                     0.0
                 };
@@ -181,16 +199,17 @@ impl DateConstructor {
         };
 
         // 6. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Date.prototype%", « [[DateValue]] »).
-        let o = ordinary_create_from_constructor(
+        let o = Date::try_from(ordinary_create_from_constructor(
             agent,
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Date,
-            gc.reborrow(),
-        )?;
+            gc,
+        )?)
+        .unwrap();
         // 7. Set O.[[DateValue]] to dv.
-        agent[Date::try_from(o).unwrap()].date = dv;
+        agent[o].date = dv;
         // 8. Return O.
-        Ok(o.unbind().into_value())
+        Ok(o.into_value())
     }
 
     /// ### [21.4.3.1 Date.now ( )](https://tc39.es/ecma262/#sec-date.now1)
@@ -201,7 +220,7 @@ impl DateConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let time_value = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -259,9 +278,13 @@ impl DateConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let input = arguments.get(0).to_string(agent, gc.reborrow())?;
-        let parsed = parse_date::parse(agent, input.as_str(agent))?;
+    ) -> JsResult<'gc, Value<'gc>> {
+        let input = arguments
+            .get(0)
+            .to_string(agent, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let parsed = parse_date::parse(agent, input.as_str(agent));
         Ok(Value::from_f64(agent, parsed, gc.into_nogc()))
     }
 
@@ -276,7 +299,7 @@ impl DateConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let year = arguments.get(0).bind(gc.nogc());
         let month = arguments.get(1).scope(agent, gc.nogc());
         let date = arguments.get(2).scope(agent, gc.nogc());
@@ -285,40 +308,54 @@ impl DateConstructor {
         let seconds = arguments.get(5).scope(agent, gc.nogc());
         let ms = arguments.get(6).scope(agent, gc.nogc());
         // 1. Let y be ? ToNumber(year).
-        let y = to_number(agent, year.unbind(), gc.reborrow())?.to_real(agent);
+        let y = to_number(agent, year.unbind(), gc.reborrow())
+            .unbind()?
+            .to_real(agent);
         // 2. If month is present, let m be ? ToNumber(month); else let m be +0𝔽.
         let m = if arguments.len() > 1 {
-            to_number(agent, month.get(agent), gc.reborrow())?.to_real(agent)
+            to_number(agent, month.get(agent), gc.reborrow())
+                .unbind()?
+                .to_real(agent)
         } else {
             0.0
         };
         // 3. If date is present, let dt be ? ToNumber(date); else let dt be 1𝔽.
         let dt = if arguments.len() > 2 {
-            to_number(agent, date.get(agent), gc.reborrow())?.to_real(agent)
+            to_number(agent, date.get(agent), gc.reborrow())
+                .unbind()?
+                .to_real(agent)
         } else {
             1.0
         };
         // 4. If hours is present, let h be ? ToNumber(hours); else let h be +0𝔽.
         let h = if arguments.len() > 3 {
-            to_number(agent, hours.get(agent), gc.reborrow())?.to_real(agent)
+            to_number(agent, hours.get(agent), gc.reborrow())
+                .unbind()?
+                .to_real(agent)
         } else {
             0.0
         };
         // 5. If minutes is present, let min be ? ToNumber(minutes); else let min be +0𝔽.
         let min = if arguments.len() > 4 {
-            to_number(agent, minutes.get(agent), gc.reborrow())?.to_real(agent)
+            to_number(agent, minutes.get(agent), gc.reborrow())
+                .unbind()?
+                .to_real(agent)
         } else {
             0.0
         };
         // 6. If seconds is present, let s be ? ToNumber(seconds); else let s be +0𝔽.
         let s = if arguments.len() > 5 {
-            to_number(agent, seconds.get(agent), gc.reborrow())?.to_real(agent)
+            to_number(agent, seconds.get(agent), gc.reborrow())
+                .unbind()?
+                .to_real(agent)
         } else {
             0.0
         };
         // 7. If ms is present, let milli be ? ToNumber(ms); else let milli be +0𝔽.
         let milli = if arguments.len() > 6 {
-            to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent)
+            to_number(agent, ms.get(agent), gc.reborrow())
+                .unbind()?
+                .to_real(agent)
         } else {
             0.0
         };
@@ -328,7 +365,7 @@ impl DateConstructor {
         Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let date_prototype = intrinsics.date_prototype();
 
@@ -357,10 +394,10 @@ mod parse_date {
     ///
     /// [spec]: https://tc39.es/ecma262/#sec-date.parse
     /// [spec-format]: https://tc39.es/ecma262/#sec-date-time-string-format
-    pub fn parse(agent: &Agent, date: &str) -> JsResult<f64> {
+    pub fn parse(agent: &Agent, date: &str) -> f64 {
         // Date Time String Format: 'YYYY-MM-DDTHH:mm:ss.sssZ'
         if let Some(dt) = DateParser::new(agent, date).parse() {
-            return Ok(dt as f64);
+            return dt as f64;
         }
 
         // `toString` format: `Thu Jan 01 1970 00:00:00 GMT+0000`
@@ -376,7 +413,7 @@ mod parse_date {
         //     return Some(t.unix_timestamp() * 1000 + i64::from(t.millisecond()));
         // }
 
-        Ok(f64::NAN)
+        f64::NAN
     }
 
     /// Parses a date string according to the [`Date Time String Format`][spec].

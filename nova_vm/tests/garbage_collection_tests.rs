@@ -25,7 +25,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
         _this: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         if args.is_empty() {
             println!();
         } else {
@@ -39,11 +39,11 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
         BuiltinFunctionArgs::new(1, "print"),
         gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc()).unbind();
+    let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc());
     global
         .internal_define_own_property(
             agent,
-            property_key,
+            property_key.unbind(),
             PropertyDescriptor {
                 value: Some(function.into_value().unbind()),
                 ..Default::default()
@@ -93,7 +93,7 @@ fn garbage_collection_tests() {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
                 d.display(),
-                err.value().string_repr(agent, gc.reborrow()).as_str(agent)
+                err.value().unbind().string_repr(agent, gc).as_str(agent)
             )
         }
     });
@@ -110,7 +110,7 @@ fn garbage_collection_tests() {
                     "Loop index run {} '{}' failed: {:?}",
                     i,
                     d.display(),
-                    err.value().string_repr(agent, gc.reborrow()).as_str(agent)
+                    err.value().unbind().string_repr(agent, gc).as_str(agent)
                 )
             }
         });

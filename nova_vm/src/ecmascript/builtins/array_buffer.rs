@@ -82,7 +82,12 @@ impl ArrayBuffer<'_> {
         }
     }
 
-    pub fn detach(self, agent: &mut Agent, key: Option<DetachKey>, gc: NoGcScope) -> JsResult<()> {
+    pub fn detach<'a>(
+        self,
+        agent: &mut Agent,
+        key: Option<DetachKey>,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, ()> {
         detach_array_buffer(agent, self, key, gc)
     }
 
@@ -309,6 +314,10 @@ impl HeapMarkAndSweep for ArrayBuffer<'static> {
 impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
         self.array_buffers.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<ArrayBufferHeapData<'static>>>();
+        }
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }
 }

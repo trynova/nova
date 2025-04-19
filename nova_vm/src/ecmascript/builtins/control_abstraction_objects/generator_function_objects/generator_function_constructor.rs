@@ -12,7 +12,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::ordinary_object_create_with_intrinsics,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
         fundamental_objects::function_objects::function_constructor::{
             DynamicFunctionKind, create_dynamic_function,
         },
@@ -43,7 +43,7 @@ impl GeneratorFunctionConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let new_target = new_target.bind(gc.nogc());
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -70,8 +70,8 @@ impl GeneratorFunctionConstructor {
             parameter_args,
             body_arg.unbind(),
             gc.reborrow(),
-        )?
-        .unbind();
+        )
+        .unbind()?;
         let gc = gc.into_nogc();
         let f = f.bind(gc);
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
@@ -109,7 +109,7 @@ impl GeneratorFunctionConstructor {
         Ok(f.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let generator_function_prototype = intrinsics.generator_function_prototype();
 

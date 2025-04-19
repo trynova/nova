@@ -15,7 +15,7 @@ use crate::{
             },
         },
         execution::{
-            Agent, JsResult, RealmIdentifier,
+            Agent, JsResult, Realm,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
         types::{BUILTIN_STRING_MEMORY, Function, IntoValue, String, Value},
@@ -58,7 +58,7 @@ impl PromisePrototype {
         this_value: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
@@ -81,7 +81,7 @@ impl PromisePrototype {
         _this_value: Value,
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!()
     }
 
@@ -91,7 +91,7 @@ impl PromisePrototype {
         this_value: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let on_fulfilled = args.get(0).bind(gc);
         let on_rejected = args.get(1).bind(gc);
@@ -123,7 +123,7 @@ impl PromisePrototype {
         Ok(result_capability_promise.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.promise_prototype();

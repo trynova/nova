@@ -15,7 +15,7 @@ use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::Realm;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
@@ -63,7 +63,7 @@ impl ErrorConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         let message = arguments.get(0).bind(gc.nogc());
         let mut options = arguments.get(1).bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
@@ -75,8 +75,8 @@ impl ErrorConstructor {
             // a. Let msg be ? ToString(message).
             let scoped_options = options.scope(agent, gc.nogc());
             let scoped_new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
-            let message = to_string(agent, message.unbind(), gc.reborrow())?
-                .unbind()
+            let message = to_string(agent, message.unbind(), gc.reborrow())
+                .unbind()?
                 .scope(agent, gc.nogc());
             // SAFETY: Never shared.
             unsafe {
@@ -92,8 +92,8 @@ impl ErrorConstructor {
             None
         } else {
             let scoped_new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
-            let cause = get_error_cause(agent, options.unbind(), gc.reborrow())?
-                .unbind()
+            let cause = get_error_cause(agent, options.unbind(), gc.reborrow())
+                .unbind()?
                 .bind(gc.nogc());
             // SAFETY: Never shared.
             new_target = unsafe { scoped_new_target.map(|n| n.take(agent)).bind(gc.nogc()) };
@@ -111,8 +111,8 @@ impl ErrorConstructor {
             new_target.unbind(),
             ProtoIntrinsics::Error,
             gc.reborrow(),
-        )?
-        .unbind()
+        )
+        .unbind()?
         .bind(gc.into_nogc());
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
@@ -133,11 +133,11 @@ impl ErrorConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        is_error(_agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
+    ) -> JsResult<'gc, Value<'gc>> {
+        is_error(_agent, arguments.get(0), gc.into_nogc()).map(Value::Boolean)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
 
@@ -162,12 +162,12 @@ pub(super) fn get_error_cause<'gc>(
     agent: &mut Agent,
     options: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<Option<Value<'gc>>> {
+) -> JsResult<'gc, Option<Value<'gc>>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.cause);
-    if has_property(agent, options, key, gc.reborrow())? {
+    if has_property(agent, options, key, gc.reborrow()).unbind()? {
         Ok(Some(get(agent, options, key, gc)?))
     } else {
         Ok(None)
@@ -179,11 +179,11 @@ pub(super) fn get_error_cause<'gc>(
 /// The abstract operation IsError takes argument argument (an Ecmascript
 /// language value) and returns a Boolean. It returns a boolean indicating
 /// whether the argument is a built-in Error instance or not.
-pub(super) fn is_error<'a>(
+pub(super) fn is_error<'a, 'gc>(
     _agent: &mut Agent,
     argument: impl IntoValue<'a>,
-    gc: NoGcScope,
-) -> JsResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     let argument = argument.into_value().bind(gc);
     match argument {
         // 1. If argument is not an Object, return false.

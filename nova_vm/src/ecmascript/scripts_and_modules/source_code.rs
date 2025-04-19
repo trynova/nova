@@ -32,8 +32,14 @@ use crate::{
 
 type SourceCodeIndex<'a> = BaseIndex<'a, SourceCodeHeapData<'static>>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SourceCode<'a>(SourceCodeIndex<'a>);
+
+impl core::fmt::Debug for SourceCode<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "SourceCode({:?})", self.0.into_u32_index())
+    }
+}
 
 impl<'a> SourceCode<'a> {
     /// Parses the given source string as JavaScript code and returns the
@@ -221,6 +227,10 @@ impl Rootable for SourceCode<'_> {
 impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
     fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
         self.source_codes.push(Some(data.unbind()));
+        #[cfg(feature = "interleaved-gc")]
+        {
+            self.alloc_counter += core::mem::size_of::<Option<SourceCodeHeapData<'static>>>();
+        }
         SourceCode(SourceCodeIndex::last(&self.source_codes))
     }
 }

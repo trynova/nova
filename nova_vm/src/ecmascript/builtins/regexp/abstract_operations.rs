@@ -56,7 +56,7 @@ pub(crate) fn reg_exp_alloc<'a>(
     agent: &mut Agent,
     new_target: Function,
     gc: GcScope<'a, '_>,
-) -> JsResult<RegExp<'a>> {
+) -> JsResult<'a, RegExp<'a>> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
         agent,
@@ -83,7 +83,7 @@ pub(crate) fn reg_exp_initialize_from_string<'a>(
     p: String,
     flags: Option<RegExpFlags>,
     gc: GcScope<'a, '_>,
-) -> JsResult<RegExp<'a>> {
+) -> JsResult<'a, RegExp<'a>> {
     let obj = obj.bind(gc.nogc());
     let p = p.bind(gc.nogc());
     //     3. If flags is undefined, let F be the empty String.
@@ -132,7 +132,8 @@ pub(crate) fn reg_exp_initialize_from_string<'a>(
             0.into(),
             true,
             gc,
-        )?;
+        )
+        .unbind()?;
         Ok(RegExp::try_from(scoped_obj.get(agent)).unwrap())
     }
 }

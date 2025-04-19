@@ -70,7 +70,7 @@ use crate::{
         },
         execution::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-            ObjectEnvironment, PrivateEnvironment, RealmIdentifier,
+            ObjectEnvironment, PrivateEnvironment, Realm,
         },
         scripts_and_modules::{script::Script, source_code::SourceCode},
         types::{
@@ -132,7 +132,7 @@ mod private {
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, RealmIdentifier,
+                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, agent::JsError,
             },
             scripts_and_modules::{script::Script, source_code::SourceCode},
             types::{
@@ -179,7 +179,7 @@ mod private {
     impl RootableSealed for PromiseReaction<'_> {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy<'_> {}
-    impl RootableSealed for RealmIdentifier<'_> {}
+    impl RootableSealed for Realm<'_> {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp<'_> {}
     impl RootableSealed for Script<'_> {}
@@ -210,6 +210,8 @@ mod private {
     impl RootableSealed for ObjectEnvironment<'_> {}
     impl RootableSealed for PrivateEnvironment<'_> {}
     impl RootableSealed for Environment<'_> {}
+    // Errors are rootable as they're just a wrapper around Value.
+    impl RootableSealed for JsError<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {}
@@ -373,7 +375,7 @@ pub enum HeapRootData {
     // these in alphabetical order.
     Executable(Executable<'static>),
     PromiseReaction(PromiseReaction<'static>),
-    Realm(RealmIdentifier<'static>),
+    Realm(Realm<'static>),
     Script(Script<'static>),
     SourceCode(SourceCode<'static>),
     DeclarativeEnvironment(DeclarativeEnvironment<'static>),
@@ -769,8 +771,8 @@ impl HeapMarkAndSweep for HeapRootCollectionData {
             Self::ArgumentsList(slice) => {
                 slice.sweep_values(compactions);
             }
-            Self::ValueVec(values) => values.as_slice().sweep_values(compactions),
-            Self::PropertyKeyVec(items) => items.as_slice().sweep_values(compactions),
+            Self::ValueVec(values) => values.as_mut_slice().sweep_values(compactions),
+            Self::PropertyKeyVec(items) => items.as_mut_slice().sweep_values(compactions),
         }
     }
 }

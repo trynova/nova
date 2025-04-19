@@ -13,9 +13,7 @@ use crate::{
             OrdinaryFunctionCreateParams, make_constructor,
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
-        execution::{
-            Agent, Environment, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType,
-        },
+        execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         scripts_and_modules::source_code::SourceCode,
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
@@ -49,7 +47,7 @@ impl FunctionConstructor {
         arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
+    ) -> JsResult<'gc, Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into_value())
@@ -71,8 +69,8 @@ impl FunctionConstructor {
             parameter_args,
             body_arg,
             gc.reborrow(),
-        )?
-        .unbind()
+        )
+        .unbind()?
         .bind(gc.nogc());
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 32. Else if kind is normal, then
@@ -82,7 +80,7 @@ impl FunctionConstructor {
         Ok(f.into_value().unbind())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier<'static>) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype().into_object();
 
@@ -139,12 +137,13 @@ pub(crate) fn create_dynamic_function<'a>(
     parameter_args: &[Value],
     body_arg: Value,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<ECMAScriptFunction<'a>> {
+) -> JsResult<'a, ECMAScriptFunction<'a>> {
     let mut constructor = constructor.bind(gc.nogc());
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
-        .host_ensure_can_compile_strings(agent.current_realm_record_mut())?;
+        .host_ensure_can_compile_strings(agent.current_realm_record_mut(), gc.nogc())
+        .unbind()?;
 
     let source_string = {
         let parameter_strings_vec;
@@ -160,15 +159,17 @@ pub(crate) fn create_dynamic_function<'a>(
             let gc = gc.nogc();
             let mut parameter_strings = Vec::with_capacity(parameter_args.len());
             for param in parameter_args {
-                parameter_strings.push(to_string_primitive(
-                    agent,
-                    Primitive::try_from(*param).unwrap(),
-                    gc,
-                )?);
+                parameter_strings.push(
+                    to_string_primitive(agent, Primitive::try_from(*param).unwrap(), gc)
+                        .unbind()?
+                        .bind(gc),
+                );
             }
             parameter_strings_vec = parameter_strings;
             parameter_strings_slice = &parameter_strings_vec;
-            body_string = to_string_primitive(agent, Primitive::try_from(body_arg).unwrap(), gc)?;
+            body_string = to_string_primitive(agent, Primitive::try_from(body_arg).unwrap(), gc)
+                .unbind()?
+                .bind(gc);
         } else {
             // Some of the parameters are non-primitives. This means we'll be
             // calling into JavaScript during this work.
@@ -178,12 +179,12 @@ pub(crate) fn create_dynamic_function<'a>(
                 // Each parameter has to be rooted in case the next parameter
                 // or the body argument is the one that calls to JavaScript.
                 parameter_string_roots.push(
-                    to_string(agent, *param, gc.reborrow())?
-                        .unbind()
+                    to_string(agent, *param, gc.reborrow())
+                        .unbind()?
                         .scope(agent, gc.nogc()),
                 );
             }
-            let body_string_unbound = body_arg.to_string(agent, gc.reborrow())?.unbind();
+            let body_string_unbound = body_arg.to_string(agent, gc.reborrow()).unbind()?;
             // We've done all our potential JavaScript calling: Now we rest.
             let gc = gc.nogc();
             body_string = body_string_unbound.bind(gc);
@@ -283,7 +284,7 @@ pub(crate) fn create_dynamic_function<'a>(
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::SyntaxError,
                 "Invalid function source text.",
-                gc.nogc(),
+                gc.into_nogc(),
             ));
         }
     };
@@ -295,9 +296,9 @@ pub(crate) fn create_dynamic_function<'a>(
             constructor.unbind(),
             kind.intrinsic_prototype(),
             gc.reborrow(),
-        )?
-        .map(|p| p.unbind())
-        .map(|p| p.bind(gc.nogc())),
+        )
+        .unbind()?
+        .bind(gc.nogc()),
         // SAFETY: source_code was not shared.
         source_code: Some(unsafe { source_code.take(agent) }),
         source_text: function.span,
