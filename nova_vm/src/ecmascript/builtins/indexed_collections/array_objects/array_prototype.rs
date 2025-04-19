@@ -3199,15 +3199,10 @@ impl ArrayPrototype {
         //   a. Return ? CompareArrayElements(x, y, comparator).
         // 5. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare,
         // skip-holes).
-        let sorted_list: Vec<Scoped<Value>> = sort_indexed_properties::<true, false>(
-            agent,
-            obj.get(agent),
-            len,
-            comparator,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let sorted_list: Vec<Scoped<Value>> =
+            sort_indexed_properties::<true>(agent, obj.get(agent), len, comparator, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         // 6. Let itemCount be the number of elements in sortedList.
         let item_count = sorted_list.len();
         // 7. Let j be 0.
@@ -3569,14 +3564,9 @@ impl ArrayPrototype {
         // called:
         //   a. Return ? CompareArrayElements(x, y, comparator).
         // 6. Let sortedList be ? SortIndexedProperties(O, len, SortCompare, read-through-holes).
-        let sorted_list: Vec<Scoped<Value>> = sort_indexed_properties::<false, false>(
-            agent,
-            o.get(agent),
-            len,
-            comparator,
-            gc.reborrow(),
-        )
-        .unbind()?;
+        let sorted_list: Vec<Scoped<Value>> =
+            sort_indexed_properties::<false>(agent, o.get(agent), len, comparator, gc.reborrow())
+                .unbind()?;
         let gc = gc.into_nogc();
         // 7. Let j be 0.
         // 8. Repeat, while j < len,
@@ -4484,7 +4474,7 @@ fn flatten_into_array<'a>(
 /// > The above conditions are necessary and sufficient to ensure that
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
-fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
+fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool>(
     agent: &mut Agent,
     obj: Object,
     len: usize,
@@ -4526,27 +4516,24 @@ fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool, const TYPED_ARRA
     // SortCompare. If any such call returns an abrupt completion, stop before
     // performing any further calls to SortCompare and return that Completion
     // Record.
-    if TYPED_ARRAY {
-        items.sort_by(|_a, _b| compare_typed_array_elements());
-    } else {
-        let mut error: Option<JsError> = None;
-        items.sort_by(|a, b| {
-            if error.is_some() {
-                // This is dangerous but we don't have much of a choice.
-                return Ordering::Equal;
-            }
-            let result = compare_array_elements(agent, a, b, comparator.clone(), gc.reborrow());
-            match result {
-                Ok(result) => result,
-                Err(err) => {
-                    error = Some(err.unbind());
-                    Ordering::Equal
-                }
-            }
-        });
-        if let Some(error) = error {
-            return Err(error);
+
+    let mut error: Option<JsError> = None;
+    items.sort_by(|a, b| {
+        if error.is_some() {
+            // This is dangerous but we don't have much of a choice.
+            return Ordering::Equal;
         }
+        let result = compare_array_elements(agent, a, b, comparator.clone(), gc.reborrow());
+        match result {
+            Ok(result) => result,
+            Err(err) => {
+                error = Some(err.unbind());
+                Ordering::Equal
+            }
+        }
+    });
+    if let Some(error) = error {
+        return Err(error);
     }
     // 5. Return items.
     Ok(items)
@@ -4636,8 +4623,4 @@ fn compare_array_elements<'a>(
         // 11. Return +0𝔽.
         Ok(x.as_str(agent).cmp(y.as_str(agent)))
     }
-}
-
-fn compare_typed_array_elements() -> Ordering {
-    todo!();
 }

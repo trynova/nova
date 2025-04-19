@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive, float::TotalOrder};
 
 use crate::{
     SmallInteger,
@@ -33,14 +33,17 @@ use crate::{
             },
             typed_array::TypedArray,
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, JsError},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, IntoNumeric, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, U8Clamped, Value, Viewable,
+            BUILTIN_STRING_MEMORY, Function, IntoNumeric, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, U8Clamped, Value, Viewable,
         },
     },
     engine::{
-        TryResult,
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -2834,13 +2837,154 @@ impl TypedArrayPrototype {
         Ok(false.into())
     }
 
+    /// ### [23.2.3.29 %TypedArray%.prototype.sort ( comparator )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.sort)
+    /// This is a distinct method that, except as described below,
+    /// implements the same requirements as those of Array.prototype.sort as defined in 23.1.3.30.
+    /// The implementation of this method may be optimized with the knowledge that
+    /// the this value is an object that has a fixed length and whose integer-indexed properties are not sparse.
+    /// This method is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
     fn sort<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let comparator = arguments.get(0).bind(nogc);
+        // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
+        let comparator = if comparator.is_undefined() {
+            None
+        } else if let Some(comparator) = is_callable(comparator, nogc) {
+            Some(comparator.scope(agent, nogc))
+        } else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "The comparison function must be either a function or undefined",
+                gc.into_nogc(),
+            ));
+        };
+        // 2. Let obj be the this value.
+        let obj = this_value;
+        // 3. Let taRecord be ? ValidateTypedArray(obj, seq-cst).
+        let ta_record = validate_typed_array(agent, obj, Ordering::SeqCst, nogc)
+            .unbind()?
+            .bind(nogc);
+        let obj = ta_record.object;
+        // 4. Let len be TypedArrayLength(taRecord).
+        let len = match obj {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, nogc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
+        };
+        // 5. NOTE: The following closure performs a numeric comparison rather than the string comparison used in 23.1.3.30.
+        // 6. Let SortCompare be a new Abstract Closure with parameters (x, y) that captures comparator and performs the following steps when called:
+        //    a. Return ? CompareTypedArrayElements(x, y, comparator).
+        // 7. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare, read-through-holes).
+        let scoped_obj = obj.scope(agent, nogc);
+        if let Some(comparator) = comparator {
+            match scoped_obj.get(agent) {
+                TypedArray::Int8Array(_) => {
+                    sort_comparator_typed_array::<i8>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Uint8Array(_) => {
+                    sort_comparator_typed_array::<u8>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Uint8ClampedArray(_) => sort_comparator_typed_array::<U8Clamped>(
+                    agent,
+                    obj.unbind(),
+                    len,
+                    comparator,
+                    gc,
+                )?,
+                TypedArray::Int16Array(_) => {
+                    sort_comparator_typed_array::<i16>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Uint16Array(_) => {
+                    sort_comparator_typed_array::<u16>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Int32Array(_) => {
+                    sort_comparator_typed_array::<i32>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Uint32Array(_) => {
+                    sort_comparator_typed_array::<u32>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::BigInt64Array(_) => {
+                    sort_comparator_typed_array::<i64>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::BigUint64Array(_) => {
+                    sort_comparator_typed_array::<u64>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => {
+                    sort_comparator_typed_array::<f16>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Float32Array(_) => {
+                    sort_comparator_typed_array::<f32>(agent, obj.unbind(), len, comparator, gc)?
+                }
+                TypedArray::Float64Array(_) => {
+                    sort_comparator_typed_array::<f64>(agent, obj.unbind(), len, comparator, gc)?
+                }
+            };
+        } else {
+            let nogc = gc.into_nogc();
+            match scoped_obj.get(agent) {
+                TypedArray::Int8Array(_) => {
+                    sort_partial_cmp_typed_array::<i8>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Uint8Array(_) => {
+                    sort_partial_cmp_typed_array::<u8>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Uint8ClampedArray(_) => sort_partial_cmp_typed_array::<U8Clamped>(
+                    agent,
+                    scoped_obj.get(agent),
+                    len,
+                    nogc,
+                )?,
+                TypedArray::Int16Array(_) => {
+                    sort_partial_cmp_typed_array::<i16>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Uint16Array(_) => {
+                    sort_partial_cmp_typed_array::<u16>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Int32Array(_) => {
+                    sort_partial_cmp_typed_array::<i32>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Uint32Array(_) => {
+                    sort_partial_cmp_typed_array::<u32>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::BigInt64Array(_) => {
+                    sort_partial_cmp_typed_array::<i64>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::BigUint64Array(_) => {
+                    sort_partial_cmp_typed_array::<u64>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => {
+                    sort_partial_cmp_typed_array::<f16>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Float32Array(_) => {
+                    sort_total_cmp_typed_array::<f32>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+                TypedArray::Float64Array(_) => {
+                    sort_total_cmp_typed_array::<f64>(agent, scoped_obj.get(agent), len, nogc)?
+                }
+            };
+        };
+        // 10. Return obj.
+        let obj = scoped_obj.get(agent);
+        Ok(obj.into_value())
     }
 
     fn subarray<'gc>(
@@ -3373,4 +3517,169 @@ fn fill_typed_array<'a, T: Viewable>(
     slice.fill(value);
     // 20. Return O.
     Ok(ta)
+}
+
+fn sort_partial_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + PartialOrd>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    Ok(())
+}
+
+fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + 'static>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    slice.sort_by(|a, b| a.total_cmp(b));
+    Ok(())
+}
+
+fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    comparator: Scoped<'_, Function<'static>>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() || len == 0 {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc.into_nogc(),
+        ));
+    }
+    let slice = &mut slice[..len];
+    let mut items: Vec<T> = slice.to_vec();
+    let mut error: Option<JsError> = None;
+    items.sort_by(|a, b| {
+        if error.is_some() {
+            return std::cmp::Ordering::Equal;
+        }
+        let a_val = a.into_le_value(agent, gc.nogc()).into_value();
+        let b_val = b.into_le_value(agent, gc.nogc()).into_value();
+        let result = call_function(
+            agent,
+            comparator.get(agent),
+            Value::Undefined,
+            Some(ArgumentsList::from_mut_slice(&mut [
+                a_val.unbind(),
+                b_val.unbind(),
+            ])),
+            gc.reborrow(),
+        )
+        .unbind()
+        .map(|v| v.to_number(agent, gc.reborrow()))
+        .and_then(|r| r);
+        let num = match result {
+            Ok(n) => n,
+            Err(e) => {
+                error = Some(e.unbind());
+                return std::cmp::Ordering::Equal;
+            }
+        };
+        if num.is_nan(agent) {
+            std::cmp::Ordering::Equal
+        } else if num.is_sign_positive(agent) {
+            std::cmp::Ordering::Greater
+        } else if num.is_sign_negative(agent) {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    });
+    if let Some(error) = error {
+        return Err(error);
+    }
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    let len = len.min(slice.len());
+    let slice = &mut slice[..len];
+    let copy_len = items.len().min(len);
+    slice[..copy_len].copy_from_slice(&items[..copy_len]);
+    Ok(())
 }
