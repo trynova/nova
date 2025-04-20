@@ -8629,8 +8629,6 @@
   "built-ins/TypedArray/prototype/filter/BigInt/speciesctor-get-species-use-default-ctor.js": "CRASH",
   "built-ins/TypedArray/prototype/filter/BigInt/speciesctor-get-species.js": "CRASH",
   "built-ins/TypedArray/prototype/filter/callbackfn-called-before-species.js": "CRASH",
-  "built-ins/TypedArray/prototype/filter/callbackfn-detachbuffer.js": "CRASH",
-  "built-ins/TypedArray/prototype/filter/callbackfn-resize.js": "CRASH",
   "built-ins/TypedArray/prototype/filter/speciesctor-destination-resizable.js": "FAIL",
   "built-ins/TypedArray/prototype/filter/speciesctor-get-species-abrupt.js": "CRASH",
   "built-ins/TypedArray/prototype/filter/speciesctor-get-species-custom-ctor-invocation.js": "CRASH",

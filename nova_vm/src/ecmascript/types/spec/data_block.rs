@@ -9,7 +9,10 @@ use core::{
     ops::{Deref, DerefMut},
     ptr::{self, NonNull, read_unaligned, write_unaligned},
 };
-use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
+use std::{
+    alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc},
+    f32, f64,
+};
 
 use num_bigint::Sign;
 
@@ -169,6 +172,7 @@ pub trait Viewable: private::Sealed + Copy + PartialEq {
     /// Thus, this method must not do conversion, rounding, or clamping of
     /// numeric values.
     fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self>;
+    fn default() -> Self;
 }
 
 impl Viewable for u8 {
@@ -206,6 +210,10 @@ impl Viewable for u8 {
         };
         u8::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
 }
 impl Viewable for U8Clamped {
     #[cfg(feature = "array-buffer")]
@@ -241,6 +249,10 @@ impl Viewable for U8Clamped {
             return None;
         };
         u8::try_from(value.into_i64()).ok().map(U8Clamped)
+    }
+
+    fn default() -> Self {
+        U8Clamped(0)
     }
 }
 impl Viewable for i8 {
@@ -278,6 +290,10 @@ impl Viewable for i8 {
         };
         i8::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
 }
 impl Viewable for u16 {
     #[cfg(feature = "array-buffer")]
@@ -313,6 +329,10 @@ impl Viewable for u16 {
             return None;
         };
         u16::try_from(value.into_i64()).ok()
+    }
+
+    fn default() -> Self {
+        0
     }
 }
 impl Viewable for i16 {
@@ -350,6 +370,10 @@ impl Viewable for i16 {
         };
         i16::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
 }
 impl Viewable for u32 {
     #[cfg(feature = "array-buffer")]
@@ -386,6 +410,10 @@ impl Viewable for u32 {
         };
         u32::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
 }
 impl Viewable for i32 {
     #[cfg(feature = "array-buffer")]
@@ -421,6 +449,10 @@ impl Viewable for i32 {
             return None;
         };
         i32::try_from(value.into_i64()).ok()
+    }
+
+    fn default() -> Self {
+        0
     }
 }
 impl Viewable for u64 {
@@ -469,6 +501,10 @@ impl Viewable for u64 {
             return Some(value);
         };
         None
+    }
+
+    fn default() -> Self {
+        0
     }
 }
 impl Viewable for i64 {
@@ -524,6 +560,10 @@ impl Viewable for i64 {
         };
         None
     }
+
+    fn default() -> Self {
+        0
+    }
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
@@ -564,6 +604,9 @@ impl Viewable for f16 {
         } else {
             None
         }
+    }
+    fn default() -> Self {
+        f16::NAN
     }
 }
 impl Viewable for f32 {
@@ -606,6 +649,10 @@ impl Viewable for f32 {
             None
         }
     }
+
+    fn default() -> Self {
+        f32::NAN
+    }
 }
 impl Viewable for f64 {
     #[cfg(feature = "array-buffer")]
@@ -638,6 +685,10 @@ impl Viewable for f64 {
             return None;
         };
         Some(value.into_f64(agent))
+    }
+
+    fn default() -> Self {
+        f64::NAN
     }
 }
 

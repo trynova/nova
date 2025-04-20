@@ -1401,25 +1401,44 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = match exemplar {
-        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
-        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
-        TypedArray::Uint8ClampedArray(_) => agent
-            .current_realm_record()
-            .intrinsics()
-            .uint8_clamped_array(),
-        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
-        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
-        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
-        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
-        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
-        TypedArray::BigUint64Array(_) => {
+    let default_constructor = {
+        if TypeId::of::<T>() == TypeId::of::<i8>() {
+            agent.current_realm_record().intrinsics().int8_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u8>() {
+            agent.current_realm_record().intrinsics().uint8_array()
+        } else if TypeId::of::<T>() == TypeId::of::<U8Clamped>() {
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .uint8_clamped_array()
+        } else if TypeId::of::<T>() == TypeId::of::<i16>() {
+            agent.current_realm_record().intrinsics().int16_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u16>() {
+            agent.current_realm_record().intrinsics().uint16_array()
+        } else if TypeId::of::<T>() == TypeId::of::<i32>() {
+            agent.current_realm_record().intrinsics().int32_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u32>() {
+            agent.current_realm_record().intrinsics().uint32_array()
+        } else if TypeId::of::<T>() == TypeId::of::<i64>() {
+            agent.current_realm_record().intrinsics().big_int64_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u64>() {
             agent.current_realm_record().intrinsics().big_uint64_array()
+        } else if TypeId::of::<T>() == TypeId::of::<f32>() {
+            agent.current_realm_record().intrinsics().float32_array()
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f16>() {
+                    agent.current_realm_record().intrinsics().float16_array()
+                } else {
+                    agent.current_realm_record().intrinsics().float64_array()
+                }
+            }
+            #[cfg(not(feature = "proposal-float16array"))]
+            {
+                agent.current_realm_record().intrinsics().float64_array()
+            }
         }
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
-        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
-        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
     };
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
@@ -1441,8 +1460,7 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let scoped_result = result.scope(agent, gc.nogc());
-    let type_id_matches = match scoped_result.get(agent) {
+    let type_id_matches = match result {
         TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
         TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
         TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
@@ -1465,7 +1483,7 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
         ));
     }
     // 6. Return result.
-    Ok(scoped_result.get(agent))
+    Ok(result.unbind())
 }
 
 pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
@@ -1477,31 +1495,58 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = match exemplar {
-        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
-        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
-        TypedArray::Uint8ClampedArray(_) => agent
-            .current_realm_record()
-            .intrinsics()
-            .uint8_clamped_array(),
-        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
-        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
-        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
-        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
-        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
-        TypedArray::BigUint64Array(_) => {
+    let default_constructor = {
+        if TypeId::of::<T>() == TypeId::of::<i8>() {
+            agent.current_realm_record().intrinsics().int8_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u8>() {
+            agent.current_realm_record().intrinsics().uint8_array()
+        } else if TypeId::of::<T>() == TypeId::of::<U8Clamped>() {
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .uint8_clamped_array()
+        } else if TypeId::of::<T>() == TypeId::of::<i16>() {
+            agent.current_realm_record().intrinsics().int16_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u16>() {
+            agent.current_realm_record().intrinsics().uint16_array()
+        } else if TypeId::of::<T>() == TypeId::of::<i32>() {
+            agent.current_realm_record().intrinsics().int32_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u32>() {
+            agent.current_realm_record().intrinsics().uint32_array()
+        } else if TypeId::of::<T>() == TypeId::of::<i64>() {
+            agent.current_realm_record().intrinsics().big_int64_array()
+        } else if TypeId::of::<T>() == TypeId::of::<u64>() {
             agent.current_realm_record().intrinsics().big_uint64_array()
+        } else if TypeId::of::<T>() == TypeId::of::<f32>() {
+            agent.current_realm_record().intrinsics().float32_array()
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            {
+                if TypeId::of::<T>() == TypeId::of::<f16>() {
+                    agent.current_realm_record().intrinsics().float16_array()
+                } else {
+                    agent.current_realm_record().intrinsics().float64_array()
+                }
+            }
+            #[cfg(not(feature = "proposal-float16array"))]
+            {
+                agent.current_realm_record().intrinsics().float64_array()
+            }
         }
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
-        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
-        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
     };
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
+    let constructor = species_constructor(
+        agent,
+        exemplar.into_object(),
+        default_constructor.into_function(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     let result = typed_array_create_from_constructor_with_buffer(
         agent,
-        default_constructor.into_function(),
+        constructor.unbind(),
         array_buffer,
         byte_offset,
         length,
@@ -1511,8 +1556,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let scoped_result = result.scope(agent, gc.nogc());
-    let type_id_matches = match scoped_result.get(agent) {
+    let type_id_matches = match result {
         TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
         TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
         TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
@@ -1535,5 +1579,5 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
         ));
     }
     // 6. Return result.
-    Ok(scoped_result.get(agent).unbind())
+    Ok(result.unbind())
 }

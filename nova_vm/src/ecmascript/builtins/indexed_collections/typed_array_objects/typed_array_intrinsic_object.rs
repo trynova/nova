@@ -3933,7 +3933,7 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     Ok(())
 }
 
-fn filter_typed_array<'a, T: Viewable + 'static>(
+fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
     agent: &mut Agent,
     callback: Function<'_>,
     this_arg: Value,
@@ -3951,45 +3951,55 @@ fn filter_typed_array<'a, T: Viewable + 'static>(
     // 6. Let captured be 0.
     let mut kept: Vec<T> = Vec::with_capacity(len.try_into().unwrap());
     // 7. Let k be 0.
-    let mut k = 0;
     // 8. Repeat, while k < len,
-    while k < len {
-        // a. Let Pk be ! ToString(𝔽(k)).
-        let pk = k.try_into().unwrap();
-        // b. Let kValue be ! Get(O, Pk).
-        let k_value =
-            unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc())).scope(agent, gc.nogc());
-        // c. Let selected be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
+    // b. Let kValue be ! Get(O, Pk).
+    let ta = scoped_o.get(agent);
+    for k in 0..len {
+        let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
+        let byte_offset = ta.byte_offset(agent);
+        let byte_length = ta.byte_length(agent);
+        let byte_slice = array_buffer.as_slice(agent);
+        let byte_slice = if let Some(byte_length) = byte_length {
+            let end_index = byte_offset + byte_length;
+            if end_index <= byte_slice.len() {
+                &byte_slice[byte_offset..end_index]
+            } else {
+                &[]
+            }
+        } else {
+            &byte_slice[byte_offset..]
+        };
+        let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+        if !head.is_empty() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray is not properly aligned",
+                gc.into_nogc(),
+            ));
+        }
+        let index: usize = k.try_into().unwrap();
+        let value = slice.get(index).copied();
+        let k_value = value.map_or_else(
+            || Value::Undefined,
+            |v| v.into_le_value(agent, gc.nogc()).into_value(),
+        );
         let call = call_function(
             agent,
             callback.get(agent),
             this_arg.get(agent),
             Some(ArgumentsList::from_mut_slice(&mut [
-                k_value.get(agent).unbind(),
+                k_value.unbind(),
                 Number::try_from(k).unwrap().into_value(),
-                scoped_o.get(agent).into_value().unbind(),
+                ta.into_value().unbind(),
             ])),
             gc.reborrow(),
         )
         .unbind()?
         .bind(gc.nogc());
         let selected = to_boolean(agent, call);
-        // d. If selected is true, then
         if selected {
-            //  i. Append kValue to kept.
-            let value = T::try_from_value(agent, k_value.get(agent));
-            let Some(value) = value else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Callback is not callable",
-                    gc.into_nogc(),
-                ));
-            };
-            kept.push(value);
-            //  ii. Set captured to captured + 1.
+            kept.push(value.unwrap_or(T::default()));
         }
-        // e. Set k to k + 1.
-        k += 1;
     }
     // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
     let len = kept.len() as i64;
@@ -3999,20 +4009,26 @@ fn filter_typed_array<'a, T: Viewable + 'static>(
         .bind(gc.nogc());
     // 10. Let n be 0.
     // 11. For each element e of kept, do
-    for (n, e) in kept.iter().enumerate() {
-        // a. Perform ! Set(A, ! ToString(𝔽(n)), e, true).
-        // b. Set n to n + 1.
-        let value = e.into_le_value(agent, gc.nogc()).into_value();
-        unwrap_try(try_set(
-            agent,
-            a.into_object(),
-            n.try_into().unwrap(),
-            value,
-            true,
-            gc.nogc(),
-        ))
-        .unwrap();
+    let array_buffer = a.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_offset = a.byte_offset(agent);
+    let byte_length = a.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(a.unbind());
     }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(a.unbind());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    let len = (len as usize).min(slice.len());
+    let copy_len = slice.len().min(len);
+    slice[..copy_len].copy_from_slice(&kept);
     // 12. Return A.
     Ok(a.unbind())
 }
