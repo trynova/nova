@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use num_traits::{ToPrimitive, float::TotalOrder};
+use num_traits::ToPrimitive;
 
 use crate::{
     SmallInteger,
@@ -3554,7 +3554,7 @@ fn sort_partial_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + PartialOrd>(
     Ok(())
 }
 
-fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + 'static>(
+fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + PartialOrd + 'static>(
     agent: &mut Agent,
     ta: TypedArray,
     len: usize,
@@ -3585,7 +3585,39 @@ fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + TotalOrder + '
         ));
     }
     let slice = &mut slice[..len];
-    slice.sort_by(|a, b| a.total_cmp(b));
+    let mut items: Vec<T> = slice.to_vec();
+    items.sort_by(|a: &T, b: &T| {
+        let left = a.into_le_value(agent, gc).into_value();
+        let right = b.into_le_value(agent, gc).into_value();
+        if left.is_nan(agent) && right.is_nan(agent) {
+            std::cmp::Ordering::Equal
+        } else if left.is_nan(agent) || left.is_pos_zero(agent) && right.is_neg_zero(agent) {
+            std::cmp::Ordering::Greater
+        } else if right.is_nan(agent) || left.is_neg_zero(agent) && right.is_pos_zero(agent) {
+            std::cmp::Ordering::Less
+        } else {
+            a.partial_cmp(b).unwrap()
+        }
+    });
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    let len = len.min(slice.len());
+    let slice = &mut slice[..len];
+    let copy_len = items.len().min(len);
+    slice[..copy_len].copy_from_slice(&items[..copy_len]);
     Ok(())
 }
 
