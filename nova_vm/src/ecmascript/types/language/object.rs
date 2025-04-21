@@ -104,7 +104,7 @@ pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
-pub use property_key::{PropertyKey, scope_property_keys};
+pub use property_key::{PropertyKey, PropertyKeySet, scope_property_keys};
 pub use property_storage::PropertyStorage;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)

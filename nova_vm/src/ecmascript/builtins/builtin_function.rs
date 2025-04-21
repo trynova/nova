@@ -6,7 +6,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, Index, IndexMut},
 };
-use std::hint::unreachable_unchecked;
+use std::{hint::unreachable_unchecked, ptr::NonNull};
 
 use crate::{
     ecmascript::{
@@ -107,7 +107,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
                 .expect("Stack references overflowed");
             let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
             let len = stack_ref_collections.len();
-            stack_ref_collections.push(HeapRootCollectionData::ArgumentsList(slice));
+            stack_ref_collections.push(HeapRootCollectionData::ArgumentsList(slice.into()));
             // Elsewhere we make assumptions about the size of the stack.
             // Thus check it here as well.
             (
@@ -123,7 +123,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         };
         // After the user's work is done, we can get to work returning the
         // slice from the heap.
-        let slice = {
+        let mut slice = {
             agent
                 .stack_refs
                 .borrow_mut()
@@ -151,8 +151,16 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         };
         // Confirm that we have the right slice and that only valid subslicing
         // has occurred.
-        let post_work_slice_end_ptr = slice.as_ptr_range().end;
+        // SAFETY: We had exclusive access to the slice and we've checked that it's
         let post_work_slice_len = slice.len();
+        // SAFETY: This computes the end pointer of the slice meaning that we
+        // necessarily do not wrap around or go out of bounds (by more than 1).
+        let post_work_slice_end_ptr = unsafe {
+            slice
+                .as_ptr()
+                .cast::<Value<'static>>()
+                .add(post_work_slice_len)
+        };
         assert!(slice_len >= post_work_slice_len);
         assert_eq!(slice_end_ptr, post_work_slice_end_ptr);
         // Now that we have our slice back, we can place it back where it
@@ -165,7 +173,11 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         // and that is only possible if the user method panicked and that
         // panic was caught and recovered from above us. ie. We're not
         // panic safe currently.
-        let slice = core::mem::replace(&mut self.slice, slice);
+        // SAFETY: We've confirmed that this slice is the same slice that we
+        // got originally in self.slice; it may have become a subslice of the
+        // original slice but otherwise it is the same. Thus converting it
+        // back to a mutable slice is safe.
+        let slice = core::mem::replace(&mut self.slice, unsafe { slice.as_mut() });
         debug_assert!(slice.is_empty());
         result
     }
@@ -261,9 +273,18 @@ impl<'scope> ScopedArgumentsList<'scope> {
             .get(self.index as usize)
             .unwrap()
         {
-            args.get(index as usize)
-                .unwrap_or(&Value::Undefined)
-                .bind(gc)
+            // SAFETY: The arguments list slice is guaranteed to be held
+            // exclusively by an above call frame, and placed onto the heap as
+            // a NonNull slice. Creating a temporary slice of it is safe.
+            // Exception: if a panic has occurred then we could theoretically
+            // be looking at an invalid slice, but in that case we shouldn't
+            // have access to the ScopedArgumentsList anymore either.
+            unsafe {
+                args.as_ref()
+                    .get(index as usize)
+                    .unwrap_or(&Value::Undefined)
+                    .bind(gc)
+            }
         } else {
             unreachable!()
         }
@@ -287,17 +308,13 @@ impl<'scope> ScopedArgumentsList<'scope> {
         let collection_data: &mut HeapRootCollectionData =
             collections.get_mut(self.index as usize).unwrap();
         if let HeapRootCollectionData::ArgumentsList(args_ref) = collection_data {
-            let args: &mut [Value<'static>] = args_ref;
+            // SAFETY: args_ref points to a valid exclusively held slice in an
+            // above call frame.
+            let args: &mut [Value<'static>] = unsafe { args_ref.as_mut() };
             if let Some((first, rest)) = args.split_first_mut() {
                 let result = first.unbind().bind(gc);
-                // SAFETY: args_ref must be valid in the current call and is
-                // marked as static. A subslice of it is then likewise valid
-                // and should be marked static.
-                *args_ref = unsafe {
-                    core::mem::transmute::<&mut [Value<'static>], &'static mut [Value<'static>]>(
-                        rest,
-                    )
-                };
+                let rest = NonNull::from(rest);
+                *args_ref = rest;
                 Some(result)
             } else {
                 None

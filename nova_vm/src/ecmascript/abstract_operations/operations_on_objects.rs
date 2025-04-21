@@ -4,8 +4,6 @@
 
 //! ## [7.3 Operations on Objects](https://tc39.es/ecma262/#sec-operations-on-objects)
 
-use ahash::AHashSet;
-
 use super::{
     operations_on_iterator_objects::{
         IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
@@ -34,10 +32,10 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
             Number, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            String, Value,
+            PropertyKeySet, String, Value,
         },
     },
-    engine::{Vm, instanceof_operator, rootable::Scopable},
+    engine::{ScopedCollection, Vm, instanceof_operator, rootable::Scopable},
     heap::{Heap, ObjectEntry},
 };
 use crate::{
@@ -1702,15 +1700,15 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
         .into_iter()
         .map(|v| v.scope(agent, gc.nogc()))
         .collect::<Vec<_>>();
-    for scoped_key in own_keys {
-        let key = scoped_key.get(agent).bind(gc.nogc());
-        if key.is_symbol() {
+    for key in own_keys.iter(agent) {
+        let local_key = key.get(gc.nogc());
+        if local_key.is_symbol() {
             continue;
         }
         // i. Let desc be ? O.[[GetOwnProperty]](key).
         let desc = o
             .get(agent)
-            .internal_get_own_property(agent, key.unbind(), gc.reborrow())
+            .internal_get_own_property(agent, local_key.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
@@ -1723,18 +1721,22 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
         // 1. If kind is KEY, then
         if Kind::KIND == EnumPropKind::Key {
             // a. Append key to results.
-            let key_value = scoped_key
-                .get(agent)
-                .bind(gc.nogc())
-                .convert_to_value(agent, gc.nogc());
-            results.push(key_value.scope(agent, gc.nogc()));
+            results.push(
+                key.get(gc.nogc())
+                    .convert_to_value(agent, gc.nogc())
+                    .scope(agent, gc.nogc()),
+            );
         } else {
             // 2. Else,
             // a. Let value be ? Get(O, key).
-            let key = scoped_key.get(agent).bind(gc.nogc());
-            let value = get(agent, o.get(agent), key.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = get(
+                agent,
+                o.get(agent),
+                key.get(gc.nogc()).unbind(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
             // b. If kind is VALUE, then
             if Kind::KIND == EnumPropKind::Value {
                 // i. Append value to results.
@@ -1743,13 +1745,9 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
                 // c. Else,
                 // i. Assert: kind is KEY+VALUE.
                 debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
-                let key_value = String::try_from(
-                    scoped_key
-                        .get(agent)
-                        .bind(gc.nogc())
-                        .convert_to_value(agent, gc.nogc()),
-                )
-                .unwrap();
+                let key_value =
+                    String::try_from(key.get(gc.nogc()).convert_to_value(agent, gc.nogc()))
+                        .unwrap();
                 // ii. Let entry be CreateArrayFromList(« key, value »).
                 let entry = create_array_from_list(
                     agent,
@@ -1911,19 +1909,16 @@ fn enumerable_own_keys_slow<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Vec<PropertyKey<'gc>>> {
     let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
-    let mut results = results
-        .into_iter()
-        .map(|v| v.scope(agent, gc.nogc()))
-        .collect::<Vec<_>>();
-    for scoped_key in own_keys {
-        let key = scoped_key.get(agent).bind(gc.nogc());
-        if key.is_symbol() {
+    let mut results = scope_property_keys(agent, results, gc.nogc());
+    for key in own_keys.iter(agent) {
+        let local_key = key.get(gc.nogc());
+        if local_key.is_symbol() {
             continue;
         }
         // i. Let desc be ? O.[[GetOwnProperty]](key).
         let desc = o
             .get(agent)
-            .internal_get_own_property(agent, key.unbind(), gc.reborrow())
+            .internal_get_own_property(agent, local_key.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
@@ -1935,12 +1930,9 @@ fn enumerable_own_keys_slow<'gc>(
         }
         // 1. If kind is KEY, then
         // a. Append key to results.
-        results.push(scoped_key);
+        results.push(agent, key.get(gc.nogc()));
     }
-    Ok(results
-        .into_iter()
-        .map(|scoped_value| scoped_value.get(agent))
-        .collect())
+    Ok(results.take(agent))
 }
 
 /// ### [7.3.25 GetFunctionRealm ( obj )](https://tc39.es/ecma262/#sec-getfunctionrealm)
@@ -2123,25 +2115,30 @@ fn copy_data_properties_slow<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let keys = scope_property_keys(agent, keys, gc.nogc());
-    for next_key in keys {
+    for next_key in keys.iter(agent) {
         // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
         if let Some(dest) = from
             .get(agent)
-            .internal_get_own_property(agent, next_key.get(agent), gc.reborrow())
+            .internal_get_own_property(agent, next_key.get(gc.nogc()).unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
         {
             if dest.enumerable.unwrap() {
                 // 1. Let propValue be ? Get(from, nextKey).
-                let prop_value = get(agent, from.get(agent), next_key.get(agent), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let prop_value = get(
+                    agent,
+                    from.get(agent),
+                    next_key.get(gc.nogc()).unbind(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
                 unwrap_try(try_create_data_property(
                     agent,
                     target.get(agent),
-                    next_key.get(agent),
+                    next_key.get(gc.nogc()).unbind(),
                     prop_value,
                     gc.nogc(),
                 ));
@@ -2163,7 +2160,7 @@ fn copy_data_properties_slow<'a>(
 pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
     agent: &mut Agent,
     source: impl IntoObject<'b>,
-    excluded_items: &AHashSet<PropertyKey>,
+    excluded_items: &PropertyKeySet,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<OrdinaryObject<'a>> {
     let from = source.into_object();
@@ -2176,7 +2173,7 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
         // b. For each element e of excludedItems, do
         //   i. If SameValue(e, nextKey) is true, then
         //     1. Set excluded to true.
-        if excluded_items.contains(&next_key) {
+        if excluded_items.contains(agent, next_key) {
             continue;
         }
 
@@ -2220,7 +2217,7 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
 pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     agent: &mut Agent,
     source: impl IntoObject<'b>,
-    excluded_items: &AHashSet<PropertyKey<'a>>,
+    excluded_items: ScopedCollection<PropertyKeySet>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, OrdinaryObject<'a>> {
     let from = source.into_object().bind(gc.nogc());
@@ -2242,7 +2239,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
         // b. For each element e of excludedItems, do
         //   i. If SameValue(e, nextKey) is true, then
         //     1. Set excluded to true.
-        if excluded_items.contains(next_key) {
+        if excluded_items.contains(agent, *next_key) {
             i += 1;
             continue;
         }
@@ -2303,30 +2300,21 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
 fn copy_data_properties_into_object_slow<'a>(
     agent: &mut Agent,
     from: Scoped<Object>,
-    excluded_items: &AHashSet<PropertyKey>,
+    excluded_items: ScopedCollection<PropertyKeySet>,
     keys: Vec<PropertyKey>,
     object: OrdinaryObject,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, OrdinaryObject<'a>> {
     let keys = keys.bind(gc.nogc());
     let object = object.scope(agent, gc.nogc());
-    // We need to collect the excluded items into a vector, as we cannot hash
-    // scoped items: The same item can be scoped multiple times.
-    let excluded_items = excluded_items
-        .iter()
-        .map(|pk| pk.scope(agent, gc.nogc()))
-        .collect::<Vec<_>>();
     let keys = scope_property_keys(agent, keys, gc.nogc());
-    for scoped_key in keys {
+    for next_key in keys.iter(agent) {
         // a. Let excluded be false.
         // b. For each element e of excludedItems, do
         //   i. If SameValue(e, nextKey) is true, then
         //     1. Set excluded to true.
-        let next_key = scoped_key.get(agent).bind(gc.nogc());
-        if excluded_items
-            .iter()
-            .any(|s_pk| s_pk.get(agent) == next_key)
-        {
+        let local_next_key = next_key.get(gc.nogc());
+        if excluded_items.contains(agent, local_next_key) {
             continue;
         }
 
@@ -2335,23 +2323,26 @@ fn copy_data_properties_into_object_slow<'a>(
         //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
         if let Some(desc) = from
             .get(agent)
-            .internal_get_own_property(agent, next_key.unbind(), gc.reborrow())
+            .internal_get_own_property(agent, local_next_key.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
         {
             if desc.enumerable.unwrap() {
                 // 1. Let propValue be ? Get(from, nextKey).
-                let next_key = scoped_key.get(agent).bind(gc.nogc());
-                let prop_value = get(agent, from.get(agent), next_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let prop_value = get(
+                    agent,
+                    from.get(agent),
+                    next_key.get(gc.nogc()).unbind(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
-                let next_key = scoped_key.get(agent).bind(gc.nogc());
                 unwrap_try(try_create_data_property_or_throw(
                     agent,
                     object.get(agent),
-                    next_key.unbind(),
-                    prop_value.unbind(),
+                    next_key.get(gc.nogc()),
+                    prop_value,
                     gc.nogc(),
                 ))
                 .unwrap();

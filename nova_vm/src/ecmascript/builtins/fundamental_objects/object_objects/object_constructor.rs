@@ -360,11 +360,15 @@ impl ObjectConstructor {
                 .bind(gc.nogc());
             let keys = scope_property_keys(agent, keys.unbind(), gc.nogc());
             // iii. For each element nextKey of keys, do
-            for next_key in keys {
+            for next_key in keys.iter(agent) {
                 // 1. Let desc be ? from.[[GetOwnProperty]](nextKey).
                 let desc = scoped_from
                     .get(agent)
-                    .internal_get_own_property(agent, next_key.get(agent), gc.reborrow())
+                    .internal_get_own_property(
+                        agent,
+                        next_key.get(gc.nogc()).unbind(),
+                        gc.reborrow(),
+                    )
                     .unbind()?
                     .bind(gc.nogc());
                 // 2. If desc is not undefined and desc.[[Enumerable]] is true, then
@@ -378,7 +382,7 @@ impl ObjectConstructor {
                 let prop_value = get(
                     agent,
                     scoped_from.get(agent),
-                    next_key.get(agent),
+                    next_key.get(gc.nogc()).unbind(),
                     gc.reborrow(),
                 )
                 .unbind()?
@@ -387,7 +391,7 @@ impl ObjectConstructor {
                 set(
                     agent,
                     to.get(agent),
-                    next_key.get(agent),
+                    next_key.get(gc.nogc()).unbind(),
                     prop_value.unbind(),
                     true,
                     gc.reborrow(),
@@ -1192,33 +1196,40 @@ fn object_define_properties<'gc>(
         .bind(gc.nogc());
     let keys = scope_property_keys(agent, keys, gc.nogc());
     // 3. Let descriptors be a new empty List.
-    let mut descriptors = Vec::with_capacity(keys.len());
+    let mut descriptors = Vec::with_capacity(keys.len(agent));
     // 4. For each element nextKey of keys, do
-    for next_key in keys {
+    for next_key in keys.iter(agent) {
         // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
         let prop_desc = props
             .get(agent)
-            .internal_get_own_property(agent, next_key.get(agent), gc.reborrow())
+            .internal_get_own_property(agent, next_key.get(gc.nogc()).unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
         let Some(prop_desc) = prop_desc else {
+            // SAFETY: scoped_next_key is not shared.
             continue;
         };
         if prop_desc.enumerable != Some(true) {
+            // SAFETY: scoped_next_key is not shared.
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = get(agent, props.get(agent), next_key.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let desc_obj = get(
+            agent,
+            props.get(agent),
+            next_key.get(gc.nogc()).unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
         let desc =
             PropertyDescriptor::to_property_descriptor(agent, desc_obj.unbind(), gc.reborrow())
                 .unbind()?
                 .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
-        descriptors.push((next_key, desc));
+        descriptors.push((next_key.get(gc.nogc()).scope(agent, gc.nogc()), desc));
     }
     // 5. For each element property of descriptors, do
     for (property_key, property_descriptor) in descriptors {
@@ -1496,11 +1507,11 @@ fn get_own_property_descriptors_slow<'gc>(
 ) -> JsResult<'gc, Value<'gc>> {
     let descriptors = descriptors.scope(agent, gc.nogc());
     let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
-    for key in own_keys {
+    for key in own_keys.iter(agent) {
         // a. Let desc be ? obj.[[GetOwnProperty]](key).
         let desc = obj
             .get(agent)
-            .internal_get_own_property(agent, key.get(agent), gc.reborrow())
+            .internal_get_own_property(agent, key.get(gc.nogc()).unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         // b. Let descriptor be FromPropertyDescriptor(desc).
@@ -1512,7 +1523,7 @@ fn get_own_property_descriptors_slow<'gc>(
             assert!(unwrap_try(try_create_data_property(
                 agent,
                 descriptors.get(agent).bind(gc),
-                key.get(agent).bind(gc),
+                key.get(gc),
                 descriptor.unbind().into_value(),
                 gc,
             )));

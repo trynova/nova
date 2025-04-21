@@ -2,15 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use ahash::AHashSet;
-
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::iterator_close_with_value, operations_on_objects::get,
         },
         execution::{Agent, JsResult},
-        types::{IntoValue, Object, PropertyKey, Value},
+        types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
     },
     engine::{
         Scoped,
@@ -160,7 +158,7 @@ pub(super) fn execute_simple_object_binding<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let object = object.scope(agent, gc.nogc());
-    let mut excluded_names = AHashSet::new();
+    let mut excluded_names = PropertyKeySet::new(gc.nogc()).scope(agent, gc.nogc());
 
     loop {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
@@ -181,10 +179,9 @@ pub(super) fn execute_simple_object_binding<'a>(
                     unsafe { PropertyKey::from_value_unchecked(key_value) }
                 };
 
-                excluded_names.insert(property_key.unbind());
+                excluded_names.insert(agent, property_key);
 
-                // TODO: Properly handle potential GC.
-                let property_key = property_key.unbind();
+                let property_key = property_key.scope(agent, gc.nogc());
                 let lhs = resolve_binding(
                     agent,
                     binding_id.unbind(),
@@ -195,7 +192,8 @@ pub(super) fn execute_simple_object_binding<'a>(
                 let v = get(
                     agent,
                     object.get(agent),
-                    property_key.unbind(),
+                    // SAFETY: property_key is not shared.
+                    unsafe { property_key.take(agent) },
                     gc.reborrow(),
                 )
                 .unbind()?
@@ -218,7 +216,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                     ))
                 };
 
-                excluded_names.insert(property_key.unbind());
+                excluded_names.insert(agent, property_key);
                 let v = get(
                     agent,
                     object.get(agent),
@@ -254,7 +252,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 let rest_obj = copy_data_properties_into_object(
                     agent,
                     object.get(agent),
-                    &excluded_names,
+                    excluded_names,
                     gc.reborrow(),
                 )
                 .unbind()?

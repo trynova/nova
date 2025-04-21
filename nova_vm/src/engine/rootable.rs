@@ -5,7 +5,7 @@
 mod global;
 mod scoped;
 
-use private::{RootableCollectionSealed, RootableSealed};
+pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, RootableSealed};
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -85,14 +85,16 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
             ITERATOR_DISCRIMINANT, IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT,
             MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject,
-            PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, PropertyKey, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
+            PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet,
+            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
         },
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::HeapMarkAndSweep,
 };
 
-mod private {
+pub mod private {
+    use std::ptr::NonNull;
+
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
     #[cfg(feature = "regexp")]
@@ -137,10 +139,11 @@ mod private {
             scripts_and_modules::{script::Script, source_code::SourceCode},
             types::{
                 BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-                String, Symbol, Value,
+                PropertyKeySet, String, Symbol, Value,
             },
         },
-        engine::Executable,
+        engine::{Executable, context::Bindable},
+        heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     };
 
     /// Marker trait to make Rootable not implementable outside of nova_vm.
@@ -214,10 +217,186 @@ mod private {
     impl RootableSealed for JsError<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
-    pub trait RootableCollectionSealed {}
-    impl RootableCollectionSealed for ArgumentsList<'_, '_> {}
-    impl RootableCollectionSealed for Vec<Value<'_>> {}
-    impl RootableCollectionSealed for Vec<PropertyKey<'_>> {}
+    pub trait RootableCollectionSealed {
+        /// Convert a rootable collection value to a heap data representation.
+        fn to_heap_data(self) -> HeapRootCollectionData;
+
+        /// Convert the rooted collection's heap data value to the type itself.
+        ///
+        /// ## Panics
+        ///
+        /// If the heap data does not match the type, the method should panic.
+        fn from_heap_data(value: HeapRootCollectionData) -> Self;
+
+        /// Dereference the rooted collection's heap data value to the type
+        /// itself.
+        ///
+        /// ## Panics
+        ///
+        /// If the heap data does not match the type, the method should panic.
+        fn get_heap_data(value: &HeapRootCollectionData) -> &Self;
+
+        /// Dereference the rooted collection's heap data value to the type
+        /// itself as mutable.
+        ///
+        /// ## Panics
+        ///
+        /// If the heap data does not match the type, the method should panic.
+        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self;
+    }
+
+    #[derive(Debug)]
+    #[repr(u8)]
+    pub enum HeapRootCollectionData {
+        /// Empty heap root collection data slot: The data was taken from heap.
+        Empty,
+        /// Not like the others: Arguments list cannot be given to the heap as
+        /// owned, they can only be borrowed. Thus, they have no scoping API but
+        /// instead have a `with_scoped` API that takes a callback, stores the list
+        /// on the heap temporarily, performs the callback, removes the list from
+        /// the heap and then returns control to the caller.
+        ///
+        /// As the arguments list is taken as an exclusive reference to the
+        /// method, we're guaranteed that the list stored here
+        ArgumentsList(NonNull<[Value<'static>]>),
+        ValueVec(Vec<Value<'static>>),
+        PropertyKeyVec(Vec<PropertyKey<'static>>),
+        PropertyKeySet(PropertyKeySet<'static>),
+    }
+
+    impl HeapMarkAndSweep for HeapRootCollectionData {
+        fn mark_values(&self, queues: &mut WorkQueues) {
+            match self {
+                Self::Empty => {}
+                Self::ArgumentsList(slice) => {
+                    // SAFETY: The slice is pushed to heap roots based on an
+                    // exclusive reference, and gets taken out of the list when
+                    // the pushing call stack is exited. This is not panic-safe
+                    // though, so we may be indexing into deallocated memory if
+                    // a panic has been caught.
+                    unsafe { slice.as_ref().mark_values(queues) };
+                }
+                Self::ValueVec(values) => values.as_slice().mark_values(queues),
+                Self::PropertyKeyVec(items) => items.as_slice().mark_values(queues),
+                Self::PropertyKeySet(items) => items.iter().for_each(|p| p.mark_values(queues)),
+            }
+        }
+
+        fn sweep_values(&mut self, compactions: &CompactionLists) {
+            match self {
+                Self::Empty => {}
+                Self::ArgumentsList(slice) => {
+                    // SAFETY: The slice is pushed to heap roots based on an
+                    // exclusive reference, and gets taken out of the list when
+                    // the pushing call stack is exited. This is not panic-safe
+                    // though, so we may be indexing into deallocated memory if
+                    // a panic has been caught.
+                    unsafe { slice.as_mut().sweep_values(compactions) };
+                }
+                Self::ValueVec(values) => values.as_mut_slice().sweep_values(compactions),
+                Self::PropertyKeyVec(items) => items.as_mut_slice().sweep_values(compactions),
+                Self::PropertyKeySet(items) => {
+                    items.iter_mut().for_each(|p| p.sweep_values(compactions))
+                }
+            }
+        }
+    }
+
+    impl RootableCollectionSealed for ArgumentsList<'_, '_> {
+        fn to_heap_data(mut self) -> HeapRootCollectionData {
+            HeapRootCollectionData::ArgumentsList(self.as_mut_slice().into())
+        }
+
+        fn from_heap_data(_: HeapRootCollectionData) -> Self {
+            unreachable!("ScopedCollection should never try to take ownership of ArgumentsList");
+        }
+
+        fn get_heap_data(_: &HeapRootCollectionData) -> &Self {
+            unreachable!("ScopedCollection should never try to access ArgumentsList directly");
+        }
+
+        fn get_heap_data_mut(_: &mut HeapRootCollectionData) -> &mut Self {
+            unreachable!("ScopedCollection should never try to access ArgumentsList directly");
+        }
+    }
+    impl RootableCollectionSealed for Vec<Value<'static>> {
+        fn to_heap_data(self) -> HeapRootCollectionData {
+            HeapRootCollectionData::ValueVec(self.unbind())
+        }
+
+        fn from_heap_data(value: HeapRootCollectionData) -> Self {
+            let HeapRootCollectionData::ValueVec(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
+            let HeapRootCollectionData::ValueVec(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
+            let HeapRootCollectionData::ValueVec(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+    }
+    impl RootableCollectionSealed for Vec<PropertyKey<'static>> {
+        fn to_heap_data(self) -> HeapRootCollectionData {
+            HeapRootCollectionData::PropertyKeyVec(self.unbind())
+        }
+
+        fn from_heap_data(value: HeapRootCollectionData) -> Self {
+            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
+            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
+            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+    }
+    impl RootableCollectionSealed for PropertyKeySet<'static> {
+        fn to_heap_data(self) -> HeapRootCollectionData {
+            HeapRootCollectionData::PropertyKeySet(self.unbind())
+        }
+
+        fn from_heap_data(value: HeapRootCollectionData) -> Self {
+            let HeapRootCollectionData::PropertyKeySet(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
+            let HeapRootCollectionData::PropertyKeySet(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
+            let HeapRootCollectionData::PropertyKeySet(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+    }
 }
 
 pub use global::Global;
@@ -723,56 +902,8 @@ impl HeapMarkAndSweep for HeapRootData {
     }
 }
 
-pub trait RootableCollection: core::fmt::Debug + RootableCollectionSealed {
-    /// Convert a rootable collection value to a heap data representation.
-    fn to_heap_data(self) -> HeapRootCollectionData;
+pub trait RootableCollection: core::fmt::Debug + RootableCollectionSealed {}
 
-    /// Convert the rooted collection's heap data value to the type itself.
-    ///
-    /// ## Panics
-    ///
-    /// If the heap data does not match the type, the method should panic.
-    fn from_heap_data(value: HeapRootCollectionData) -> Self;
-}
-
-#[derive(Debug)]
-#[repr(u8)]
-pub enum HeapRootCollectionData {
-    /// Empty heap root collection data slot: The data was taken from heap.
-    Empty,
-    /// Not like the others: Arguments list cannot be given to the heap as
-    /// owned, they can only be borrowed. Thus, they have no scoping API but
-    /// instead have a `with_scoped` API that takes a callback, stores the list
-    /// on the heap temporarily, performs the callback, removes the list from
-    /// the heap and then returns control to the caller.
-    ///
-    /// As the arguments list is taken as an exclusive reference to the
-    /// method, we're guaranteed that the list stored here
-    ArgumentsList(&'static mut [Value<'static>]),
-    ValueVec(Vec<Value<'static>>),
-    PropertyKeyVec(Vec<PropertyKey<'static>>),
-}
-
-impl HeapMarkAndSweep for HeapRootCollectionData {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        match self {
-            Self::Empty => {}
-            Self::ArgumentsList(slice) => {
-                slice.mark_values(queues);
-            }
-            Self::ValueVec(values) => values.as_slice().mark_values(queues),
-            Self::PropertyKeyVec(items) => items.as_slice().mark_values(queues),
-        }
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            Self::Empty => {}
-            Self::ArgumentsList(slice) => {
-                slice.sweep_values(compactions);
-            }
-            Self::ValueVec(values) => values.as_mut_slice().sweep_values(compactions),
-            Self::PropertyKeyVec(items) => items.as_mut_slice().sweep_values(compactions),
-        }
-    }
-}
+impl RootableCollection for Vec<Value<'static>> {}
+impl RootableCollection for Vec<PropertyKey<'static>> {}
+impl RootableCollection for PropertyKeySet<'static> {}

@@ -32,7 +32,7 @@ pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
     InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject,
-    PropertyKey, scope_property_keys,
+    PropertyKey, PropertyKeySet, scope_property_keys,
 };
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;

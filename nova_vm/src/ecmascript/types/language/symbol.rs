@@ -16,7 +16,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, LAST_WELL_KNOWN_SYMBOL_INDEX,
-        WellKnownSymbolIndexes, WorkQueues, indexes::SymbolIndex,
+        PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues, indexes::SymbolIndex,
     },
 };
 
@@ -137,6 +137,14 @@ impl Index<Symbol<'_>> for Agent {
 impl IndexMut<Symbol<'_>> for Agent {
     fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
         &mut self.heap.symbols[index]
+    }
+}
+
+impl Index<Symbol<'_>> for PropertyKeyHeap<'_> {
+    type Output = SymbolHeapData<'static>;
+
+    fn index(&self, index: Symbol<'_>) -> &Self::Output {
+        &self.symbols[index]
     }
 }
 
