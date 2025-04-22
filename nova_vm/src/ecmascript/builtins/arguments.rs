@@ -125,7 +125,7 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     agent: &mut Agent,
-    arguments_list: ScopedArgumentsList<'b>,
+    arguments_list: &ScopedArgumentsList<'b>,
     gc: NoGcScope<'a, 'b>,
 ) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.

@@ -3,17 +3,16 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::marker::PhantomData;
-use std::ptr::NonNull;
 
 use crate::{
-    ecmascript::{execution::Agent, types::PropertyKey},
+    ecmascript::execution::Agent,
     engine::{
         context::{Bindable, NoGcScope, ScopeToken},
         rootable::{HeapRootCollectionData, HeapRootRef, Rootable},
     },
 };
 
-use super::{RootableCollection, RootableCollectionSealed};
+use super::RootableCollection;
 
 /// # Scoped heap root
 ///
@@ -252,6 +251,17 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     }
 }
 
+pub trait ScopableCollection: Bindable
+where
+    Self::Of<'static>: RootableCollection,
+{
+    fn scope<'scope>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> ScopedCollection<'scope, Self::Of<'static>>;
+}
+
 /// # Scoped heap root collection
 #[derive(Debug, Hash, Clone)]
 #[repr(transparent)]
@@ -285,92 +295,6 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
         let heap_slot = stack_ref_collections.get_mut(index as usize).unwrap();
         let heap_data = core::mem::replace(heap_slot, HeapRootCollectionData::Empty);
         T::from_heap_data(heap_data)
-    }
-}
-
-impl<'scope> ScopedCollection<'scope, Vec<PropertyKey<'static>>> {
-    pub(crate) fn iter(&self, agent: &mut Agent) -> ScopedPropertyKeysIterator<'_> {
-        let heap_data = agent.stack_ref_collections.borrow();
-        let Some(heap_slot) = heap_data.get(self.inner as usize) else {
-            handle_bound_check_failure()
-        };
-        let data = Vec::<PropertyKey<'static>>::get_heap_data(heap_slot).as_slice();
-        ScopedPropertyKeysIterator {
-            slice: NonNull::from(data),
-            collection: PhantomData,
-        }
-    }
-
-    pub fn is_empty(&self, agent: &Agent) -> bool {
-        let heap_data = agent.stack_ref_collections.borrow();
-        let Some(heap_slot) = heap_data.get(self.inner as usize) else {
-            handle_bound_check_failure()
-        };
-        Vec::<PropertyKey<'static>>::get_heap_data(heap_slot).is_empty()
-    }
-
-    pub fn len(&self, agent: &Agent) -> usize {
-        let heap_data = agent.stack_ref_collections.borrow();
-        let Some(heap_slot) = heap_data.get(self.inner as usize) else {
-            handle_bound_check_failure()
-        };
-        let data = Vec::<PropertyKey<'static>>::get_heap_data(heap_slot);
-        data.len()
-    }
-
-    pub fn push(&mut self, agent: &Agent, key: PropertyKey) {
-        let mut heap_data = agent.stack_ref_collections.borrow_mut();
-        let Some(heap_slot) = heap_data.get_mut(self.inner as usize) else {
-            handle_bound_check_failure()
-        };
-        let data = Vec::<PropertyKey<'static>>::get_heap_data_mut(heap_slot);
-        data.push(key.unbind());
-    }
-}
-
-#[repr(transparent)]
-pub struct ScopedPropertyKeysIterator<'a> {
-    slice: NonNull<[PropertyKey<'static>]>,
-    collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
-}
-
-#[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct ScopedPropertyKey<'a> {
-    key: NonNull<PropertyKey<'static>>,
-    collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
-}
-
-impl ScopedPropertyKey<'_> {
-    pub fn get<'a>(self, gc: NoGcScope<'a, '_>) -> PropertyKey<'a> {
-        // SAFETY: We retain exclusive access to ScopedCollection, meaning that
-        // no one else can push into the vector while we are iterating over it.
-        // Garbage collection can trigger during this time which will change
-        // the data in the vector, but will not reallocate it. Hence, the
-        // pointer is still valid to read from and the PropertyKey in the
-        // vector has been sweeped by the garbage collector if it did trigger.
-        unsafe { self.key.as_ref().bind(gc) }
-    }
-}
-
-impl<'a> Iterator for ScopedPropertyKeysIterator<'a> {
-    type Item = ScopedPropertyKey<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let ScopedPropertyKeysIterator { slice, .. } = self;
-        // SAFETY: We retain exclusive access to ScopedCollection, meaning that
-        // no one else can push into the vector while we are iterating over it.
-        // Garbage collection can trigger during this time which will change
-        // the data in the vector, but will not reallocate it.
-        let slice_ref = unsafe { slice.as_ref() };
-        let (first, rest) = slice_ref.split_first()?;
-        let first = NonNull::from(first);
-        let rest = NonNull::from(rest);
-        *slice = rest;
-        Some(ScopedPropertyKey {
-            key: first,
-            collection: PhantomData,
-        })
     }
 }
 

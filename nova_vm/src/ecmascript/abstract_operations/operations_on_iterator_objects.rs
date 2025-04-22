@@ -22,7 +22,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
+        ScopableCollection, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -642,9 +642,9 @@ pub(crate) fn iterator_to_list<'a, 'b>(
     agent: &mut Agent,
     iterator_record: IteratorRecord,
     mut gc: GcScope<'a, 'b>,
-) -> JsResult<'a, Vec<Scoped<'b, Value<'static>>>> {
+) -> JsResult<'a, ScopedCollection<'b, Vec<Value<'static>>>> {
     // 1. Let values be a new empty List.
-    let mut values = Vec::new();
+    let mut values = Vec::<Value>::new().scope(agent, gc.nogc());
 
     // 2. Let next be true.
     // 3. Repeat, while next is not false,
@@ -655,12 +655,11 @@ pub(crate) fn iterator_to_list<'a, 'b>(
         .bind(gc.nogc())
     {
         // i. Let nextValue be ? IteratorValue(next).
+        let next_value = iterator_value(agent, next.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // ii. Append nextValue to values.
-        values.push(
-            iterator_value(agent, next.unbind(), gc.reborrow())
-                .unbind()?
-                .scope(agent, gc.nogc()),
-        );
+        values.push(agent, next_value);
     }
 
     // 4. Return values.

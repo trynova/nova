@@ -277,8 +277,8 @@ pub mod private {
                     unsafe { slice.as_ref().mark_values(queues) };
                 }
                 Self::ValueVec(values) => values.as_slice().mark_values(queues),
-                Self::PropertyKeyVec(items) => items.as_slice().mark_values(queues),
-                Self::PropertyKeySet(items) => items.iter().for_each(|p| p.mark_values(queues)),
+                Self::PropertyKeyVec(items) => items.mark_values(queues),
+                Self::PropertyKeySet(items) => items.mark_values(queues),
             }
         }
 
@@ -294,10 +294,8 @@ pub mod private {
                     unsafe { slice.as_mut().sweep_values(compactions) };
                 }
                 Self::ValueVec(values) => values.as_mut_slice().sweep_values(compactions),
-                Self::PropertyKeyVec(items) => items.as_mut_slice().sweep_values(compactions),
-                Self::PropertyKeySet(items) => {
-                    items.iter_mut().for_each(|p| p.sweep_values(compactions))
-                }
+                Self::PropertyKeyVec(items) => items.sweep_values(compactions),
+                Self::PropertyKeySet(items) => items.sweep_values(compactions),
             }
         }
     }
@@ -400,7 +398,7 @@ pub mod private {
 }
 
 pub use global::Global;
-pub use scoped::{Scopable, Scoped, ScopedCollection};
+pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
 use super::{Executable, context::Bindable};
 

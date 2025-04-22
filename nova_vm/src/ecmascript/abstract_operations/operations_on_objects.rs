@@ -4,19 +4,19 @@
 
 //! ## [7.3 Operations on Objects](https://tc39.es/ecma262/#sec-operations-on-objects)
 
-use super::{
-    operations_on_iterator_objects::{
-        IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
-    },
-    testing_and_comparison::{is_callable, require_object_coercible, same_value},
-    type_conversion::{
-        to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
-    },
-};
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::iterator_step_value,
+        abstract_operations::{
+            operations_on_iterator_objects::{
+                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
+                iterator_step_value,
+            },
+            testing_and_comparison::{is_callable, require_object_coercible, same_value},
+            type_conversion::{
+                to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
+            },
+        },
         builtins::{
             ArgumentsList, Array, BuiltinConstructorFunction, array_create,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
@@ -35,17 +35,14 @@ use crate::{
             PropertyKeySet, String, Value,
         },
     },
-    engine::{ScopedCollection, Vm, instanceof_operator, rootable::Scopable},
-    heap::{Heap, ObjectEntry},
-};
-use crate::{
-    ecmascript::types::scope_property_keys,
     engine::{
-        Scoped, TryResult,
+        ScopableCollection, Scoped, ScopedCollection, TryResult, Vm,
         context::{Bindable, GcScope, NoGcScope},
-        rootable::Rootable,
+        instanceof_operator,
+        rootable::{Rootable, Scopable},
         unwrap_try,
     },
+    heap::{Heap, ObjectEntry},
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -1065,21 +1062,20 @@ pub(crate) fn create_array_from_list<'a>(
 
 pub(crate) fn create_array_from_scoped_list<'a>(
     agent: &mut Agent,
-    elements: Vec<Scoped<Value>>,
+    elements: ScopedCollection<Vec<Value>>,
     gc: NoGcScope<'a, '_>,
 ) -> Array<'a> {
+    let elements = elements.take(agent).bind(gc);
     let len = elements.len();
     // 1. Let array be ! ArrayCreate(0).
-    let agent_ptr = agent as *const Agent;
     let array = array_create(agent, len, len, None, gc).unwrap();
-    let slice = array.as_mut_slice(agent).iter_mut().zip(elements.iter());
+    let slice = array
+        .as_mut_slice(agent)
+        .iter_mut()
+        .zip(elements.into_iter());
     {
-        // SAFETY: This is dirty and dangerous, but loosely speaking okay:
-        // Slice only keeps a live borrow on agent.heap.elements, while el.get
-        // only accesses agent.stack_refs. The two borrows never alias.
-        let agent = unsafe { &*agent_ptr };
         for (target, el) in slice {
-            *target = Some(el.get(agent));
+            *target = Some(el.unbind());
         }
     }
     // 2. Let n be 0.
@@ -1161,7 +1157,7 @@ pub(crate) fn create_list_from_array_like<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Vec<Value<'gc>>> {
     match obj {
-        Value::Array(array) => {
+        Value::Array(array) if array.is_simple(agent) => {
             let gc = gc.into_nogc();
             Ok(array
                 .as_slice(agent)
@@ -1176,7 +1172,7 @@ pub(crate) fn create_list_from_array_like<'gc>(
             let len = length_of_array_like(agent, object, gc.reborrow()).unbind()?;
             let len = usize::try_from(len).unwrap();
             // 4. Let list be a new empty list.
-            let mut list = Vec::with_capacity(len);
+            let mut list = Vec::<Value>::with_capacity(len).scope(agent, gc.nogc());
             // 5. Let index be 0.
             // 6. Repeat, while index < len,
             for i in 0..len {
@@ -1191,12 +1187,12 @@ pub(crate) fn create_list_from_array_like<'gc>(
                 .unbind()?
                 .bind(gc.nogc());
                 // d. Append next to list.
-                list.push(next.scope(agent, gc.nogc()));
+                list.push(agent, next);
                 // e. Set index to index + 1.
             }
             // 7. Return list.
             let gc = gc.into_nogc();
-            Ok(list.into_iter().map(|v| v.get(agent).bind(gc)).collect())
+            Ok(list.take(agent).bind(gc))
         }
         // 2. If obj is not an Object, throw a TypeError exception.
         _ => Err(agent.throw_exception_with_static_message(
@@ -1219,7 +1215,7 @@ pub(crate) fn create_property_key_list_from_array_like<'a, 'b>(
     agent: &mut Agent,
     obj: Value,
     mut gc: GcScope<'a, 'b>,
-) -> JsResult<'a, Vec<Scoped<'b, PropertyKey<'static>>>> {
+) -> JsResult<'a, ScopedCollection<'b, Vec<PropertyKey<'static>>>> {
     // 1. If validElementTypes is not present, set validElementTypes to all.
     // 2. If obj is not an Object, throw a TypeError exception.
     let Ok(object) = Object::try_from(obj) else {
@@ -1235,7 +1231,7 @@ pub(crate) fn create_property_key_list_from_array_like<'a, 'b>(
     let len = length_of_array_like(agent, object.unbind(), gc.reborrow()).unbind()?;
     let len = usize::try_from(len).unwrap();
     // 4. Let list be a new empty List.
-    let mut list = Vec::with_capacity(len);
+    let mut list = Vec::<PropertyKey>::with_capacity(len).scope(agent, gc.nogc());
     // 5. Let index be 0.
     let mut index = 0;
     // 6. Repeat, while index < len,
@@ -1255,13 +1251,10 @@ pub(crate) fn create_property_key_list_from_array_like<'a, 'b>(
                     agent,
                     string_value.unbind(),
                     gc.nogc(),
-                ))
-                .scope(agent, gc.nogc());
-                list.push(scoped_property_key);
+                ));
+                list.push(agent, scoped_property_key);
             }
-            Value::Symbol(sym) => {
-                list.push(PropertyKey::Symbol(sym.unbind()).scope(agent, gc.nogc()))
-            }
+            Value::Symbol(sym) => list.push(agent, sym.into()),
             _ => {
                 return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -1482,7 +1475,7 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
     agent: &mut Agent,
     o: Scoped<'b, Object<'static>>,
     mut gc: GcScope<'a, 'b>,
-) -> JsResult<'a, Vec<Scoped<'b, PropertyKey<'static>>>> {
+) -> JsResult<'a, ScopedCollection<'b, Vec<PropertyKey<'static>>>> {
     // Note: Only Proxy and possibly Module and EmbedderObject can run JS in
     // [[OwnPropertyKeys]] and [[GetOwnProperty]] calls.
     if !matches!(
@@ -1491,7 +1484,7 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
     ) {
         let gc = gc.into_nogc();
         let o = o.get(agent).bind(gc);
-        return Ok(unwrap_try(o.try_own_property_keys(agent, gc))
+        let keys = unwrap_try(o.try_own_property_keys(agent, gc))
             .into_iter()
             .filter_map(|key| {
                 // 1. If key is a String, then
@@ -1506,15 +1499,17 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
                 }
                 // 1. If kind is KEY, then
                 // a. Append key to results.
-                Some(key.scope(agent, gc))
+                Some(key)
             })
-            .collect());
+            .collect::<Vec<PropertyKey>>();
+        return Ok(keys.scope(agent, gc));
     }
     // 1. Let ownKeys be ? O.[[OwnPropertyKeys]]().
     let own_string_keys = o
         .get(agent)
         .internal_own_property_keys(agent, gc.reborrow())
         .unbind()?
+        .bind(gc.nogc())
         .into_iter()
         // 1. If key is a String, then
         .filter_map(|key| {
@@ -1553,8 +1548,14 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
             Some(Ok(scoped_key))
         })
         .collect::<JsResult<Vec<_>>>()?;
+    let gc = gc.into_nogc();
+    let results = results
+        .into_iter()
+        .map(|p| p.get(agent).bind(gc))
+        .collect::<Vec<_>>();
+
     // 4. Return results.
-    Ok(results)
+    Ok(results.scope(agent, gc))
 }
 
 /// ### [7.3.23 EnumerableOwnProperties ( O, kind )](https://tc39.es/ecma262/#sec-enumerableownproperties)
@@ -1674,11 +1675,8 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
     results: Vec<Value>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Vec<Value<'gc>>> {
-    let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
-    let mut results = results
-        .into_iter()
-        .map(|v| v.scope(agent, gc.nogc()))
-        .collect::<Vec<_>>();
+    let own_keys = own_keys.scope(agent, gc.nogc());
+    let mut results = results.scope(agent, gc.nogc());
     for key in own_keys.iter(agent) {
         let local_key = key.get(gc.nogc());
         if local_key.is_symbol() {
@@ -1711,7 +1709,7 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
         // b. If kind is VALUE, then
         if Kind::KIND == EnumPropKind::Value {
             // i. Append value to results.
-            results.push(value.scope(agent, gc.nogc()));
+            results.push(agent, value);
         } else {
             // c. Else,
             // i. Assert: kind is KEY+VALUE.
@@ -1725,13 +1723,10 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
                 gc.nogc(),
             );
             // iii. Append entry to results.
-            results.push(entry.into_value().scope(agent, gc.nogc()));
+            results.push(agent, entry.into_value());
         }
     }
-    Ok(results
-        .into_iter()
-        .map(|scoped_value| scoped_value.get(agent))
-        .collect())
+    Ok(results.take(agent))
 }
 
 /// ### [7.3.23 EnumerableOwnProperties ( O )](https://tc39.es/ecma262/#sec-enumerableownproperties)
@@ -1875,8 +1870,8 @@ fn enumerable_own_keys_slow<'gc>(
     results: Vec<PropertyKey>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Vec<PropertyKey<'gc>>> {
-    let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
-    let mut results = scope_property_keys(agent, results, gc.nogc());
+    let own_keys = own_keys.scope(agent, gc.nogc());
+    let mut results = results.scope(agent, gc.nogc());
     for key in own_keys.iter(agent) {
         let local_key = key.get(gc.nogc());
         if local_key.is_symbol() {
@@ -2081,7 +2076,7 @@ fn copy_data_properties_slow<'a>(
     keys: Vec<PropertyKey>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let keys = scope_property_keys(agent, keys, gc.nogc());
+    let keys = keys.scope(agent, gc.nogc());
     for next_key in keys.iter(agent) {
         // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
@@ -2274,9 +2269,8 @@ fn copy_data_properties_into_object_slow<'a>(
     object: OrdinaryObject,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, OrdinaryObject<'a>> {
-    let keys = keys.bind(gc.nogc());
+    let keys = keys.scope(agent, gc.nogc());
     let object = object.scope(agent, gc.nogc());
-    let keys = scope_property_keys(agent, keys, gc.nogc());
     for next_key in keys.iter(agent) {
         // a. Let excluded be false.
         // b. For each element e of excludedItems, do
@@ -2396,7 +2390,7 @@ pub(crate) fn add_value_to_keyed_group<
     agent: &mut Agent,
     groups: &mut Vec<GroupByRecord<'scope, K>>,
     key: K,
-    value: Scoped<'scope, Value<'static>>,
+    value: Value,
     gc: NoGcScope<'gc, 'scope>,
 ) -> JsResult<'gc, ()> {
     // 1. For each Record { [[Key]], [[Elements]] } g of groups, do
@@ -2405,7 +2399,7 @@ pub(crate) fn add_value_to_keyed_group<
         if same_value(agent, g.key.get(agent), key) {
             // i. Assert: Exactly one element of groups meets this criterion.
             // ii. Append value to g.[[Elements]].
-            g.elements.push(value);
+            g.elements.push(agent, value);
 
             // iii. Return UNUSED.
             return Ok(());
@@ -2416,7 +2410,7 @@ pub(crate) fn add_value_to_keyed_group<
     let key = Scoped::new(agent, key, gc);
     let group = GroupByRecord {
         key,
-        elements: vec![value],
+        elements: vec![value].scope(agent, gc),
     };
 
     // 3. Append group to groups.
@@ -2428,7 +2422,7 @@ pub(crate) fn add_value_to_keyed_group<
 
 pub(crate) struct GroupByRecord<'scope, K: 'static + Rootable + Copy + Into<Value<'static>>> {
     pub(crate) key: Scoped<'scope, K>,
-    pub(crate) elements: Vec<Scoped<'scope, Value<'static>>>,
+    pub(crate) elements: ScopedCollection<'scope, Vec<Value<'static>>>,
 }
 
 // SAFETY: Trivially safe.
@@ -2571,9 +2565,10 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         };
         let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
+        // SAFETY: Not shared.
+        let value = unsafe { scoped_value.take(agent) };
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key.unbind(), scoped_value, gc.nogc())
-            .unbind()?;
+        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value, gc.nogc()).unbind()?;
 
         // j. Set k to k + 1.
         k += 1;
@@ -2701,9 +2696,10 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         // ii. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(agent, key);
 
+        // SAFETY: Not shared.
+        let value = unsafe { scoped_value.take(agent) };
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key.unbind(), scoped_value, gc.nogc())
-            .unbind()?;
+        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value, gc.nogc()).unbind()?;
 
         // j. Set k to k + 1.
         k += 1;

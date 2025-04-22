@@ -16,7 +16,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
             InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator, String, Value,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
@@ -252,7 +252,6 @@ impl<'value> Deref for ArgumentsList<'_, 'value> {
 ///
 /// The arguments can be accessed through the Agent for the duration of the
 /// function call.
-#[derive(Clone, Copy)]
 pub struct ScopedArgumentsList<'scope> {
     index: u32,
     value: PhantomData<Value<'scope>>,
@@ -266,7 +265,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
-    pub fn get<'gc>(self, agent: &Agent, index: u32, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+    pub fn get<'gc>(&self, agent: &Agent, index: u32, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         if let HeapRootCollectionData::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
@@ -290,7 +289,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
-    pub fn len(self, agent: &Agent) -> usize {
+    pub fn len(&self, agent: &Agent) -> usize {
         if let HeapRootCollectionData::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
@@ -303,7 +302,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
-    pub(crate) fn unshift<'gc>(self, agent: &Agent, gc: NoGcScope<'gc, '_>) -> Option<Value<'gc>> {
+    pub(crate) fn unshift<'gc>(&self, agent: &Agent, gc: NoGcScope<'gc, '_>) -> Option<Value<'gc>> {
         let mut collections = agent.stack_ref_collections.borrow_mut();
         let collection_data: &mut HeapRootCollectionData =
             collections.get_mut(self.index as usize).unwrap();
@@ -319,6 +318,21 @@ impl<'scope> ScopedArgumentsList<'scope> {
             } else {
                 None
             }
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub(crate) fn iter(&self, agent: &mut Agent) -> ScopedValuesIterator<'_> {
+        if let HeapRootCollectionData::ArgumentsList(args) = agent
+            .stack_ref_collections
+            .borrow()
+            .get(self.index as usize)
+            .unwrap()
+        {
+            // SAFETY: args points to a uniquely owned slice in an above
+            // call frame, we can safely dereference it.
+            ScopedValuesIterator::from_slice(unsafe { args.as_ref() })
         } else {
             unreachable!()
         }

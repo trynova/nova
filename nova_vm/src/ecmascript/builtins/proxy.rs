@@ -24,11 +24,10 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            scope_property_keys,
         },
     },
     engine::{
-        TryResult,
+        ScopableCollection, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
     },
@@ -1497,9 +1496,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         .unbind()?
         .bind(gc.nogc());
         // 9. If trapResult contains any duplicate entries, throw a TypeError exception.
-        let mut unique_trap_results = Vec::with_capacity(trap_result.len());
-        for value in trap_result.iter() {
-            let p = value.get(agent).bind(gc.nogc());
+        let mut unique_trap_results = Vec::with_capacity(trap_result.len(agent));
+        for value in trap_result.iter(agent) {
+            let p = value.get(gc.nogc());
             if unique_trap_results.contains(&p) {
                 return Err(agent.throw_exception(
                     ExceptionType::TypeError,
@@ -1535,12 +1534,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             all_unique
         });
         let target_keys_len = target_keys.len();
-        let target_keys = scope_property_keys(agent, target_keys.unbind(), gc.nogc());
+        let target_keys = target_keys.scope(agent, gc.nogc());
         // 14. Let targetConfigurableKeys be a new empty List.
         let mut target_configurable_keys =
-            scope_property_keys(agent, Vec::with_capacity(target_keys_len), gc.nogc());
+            Vec::<PropertyKey>::with_capacity(target_keys_len).scope(agent, gc.nogc());
+
         // 15. Let targetNonconfigurableKeys be a new empty List.
-        let mut target_nonconfigurable_keys = scope_property_keys(agent, Vec::new(), gc.nogc());
+        let mut target_nonconfigurable_keys = Vec::<PropertyKey>::new().scope(agent, gc.nogc());
         // 16. For each element key of targetKeys, do
         for key in target_keys.iter(agent) {
             // a. Let desc be ? target.[[GetOwnProperty]](key).
@@ -1561,8 +1561,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         }
         let gc = gc.into_nogc();
         let trap_result = trap_result
-            .into_iter()
-            .map(|p| p.get(agent).bind(gc))
+            .iter(agent)
+            .map(|p| p.get(gc))
             .collect::<Vec<PropertyKey>>();
         // 17. If extensibleTarget is true and targetNonconfigurableKeys is empty, then
         if extensible_target && target_nonconfigurable_keys.is_empty(agent) {

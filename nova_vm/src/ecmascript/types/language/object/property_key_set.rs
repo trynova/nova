@@ -11,18 +11,10 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::HeapRootCollectionData,
     },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::PropertyKey;
-
-#[inline]
-pub fn scope_property_keys<'a>(
-    agent: &mut Agent,
-    keys: Vec<PropertyKey>,
-    gc: NoGcScope<'_, 'a>,
-) -> ScopedCollection<'a, Vec<PropertyKey<'static>>> {
-    ScopedCollection::new(agent, keys.unbind(), gc)
-}
 
 /// An unordered set of PropertyKeys.
 #[derive(Clone)]
@@ -42,10 +34,6 @@ impl<'a> PropertyKeySet<'a> {
 
     pub fn with_capacity(capacity: usize, _: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::with_capacity(capacity))
-    }
-
-    pub fn iter(&self) -> hashbrown::hash_table::Iter<'_, PropertyKey<'a>> {
-        self.0.iter()
     }
 
     /// Insert a PropertyKey into the set.
@@ -69,10 +57,6 @@ impl<'a> PropertyKeySet<'a> {
     pub fn contains(&self, agent: &Agent, value: PropertyKey) -> bool {
         let hash = value.heap_hash(agent);
         self.0.find(hash, |p| *p == value).is_some()
-    }
-
-    pub(crate) fn iter_mut(&mut self) -> hashbrown::hash_table::IterMut<'_, PropertyKey<'a>> {
-        self.0.iter_mut()
     }
 
     pub fn scope<'scope>(
@@ -103,7 +87,6 @@ impl ScopedCollection<'_, PropertyKeySet<'static>> {
 
     /// Returns `true` if the scoped set contains a PropertyKey.
     pub fn contains(&self, agent: &Agent, value: PropertyKey) -> bool {
-        let hash = value.heap_hash(agent);
         let stack_ref_collections = agent.stack_ref_collections.borrow();
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
@@ -111,7 +94,7 @@ impl ScopedCollection<'_, PropertyKeySet<'static>> {
         let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
-        property_key_set.0.find(hash, |p| *p == value).is_some()
+        property_key_set.contains(agent, value)
     }
 }
 
@@ -122,12 +105,22 @@ unsafe impl Bindable for PropertyKeySet<'_> {
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         // SAFETY: Lifetime-transmute only.
-        unsafe { std::mem::transmute::<_, PropertyKeySet<'static>>(self) }
+        unsafe { std::mem::transmute::<_, Self::Of<'static>>(self) }
     }
 
     #[inline(always)]
     fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
         // SAFETY: Lifetime-transmute only.
-        unsafe { std::mem::transmute::<_, PropertyKeySet<'a>>(self) }
+        unsafe { std::mem::transmute::<_, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for PropertyKeySet<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.0.iter().for_each(|p| p.mark_values(queues));
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.0.iter_mut().for_each(|p| p.sweep_values(compactions));
     }
 }

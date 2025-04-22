@@ -2378,7 +2378,7 @@ impl Vm {
                     unreachable!()
                 };
                 vm.result = Some(
-                    create_unmapped_arguments_object(agent, *slice, gc.nogc())
+                    create_unmapped_arguments_object(agent, slice, gc.nogc())
                         .into_value()
                         .unbind(),
                 );

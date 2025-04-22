@@ -12,7 +12,7 @@ use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builtins::Array;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::{IntoValue, Object};
-use crate::engine::Scoped;
+use crate::engine::ScopableCollection;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
@@ -697,7 +697,7 @@ impl IteratorPrototype {
         let next_method = next_method.scope(agent, gc.nogc());
 
         // 4. Let items be a new empty List.
-        let mut items: Vec<Scoped<Value>> = Vec::new();
+        let mut items = Vec::<Value>::new().scope(agent, gc.nogc());
 
         // 5. Repeat,
         loop {
@@ -708,22 +708,17 @@ impl IteratorPrototype {
             };
             let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()?
-                .bind(gc.nogc())
-                .map(|x| x.scope(agent, gc.nogc()));
+                .bind(gc.nogc());
 
             // b. If value is done, return CreateArrayFromList(items).
             let Some(value) = value else {
                 let gc = gc.into_nogc();
-
-                // should reuse the allocation
-                let unscoped: Vec<Value> =
-                    items.into_iter().map(|x| x.get(agent).bind(gc)).collect();
-
-                return Ok(Array::from_slice(agent, &unscoped, gc).into_value());
+                let items = items.take(agent).bind(gc);
+                return Ok(Array::from_slice(agent, &items, gc).into_value());
             };
 
             // c. Append value to items.
-            items.push(value);
+            items.push(agent, value);
         }
     }
 

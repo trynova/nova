@@ -28,11 +28,11 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, scope_property_keys,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
-        Scoped, TryResult,
+        ScopableCollection, Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -357,8 +357,7 @@ impl ObjectConstructor {
                 .unbind()
                 .internal_own_property_keys(agent, gc.reborrow())
                 .unbind()?
-                .bind(gc.nogc());
-            let keys = scope_property_keys(agent, keys.unbind(), gc.nogc());
+                .scope(agent, gc.nogc());
             // iii. For each element nextKey of keys, do
             for next_key in keys.iter(agent) {
                 // 1. Let desc be ? from.[[GetOwnProperty]](nextKey).
@@ -1193,8 +1192,7 @@ fn object_define_properties<'gc>(
         .get(agent)
         .internal_own_property_keys(agent, gc.reborrow())
         .unbind()?
-        .bind(gc.nogc());
-    let keys = scope_property_keys(agent, keys, gc.nogc());
+        .scope(agent, gc.nogc());
     // 3. Let descriptors be a new empty List.
     let mut descriptors = Vec::with_capacity(keys.len(agent));
     // 4. For each element nextKey of keys, do
@@ -1506,7 +1504,7 @@ fn get_own_property_descriptors_slow<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let descriptors = descriptors.scope(agent, gc.nogc());
-    let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
+    let own_keys = own_keys.scope(agent, gc.nogc());
     for key in own_keys.iter(agent) {
         // a. Let desc be ? obj.[[GetOwnProperty]](key).
         let desc = obj
