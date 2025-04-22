@@ -1449,7 +1449,6 @@ pub(crate) fn is_prototype_of_loop<'a>(
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum EnumPropKind {
-    Key,
     Value,
     KeyValue,
 }
@@ -1464,10 +1463,6 @@ pub(crate) mod enumerable_properties_kind {
     pub(crate) struct EnumerateKeys;
     pub(crate) struct EnumerateValues;
     pub(crate) struct EnumerateKeysAndValues;
-
-    impl EnumerablePropertiesKind for EnumerateKeys {
-        const KIND: EnumPropKind = EnumPropKind::Key;
-    }
 
     impl EnumerablePropertiesKind for EnumerateValues {
         const KIND: EnumPropKind = EnumPropKind::Value;
@@ -1614,8 +1609,29 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
             continue;
         }
         // 1. If kind is KEY, then
-        if Kind::KIND == EnumPropKind::Key {
-            // a. Append key to results.
+        // 2. Else,
+        // a. Let value be ? Get(O, key).
+
+        // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
+        // shouldn't need to call [[Get]] except if the object is a Proxy.
+        let value = if desc.value.is_none() || matches!(o, Object::Proxy(_)) {
+            if let TryResult::Continue(value) = try_get(agent, o, key, gc.nogc()) {
+                value
+            } else {
+                broke = true;
+                break;
+            }
+        } else {
+            desc.value.unwrap()
+        };
+        // b. If kind is VALUE, then
+        if Kind::KIND == EnumPropKind::Value {
+            // i. Append value to results.
+            results.push(value);
+        } else {
+            // c. Else,
+            // i. Assert: kind is KEY+VALUE.
+            debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
             let key_value = match key {
                 PropertyKey::Symbol(_) => {
                     unreachable!();
@@ -1627,47 +1643,10 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
                 PropertyKey::SmallString(str) => str.into(),
                 PropertyKey::String(str) => str.into(),
             };
-            results.push(key_value.into_value());
-        } else {
-            // 2. Else,
-            // a. Let value be ? Get(O, key).
-
-            // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
-            // shouldn't need to call [[Get]]... Well, except if the object is
-            // a Proxy. TODO: Check for that.
-            let value = if let Some(value) = desc.value {
-                value
-            } else if let TryResult::Continue(value) = try_get(agent, o, key, gc.nogc()) {
-                value
-            } else {
-                broke = true;
-                break;
-            };
-            // b. If kind is VALUE, then
-            if Kind::KIND == EnumPropKind::Value {
-                // i. Append value to results.
-                results.push(value);
-            } else {
-                // c. Else,
-                // i. Assert: kind is KEY+VALUE.
-                debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
-                let key_value = match key {
-                    PropertyKey::Symbol(_) => {
-                        unreachable!();
-                    }
-                    PropertyKey::Integer(int) => {
-                        let int = int.into_i64();
-                        String::from_string(agent, int.to_string(), gc.nogc())
-                    }
-                    PropertyKey::SmallString(str) => str.into(),
-                    PropertyKey::String(str) => str.into(),
-                };
-                // ii. Let entry be CreateArrayFromList(« key, value »).
-                let entry =
-                    create_array_from_list(agent, &[key_value.into_value(), value], gc.nogc());
-                // iii. Append entry to results.
-                results.push(entry.into_value());
-            }
+            // ii. Let entry be CreateArrayFromList(« key, value »).
+            let entry = create_array_from_list(agent, &[key_value.into_value(), value], gc.nogc());
+            // iii. Append entry to results.
+            results.push(entry.into_value());
         }
         i += 1;
     }
@@ -1719,44 +1698,34 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
             continue;
         }
         // 1. If kind is KEY, then
-        if Kind::KIND == EnumPropKind::Key {
-            // a. Append key to results.
-            results.push(
-                key.get(gc.nogc())
-                    .convert_to_value(agent, gc.nogc())
-                    .scope(agent, gc.nogc()),
-            );
+        // 2. Else,
+        // a. Let value be ? Get(O, key).
+        let value = get(
+            agent,
+            o.get(agent),
+            key.get(gc.nogc()).unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // b. If kind is VALUE, then
+        if Kind::KIND == EnumPropKind::Value {
+            // i. Append value to results.
+            results.push(value.scope(agent, gc.nogc()));
         } else {
-            // 2. Else,
-            // a. Let value be ? Get(O, key).
-            let value = get(
+            // c. Else,
+            // i. Assert: kind is KEY+VALUE.
+            debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
+            let key_value =
+                String::try_from(key.get(gc.nogc()).convert_to_value(agent, gc.nogc())).unwrap();
+            // ii. Let entry be CreateArrayFromList(« key, value »).
+            let entry = create_array_from_list(
                 agent,
-                o.get(agent),
-                key.get(gc.nogc()).unbind(),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-            // b. If kind is VALUE, then
-            if Kind::KIND == EnumPropKind::Value {
-                // i. Append value to results.
-                results.push(value.scope(agent, gc.nogc()));
-            } else {
-                // c. Else,
-                // i. Assert: kind is KEY+VALUE.
-                debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
-                let key_value =
-                    String::try_from(key.get(gc.nogc()).convert_to_value(agent, gc.nogc()))
-                        .unwrap();
-                // ii. Let entry be CreateArrayFromList(« key, value »).
-                let entry = create_array_from_list(
-                    agent,
-                    &[key_value.into_value().unbind(), value.unbind()],
-                    gc.nogc(),
-                );
-                // iii. Append entry to results.
-                results.push(entry.into_value().scope(agent, gc.nogc()));
-            }
+                &[key_value.into_value().unbind(), value.unbind()],
+                gc.nogc(),
+            );
+            // iii. Append entry to results.
+            results.push(entry.into_value().scope(agent, gc.nogc()));
         }
     }
     Ok(results
@@ -1765,18 +1734,18 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
         .collect())
 }
 
-/// ### [7.3.23 EnumerableOwnProperties ( O, kind )](https://tc39.es/ecma262/#sec-enumerableownproperties)
+/// ### [7.3.23 EnumerableOwnProperties ( O )](https://tc39.es/ecma262/#sec-enumerableownproperties)
 ///
 /// The abstract operation EnumerableOwnProperties takes arguments O (an
-/// Object) and kind (KEY) and returns either a normal completion containing a
-/// List of property keys or a throw completion.
+/// Object) and returns either a normal completion containing a List of
+/// property keys or a throw completion.
 pub(crate) fn enumerable_own_keys<'gc>(
     agent: &mut Agent,
     o: Object,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Vec<PropertyKey<'gc>>> {
     if let Object::Object(o) = o {
-        return Ok(enumerable_own_keys_fast(agent, o, gc.into_nogc()));
+        return Ok(ordinary_enumerable_own_keys(agent, o, gc.into_nogc()));
     }
     let mut o = o.bind(gc.nogc());
     let mut scoped_o = None;
@@ -1834,13 +1803,11 @@ pub(crate) fn enumerable_own_keys<'gc>(
     }
 }
 
-fn enumerable_own_keys_fast<'gc>(
+fn ordinary_enumerable_own_keys<'gc>(
     agent: &mut Agent,
     o: OrdinaryObject,
     gc: NoGcScope<'gc, '_>,
 ) -> Vec<PropertyKey<'gc>> {
-    // let descriptor = agent.heap.elements.get_descriptor(values, index);
-
     let ObjectHeapData { keys, values, .. } = agent[o];
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
@@ -2293,6 +2260,8 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
             gc,
         )
     } else {
+        // Drop the excluded items set.
+        let _ = excluded_items.take(agent);
         Ok(object.unbind())
     }
 }
@@ -2349,6 +2318,8 @@ fn copy_data_properties_into_object_slow<'a>(
             }
         }
     }
+    // Drop the excluded items set.
+    let _ = excluded_items.take(agent);
     Ok(object.get(agent).bind(gc.into_nogc()))
 }
 

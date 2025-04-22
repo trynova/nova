@@ -2,13 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-};
+use core::hash::{Hash, Hasher};
 
 use ahash::AHasher;
-use hashbrown::HashTable;
 use wtf8::Wtf8;
 
 use crate::{
@@ -28,9 +24,9 @@ use crate::{
         },
     },
     engine::{
-        Scoped, ScopedCollection,
+        Scoped,
         context::{Bindable, NoGcScope},
-        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
 };
@@ -193,7 +189,7 @@ impl<'a> PropertyKey<'a> {
         )
     }
 
-    fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
+    pub(super) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
         let mut hasher = AHasher::default();
         match self {
             PropertyKey::Symbol(sym) => {
@@ -226,15 +222,6 @@ unsafe impl Bindable for PropertyKey<'_> {
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
-}
-
-#[inline]
-pub fn scope_property_keys<'a>(
-    agent: &mut Agent,
-    keys: Vec<PropertyKey>,
-    gc: NoGcScope<'_, 'a>,
-) -> ScopedCollection<'a, Vec<PropertyKey<'static>>> {
-    ScopedCollection::new(agent, keys.unbind(), gc)
 }
 
 pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
@@ -425,128 +412,6 @@ impl Rootable for PropertyKey<'_> {
             HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
             HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
             _ => None,
-        }
-    }
-}
-
-#[derive(Clone)]
-#[repr(transparent)]
-pub struct PropertyKeySet<'a> {
-    set: HashTable<PropertyKey<'static>>,
-    key: PhantomData<PropertyKey<'a>>,
-}
-
-impl core::fmt::Debug for PropertyKeySet<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.set.fmt(f)
-    }
-}
-
-impl<'a> PropertyKeySet<'a> {
-    pub fn new(_: NoGcScope<'a, '_>) -> Self {
-        Self {
-            set: HashTable::new(),
-            key: PhantomData,
-        }
-    }
-
-    pub fn with_capacity(capacity: usize, _: NoGcScope<'a, '_>) -> Self {
-        Self {
-            set: HashTable::with_capacity(capacity),
-            key: PhantomData,
-        }
-    }
-
-    pub fn iter(&self) -> hashbrown::hash_table::Iter<'_, PropertyKey<'a>> {
-        self.set.iter()
-    }
-
-    /// Insert a PropertyKey into the set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
-    pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
-        let hash = value.heap_hash(agent);
-        let entry = self
-            .set
-            .entry(hash, |p| *p == value, |p| p.heap_hash(agent));
-        match entry {
-            hashbrown::hash_table::Entry::Occupied(_) => false,
-            hashbrown::hash_table::Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(value.unbind());
-                true
-            }
-        }
-    }
-
-    /// Returns `true` if the set contains a PropertyKey.
-    pub fn contains(&self, agent: &Agent, value: PropertyKey) -> bool {
-        let hash = value.heap_hash(agent);
-        self.set.find(hash, |p| *p == value).is_some()
-    }
-
-    pub(crate) fn iter_mut(&mut self) -> hashbrown::hash_table::IterMut<'_, PropertyKey<'static>> {
-        self.set.iter_mut()
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> ScopedCollection<'scope, PropertyKeySet<'static>> {
-        ScopedCollection::new(agent, self.unbind(), gc)
-    }
-}
-
-impl ScopedCollection<'_, PropertyKeySet<'static>> {
-    /// Insert a PropertyKey into the scoped set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
-    pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
-        let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
-        let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
-            unreachable!();
-        };
-        let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
-            unreachable!()
-        };
-        property_key_set.insert(agent, value)
-    }
-
-    /// Returns `true` if the scoped set contains a PropertyKey.
-    pub fn contains(&self, agent: &Agent, value: PropertyKey) -> bool {
-        let hash = value.heap_hash(agent);
-        let stack_ref_collections = agent.stack_ref_collections.borrow();
-        let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
-            unreachable!();
-        };
-        let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
-            unreachable!()
-        };
-        property_key_set.set.find(hash, |p| *p == value).is_some()
-    }
-}
-
-// SAFETY: Trivially safe.
-unsafe impl Bindable for PropertyKeySet<'_> {
-    type Of<'a> = PropertyKeySet<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        PropertyKeySet {
-            set: self.set,
-            key: PhantomData,
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        PropertyKeySet {
-            set: self.set,
-            key: PhantomData,
         }
     }
 }

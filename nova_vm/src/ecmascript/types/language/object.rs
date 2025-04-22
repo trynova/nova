@@ -7,6 +7,7 @@ mod internal_methods;
 mod internal_slots;
 mod into_object;
 mod property_key;
+mod property_key_set;
 mod property_storage;
 
 use core::hash::Hash;
@@ -104,7 +105,8 @@ pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
-pub use property_key::{PropertyKey, PropertyKeySet, scope_property_keys};
+pub use property_key::PropertyKey;
+pub use property_key_set::{PropertyKeySet, scope_property_keys};
 pub use property_storage::PropertyStorage;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)

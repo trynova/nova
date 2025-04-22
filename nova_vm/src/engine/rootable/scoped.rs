@@ -278,6 +278,7 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
     }
 
     /// Take ownership of the rootable collection from the Agent's heap.
+    #[must_use]
     pub(crate) fn take(self, agent: &Agent) -> T {
         let index = self.inner;
         let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
