@@ -433,21 +433,44 @@ impl NumberPrototype {
         (flt.len() as i32) - 1
     }
 
+    /// ### [21.1.3.6 Number.prototype.toString ( [ radix ] )](https://tc39.es/ecma262/#sec-number.prototype.tostring)
+    ///
+    /// > NOTE: The optional radix should be an integral Number value in the
+    /// > inclusive interval from 2𝔽 to 36𝔽. If radix is undefined then 10𝔽 is
+    /// > used as the value of radix.
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let nogc = gc.into_nogc();
-        let x = this_number_value(agent, this_value, nogc)?;
-        let radix = arguments.get(0).bind(nogc);
+        // 1. Let x be ? ThisNumberValue(this value).
+        let x = this_number_value(agent, this_value, gc.nogc())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        let radix = arguments.get(0).bind(gc.nogc());
+        // 2. If radix is undefined, let radixMV be 10.
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Ok(Number::to_string_radix_10(agent, x, nogc)
+            // 5. Return Number::toString(x, 10).
+            Ok(Number::to_string_radix_10(agent, x.get(agent), gc.nogc())
                 .unbind()
                 .into_value())
         } else {
-            todo!();
+            // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
+            let radix = to_integer_or_infinity(agent, radix.unbind(), gc.reborrow()).unbind()?;
+            let gc = gc.into_nogc();
+            let radix = radix.bind(gc);
+            // 4. If radixMV is not in the inclusive interval from 2 to 36, throw a RangeError exception.
+            if (2..=32).contains(&radix) {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "radix must be an integer at least 2 and no greater than 36",
+                    gc,
+                ));
+            }
+            let radix = radix.into_i64() as u32;
+            // 5. Return Number::toString(x, radixMV).
+            Ok(Number::to_string_radix_n(agent, x.get(agent), radix, gc).into_value())
         }
     }
 

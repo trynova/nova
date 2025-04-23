@@ -28,7 +28,9 @@ use crate::{
 };
 
 pub use data::NumberHeapData;
+use num_bigint::ToBigInt;
 use num_traits::{PrimInt, Zero};
+use radix_ecmascript::ToRadixStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -1313,6 +1315,24 @@ impl<'a> Number<'a> {
     pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
+    }
+
+    // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
+    pub(crate) fn to_string_radix_n<'gc>(
+        agent: &mut Agent,
+        x: Self,
+        radix: u32,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
+        String::from_string(
+            agent,
+            match x {
+                Number::Number(x) => agent[x].to_radix_str(radix as u8).unwrap(),
+                Number::SmallF64(x) => x.into_f64().to_radix_str(radix as u8).unwrap(),
+                Number::Integer(x) => x.into_i64().to_bigint().unwrap().to_str_radix(radix),
+            },
+            gc,
+        )
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
