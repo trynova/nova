@@ -168,7 +168,7 @@ impl<'a> KeyedGroup<'a> {
         self.keys
             .into_iter()
             .map(|v| unsafe { PropertyKey::from_value_unchecked(v) })
-            .zip(self.values.into_iter())
+            .zip(self.values)
     }
 
     /// Iterate over the keyed groups using the COLLECTION key coercion.
@@ -176,7 +176,7 @@ impl<'a> KeyedGroup<'a> {
         self,
     ) -> impl Iterator<Item = (Value<'a>, Vec<Value<'a>>)> {
         debug_assert_eq!(self.keys.len(), self.values.len());
-        self.keys.into_iter().zip(self.values.into_iter())
+        self.keys.into_iter().zip(self.values)
     }
 }
 
@@ -303,7 +303,7 @@ impl HeapMarkAndSweep for KeyedGroup<'static> {
                     vec.sweep_values(compactions);
                 }
                 for idx in rehash_indexes.into_iter() {
-                    let key = keys[idx as usize].clone();
+                    let key = keys[idx as usize];
                     KeyedGroup::insert_to_hash_table_unique(hash_table, keys, key, idx);
                 }
             } else {
@@ -315,7 +315,7 @@ impl HeapMarkAndSweep for KeyedGroup<'static> {
                 }
                 for (index, key) in keys.iter().enumerate() {
                     let index = index as u32;
-                    let key = key.clone();
+                    let key = *key;
                     KeyedGroup::insert_to_hash_table_unique(hash_table, keys, key, index);
                 }
             }

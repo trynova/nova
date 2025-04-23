@@ -2383,11 +2383,7 @@ pub(crate) fn initialize_instance_elements<'a>(
 /// The abstract operation AddValueToKeyedGroup takes arguments groups (a List of Records with fields
 /// [[Key]] (an ECMAScript language value) and [[Elements]] (a List of ECMAScript language values)),
 /// key (an ECMAScript language value), and value (an ECMAScript language value) and returns UNUSED.
-pub(crate) fn add_value_to_keyed_group<
-    'gc,
-    'scope,
-    K: 'static + Rootable + Copy + Into<Value<'static>>,
->(
+pub(crate) fn add_value_to_keyed_group<K: 'static + Rootable + Copy + Into<Value<'static>>>(
     agent: &mut Agent,
     groups: &mut ScopedCollection<Box<KeyedGroup>>,
     key: K,
@@ -2423,11 +2419,11 @@ pub(crate) fn add_value_to_keyed_group<
 /// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 ///
 /// Note: This version is for "property" keyCoercion.
-pub(crate) fn group_by_property<'gc, 'scope>(
+pub(crate) fn group_by_property<'gc>(
     agent: &mut Agent,
     items: Value,
     callback_fn: Value,
-    mut gc: GcScope<'gc, 'scope>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Box<KeyedGroup<'gc>>> {
     let items = items.bind(gc.nogc());
     let callback_fn = callback_fn.bind(gc.nogc());
