@@ -447,15 +447,16 @@ impl NumberPrototype {
         // 1. Let x be ? ThisNumberValue(this value).
         let x = this_number_value(agent, this_value, gc.nogc())
             .unbind()?
-            .scope(agent, gc.nogc());
+            .bind(gc.nogc());
         let radix = arguments.get(0).bind(gc.nogc());
         // 2. If radix is undefined, let radixMV be 10.
         if radix.is_undefined() || radix == Value::from(10u8) {
             // 5. Return Number::toString(x, 10).
-            Ok(Number::to_string_radix_10(agent, x.get(agent), gc.nogc())
+            Ok(Number::to_string_radix_10(agent, x.unbind(), gc.nogc())
                 .unbind()
                 .into_value())
         } else {
+            let x = x.scope(agent, gc.nogc());
             // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
             let radix = to_integer_or_infinity(agent, radix.unbind(), gc.reborrow()).unbind()?;
             let gc = gc.into_nogc();
