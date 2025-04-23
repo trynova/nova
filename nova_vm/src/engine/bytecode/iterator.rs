@@ -65,7 +65,7 @@ impl<'a> ActiveIterator<'a> {
         }
     }
 
-    pub(super) fn remaining_length_estimate<'gc>(&mut self, agent: &mut Agent) -> Option<usize> {
+    pub(super) fn remaining_length_estimate(&mut self, agent: &mut Agent) -> Option<usize> {
         self.get(agent).remaining_length_estimate(agent)
     }
 
