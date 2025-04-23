@@ -209,7 +209,14 @@ impl BigIntConstructor {
             .unbind()?
             .bind(gc.nogc());
         match bigint {
-            BigInt::BigInt(_) => todo!(),
+            BigInt::BigInt(int) => {
+                let int = &agent[int].data;
+                let modulus = 2i64.pow(bits);
+                Ok(
+                    BigInt::from_num_bigint(agent, ((int % modulus) + modulus) % modulus)
+                        .into_value(),
+                )
+            }
             BigInt::SmallBigInt(int) => {
                 let int = int.into_i64();
                 let modulo = int.rem_euclid(2i64.pow(bits));
