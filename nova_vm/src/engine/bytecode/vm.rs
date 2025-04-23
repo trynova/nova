@@ -2377,7 +2377,7 @@ impl Vm {
                 // the stack.
                 vm.iterator_stack.pop().unwrap();
                 // Rethrow possible error.
-                let _ = result?;
+                result?;
                 vm.result = Some(array.get(agent).into_value());
             }
             Instruction::IteratorClose => {

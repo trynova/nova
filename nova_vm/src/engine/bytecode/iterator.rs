@@ -69,12 +69,12 @@ impl<'a> ActiveIterator<'a> {
         self.get(agent).remaining_length_estimate(agent)
     }
 
-    pub(super) fn get<'agent, 'gc>(&self, agent: &'agent Agent) -> &'agent VmIteratorRecord {
+    pub(super) fn get<'agent>(&self, agent: &'agent Agent) -> &'agent VmIteratorRecord {
         // SAFETY: VM is held exclusively in an above call stack.
         unsafe { agent.vm_stack.last().expect("No VM found").as_ref() }.get_active_iterator()
     }
 
-    fn get_mut<'agent, 'gc>(
+    fn get_mut<'agent>(
         &mut self,
         agent: &'agent mut Agent,
     ) -> &'agent mut VmIteratorRecord<'static> {
