@@ -1970,4 +1970,23 @@ mod test {
             .unwrap();
         assert_eq!(result, Value::Undefined);
     }
+
+    #[test]
+    fn for_in_loop() {
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent, gc.reborrow());
+        // let realm = agent.current_realm_id(gc.nogc());
+
+        let source_text = String::from_static_str(
+            &mut agent,
+            "for (let i in { a: 1, b: 2, c: 3 }) { i; }",
+            gc.nogc(),
+        );
+        let result = agent
+            .run_script(source_text.unbind(), gc.reborrow())
+            .unwrap();
+        assert_eq!(result, Value::Undefined);
+    }
 }

@@ -229,22 +229,6 @@ pub mod private {
         ///
         /// If the heap data does not match the type, the method should panic.
         fn from_heap_data(value: HeapRootCollectionData) -> Self;
-
-        /// Dereference the rooted collection's heap data value to the type
-        /// itself.
-        ///
-        /// ## Panics
-        ///
-        /// If the heap data does not match the type, the method should panic.
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self;
-
-        /// Dereference the rooted collection's heap data value to the type
-        /// itself as mutable.
-        ///
-        /// ## Panics
-        ///
-        /// If the heap data does not match the type, the method should panic.
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self;
     }
 
     #[derive(Debug)]
@@ -313,14 +297,6 @@ pub mod private {
         fn from_heap_data(_: HeapRootCollectionData) -> Self {
             unreachable!("ScopedCollection should never try to take ownership of ArgumentsList");
         }
-
-        fn get_heap_data(_: &HeapRootCollectionData) -> &Self {
-            unreachable!("ScopedCollection should never try to access ArgumentsList directly");
-        }
-
-        fn get_heap_data_mut(_: &mut HeapRootCollectionData) -> &mut Self {
-            unreachable!("ScopedCollection should never try to access ArgumentsList directly");
-        }
     }
     impl RootableCollectionSealed for Vec<Value<'static>> {
         fn to_heap_data(self) -> HeapRootCollectionData {
@@ -328,20 +304,6 @@ pub mod private {
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::ValueVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::ValueVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
             let HeapRootCollectionData::ValueVec(value) = value else {
                 unreachable!()
             };
@@ -359,20 +321,6 @@ pub mod private {
             };
             value
         }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
-            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
     }
     impl RootableCollectionSealed for PropertyKeySet<'static> {
         fn to_heap_data(self) -> HeapRootCollectionData {
@@ -385,20 +333,6 @@ pub mod private {
             };
             value
         }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::PropertyKeySet(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
-            let HeapRootCollectionData::PropertyKeySet(value) = value else {
-                unreachable!()
-            };
-            value
-        }
     }
     impl RootableCollectionSealed for Box<KeyedGroup<'static>> {
         fn to_heap_data(self) -> HeapRootCollectionData {
@@ -406,20 +340,6 @@ pub mod private {
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::KeyedGroup(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::KeyedGroup(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
             let HeapRootCollectionData::KeyedGroup(value) = value else {
                 unreachable!()
             };

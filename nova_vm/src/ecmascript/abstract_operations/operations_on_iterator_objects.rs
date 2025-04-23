@@ -34,7 +34,7 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct IteratorRecord<'a> {
+pub struct IteratorRecord<'a> {
     pub(crate) iterator: Object<'a>,
     pub(crate) next_method: Function<'a>,
     // Note: The done field doesn't seem to be used anywhere.
@@ -60,12 +60,6 @@ unsafe impl Bindable for IteratorRecord<'_> {
             // done: self.done,
         }
     }
-}
-
-pub(crate) struct ScopedIteratorRecord<'a> {
-    pub(crate) iterator: Object<'a>,
-    pub(crate) next_method: Value<'a>,
-    pub(crate) done: bool,
 }
 
 /// ### [7.4.2 GetIteratorDirect ( obj )](https://tc39.es/ecma262/#sec-getiteratordirect)

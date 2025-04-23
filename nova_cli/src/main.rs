@@ -4,7 +4,7 @@
 mod helper;
 mod theme;
 
-use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
+use std::{cell::RefCell, collections::VecDeque, fmt::Debug, ptr::NonNull};
 
 use clap::{Parser as ClapParser, Subcommand};
 use cliclack::{input, intro, set_theme};
@@ -140,13 +140,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             expose_internals,
             paths,
         } => {
-            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
+            let host_hooks: NonNull<CliHostHooks> = NonNull::from(Box::leak(Box::default()));
             let mut agent = GcAgent::new(
                 Options {
                     disable_gc: nogc,
                     print_internals: verbose,
                 },
-                host_hooks,
+                // SAFETY: Host hooks is a valid pointer.
+                unsafe { host_hooks.as_ref() },
             );
             assert!(!paths.is_empty());
             let create_global_object: Option<
@@ -213,6 +214,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
 
+                        // SAFETY: Still valid.
+                        let host_hooks = unsafe { host_hooks.as_ref() };
                         let result = if host_hooks.has_promise_jobs() {
                             run_microtask_queue(agent, host_hooks, result.unbind(), gc.reborrow())
                                 .unbind()
@@ -244,6 +247,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
             }
             agent.remove_realm(realm);
+            // SAFETY: Host hooks are no longer used as agent is dropped.
+            let _ = unsafe { Box::from_raw(host_hooks.as_ptr()) };
         }
         Command::Repl {
             expose_internals,
