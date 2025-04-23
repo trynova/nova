@@ -28,7 +28,6 @@ use crate::{
 };
 
 pub use data::NumberHeapData;
-use num_bigint::ToBigInt;
 use num_traits::{PrimInt, Zero};
 use radix_ecmascript::ToRadixStr;
 
@@ -1327,10 +1326,12 @@ impl<'a> Number<'a> {
         String::from_string(
             agent,
             match x {
-                Number::Number(x) => agent[x].to_radix_str(radix as u8).unwrap(),
-                Number::SmallF64(x) => x.into_f64().to_radix_str(radix as u8).unwrap(),
-                Number::Integer(x) => x.into_i64().to_bigint().unwrap().to_str_radix(radix),
-            },
+                Number::Number(x) => agent[x],
+                Number::SmallF64(x) => x.into_f64(),
+                Number::Integer(x) => x.into_i64() as f64,
+            }
+            .to_radix_str(radix as u8)
+            .unwrap(),
             gc,
         )
     }
