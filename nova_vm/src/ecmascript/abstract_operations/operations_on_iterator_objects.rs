@@ -34,11 +34,21 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct IteratorRecord<'a> {
+pub struct IteratorRecord<'a> {
     pub(crate) iterator: Object<'a>,
     pub(crate) next_method: Function<'a>,
     // Note: The done field doesn't seem to be used anywhere.
     // pub(crate) done: bool,
+}
+
+impl ScopableCollection for IteratorRecord<'_> {
+    fn scope<'scope>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> crate::engine::ScopedCollection<'scope, Self::Of<'static>> {
+        ScopedCollection::new(agent, self.unbind(), gc)
+    }
 }
 
 /// SAFETY: Properly implemented as recursive binding.

@@ -48,7 +48,9 @@ use crate::ecmascript::{
 use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
-        abstract_operations::keyed_group::KeyedGroup,
+        abstract_operations::{
+            keyed_group::KeyedGroup, operations_on_iterator_objects::IteratorRecord,
+        },
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
@@ -112,7 +114,9 @@ pub mod private {
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::{
         ecmascript::{
-            abstract_operations::keyed_group::KeyedGroup,
+            abstract_operations::{
+                keyed_group::KeyedGroup, operations_on_iterator_objects::IteratorRecord,
+            },
             builtins::{
                 ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
                 ECMAScriptFunction,
@@ -144,7 +148,7 @@ pub mod private {
                 PropertyKeySet, String, Symbol, Value,
             },
         },
-        engine::{Executable, context::Bindable},
+        engine::{Executable, context::Bindable, iterator::VmIteratorRecord},
         heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     };
 
@@ -229,22 +233,6 @@ pub mod private {
         ///
         /// If the heap data does not match the type, the method should panic.
         fn from_heap_data(value: HeapRootCollectionData) -> Self;
-
-        /// Dereference the rooted collection's heap data value to the type
-        /// itself.
-        ///
-        /// ## Panics
-        ///
-        /// If the heap data does not match the type, the method should panic.
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self;
-
-        /// Dereference the rooted collection's heap data value to the type
-        /// itself as mutable.
-        ///
-        /// ## Panics
-        ///
-        /// If the heap data does not match the type, the method should panic.
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self;
     }
 
     #[derive(Debug)]
@@ -265,6 +253,7 @@ pub mod private {
         PropertyKeyVec(Vec<PropertyKey<'static>>),
         PropertyKeySet(PropertyKeySet<'static>),
         KeyedGroup(Box<KeyedGroup<'static>>),
+        Iterator(VmIteratorRecord<'static>),
     }
 
     impl HeapMarkAndSweep for HeapRootCollectionData {
@@ -283,6 +272,7 @@ pub mod private {
                 Self::PropertyKeyVec(items) => items.mark_values(queues),
                 Self::PropertyKeySet(items) => items.mark_values(queues),
                 Self::KeyedGroup(group) => group.mark_values(queues),
+                Self::Iterator(iter) => iter.mark_values(queues),
             }
         }
 
@@ -301,6 +291,7 @@ pub mod private {
                 Self::PropertyKeyVec(items) => items.sweep_values(compactions),
                 Self::PropertyKeySet(items) => items.sweep_values(compactions),
                 Self::KeyedGroup(group) => group.sweep_values(compactions),
+                Self::Iterator(iter) => iter.sweep_values(compactions),
             }
         }
     }
@@ -313,14 +304,6 @@ pub mod private {
         fn from_heap_data(_: HeapRootCollectionData) -> Self {
             unreachable!("ScopedCollection should never try to take ownership of ArgumentsList");
         }
-
-        fn get_heap_data(_: &HeapRootCollectionData) -> &Self {
-            unreachable!("ScopedCollection should never try to access ArgumentsList directly");
-        }
-
-        fn get_heap_data_mut(_: &mut HeapRootCollectionData) -> &mut Self {
-            unreachable!("ScopedCollection should never try to access ArgumentsList directly");
-        }
     }
     impl RootableCollectionSealed for Vec<Value<'static>> {
         fn to_heap_data(self) -> HeapRootCollectionData {
@@ -328,20 +311,6 @@ pub mod private {
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::ValueVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::ValueVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
             let HeapRootCollectionData::ValueVec(value) = value else {
                 unreachable!()
             };
@@ -359,20 +328,6 @@ pub mod private {
             };
             value
         }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
-            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
-                unreachable!()
-            };
-            value
-        }
     }
     impl RootableCollectionSealed for PropertyKeySet<'static> {
         fn to_heap_data(self) -> HeapRootCollectionData {
@@ -380,20 +335,6 @@ pub mod private {
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::PropertyKeySet(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::PropertyKeySet(value) = value else {
-                unreachable!()
-            };
-            value
-        }
-
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
             let HeapRootCollectionData::PropertyKeySet(value) = value else {
                 unreachable!()
             };
@@ -411,16 +352,27 @@ pub mod private {
             };
             value
         }
+    }
+    impl RootableCollectionSealed for VmIteratorRecord<'static> {
+        fn to_heap_data(self) -> HeapRootCollectionData {
+            HeapRootCollectionData::Iterator(self.unbind())
+        }
 
-        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
-            let HeapRootCollectionData::KeyedGroup(value) = value else {
+        fn from_heap_data(value: HeapRootCollectionData) -> Self {
+            let HeapRootCollectionData::Iterator(value) = value else {
                 unreachable!()
             };
             value
         }
+    }
+    impl RootableCollectionSealed for IteratorRecord<'static> {
+        fn to_heap_data(self) -> HeapRootCollectionData {
+            HeapRootCollectionData::Iterator(VmIteratorRecord::GenericIterator(self.unbind()))
+        }
 
-        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
-            let HeapRootCollectionData::KeyedGroup(value) = value else {
+        fn from_heap_data(value: HeapRootCollectionData) -> Self {
+            let HeapRootCollectionData::Iterator(VmIteratorRecord::GenericIterator(value)) = value
+            else {
                 unreachable!()
             };
             value
@@ -431,7 +383,7 @@ pub mod private {
 pub use global::Global;
 pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
-use super::{Executable, context::Bindable};
+use super::{Executable, context::Bindable, iterator::VmIteratorRecord};
 
 pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
     type RootRepr: Sized + Clone + core::fmt::Debug;
@@ -942,3 +894,5 @@ impl RootableCollection for Vec<Value<'static>> {}
 impl RootableCollection for Vec<PropertyKey<'static>> {}
 impl RootableCollection for PropertyKeySet<'static> {}
 impl RootableCollection for Box<KeyedGroup<'static>> {}
+impl RootableCollection for VmIteratorRecord<'static> {}
+impl RootableCollection for IteratorRecord<'static> {}
