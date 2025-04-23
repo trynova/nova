@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// An unordered set of PropertyKeys.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 #[repr(transparent)]
 pub struct PropertyKeySet<'a>(HashTable<PropertyKey<'a>>);
 

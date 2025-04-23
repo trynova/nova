@@ -166,7 +166,7 @@ pub(crate) struct Vm {
     ip: usize,
     stack: Vec<Value<'static>>,
     reference_stack: Vec<Reference<'static>>,
-    iterator_stack: Vec<VmIterator>,
+    iterator_stack: Vec<VmIterator<'static>>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget<'static>>,
     result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
@@ -187,7 +187,7 @@ pub(crate) struct SuspendedVm {
     /// Note: Iterator stack is non-empty only if the code awaits inside a
     /// for-in or for-of loop. This means that often no heap data clone is
     /// required.
-    iterator_stack: Box<[VmIterator]>,
+    iterator_stack: Box<[VmIterator<'static>]>,
     /// Note: Exception jump stack is non-empty only if the code awaits inside
     /// a try block. This means that often no heap data clone is required.
     exception_jump_target_stack: Box<[ExceptionJumpTarget<'static>]>,
@@ -2074,7 +2074,7 @@ impl Vm {
                     None
                 };
                 let iterator = vm.iterator_stack.pop().unwrap().bind(gc.nogc());
-                execute_simple_array_binding(agent, vm, executable, iterator, env, gc)?
+                execute_simple_array_binding(agent, vm, executable, iterator.unbind(), env, gc)?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -2270,10 +2270,9 @@ impl Vm {
             }
             Instruction::EnumerateObjectProperties => {
                 let object = to_object(agent, vm.result.take().unwrap(), gc.nogc()).unwrap();
-                vm.iterator_stack
-                    .push(VmIterator::ObjectProperties(ObjectPropertiesIterator::new(
-                        object,
-                    )))
+                vm.iterator_stack.push(
+                    VmIterator::ObjectProperties(ObjectPropertiesIterator::new(object)).unbind(),
+                )
             }
             Instruction::GetIteratorSync => {
                 let expr_value = vm.result.take().unwrap();

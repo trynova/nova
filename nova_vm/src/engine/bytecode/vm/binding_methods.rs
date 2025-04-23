@@ -293,7 +293,7 @@ pub(super) fn execute_nested_simple_binding<'a>(
                 agent,
                 vm,
                 executable,
-                new_iterator,
+                new_iterator.unbind(),
                 environment.clone(),
                 gc,
             )

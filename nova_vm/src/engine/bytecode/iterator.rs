@@ -13,7 +13,10 @@ use crate::{
         },
         builtins::{Array, ScopedArgumentsList},
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyKey, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyKey, PropertyKeySet,
+            Value,
+        },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -23,17 +26,17 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) enum VmIterator {
+pub(super) enum VmIterator<'a> {
     /// Special type for iterators that do not have a callable next method.
     InvalidIterator,
-    ObjectProperties(ObjectPropertiesIterator),
-    ArrayValues(ArrayValuesIterator),
-    GenericIterator(IteratorRecord<'static>),
-    SliceIterator(ScopedArgumentsList<'static>),
+    ObjectProperties(ObjectPropertiesIterator<'a>),
+    ArrayValues(ArrayValuesIterator<'a>),
+    GenericIterator(IteratorRecord<'a>),
+    SliceIterator(ScopedArgumentsList<'a>),
     EmptySliceIterator,
 }
 
-impl VmIterator {
+impl VmIterator<'_> {
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
     ///
     /// While not exactly equal to the IteratorStepValue method in usage, this
@@ -126,7 +129,9 @@ impl VmIterator {
     pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
         match self {
             VmIterator::InvalidIterator => None,
-            VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
+            VmIterator::ObjectProperties(iter) => {
+                Some(iter.remaining_keys.as_ref().map_or(0, |k| k.len()))
+            }
             VmIterator::ArrayValues(iter) => {
                 Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
             }
@@ -182,7 +187,9 @@ impl VmIterator {
                         .array_prototype_values()
                         .into() =>
             {
-                Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
+                Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(
+                    array.unbind(),
+                )))
             }
             _ => {
                 if let Some(js_iterator) =
@@ -198,63 +205,61 @@ impl VmIterator {
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for VmIterator {
-    type Of<'a> = VmIterator;
+unsafe impl Bindable for VmIterator<'_> {
+    type Of<'a> = VmIterator<'a>;
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
-        self
+        unsafe { core::mem::transmute(self) }
     }
 
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self
+        unsafe { core::mem::transmute(self) }
     }
 }
 
 #[derive(Debug)]
-pub(super) struct ObjectPropertiesIterator {
-    object: Object<'static>,
-    object_was_visited: bool,
-    visited_keys: Vec<PropertyKey<'static>>,
-    remaining_keys: VecDeque<PropertyKey<'static>>,
+pub(super) struct ObjectPropertiesIterator<'a> {
+    object: Object<'a>,
+    visited_keys: PropertyKeySet<'a>,
+    remaining_keys: Option<VecDeque<PropertyKey<'a>>>,
 }
 
-impl ObjectPropertiesIterator {
-    pub(super) fn new(object: Object) -> Self {
+impl<'a> ObjectPropertiesIterator<'a> {
+    pub(super) fn new(object: Object<'a>) -> Self {
         Self {
-            object: object.unbind(),
-            object_was_visited: false,
+            object,
             visited_keys: Default::default(),
             remaining_keys: Default::default(),
         }
     }
 
-    pub(super) fn next<'a>(
+    pub(super) fn next<'gc>(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Option<PropertyKey<'a>>> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<PropertyKey<'gc>>> {
         let mut object = self.object.scope(agent, gc.nogc());
         loop {
-            if !self.object_was_visited {
+            if self.remaining_keys.is_none() {
                 let keys = object
                     .get(agent)
                     .internal_own_property_keys(agent, gc.reborrow())
                     .unbind()?
                     .bind(gc.nogc());
+                let mut remaining_keys = VecDeque::with_capacity(keys.len());
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
                     } else {
-                        // TODO: Properly handle potential GC.
-                        self.remaining_keys.push_back(key.unbind());
+                        remaining_keys.push_back(key.unbind());
                     }
                 }
-                self.object_was_visited = true;
+                self.remaining_keys = Some(remaining_keys);
             }
-            while let Some(r) = self.remaining_keys.pop_front() {
-                if self.visited_keys.contains(&r) {
+            while let Some(r) = self.remaining_keys.as_mut().unwrap().pop_front() {
+                if self.visited_keys.contains(agent, r) {
                     continue;
                 }
                 let desc = object
@@ -263,9 +268,9 @@ impl ObjectPropertiesIterator {
                     .unbind()?
                     .bind(gc.nogc());
                 if let Some(desc) = desc {
-                    self.visited_keys.push(r);
+                    self.visited_keys.insert(agent, r);
                     if desc.enumerable == Some(true) {
-                        return Ok(Some(r));
+                        return Ok(Some(r.unbind()));
                     }
                 }
             }
@@ -275,7 +280,7 @@ impl ObjectPropertiesIterator {
                 .unbind()?
                 .bind(gc.nogc());
             if let Some(prototype) = prototype {
-                self.object_was_visited = false;
+                self.remaining_keys = None;
                 self.object = prototype.unbind();
                 // SAFETY: object is not shared.
                 unsafe { object.replace(agent, prototype.unbind()) };
@@ -287,15 +292,15 @@ impl ObjectPropertiesIterator {
 }
 
 #[derive(Debug)]
-pub(super) struct ArrayValuesIterator {
-    array: Array<'static>,
+pub(super) struct ArrayValuesIterator<'a> {
+    array: Array<'a>,
     index: u32,
 }
 
-impl ArrayValuesIterator {
-    pub(super) fn new(array: Array) -> Self {
+impl<'a> ArrayValuesIterator<'a> {
+    pub(super) fn new(array: Array<'a>) -> Self {
         Self {
-            array: array.unbind(),
+            array,
             // a. Let index be 0.
             index: 0,
         }
@@ -335,37 +340,39 @@ impl ArrayValuesIterator {
     }
 }
 
-impl HeapMarkAndSweep for ObjectPropertiesIterator {
+impl HeapMarkAndSweep for ObjectPropertiesIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object,
-            object_was_visited: _,
             visited_keys,
             remaining_keys,
         } = self;
         object.mark_values(queues);
-        visited_keys.as_slice().mark_values(queues);
-        for key in remaining_keys.iter() {
-            key.mark_values(queues);
+        visited_keys.mark_values(queues);
+        if let Some(remaining_keys) = remaining_keys {
+            for key in remaining_keys.iter() {
+                key.mark_values(queues);
+            }
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object,
-            object_was_visited: _,
             visited_keys,
             remaining_keys,
         } = self;
         object.sweep_values(compactions);
-        visited_keys.as_mut_slice().sweep_values(compactions);
-        for key in remaining_keys.iter_mut() {
-            key.sweep_values(compactions);
+        visited_keys.sweep_values(compactions);
+        if let Some(remaining_keys) = remaining_keys {
+            for key in remaining_keys.iter_mut() {
+                key.sweep_values(compactions);
+            }
         }
     }
 }
 
-impl HeapMarkAndSweep for ArrayValuesIterator {
+impl HeapMarkAndSweep for ArrayValuesIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.array.mark_values(queues)
     }
@@ -375,7 +382,7 @@ impl HeapMarkAndSweep for ArrayValuesIterator {
     }
 }
 
-impl HeapMarkAndSweep for VmIterator {
+impl HeapMarkAndSweep for VmIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             VmIterator::InvalidIterator => {}
