@@ -41,16 +41,6 @@ pub struct IteratorRecord<'a> {
     // pub(crate) done: bool,
 }
 
-impl ScopableCollection for IteratorRecord<'_> {
-    fn scope<'scope>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> crate::engine::ScopedCollection<'scope, Self::Of<'static>> {
-        ScopedCollection::new(agent, self.unbind(), gc)
-    }
-}
-
 /// SAFETY: Properly implemented as recursive binding.
 unsafe impl Bindable for IteratorRecord<'_> {
     type Of<'a> = IteratorRecord<'a>;
