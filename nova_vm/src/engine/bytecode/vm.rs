@@ -2326,16 +2326,7 @@ impl Vm {
                         // We have exhausted the iterator; replace the top
                         // iterator with an empty slice iterator so further
                         // instructions aren't observable.
-                        let active_iterator = vm.get_active_iterator_mut();
-                        let old = core::mem::replace(
-                            active_iterator,
-                            VmIteratorRecord::EmptySliceIterator,
-                        );
-                        debug_assert!(matches!(
-                            old,
-                            VmIteratorRecord::SliceIterator(_)
-                                | VmIteratorRecord::EmptySliceIterator
-                        ));
+                        *vm.get_active_iterator_mut() = VmIteratorRecord::EmptySliceIterator;
                     }
                 } else {
                     // The iterator threw an error: pop the iterator from the stack
