@@ -43,7 +43,7 @@ pub struct PropertyDescriptor<'a> {
     pub configurable: Option<bool>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ScopedPropertyDescriptor<'a> {
     /// \[\[Value]]
     pub value: Option<Scoped<'a, Value<'static>>>,
@@ -65,16 +65,29 @@ pub struct ScopedPropertyDescriptor<'a> {
 }
 
 impl<'b> ScopedPropertyDescriptor<'b> {
-    pub(crate) fn into_property_descriptor<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, 'b>,
-    ) -> PropertyDescriptor<'a> {
+    /// Return the property descriptor as unscoped.
+    pub(crate) fn get<'a>(&self, agent: &Agent, gc: NoGcScope<'a, 'b>) -> PropertyDescriptor<'a> {
         PropertyDescriptor {
-            value: self.value.map(|v| v.get(agent).bind(gc)),
+            value: self.value.as_ref().map(|v| v.get(agent).bind(gc)),
             writable: self.writable,
-            get: self.get.map(|f| f.get(agent).bind(gc)),
-            set: self.set.map(|f| f.get(agent).bind(gc)),
+            get: self.get.as_ref().map(|f| f.get(agent).bind(gc)),
+            set: self.set.as_ref().map(|f| f.get(agent).bind(gc)),
+            enumerable: self.enumerable,
+            configurable: self.configurable,
+        }
+    }
+
+    /// Take ownership of the scoped property descriptor and return it as an
+    /// unscoped property descriptor.
+    pub(crate) fn take<'a>(self, agent: &Agent, gc: NoGcScope<'a, 'b>) -> PropertyDescriptor<'a> {
+        PropertyDescriptor {
+            // SAFETY: PropertyDescriptor cannot be shared.
+            value: self.value.map(|v| unsafe { v.take(agent).bind(gc) }),
+            writable: self.writable,
+            // SAFETY: PropertyDescriptor cannot be shared.
+            get: self.get.map(|f| unsafe { f.take(agent).bind(gc) }),
+            // SAFETY: PropertyDescriptor cannot be shared.
+            set: self.set.map(|f| unsafe { f.take(agent).bind(gc) }),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }

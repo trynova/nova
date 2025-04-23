@@ -672,7 +672,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 13. Perform CompletePropertyDescriptor(resultDesc).
         result_desc.complete_property_descriptor().unbind()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
-        let target_desc = target_desc.map(|desc| desc.into_property_descriptor(agent, gc.nogc()));
+        let target_desc = target_desc.map(|desc| desc.take(agent, gc.nogc()));
         let valid = is_compatible_property_descriptor(
             agent,
             extensible_target,
@@ -773,20 +773,14 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return scoped_target.get(agent).internal_define_own_property(
                 agent,
                 property_key.get(agent),
-                property_descriptor
-                    .into_property_descriptor(agent, gc.nogc())
-                    .unbind(),
+                property_descriptor.take(agent, gc.nogc()).unbind(),
                 gc,
             );
         };
         let trap = trap.unbind().bind(gc.nogc());
         // 7. Let descObj be FromPropertyDescriptor(Desc).
         let desc_obj = PropertyDescriptor::from_property_descriptor(
-            Some(
-                property_descriptor
-                    .clone()
-                    .into_property_descriptor(agent, gc.nogc()),
-            ),
+            Some(property_descriptor.get(agent, gc.nogc())),
             agent,
             gc.nogc(),
         );
@@ -823,8 +817,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let setting_config_false = property_descriptor.configurable == Some(false);
         // 14. If targetDesc is undefined, then
         let gc = gc.into_nogc();
-        let target_desc = target_desc.map(|desc| desc.into_property_descriptor(agent, gc));
-        let property_descriptor = property_descriptor.into_property_descriptor(agent, gc);
+        let target_desc = target_desc.map(|desc| desc.get(agent, gc));
+        let property_descriptor = property_descriptor.take(agent, gc);
         if target_desc.is_none() {
             // a. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {

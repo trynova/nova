@@ -1205,11 +1205,11 @@ fn object_define_properties<'gc>(
             .bind(gc.nogc());
         // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
         let Some(prop_desc) = prop_desc else {
-            // SAFETY: scoped_next_key is not shared.
+            descriptors.push(None);
             continue;
         };
         if prop_desc.enumerable != Some(true) {
-            // SAFETY: scoped_next_key is not shared.
+            descriptors.push(None);
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
@@ -1227,18 +1227,19 @@ fn object_define_properties<'gc>(
                 .unbind()?
                 .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
-        descriptors.push((next_key.get(gc.nogc()).scope(agent, gc.nogc()), desc));
+        descriptors.push(Some(desc));
     }
     // 5. For each element property of descriptors, do
-    for (property_key, property_descriptor) in descriptors {
+    for (property_key, property_descriptor) in keys.iter(agent).zip(descriptors.into_iter()) {
+        let Some(property_descriptor) = property_descriptor else {
+            continue;
+        };
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
         define_property_or_throw(
             agent,
             scoped_o.get(agent),
-            property_key.get(agent),
-            property_descriptor
-                .into_property_descriptor(agent, gc.nogc())
-                .unbind(),
+            property_key.get(gc.nogc()).unbind(),
+            property_descriptor.take(agent, gc.nogc()).unbind(),
             gc.reborrow(),
         )
         .unbind()?;

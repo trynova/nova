@@ -3802,7 +3802,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
 
     fn try_from(value: HeapRootData) -> Result<Self, ()> {
         match value {
-            HeapRootData::String(_)
+            HeapRootData::Empty
+            | HeapRootData::String(_)
             | HeapRootData::Symbol(_)
             | HeapRootData::Number(_)
             | HeapRootData::BigInt(_) => Err(()),

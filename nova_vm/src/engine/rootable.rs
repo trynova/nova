@@ -466,6 +466,9 @@ impl<'a, T: core::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRoo
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum HeapRootData {
+    /// Empty heap root data slot. This can be used to reserve a slot, or to
+    /// remove a scoped value from the heap.
+    Empty,
     // First the Value variants: This list should match 1-to-1 the list in
     // value.rs, but with the
     String(HeapString<'static>) = STRING_DISCRIMINANT,
@@ -671,6 +674,7 @@ fn handle_heap_ref_overflow() -> ! {
 impl HeapMarkAndSweep for HeapRootData {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         match self {
+            HeapRootData::Empty => {}
             HeapRootData::String(heap_string) => heap_string.mark_values(queues),
             HeapRootData::Symbol(symbol) => symbol.mark_values(queues),
             HeapRootData::Number(heap_number) => heap_number.mark_values(queues),
@@ -782,6 +786,7 @@ impl HeapMarkAndSweep for HeapRootData {
 
     fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
         match self {
+            HeapRootData::Empty => {}
             HeapRootData::String(heap_string) => heap_string.sweep_values(compactions),
             HeapRootData::Symbol(symbol) => symbol.sweep_values(compactions),
             HeapRootData::Number(heap_number) => heap_number.sweep_values(compactions),
