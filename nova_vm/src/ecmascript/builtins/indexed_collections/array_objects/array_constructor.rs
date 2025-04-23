@@ -2,63 +2,39 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::IteratorRecord;
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_iterator_from_method;
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_abrupt_close_iterator;
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close_with_error;
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_step_value;
-use crate::ecmascript::abstract_operations::operations_on_objects::call_function;
-use crate::ecmascript::abstract_operations::operations_on_objects::construct;
-use crate::ecmascript::abstract_operations::operations_on_objects::create_data_property_or_throw;
-use crate::ecmascript::abstract_operations::operations_on_objects::get;
-use crate::ecmascript::abstract_operations::operations_on_objects::get_method;
-use crate::ecmascript::abstract_operations::operations_on_objects::length_of_array_like;
-use crate::ecmascript::abstract_operations::operations_on_objects::set;
-use crate::ecmascript::abstract_operations::operations_on_objects::throw_not_callable;
-use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property_or_throw;
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
-
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_constructor;
-use crate::ecmascript::abstract_operations::testing_and_comparison::same_value_zero;
-use crate::ecmascript::abstract_operations::type_conversion::to_object;
-use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinGetter;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::array_create;
-use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::agent::ExceptionType;
-
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::Realm;
-
-use crate::SmallInteger;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::InternalMethods;
-use crate::ecmascript::types::IntoFunction;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Number;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::PropertyDescriptor;
-use crate::ecmascript::types::PropertyKey;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::Value;
-use crate::engine::Scoped;
-use crate::engine::context::Bindable;
-use crate::engine::context::GcScope;
-use crate::engine::rootable::Scopable;
-use crate::engine::unwrap_try;
-use crate::heap::IntrinsicConstructorIndexes;
-use crate::heap::WellKnownSymbolIndexes;
+use crate::{
+    SmallInteger,
+    ecmascript::{
+        abstract_operations::{
+            operations_on_iterator_objects::{
+                IteratorRecord, get_iterator_from_method, if_abrupt_close_iterator,
+                iterator_close_with_error, iterator_step_value,
+            },
+            operations_on_objects::{
+                call_function, construct, create_data_property_or_throw, get, get_method,
+                length_of_array_like, set, throw_not_callable, try_create_data_property_or_throw,
+            },
+            testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
+            type_conversion::{to_object, to_uint32_number},
+        },
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array_create, ordinary::get_prototype_from_constructor,
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+        unwrap_try,
+    },
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+};
 
 pub struct ArrayConstructor;
 
@@ -105,145 +81,132 @@ impl ArrayConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        mut arguments: ArgumentsList,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        enum BoundArgs<'a> {
-            Length(Scoped<'a, Value<'static>>),
-            Items(Vec<Scoped<'a, Value<'static>>>),
-        }
         let new_target = new_target.bind(gc.nogc());
-        // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
+        // 1. If NewTarget is undefined, let newTarget be the active function
+        //    object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
             || agent.running_execution_context().function.unwrap(),
             |new_target| Function::try_from(new_target).unwrap(),
         );
 
-        let arguments = if arguments.is_empty() {
-            None
-        } else if arguments.len() == 1 {
-            Some(BoundArgs::Length(arguments.get(0).scope(agent, gc.nogc())))
-        } else {
-            Some(BoundArgs::Items(
-                arguments
-                    .iter()
-                    .map(|v| v.scope(agent, gc.nogc()))
-                    .collect(),
-            ))
-        };
-
         // 2. Let proto be ? GetPrototypeFromConstructor(newTarget, "%Array.prototype%").
-        let proto = get_prototype_from_constructor(
-            agent,
-            new_target.unbind(),
-            ProtoIntrinsics::Array,
-            gc.reborrow(),
-        )
-        .unbind()?;
+        let proto = {
+            let new_target = new_target.unbind();
+            arguments
+                .with_scoped(
+                    agent,
+                    |agent, _, gc| {
+                        get_prototype_from_constructor(
+                            agent,
+                            new_target,
+                            ProtoIntrinsics::Array,
+                            gc,
+                        )
+                    },
+                    gc.reborrow(),
+                )
+                .unbind()?
+        };
         let gc = gc.into_nogc();
         let proto = proto.bind(gc);
 
         // 3. Let numberOfArgs be the number of elements in values.
-
         // 4. If numberOfArgs = 0, then
-        let Some(arguments) = arguments else {
+        if arguments.is_empty() {
             // a. Return ! ArrayCreate(0, proto).
-            return Ok(array_create(agent, 0, 0, proto, gc).unwrap().into_value());
-        };
+            Ok(array_create(agent, 0, 0, proto, gc).unwrap().into_value())
+        } else if arguments.len() == 1 {
+            // 5. Else if numberOfArgs = 1, then
+            // a. Let len be values[0].
+            let len = arguments.get(0);
 
-        // 5. Else if numberOfArgs = 1, then
-        match arguments {
-            BoundArgs::Length(len) => {
-                // a. Let len be values[0].
-                let len = len.get(agent).bind(gc);
-
-                // c. If len is not a Number, then
-                let array = if let Ok(len) = Number::try_from(len) {
-                    // d. Else,
-                    // i. Let intLen be ! ToUint32(len).
-                    let proto = proto.map(|p| p.scope(agent, gc));
-                    let int_len = to_uint32_number(agent, len);
-                    // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
-                    if !same_value_zero(agent, int_len, len) {
-                        return Err(agent.throw_exception_with_static_message(
-                            ExceptionType::RangeError,
-                            "Invalid array length",
-                            gc,
-                        ));
-                    }
-                    let array = array_create(
-                        agent,
-                        int_len as usize,
-                        int_len as usize,
-                        proto.map(|p| p.get(agent)),
+            // c. If len is not a Number, then
+            let array = if let Ok(len) = Number::try_from(len) {
+                // d. Else,
+                // i. Let intLen be ! ToUint32(len).
+                let proto = proto.map(|p| p.scope(agent, gc));
+                let int_len = to_uint32_number(agent, len);
+                // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
+                if !same_value_zero(agent, int_len, len) {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Invalid array length",
                         gc,
-                    )
-                    .unwrap();
-                    // e. Perform ! Set(array, "length", intLen, true).
-                    debug_assert_eq!(agent[array].elements.len(), int_len);
-                    array
-                } else {
-                    // b. Let array be ! ArrayCreate(0, proto).
-                    let array = array_create(agent, 1, 1, proto, gc).unwrap();
-                    // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
-                    unwrap_try(try_create_data_property_or_throw(
-                        agent,
-                        array,
-                        PropertyKey::from(SmallInteger::zero()),
-                        len,
-                        gc,
-                    ))
-                    .unwrap();
-                    // ii. Let intLen be 1𝔽.
-                    // e. Perform ! Set(array, "length", intLen, true).
-                    debug_assert_eq!(agent[array].elements.len(), 1);
-                    array
-                };
-
-                // f. Return array.
-                Ok(array.into_value())
-            }
-            BoundArgs::Items(args) => {
-                // 6. Else,
-                // a. Assert: numberOfArgs ≥ 2.
-                let number_of_args = args.len();
-                debug_assert!(number_of_args >= 2);
-
-                // b. Let array be ? ArrayCreate(numberOfArgs, proto).
-                let array = array_create(agent, number_of_args, number_of_args, proto, gc)?;
-
-                // c. Let k be 0.
-                // d. Repeat, while k < numberOfArgs,
-                for (k, item_k) in args.into_iter().enumerate() {
-                    // NOTE: `array_create` guarantees that it is less than `u32::MAX`
-                    let k = k as u32;
-                    // NOTE: We slightly deviate from the exact spec wording
-                    // here, see [@aapoalas comment on #180](https://github.com/trynova/nova/pull/180#discussion_r1600382492)
-                    // i. Let Pk be ! ToString(𝔽(k)).
-                    let pk = PropertyKey::from(SmallInteger::from(k));
-
-                    // ii. Let itemK be values[k].
-
-                    // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
-                    unwrap_try(try_create_data_property_or_throw(
-                        agent,
-                        array,
-                        pk,
-                        item_k.get(agent),
-                        gc,
-                    ))
-                    .unwrap();
-
-                    // iv. Set k to k + 1.
+                    ));
                 }
+                let array = array_create(
+                    agent,
+                    int_len as usize,
+                    int_len as usize,
+                    proto.map(|p| p.get(agent)),
+                    gc,
+                )
+                .unwrap();
+                // e. Perform ! Set(array, "length", intLen, true).
+                debug_assert_eq!(agent[array].elements.len(), int_len);
+                array
+            } else {
+                // b. Let array be ! ArrayCreate(0, proto).
+                let array = array_create(agent, 1, 1, proto, gc).unwrap();
+                // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
+                unwrap_try(try_create_data_property_or_throw(
+                    agent,
+                    array,
+                    PropertyKey::from(SmallInteger::zero()),
+                    len,
+                    gc,
+                ))
+                .unwrap();
+                // ii. Let intLen be 1𝔽.
+                // e. Perform ! Set(array, "length", intLen, true).
+                debug_assert_eq!(agent[array].elements.len(), 1);
+                array
+            };
 
-                // e. Assert: The mathematical value of array's "length" property is numberOfArgs.
-                debug_assert_eq!(array.len(agent) as usize, number_of_args);
+            // f. Return array.
+            Ok(array.into_value())
+        } else {
+            // 6. Else,
+            // a. Assert: numberOfArgs ≥ 2.
+            let number_of_args = arguments.len();
+            debug_assert!(number_of_args >= 2);
 
-                // f. Return array.
-                Ok(array.into_value())
-            }
+            // b. Let array be ? ArrayCreate(numberOfArgs, proto).
+            let array = array_create(agent, number_of_args, number_of_args, proto, gc)?;
+            let array_as_slice = array.as_mut_slice(agent);
+            debug_assert_eq!(array_as_slice.len(), arguments.len());
+            let arguments_as_slice = arguments.as_slice();
+            // SAFETY: Value and Option<Value> have the same layout and
+            // has a niche optimisation. All Values are always equal to
+            // Some(Value).
+            let arguments_as_slice =
+                unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(arguments_as_slice) };
+            debug_assert!({
+                arguments_as_slice
+                    .iter()
+                    .enumerate()
+                    .all(|(i, v)| v.is_some() && *v == Some(arguments.get(i)))
+            });
+            // c. Let k be 0.
+            // d. Repeat, while k < numberOfArgs,
+            // i. Let Pk be ! ToString(𝔽(k)).
+            // ii. Let itemK be values[k].
+            // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
+            // iv. Set k to k + 1.
+            array_as_slice.copy_from_slice(arguments_as_slice);
+
+            // e. Assert: The mathematical value of array's "length" property is numberOfArgs.
+            debug_assert_eq!(array.len(agent) as usize, number_of_args);
+            debug_assert!(
+                array.is_dense(agent) && array.is_simple(agent) && array.is_trivial(agent)
+            );
+
+            // f. Return array.
+            Ok(array.into_value())
         }
     }
 
@@ -553,6 +516,7 @@ impl ArrayConstructor {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let this_value = this_value.bind(gc.nogc());
+        let arguments = arguments.bind(gc.nogc());
 
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is true, then
@@ -564,11 +528,7 @@ impl ArrayConstructor {
                 .array()
                 .into_function()
             {
-                let arguments = arguments
-                    .iter()
-                    .map(|v| v.scope(agent, gc.nogc()))
-                    .collect();
-                return array_of_generic(agent, c.unbind(), arguments, gc);
+                return array_of_generic(agent, c.unbind(), arguments.unbind(), gc);
             }
             // We're constructring an array with the default constructor.
         }
@@ -579,31 +539,33 @@ impl ArrayConstructor {
 
         // 5. Else,
         // a. Let A be ? ArrayCreate(len).
+        let arguments = arguments.unbind();
         let gc = gc.into_nogc();
         let a = array_create(agent, len, len, None, gc)?;
 
+        let a_as_slice = a.as_mut_slice(agent);
+        debug_assert_eq!(a_as_slice.len(), arguments.len());
+        let arguments_as_slice = arguments.as_slice();
+        let arguments_as_slice =
+            unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(arguments_as_slice) };
+        debug_assert!({
+            arguments_as_slice
+                .iter()
+                .enumerate()
+                .all(|(i, v)| v.is_some() && *v == Some(arguments.get(i)))
+        });
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
-        for (k, &k_value) in arguments.iter().enumerate() {
-            // a. Let kValue be items[k].
-
-            // NOTE: `array_create` guarantees that `len` and by extension `k` is less than `u32::MAX`
-            // b. Let Pk be ! ToString(𝔽(k)).
-            let pk = PropertyKey::from(SmallInteger::from(k as u32));
-
-            // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
-            assert!(unwrap_try(a.try_define_own_property(
-                agent,
-                pk,
-                PropertyDescriptor::new_data_descriptor(k_value),
-                gc
-            )));
-
-            // d. Set k to k + 1.
-        }
+        // a. Let kValue be items[k].
+        // b. Let Pk be ! ToString(𝔽(k)).
+        // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
+        // d. Set k to k + 1.
+        a_as_slice.copy_from_slice(arguments_as_slice);
 
         // 8. Perform ? Set(A, "length", lenNumber, true).
         // Note: Array's own length setting cannot be observed.
+        debug_assert_eq!(a.len(agent) as usize, arguments.len());
+        debug_assert!(a.is_dense(agent) && a.is_simple(agent) && a.is_trivial(agent));
 
         // 9. Return A.
         Ok(a.into_value())
@@ -638,48 +600,68 @@ impl ArrayConstructor {
 fn array_of_generic<'gc>(
     agent: &mut Agent,
     c: Function,
-    args: Vec<Scoped<Value>>,
+    args: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let c = c.bind(gc.nogc());
-    // a. Let A be ? Construct(C, « lenNumber »).
-    let len_number = Number::try_from(args.len()).unwrap();
-    let a = construct(
-        agent,
-        c.unbind(),
-        Some(ArgumentsList::from_mut_slice(
-            &mut [len_number.into_value()],
-        )),
-        None,
-        gc.reborrow(),
-    )
-    .unbind()?
-    .scope(agent, gc.nogc());
+    let args = args.bind(gc.nogc());
+    let len_number = args.len();
+    let a = {
+        let c = c.unbind();
+        args.unbind()
+            .with_scoped(
+                agent,
+                |agent, args, mut gc| {
+                    // a. Let A be ? Construct(C, « lenNumber »).
+                    let mut len_number = Number::try_from(len_number).unwrap().into_value();
+                    let a = construct(
+                        agent,
+                        c.unbind(),
+                        Some(ArgumentsList::from_mut_value(&mut len_number)),
+                        None,
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .scope(agent, gc.nogc());
 
-    // 6. Let k be 0.
-    // 7. Repeat, while k < len,
-    for (k, k_value) in args.into_iter().enumerate() {
-        // a. Let kValue be items[k].
+                    // 6. Let k be 0.
+                    // 7. Repeat, while k < len,
+                    for (k, k_value) in args.iter(agent).enumerate() {
+                        // a. Let kValue be items[k].
 
-        let pk = PropertyKey::try_from(k).unwrap();
+                        let pk = PropertyKey::try_from(k).unwrap();
 
-        // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
-        create_data_property_or_throw(agent, a.get(agent), pk, k_value.get(agent), gc.reborrow())
-            .unbind()?;
+                        // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
+                        create_data_property_or_throw(
+                            agent,
+                            a.get(agent),
+                            pk,
+                            k_value.get(gc.nogc()).unbind(),
+                            gc.reborrow(),
+                        )
+                        .unbind()?;
 
-        // d. Set k to k + 1.
-    }
+                        // d. Set k to k + 1.
+                    }
+                    JsResult::Ok(a.get(agent))
+                },
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc())
+    };
 
+    let scoped_a = a.scope(agent, gc.nogc());
     // 8. Perform ? Set(A, "length", lenNumber, true).
     set(
         agent,
-        a.get(agent),
+        a.unbind(),
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-        len_number.into_value(),
+        Number::try_from(len_number).unwrap().into_value(),
         true,
         gc.reborrow(),
     )
     .unbind()?;
 
-    Ok(a.get(agent).bind(gc.into_nogc()).into_value())
+    Ok(scoped_a.get(agent).into_value().unbind())
 }

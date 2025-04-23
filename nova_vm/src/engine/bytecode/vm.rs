@@ -6,7 +6,6 @@ mod binding_methods;
 
 use std::{ptr::NonNull, sync::OnceLock};
 
-use ahash::AHashSet;
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use oxc_ast::ast;
 use oxc_span::Span;
@@ -51,13 +50,13 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Base, BigInt, Function, InternalMethods, IntoFunction,
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, Reference, String, Value, get_this_value, get_value,
-            initialize_referenced_binding, is_private_reference, is_super_reference, put_value,
-            try_initialize_referenced_binding,
+            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
+            get_this_value, get_value, initialize_referenced_binding, is_private_reference,
+            is_super_reference, put_value, try_initialize_referenced_binding,
         },
     },
     engine::{
-        Scoped, TryResult,
+        ScopableCollection, Scoped, TryResult,
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
@@ -1032,13 +1031,13 @@ impl Vm {
                     .bind(gc.nogc());
 
                 let num_excluded_items = usize::from(instr.args[0].unwrap());
-                let mut excluded_items = AHashSet::with_capacity(num_excluded_items);
+                let mut excluded_items = PropertyKeySet::new(gc.nogc());
                 assert!(vm.reference.is_none());
                 for _ in 0..num_excluded_items {
                     let reference = vm.reference_stack.pop().unwrap();
                     assert_eq!(reference.base, Base::Value(from.into_value()));
                     assert!(reference.this_value.is_none());
-                    excluded_items.insert(reference.referenced_name);
+                    excluded_items.insert(agent, reference.referenced_name);
                 }
 
                 if let TryResult::Continue(result) =
@@ -1047,11 +1046,12 @@ impl Vm {
                     vm.result = Some(result.into_value().unbind());
                 } else {
                     let from = from.unbind();
+                    let excluded_items = excluded_items.scope(agent, gc.nogc());
                     let result = with_vm_gc(
                         agent,
                         vm,
                         |agent, gc| {
-                            copy_data_properties_into_object(agent, from, &excluded_items, gc)
+                            copy_data_properties_into_object(agent, from, excluded_items, gc)
                         },
                         gc,
                     )?;
@@ -1125,7 +1125,8 @@ impl Vm {
                             .referenced_name
                             .bind(gc.nogc())),
                     };
-                    let pk = match pk_result {
+
+                    match pk_result {
                         Ok(pk) => pk.bind(gc.nogc()),
                         Err(pk_value) => {
                             let scoped_function = function.scope(agent, gc.nogc());
@@ -1142,8 +1143,7 @@ impl Vm {
                             function = unsafe { scoped_function.take(agent).bind(gc.nogc()) };
                             pk
                         }
-                    };
-                    pk
+                    }
                 } else {
                     let pk: PropertyKey = String::EMPTY_STRING.into();
                     pk.bind(gc.nogc())
@@ -2378,7 +2378,7 @@ impl Vm {
                     unreachable!()
                 };
                 vm.result = Some(
-                    create_unmapped_arguments_object(agent, *slice, gc.nogc())
+                    create_unmapped_arguments_object(agent, slice, gc.nogc())
                         .into_value()
                         .unbind(),
                 );

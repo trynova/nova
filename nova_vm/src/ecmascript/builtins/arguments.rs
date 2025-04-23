@@ -125,7 +125,7 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     agent: &mut Agent,
-    arguments_list: ScopedArgumentsList<'b>,
+    arguments_list: &ScopedArgumentsList<'b>,
     gc: NoGcScope<'a, 'b>,
 ) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.
@@ -174,8 +174,6 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     }
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
     let key = PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into());
-    // TODO: "as if the property was accessed prior to any ECMAScript code being evaluated"
-    // let array_prototype_values = agent.current_realm().intrinsics().array_prototype();
     unwrap_try(try_define_property_or_throw(
         agent,
         obj,

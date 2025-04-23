@@ -2,6 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::hash::{Hash, Hasher};
+
+use ahash::AHasher;
+use wtf8::Wtf8;
+
 use crate::{
     SmallInteger, SmallString,
     ecmascript::{
@@ -21,9 +26,9 @@ use crate::{
     engine::{
         Scoped,
         context::{Bindable, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -183,6 +188,25 @@ impl<'a> PropertyKey<'a> {
             PropertyKey::String(_) | PropertyKey::SmallString(_) | PropertyKey::Integer(_)
         )
     }
+
+    pub(crate) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
+        let mut hasher = AHasher::default();
+        match self {
+            PropertyKey::Symbol(sym) => {
+                core::mem::discriminant(&self).hash(&mut hasher);
+                sym.hash(&mut hasher);
+            }
+            PropertyKey::String(s) => {
+                // Skip discriminant hashing in strings
+                heap[s.unbind()].data.hash(&mut hasher);
+            }
+            PropertyKey::SmallString(s) => {
+                Wtf8::from_str(s.as_str()).hash(&mut hasher);
+            }
+            PropertyKey::Integer(n) => n.into_i64().hash(&mut hasher),
+        }
+        hasher.finish()
+    }
 }
 
 // SAFETY: Properly implemented as a lifetime transmute.
@@ -198,17 +222,6 @@ unsafe impl Bindable for PropertyKey<'_> {
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
-}
-
-#[inline]
-pub fn scope_property_keys<'a>(
-    agent: &mut Agent,
-    keys: Vec<PropertyKey>,
-    gc: NoGcScope<'_, 'a>,
-) -> Vec<Scoped<'a, PropertyKey<'static>>> {
-    keys.into_iter()
-        .map(|k| k.scope(agent, gc))
-        .collect::<Vec<_>>()
 }
 
 pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {

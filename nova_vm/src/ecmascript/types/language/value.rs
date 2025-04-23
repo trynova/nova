@@ -1369,6 +1369,7 @@ impl Rootable for Value<'_> {
 
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
+            HeapRootData::Empty => None,
             HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
             HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
             HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),

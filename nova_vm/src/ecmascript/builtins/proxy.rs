@@ -6,6 +6,7 @@ use core::ops::{Index, IndexMut};
 use std::collections::VecDeque;
 
 use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
+use ahash::AHashSet;
 use data::ProxyHeapData;
 
 use crate::{
@@ -23,11 +24,10 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            scope_property_keys,
         },
     },
     engine::{
-        TryResult,
+        ScopableCollection, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
     },
@@ -672,7 +672,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 13. Perform CompletePropertyDescriptor(resultDesc).
         result_desc.complete_property_descriptor().unbind()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
-        let target_desc = target_desc.map(|desc| desc.into_property_descriptor(agent, gc.nogc()));
+        let target_desc = target_desc.map(|desc| desc.take(agent, gc.nogc()));
         let valid = is_compatible_property_descriptor(
             agent,
             extensible_target,
@@ -773,20 +773,14 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return scoped_target.get(agent).internal_define_own_property(
                 agent,
                 property_key.get(agent),
-                property_descriptor
-                    .into_property_descriptor(agent, gc.nogc())
-                    .unbind(),
+                property_descriptor.take(agent, gc.nogc()).unbind(),
                 gc,
             );
         };
         let trap = trap.unbind().bind(gc.nogc());
         // 7. Let descObj be FromPropertyDescriptor(Desc).
         let desc_obj = PropertyDescriptor::from_property_descriptor(
-            Some(
-                property_descriptor
-                    .clone()
-                    .into_property_descriptor(agent, gc.nogc()),
-            ),
+            Some(property_descriptor.get(agent, gc.nogc())),
             agent,
             gc.nogc(),
         );
@@ -823,8 +817,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let setting_config_false = property_descriptor.configurable == Some(false);
         // 14. If targetDesc is undefined, then
         let gc = gc.into_nogc();
-        let target_desc = target_desc.map(|desc| desc.into_property_descriptor(agent, gc));
-        let property_descriptor = property_descriptor.into_property_descriptor(agent, gc);
+        let target_desc = target_desc.map(|desc| desc.get(agent, gc));
+        let property_descriptor = property_descriptor.take(agent, gc);
         if target_desc.is_none() {
             // a. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
@@ -1496,9 +1490,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         .unbind()?
         .bind(gc.nogc());
         // 9. If trapResult contains any duplicate entries, throw a TypeError exception.
-        let mut unique_trap_results = Vec::with_capacity(trap_result.len());
-        for value in trap_result.iter() {
-            let p = value.get(agent).bind(gc.nogc());
+        let mut unique_trap_results = Vec::with_capacity(trap_result.len(agent));
+        for value in trap_result.iter(agent) {
+            let p = value.get(gc.nogc());
             if unique_trap_results.contains(&p) {
                 return Err(agent.throw_exception(
                     ExceptionType::TypeError,
@@ -1520,52 +1514,57 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .internal_own_property_keys(agent, gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let target_keys = scope_property_keys(agent, target_keys.unbind(), gc.nogc());
         // 13. Assert: targetKeys contains no duplicate entries.
-        let mut unique_target_keys = Vec::with_capacity(target_keys.len());
-        for value in target_keys.iter() {
-            let p = value.get(agent).bind(gc.nogc());
-            assert!(!unique_target_keys.contains(&p));
-            unique_target_keys.push(p);
-        }
+        debug_assert!({
+            let mut seen = AHashSet::with_capacity(target_keys.len());
+            let mut all_unique = true;
+            for key in target_keys.iter() {
+                if seen.contains(key) {
+                    all_unique = false;
+                    break;
+                }
+                seen.insert(*key);
+            }
+            all_unique
+        });
+        let target_keys_len = target_keys.len();
+        let target_keys = target_keys.scope(agent, gc.nogc());
         // 14. Let targetConfigurableKeys be a new empty List.
-        let mut target_configurable_keys = Vec::new();
+        let mut target_configurable_keys =
+            Vec::<PropertyKey>::with_capacity(target_keys_len).scope(agent, gc.nogc());
+
         // 15. Let targetNonconfigurableKeys be a new empty List.
-        let mut target_nonconfigurable_keys = Vec::new();
+        let mut target_nonconfigurable_keys = Vec::<PropertyKey>::new().scope(agent, gc.nogc());
         // 16. For each element key of targetKeys, do
-        for key in target_keys {
+        for key in target_keys.iter(agent) {
             // a. Let desc be ? target.[[GetOwnProperty]](key).
             let desc = scoped_target
                 .get(agent)
-                .internal_get_own_property(agent, key.get(agent), gc.reborrow())
+                .internal_get_own_property(agent, key.get(gc.nogc()).unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
             //  b. If desc is not undefined and desc.[[Configurable]] is false, then
             if desc.is_some_and(|d| d.configurable == Some(false)) {
                 // i. Append key to targetNonconfigurableKeys.
-                target_nonconfigurable_keys.push(key);
+                target_nonconfigurable_keys.push(agent, key.get(gc.nogc()));
             } else {
                 // c. Else,
                 // i. Append key to targetConfigurableKeys.
-                target_configurable_keys.push(key);
+                target_configurable_keys.push(agent, key.get(gc.nogc()));
             }
         }
         let gc = gc.into_nogc();
         let trap_result = trap_result
-            .into_iter()
-            .map(|p| p.get(agent).bind(gc))
+            .iter(agent)
+            .map(|p| p.get(gc))
             .collect::<Vec<PropertyKey>>();
         // 17. If extensibleTarget is true and targetNonconfigurableKeys is empty, then
-        if extensible_target && target_nonconfigurable_keys.is_empty() {
+        if extensible_target && target_nonconfigurable_keys.is_empty(agent) {
             // a. Return trapResult.
             return Ok(trap_result);
         }
-        let target_configurable_keys = target_configurable_keys
-            .into_iter()
-            .map(|p| p.get(agent).bind(gc));
-        let target_nonconfigurable_keys = target_nonconfigurable_keys
-            .into_iter()
-            .map(|p| p.get(agent).bind(gc));
+        let target_configurable_keys = target_configurable_keys.take(agent);
+        let target_nonconfigurable_keys = target_nonconfigurable_keys.take(agent);
         // 18. Let uncheckedResultKeys be a List whose elements are the elements of trapResult.
         let mut unchecked_result_keys = VecDeque::from(trap_result.clone());
         // 19. For each element key of targetNonconfigurableKeys, do

@@ -30,11 +30,11 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoPrimitive, IntoValue,
-            Number, Object, PropertyDescriptor, PropertyKey, String, Value,
+            Number, Object, PropertyDescriptor, PropertyKey, ScopedPropertyKey, String, Value,
         },
     },
     engine::{
-        Scoped,
+        ScopableCollection, Scoped, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -255,9 +255,9 @@ impl JSONObject {
         let space = arguments.get(2).scope(agent, gc.nogc());
 
         // 1. Let stack be a new empty List.
-        let stack = Vec::new();
+        let stack = Vec::<Value>::new().scope(agent, gc.nogc());
         // 3. Let PropertyList be undefined.
-        let mut property_list: Option<Vec<Scoped<PropertyKey>>> = None;
+        let mut property_list: Option<ScopedCollection<Vec<PropertyKey>>> = None;
 
         // 4. Let ReplacerFunction be undefined.
         // a. If IsCallable(replacer) is true, then
@@ -274,7 +274,8 @@ impl JSONObject {
                 // 2. Let len be ? LengthOfArrayLike(replacer).
                 let len = length_of_array_like(agent, replacer.unbind(), gc.reborrow()).unbind()?;
                 // 1. Set PropertyList to a new empty List.
-                property_list = Some(Vec::with_capacity(len as usize));
+                property_list =
+                    Some(Vec::<PropertyKey>::with_capacity(len as usize).scope(agent, gc.nogc()));
                 // 3. Let k be 0.
                 // 4. Repeat, while k < len,
                 // h. Set k to k + 1.
@@ -319,8 +320,8 @@ impl JSONObject {
                     // i. Append item to PropertyList.
                     if let Some(item) = item {
                         let property_list = property_list.as_mut().unwrap();
-                        if !property_list.iter().any(|x| x.get(agent) == item) {
-                            property_list.push(item.scope(agent, gc.nogc()));
+                        if !property_list.iter(agent).any(|x| x.get(gc.nogc()) == item) {
+                            property_list.push(agent, item);
                         }
                     }
                 }
@@ -415,7 +416,6 @@ impl JSONObject {
             gap,
             property_list,
         };
-        let wrapper = wrapper.scope(agent, gc.nogc());
         // 13. Return ? SerializeJSONProperty(state, the empty String, wrapper).
         let key = String::EMPTY_STRING
             .to_property_key()
@@ -424,7 +424,7 @@ impl JSONObject {
             agent,
             state.replacer_function.clone(),
             key,
-            wrapper,
+            wrapper.unbind(),
             gc.reborrow(),
         )
         .unbind()?
@@ -478,14 +478,19 @@ impl JSONObject {
 fn internalize_json_property<'a>(
     agent: &mut Agent,
     holder: Scoped<Object>,
-    name: Scoped<PropertyKey>,
+    name: impl IndirectPropertyKey,
     reviver: Scoped<Function>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     // 1. Let val be ? Get(holder, name).
-    let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let val = get(
+        agent,
+        holder.get(agent),
+        name.get_key(agent, gc.nogc()).unbind(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 2. If val is an Object, then
     let val = if let Ok(val) = Object::try_from(val) {
         // a. Let isArray be ? IsArray(val).
@@ -547,12 +552,12 @@ fn internalize_json_property<'a>(
                 .bind(gc.nogc());
 
             // ii. For each String P of keys, do
-            for p in keys {
+            for p in keys.iter(agent) {
                 // 1. Let newElement be ? InternalizeJSONProperty(val, P, reviver).
                 let new_element = internalize_json_property(
                     agent,
                     scoped_val.clone(),
-                    p.clone(),
+                    p,
                     reviver.clone(),
                     gc.reborrow(),
                 )
@@ -564,7 +569,7 @@ fn internalize_json_property<'a>(
                     // a. Perform ? val.[[Delete]](P).
                     scoped_val
                         .get(agent)
-                        .internal_delete(agent, p.get(agent), gc.reborrow())
+                        .internal_delete(agent, p.get_key(agent, gc.nogc()).unbind(), gc.reborrow())
                         .unbind()?;
                 } else {
                     // 3. Else,
@@ -572,7 +577,7 @@ fn internalize_json_property<'a>(
                     create_data_property(
                         agent,
                         scoped_val.get(agent),
-                        p.get(agent),
+                        p.get_key(agent, gc.nogc()).unbind(),
                         new_element.unbind(),
                         gc.reborrow(),
                     )
@@ -593,7 +598,9 @@ fn internalize_json_property<'a>(
     // 3. Return ? Call(reviver, holder, « name, val »).
     // Note: Because this call gets holder as `this`, it can do dirty things to
     // it, such as `holder[other_key] = new Proxy()`.
-    let name = name.get(agent).convert_to_value(agent, gc.nogc());
+    let name = name
+        .get_key(agent, gc.nogc())
+        .convert_to_value(agent, gc.nogc());
     call_function(
         agent,
         reviver.get(agent),
@@ -609,10 +616,26 @@ fn internalize_json_property<'a>(
 struct JSONSerializationRecord<'a> {
     result: std::string::String,
     replacer_function: Option<Scoped<'a, Function<'static>>>,
-    stack: Vec<Scoped<'a, Object<'static>>>,
+    stack: ScopedCollection<'a, Vec<Value<'static>>>,
     indent: Box<str>,
     gap: Box<str>,
-    property_list: Option<Vec<Scoped<'a, PropertyKey<'static>>>>,
+    property_list: Option<ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
+}
+
+trait IndirectPropertyKey {
+    fn get_key<'a>(&self, agent: &Agent, gc: NoGcScope<'a, '_>) -> PropertyKey<'a>;
+}
+
+impl IndirectPropertyKey for ScopedPropertyKey<'_> {
+    fn get_key<'a>(&self, _: &Agent, gc: NoGcScope<'a, '_>) -> PropertyKey<'a> {
+        self.get(gc)
+    }
+}
+
+impl IndirectPropertyKey for Scoped<'_, PropertyKey<'static>> {
+    fn get_key<'a>(&self, agent: &Agent, gc: NoGcScope<'a, '_>) -> PropertyKey<'a> {
+        self.get(agent).bind(gc)
+    }
 }
 
 /// ### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
@@ -627,14 +650,23 @@ struct JSONSerializationRecord<'a> {
 fn get_serializable_json_property_value<'a>(
     agent: &mut Agent,
     replacer_function: Option<Scoped<Function>>,
-    key: Scoped<PropertyKey>,
-    holder: Scoped<Object>,
+    key: impl IndirectPropertyKey,
+    holder: Object,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Option<Value<'a>>> {
+    let holder = holder.bind(gc.nogc());
+    let scoped_holder = replacer_function
+        .as_ref()
+        .map(|_| holder.scope(agent, gc.nogc()));
     // 1. Let value be ? Get(holder, key).
-    let mut value = get(agent, holder.get(agent), key.get(agent), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let mut value = get(
+        agent,
+        holder.unbind(),
+        key.get_key(agent, gc.nogc()).unbind(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
     // 2. If value is an Object or value is a BigInt, then
     if value.is_object() || value.is_bigint() {
         let scoped_value = value.scope(agent, gc.nogc());
@@ -650,7 +682,9 @@ fn get_serializable_json_property_value<'a>(
         // b. If IsCallable(toJSON) is true, then
         if let Some(to_json) = is_callable(to_json, gc.nogc()) {
             // i. Set value to ? Call(toJSON, value, « key »).
-            let key = key.get(agent).convert_to_value(agent, gc.nogc());
+            let key = key
+                .get_key(agent, gc.nogc())
+                .convert_to_value(agent, gc.nogc());
             value = call_function(
                 agent,
                 to_json.unbind(),
@@ -671,11 +705,14 @@ fn get_serializable_json_property_value<'a>(
     // 3. If state.[[ReplacerFunction]] is not undefined, then
     if let Some(replacer_function) = replacer_function {
         // a. Set value to ? Call(state.[[ReplacerFunction]], holder, « key, value »).
-        let key = key.get(agent).convert_to_value(agent, gc.nogc());
+        let key = key
+            .get_key(agent, gc.nogc())
+            .convert_to_value(agent, gc.nogc());
         value = call_function(
             agent,
             replacer_function.get(agent),
-            holder.get(agent).into_value().unbind(),
+            // SAFETY: scoped_holder is not shared.
+            unsafe { scoped_holder.unwrap().take(agent).into_value().unbind() },
             Some(ArgumentsList::from_mut_slice(&mut [
                 key.unbind(),
                 value.unbind(),
@@ -745,6 +782,7 @@ fn serialize_json_property_value<'a, 'b>(
     value: Value,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, ()> {
+    let value = value.bind(gc.nogc());
     match value {
         // 5. If value is null, return "null".
         Value::Null => {
@@ -785,18 +823,10 @@ fn serialize_json_property_value<'a, 'b>(
             // a. Let isArray be ? IsArray(value).
             // b. If isArray is true, return ? SerializeJSONArray(state, value).
             if is_array(agent, value, gc.nogc()).unbind()? {
-                let value = value.scope(agent, gc.nogc());
-                serialize_json_array(agent, state, value.clone(), gc)?;
-                // SAFETY: value should've been popped off of state.stack at
-                // the end of serialize_json_array call.
-                let _ = unsafe { value.take(agent) };
+                serialize_json_array(agent, state, value.unbind(), gc)?;
             } else {
                 // c. Return ? SerializeJSONObject(state, value).
-                let value = value.scope(agent, gc.nogc());
-                serialize_json_object(agent, state, value.clone(), gc)?;
-                // SAFETY: value should've been popped off of state.stack at
-                // the end of serialize_json_object call.
-                let _ = unsafe { value.take(agent) };
+                serialize_json_object(agent, state, value.unbind(), gc)?;
             }
         }
     }
@@ -886,18 +916,27 @@ fn quote_property_key(agent: &Agent, product: &mut std::string::String, key: Pro
 fn serialize_json_object<'a, 'b>(
     agent: &mut Agent,
     state: &mut JSONSerializationRecord<'b>,
-    value: Scoped<'b, Object<'static>>,
+    value: Object<'static>,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, ()> {
-    // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
-    let stack_value = value.get(agent).bind(gc.nogc());
-    if state.stack.iter().any(|x| x.get(agent) == stack_value) {
+    let value = value.bind(gc.nogc());
+    // 1. If state.[[Stack]] contains value, throw a TypeError exception
+    //    because the structure is cyclical.
+    if state
+        .stack
+        .iter(agent)
+        // SAFETY: We only push objects into the stack.
+        .any(|x| unsafe { Object::try_from(x.get(gc.nogc())).unwrap_unchecked() } == value)
+    {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Cyclical structure in JSON",
             gc.into_nogc(),
         ));
     }
+
+    // 2. Append value to state.[[Stack]].
+    state.stack.push(agent, value.into_value());
 
     // 5. If state.[[PropertyList]] is not undefined, then
     // a. Let K be state.[[PropertyList]].
@@ -906,22 +945,18 @@ fn serialize_json_object<'a, 'b>(
     let k = if let Some(property_list) = &state.property_list {
         property_list.clone()
     } else {
-        enumerable_own_keys(agent, stack_value.unbind(), gc.reborrow())
+        enumerable_own_keys(agent, value.unbind(), gc.reborrow())
             .unbind()?
-            .into_iter()
-            .map(|k| k.scope(agent, gc.nogc()))
-            .collect()
+            .scope(agent, gc.nogc())
     };
 
-    if k.is_empty() {
+    if k.is_empty(agent) {
         // 9. If partial is empty, then
         // a. Let final be "{}".
+        state.stack.pop(agent, gc.nogc());
         state.result.push_str("{}");
         return Ok(());
     }
-
-    // 2. Append value to state.[[Stack]].
-    state.stack.push(value.clone());
 
     let open_string: Box<str>;
     let separator_string: Box<str>;
@@ -975,17 +1010,24 @@ fn serialize_json_object<'a, 'b>(
 
     // Assume most properties will indeed get serialised properly.
     state.result.reserve(
-        open.len() + close.len() + k.len() * (separator.len() + 3 + key_value_separator.len() + 1),
+        open.len()
+            + close.len()
+            + k.len(agent) * (separator.len() + 3 + key_value_separator.len() + 1),
     );
     // 7. Let partial be a new empty List.
     // 8. For each element P of K, do
-    for p in k {
+    for p in k.iter(agent) {
         // a. Let strP be ? SerializeJSONProperty(state, P, value).
         let value_p = get_serializable_json_property_value(
             agent,
             state.replacer_function.clone(),
-            p.clone(),
-            value.clone(),
+            p,
+            // SAFETY: We only push the objects onto the stack.
+            unsafe {
+                Object::try_from(state.stack.last(agent, gc.nogc()).unwrap())
+                    .unwrap_unchecked()
+                    .unbind()
+            },
             gc.reborrow(),
         )
         .unbind()?
@@ -1003,7 +1045,7 @@ fn serialize_json_object<'a, 'b>(
         }
 
         // i. Let member be QuoteJSONString(P).
-        quote_property_key(agent, &mut state.result, p.get(agent));
+        quote_property_key(agent, &mut state.result, p.get(gc.nogc()));
         // ii. Set member to the string-concatenation of member and ":".
         // iii. If state.[[Gap]] is not the empty String, then
         // 1. Set member to the string-concatenation of member and the code unit 0x0020 (SPACE).
@@ -1017,7 +1059,7 @@ fn serialize_json_object<'a, 'b>(
     }
 
     // 11. Remove the last element of state.[[Stack]].
-    state.stack.pop();
+    state.stack.pop(agent, gc.nogc());
 
     if state.gap.is_empty() {
         // 12. Set state.[[Indent]] to stepBack.
@@ -1044,28 +1086,34 @@ fn serialize_json_object<'a, 'b>(
 fn serialize_json_array<'a, 'b>(
     agent: &mut Agent,
     state: &mut JSONSerializationRecord<'b>,
-    value: Scoped<'b, Object<'static>>,
+    value: Object<'static>,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, ()> {
+    let value = value.bind(gc.nogc());
     // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
-    let stack_value = value.get(agent).bind(gc.nogc());
-    if state.stack.iter().any(|x| x.get(agent) == stack_value) {
+    if state
+        .stack
+        .iter(agent)
+        // SAFETY: We only push objects into the stack.
+        .any(|x| unsafe { Object::try_from(x.get(gc.nogc())).unwrap_unchecked() } == value)
+    {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Cyclical structure in JSON",
             gc.into_nogc(),
         ));
     }
+    // 2. Append value to state.[[Stack]].
+    state.stack.push(agent, value.into_value());
     // 6. Let len be ? LengthOfArrayLike(value).
-    let len = length_of_array_like(agent, stack_value.unbind(), gc.reborrow()).unbind()? as u64;
+    let len = length_of_array_like(agent, value.unbind(), gc.reborrow()).unbind()? as u64;
 
     // 9. If partial is empty, then
     // Note: We skip all the bookkeeping work when dealing with empty arrays.
     if len == 0 {
         // a. Let final be "[]".
         // 11. Remove the last element of state.[[Stack]].
-        // Note: We haven't yet pushed the value to stack, so we shouldn't pop
-        // it either.
+        state.stack.pop(agent, gc.nogc());
         // 12. Set state.[[Indent]] to stepBack.
         // Note: We've not yet changed indent, so we shouldn't restore it
         // either.
@@ -1073,9 +1121,6 @@ fn serialize_json_array<'a, 'b>(
         state.result.push_str("[]");
         return Ok(());
     }
-
-    // 2. Append value to state.[[Stack]].
-    state.stack.push(value.clone());
 
     let open_string: Box<str>;
     let separator_string: Box<str>;
@@ -1139,7 +1184,11 @@ fn serialize_json_array<'a, 'b>(
             agent,
             state.replacer_function.clone(),
             key,
-            value.clone(),
+            unsafe {
+                Object::try_from(state.stack.last(agent, gc.nogc()).unwrap())
+                    .unwrap_unchecked()
+                    .unbind()
+            },
             gc.reborrow(),
         )
         .unbind()?
@@ -1159,7 +1208,7 @@ fn serialize_json_array<'a, 'b>(
     }
     state.result.push_str(close);
     // 11. Remove the last element of state.[[Stack]].
-    state.stack.pop();
+    state.stack.pop(agent, gc.nogc());
     // 12. Set state.[[Indent]] to stepBack.
     state.indent = step_back;
     // 13. Return final.

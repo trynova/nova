@@ -76,7 +76,7 @@ use crate::{
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
         },
-        execution::{Environments, Realm, RealmRecord},
+        execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
             script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
@@ -85,7 +85,7 @@ use crate::{
             BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
             HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String,
-            StringHeapData, SymbolHeapData, bigint::HeapBigInt,
+            StringHeapData, Symbol, SymbolHeapData, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -517,6 +517,32 @@ pub(crate) trait PrimitiveHeapIndexable:
 }
 
 impl PrimitiveHeapIndexable for PrimitiveHeap<'_> {}
+
+/// A partial view to the Agent's heap that allows accessing PropertyKey heap
+/// data.
+pub(crate) struct PropertyKeyHeap<'a> {
+    pub(crate) strings: &'a Vec<Option<StringHeapData>>,
+    pub(crate) symbols: &'a Vec<Option<SymbolHeapData<'static>>>,
+}
+
+impl PropertyKeyHeap<'_> {
+    pub(crate) fn new<'a>(
+        strings: &'a Vec<Option<StringHeapData>>,
+        symbols: &'a Vec<Option<SymbolHeapData<'static>>>,
+    ) -> PropertyKeyHeap<'a> {
+        PropertyKeyHeap { strings, symbols }
+    }
+}
+
+/// Helper trait for primitive heap data indexing.
+pub(crate) trait PropertyKeyHeapIndexable:
+    Index<HeapString<'static>, Output = StringHeapData>
+    + Index<Symbol<'static>, Output = SymbolHeapData<'static>>
+{
+}
+
+impl PropertyKeyHeapIndexable for PropertyKeyHeap<'_> {}
+impl PropertyKeyHeapIndexable for Agent {}
 
 #[test]
 fn init_heap() {

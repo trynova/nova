@@ -23,7 +23,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, PropertyKeyHeap,
+        WorkQueues,
         indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
     },
 };
@@ -67,6 +68,14 @@ unsafe impl Bindable for HeapString<'_> {
 }
 
 impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
+    type Output = StringHeapData;
+
+    fn index(&self, index: HeapString<'_>) -> &Self::Output {
+        &self.strings[index]
+    }
+}
+
+impl Index<HeapString<'_>> for PropertyKeyHeap<'_> {
     type Output = StringHeapData;
 
     fn index(&self, index: HeapString<'_>) -> &Self::Output {

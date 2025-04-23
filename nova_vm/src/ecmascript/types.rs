@@ -9,7 +9,7 @@ pub(crate) use language::*;
 pub use language::{
     BigInt, Function, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoFunction,
     IntoNumeric, IntoObject, IntoPrimitive, IntoValue, Number, Numeric, Object, OrdinaryObject,
-    Primitive, PropertyKey, String, Symbol, Value, bigint,
+    Primitive, PropertyKey, PropertyKeySet, String, Symbol, Value, bigint,
 };
 pub use spec::PropertyDescriptor;
 pub(crate) use spec::*;
