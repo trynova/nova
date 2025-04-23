@@ -2331,7 +2331,11 @@ impl Vm {
                             active_iterator,
                             VmIteratorRecord::EmptySliceIterator,
                         );
-                        debug_assert!(matches!(old, VmIteratorRecord::SliceIterator(_)));
+                        debug_assert!(matches!(
+                            old,
+                            VmIteratorRecord::SliceIterator(_)
+                                | VmIteratorRecord::EmptySliceIterator
+                        ));
                     }
                 } else {
                     // The iterator threw an error: pop the iterator from the stack
