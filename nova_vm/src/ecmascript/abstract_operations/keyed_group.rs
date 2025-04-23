@@ -286,9 +286,9 @@ impl HeapMarkAndSweep for KeyedGroup<'static> {
                 .any(|v| matches!(v, Value::String(_) | Value::Number(_) | Value::BigInt(_)))
             {
                 // The group needs rehashing of both primitive, heap-stored
-                // keys and identity-ful keys. This can lead to a situation
-                // where the entire group needs to be rehashed and we cannot do
-                // so because the primitive heap data cannot be accessed during
+                // keys and object keys. This can lead to a situation where the
+                // entire group needs to be rehashed and we cannot do so
+                // because the primitive heap data cannot be accessed during
                 // GC. We'll try to avoid this as best we can by first deleting
                 // all object (and symbol) keys that do need rehashing.
                 let rehash_indexes = keys
