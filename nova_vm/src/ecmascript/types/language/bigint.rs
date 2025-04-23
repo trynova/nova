@@ -23,7 +23,7 @@ use crate::{
 };
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
-use num_bigint::Sign;
+use num_bigint::{Sign, ToBigInt};
 
 impl<'a> IntoValue<'a> for BigInt<'a> {
     fn into_value(self) -> Value<'a> {
@@ -612,6 +612,27 @@ impl<'a> BigInt<'a> {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
             _ => false,
         }
+    }
+    // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
+    pub(crate) fn to_string_radix_n<'gc>(
+        agent: &mut Agent,
+        x: Self,
+        radix: u32,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
+        String::from_string(
+            agent,
+            match x {
+                BigInt::SmallBigInt(x) => {
+                    // NOTE: The rust standard library provides no way to convert
+                    // numbers into strings with a radix which is why I am borrowing
+                    // num_bigints `to_str_radix` implementation.
+                    x.into_i64().to_bigint().unwrap().to_str_radix(radix)
+                }
+                BigInt::BigInt(x) => agent[x].data.to_str_radix(radix),
+            },
+            gc,
+        )
     }
 
     // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
