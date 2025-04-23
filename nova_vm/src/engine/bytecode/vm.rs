@@ -2271,7 +2271,8 @@ impl Vm {
             Instruction::EnumerateObjectProperties => {
                 let object = to_object(agent, vm.result.take().unwrap(), gc.nogc()).unwrap();
                 vm.iterator_stack.push(
-                    VmIterator::ObjectProperties(ObjectPropertiesIterator::new(object)).unbind(),
+                    VmIterator::ObjectProperties(Box::new(ObjectPropertiesIterator::new(object)))
+                        .unbind(),
                 )
             }
             Instruction::GetIteratorSync => {

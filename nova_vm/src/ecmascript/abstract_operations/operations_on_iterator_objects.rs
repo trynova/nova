@@ -62,12 +62,6 @@ unsafe impl Bindable for IteratorRecord<'_> {
     }
 }
 
-pub(crate) struct ScopedIteratorRecord<'a> {
-    pub(crate) iterator: Object<'a>,
-    pub(crate) next_method: Value<'a>,
-    pub(crate) done: bool,
-}
-
 /// ### [7.4.2 GetIteratorDirect ( obj )](https://tc39.es/ecma262/#sec-getiteratordirect)
 /// The abstract operation GetIteratorDirect takes argument obj (an Object) and returns
 /// either a normal completion containing an Iterator Record or a throw completion.

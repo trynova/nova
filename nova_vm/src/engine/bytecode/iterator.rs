@@ -29,7 +29,7 @@ use crate::{
 pub(super) enum VmIterator<'a> {
     /// Special type for iterators that do not have a callable next method.
     InvalidIterator,
-    ObjectProperties(ObjectPropertiesIterator<'a>),
+    ObjectProperties(Box<ObjectPropertiesIterator<'a>>),
     ArrayValues(ArrayValuesIterator<'a>),
     GenericIterator(IteratorRecord<'a>),
     SliceIterator(ScopedArgumentsList<'a>),
