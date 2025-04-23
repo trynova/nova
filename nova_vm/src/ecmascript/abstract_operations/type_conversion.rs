@@ -475,7 +475,10 @@ impl PartialEq<IntegerOrInfinity> for i64 {
 }
 impl PartialOrd<IntegerOrInfinity> for i64 {
     fn partial_cmp(&self, other: &IntegerOrInfinity) -> Option<std::cmp::Ordering> {
-        other.partial_cmp(self)
+        if !other.is_safe_integer() {
+            return None;
+        }
+        self.partial_cmp(&other.0)
     }
 }
 

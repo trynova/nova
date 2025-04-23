@@ -1323,15 +1323,10 @@ impl<'a> Number<'a> {
         radix: u32,
         gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
+        println!("{} {radix}", x.into_f64(agent));
         String::from_string(
             agent,
-            match x {
-                Number::Number(x) => agent[x],
-                Number::SmallF64(x) => x.into_f64(),
-                Number::Integer(x) => x.into_i64() as f64,
-            }
-            .to_radix_str(radix as u8)
-            .unwrap(),
+            x.into_f64(agent).to_radix_str(radix as u8).unwrap(),
             gc,
         )
     }
