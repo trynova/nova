@@ -461,7 +461,7 @@ impl NumberPrototype {
             let gc = gc.into_nogc();
             let radix = radix.bind(gc);
             // 4. If radixMV is not in the inclusive interval from 2 to 36, throw a RangeError exception.
-            if (2..=32).contains(&radix) {
+            if !(2..=36).contains(&radix) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
                     "radix must be an integer at least 2 and no greater than 36",
