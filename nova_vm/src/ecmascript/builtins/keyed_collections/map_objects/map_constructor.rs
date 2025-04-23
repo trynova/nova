@@ -14,7 +14,7 @@ use crate::{
                 iterator_step_value,
             },
             operations_on_objects::{
-                call_function, create_array_from_scoped_list, get, get_method, group_by_collection,
+                call_function, create_array_from_list, get, get_method, group_by_collection,
                 throw_not_callable, try_get,
             },
             testing_and_comparison::{is_callable, same_value},
@@ -185,16 +185,16 @@ impl MapConstructor {
                 .unbind()?;
         // 2. Let map be ! Construct(%Map%).
         let gc = gc.into_nogc();
+        let groups = groups.bind(gc);
         let map_data = MapHeapData::with_capacity(groups.len());
         let map = agent.heap.create(map_data).bind(gc);
 
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         let keys_and_elements = groups
-            .into_iter()
-            .map(|g| {
-                let key = g.key.get(agent); // Get the key BEFORE mutable borrow
+            .into_collection_keyed_iter()
+            .map(|(key, elements)| {
                 // a. Let elements be CreateArrayFromList(g.[[Elements]]).
-                let elements = create_array_from_scoped_list(agent, g.elements, gc);
+                let elements = create_array_from_list(agent, &elements, gc);
                 (key, elements)
             })
             .collect::<Vec<_>>();

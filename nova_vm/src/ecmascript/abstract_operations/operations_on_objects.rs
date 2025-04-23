@@ -8,11 +8,12 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
+            keyed_group::KeyedGroup,
             operations_on_iterator_objects::{
                 IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
                 iterator_step_value,
             },
-            testing_and_comparison::{is_callable, require_object_coercible, same_value},
+            testing_and_comparison::{is_callable, require_object_coercible},
             type_conversion::{
                 to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
             },
@@ -1069,10 +1070,7 @@ pub(crate) fn create_array_from_scoped_list<'a>(
     let len = elements.len();
     // 1. Let array be ! ArrayCreate(0).
     let array = array_create(agent, len, len, None, gc).unwrap();
-    let slice = array
-        .as_mut_slice(agent)
-        .iter_mut()
-        .zip(elements.into_iter());
+    let slice = array.as_mut_slice(agent).iter_mut().zip(elements);
     {
         for (target, el) in slice {
             *target = Some(el.unbind());
@@ -1541,6 +1539,8 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
                 };
             // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
             if desc?.enumerable != Some(true) {
+                // SAFETY: results are not shared.
+                let _ = unsafe { scoped_key.take(agent) };
                 return None;
             }
             // 1. If kind is KEY, then
@@ -1551,7 +1551,8 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
     let gc = gc.into_nogc();
     let results = results
         .into_iter()
-        .map(|p| p.get(agent).bind(gc))
+        // SAFETY: results are not shared.
+        .map(|p| unsafe { p.take(agent).bind(gc) })
         .collect::<Vec<_>>();
 
     // 4. Return results.
@@ -2388,56 +2389,30 @@ pub(crate) fn add_value_to_keyed_group<
     K: 'static + Rootable + Copy + Into<Value<'static>>,
 >(
     agent: &mut Agent,
-    groups: &mut Vec<GroupByRecord<'scope, K>>,
+    groups: &mut ScopedCollection<Box<KeyedGroup>>,
     key: K,
     value: Value,
-    gc: NoGcScope<'gc, 'scope>,
-) -> JsResult<'gc, ()> {
+) {
     // 1. For each Record { [[Key]], [[Elements]] } g of groups, do
-    for g in groups.iter_mut() {
-        // a. If SameValue(g.[[Key]], key) is true, then
-        if same_value(agent, g.key.get(agent), key) {
-            // i. Assert: Exactly one element of groups meets this criterion.
-            // ii. Append value to g.[[Elements]].
-            g.elements.push(agent, value);
-
-            // iii. Return UNUSED.
-            return Ok(());
-        }
-    }
-
+    // a. If SameValue(g.[[Key]], key) is true, then
+    // i. Assert: Exactly one element of groups meets this criterion.
+    // ii. Append value to g.[[Elements]].
+    // iii. Return UNUSED.
     // 2. Let group be the Record { [[Key]]: key, [[Elements]]: « value » }.
-    let key = Scoped::new(agent, key, gc);
-    let group = GroupByRecord {
-        key,
-        elements: vec![value].scope(agent, gc),
-    };
-
     // 3. Append group to groups.
-    groups.push(group);
+    if core::any::TypeId::of::<K>() == core::any::TypeId::of::<PropertyKey>() {
+        // SAFETY: K is PropertyKey, so it is safe to transmute_copy.
+        let key = unsafe { core::mem::transmute_copy::<K, PropertyKey>(&key) };
+        groups.add_property_keyed_value(agent, key, value);
+    } else if core::any::TypeId::of::<K>() == core::any::TypeId::of::<Value>() {
+        // SAFETY: K is Value, so it is safe to transmute_copy.
+        let key = unsafe { core::mem::transmute_copy::<K, Value>(&key) };
+        groups.add_collection_keyed_value(agent, key, value);
+    } else {
+        unreachable!()
+    }
 
     // 4. Return UNUSED.
-    Ok(())
-}
-
-pub(crate) struct GroupByRecord<'scope, K: 'static + Rootable + Copy + Into<Value<'static>>> {
-    pub(crate) key: Scoped<'scope, K>,
-    pub(crate) elements: ScopedCollection<'scope, Vec<Value<'static>>>,
-}
-
-// SAFETY: Trivially safe.
-unsafe impl<'scope, K: 'static + Rootable + Copy + Into<Value<'static>>> Bindable
-    for GroupByRecord<'scope, K>
-{
-    type Of<'a> = GroupByRecord<'scope, K>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        self
-    }
-
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self
-    }
 }
 
 /// ### [7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
@@ -2453,7 +2428,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
     items: Value,
     callback_fn: Value,
     mut gc: GcScope<'gc, 'scope>,
-) -> JsResult<'gc, Vec<GroupByRecord<'scope, PropertyKey<'static>>>> {
+) -> JsResult<'gc, Box<KeyedGroup<'gc>>> {
     let items = items.bind(gc.nogc());
     let callback_fn = callback_fn.bind(gc.nogc());
     // 1. Perform ? RequireObjectCoercible(iterable).
@@ -2472,7 +2447,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
     let callback_fn = callback_fn.scope(agent, gc.nogc());
 
     // 3. Let groups be a new empty List.
-    let mut groups: Vec<GroupByRecord<'scope, PropertyKey<'static>>> = vec![];
+    let mut groups = KeyedGroup::new(gc.nogc()).scope(agent, gc.nogc());
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
     let Some(IteratorRecord {
@@ -2528,7 +2503,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         // c. If next is DONE, then
         //   i. Return groups.
         let Some(next) = next else {
-            return Ok(groups);
+            return Ok(groups.take(agent));
         };
 
         // d. Let value be next.
@@ -2568,7 +2543,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         // SAFETY: Not shared.
         let value = unsafe { scoped_value.take(agent) };
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value, gc.nogc()).unbind()?;
+        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value);
 
         // j. Set k to k + 1.
         k += 1;
@@ -2583,12 +2558,12 @@ pub(crate) fn group_by_property<'gc, 'scope>(
 /// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 ///
 /// Note: This version is for "collection" keyCoercion.
-pub(crate) fn group_by_collection<'gc, 'scope>(
+pub(crate) fn group_by_collection<'gc>(
     agent: &mut Agent,
     items: Value,
     callback_fn: Value,
-    mut gc: GcScope<'gc, 'scope>,
-) -> JsResult<'gc, Vec<GroupByRecord<'scope, Value<'static>>>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Box<KeyedGroup<'gc>>> {
     let items = items.bind(gc.nogc());
     let callback_fn = callback_fn.bind(gc.nogc());
     // 1. Perform ? RequireObjectCoercible(iterable).
@@ -2607,7 +2582,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
     let callback_fn = callback_fn.scope(agent, gc.nogc());
 
     // 3. Let groups be a new empty List.
-    let mut groups: Vec<GroupByRecord<'scope, Value<'static>>> = vec![];
+    let mut groups = KeyedGroup::new(gc.nogc()).scope(agent, gc.nogc());
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
     let Some(IteratorRecord {
@@ -2663,7 +2638,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         // c. If next is DONE, then
         //   i. Return groups.
         let Some(next) = next else {
-            return Ok(groups);
+            return Ok(groups.take(agent));
         };
 
         // d. Let value be next.
@@ -2699,7 +2674,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         // SAFETY: Not shared.
         let value = unsafe { scoped_value.take(agent) };
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value, gc.nogc()).unbind()?;
+        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value);
 
         // j. Set k to k + 1.
         k += 1;

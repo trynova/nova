@@ -10,9 +10,9 @@ use crate::{
                 iterator_step_value,
             },
             operations_on_objects::{
-                create_array_from_list, create_array_from_scoped_list, define_property_or_throw,
-                enumerable_own_keys, enumerable_own_properties, enumerable_properties_kind, get,
-                get_method, group_by_property, has_own_property,
+                create_array_from_list, define_property_or_throw, enumerable_own_keys,
+                enumerable_own_properties, enumerable_properties_kind, get, get_method,
+                group_by_property, has_own_property,
                 integrity::{Frozen, Sealed},
                 set, set_integrity_level, test_integrity_level, throw_not_callable,
                 try_create_data_property, try_define_property_or_throw, try_get,
@@ -883,21 +883,23 @@ impl ObjectConstructor {
         // 1. Let groups be ? GroupBy(items, callback, property).
         let groups = group_by_property(agent, items.unbind(), callback_fn.unbind(), gc.reborrow())
             .unbind()?;
+        let gc = gc.into_nogc();
+        let groups = groups.bind(gc);
 
         // 2. Let obj be OrdinaryObjectCreate(null).
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         // a. Let elements be CreateArrayFromList(g.[[Elements]]).
         // b. Perform ! CreateDataPropertyOrThrow(obj, g.[[Key]], elements).
         let entries = groups
-            .into_iter()
-            .map(|g| {
+            .into_property_keyed_iter()
+            .map(|(key, elements)| {
                 ObjectEntry::new_data_entry(
-                    g.key.get(agent),
-                    create_array_from_scoped_list(agent, g.elements, gc.nogc()).into_value(),
+                    key,
+                    create_array_from_list(agent, &elements, gc).into_value(),
                 )
             })
             .collect::<Vec<_>>();
-        let object = agent.heap.create_null_object(&entries);
+        let object = agent.heap.create_null_object(&entries).bind(gc);
 
         // 4. Return obj.
         Ok(object.into_value())

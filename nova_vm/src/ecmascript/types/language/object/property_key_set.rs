@@ -5,16 +5,14 @@
 use hashbrown::HashTable;
 
 use crate::{
-    ecmascript::execution::Agent,
+    ecmascript::{execution::Agent, types::PropertyKey},
     engine::{
-        ScopedCollection,
+        ScopableCollection, ScopedCollection,
         context::{Bindable, NoGcScope},
         rootable::HeapRootCollectionData,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-
-use super::PropertyKey;
 
 /// An unordered set of PropertyKeys.
 #[derive(Clone)]
@@ -58,12 +56,14 @@ impl<'a> PropertyKeySet<'a> {
         let hash = value.heap_hash(agent);
         self.0.find(hash, |p| *p == value).is_some()
     }
+}
 
-    pub fn scope<'scope>(
+impl ScopableCollection for PropertyKeySet<'_> {
+    fn scope<'scope>(
         self,
-        agent: &mut Agent,
+        agent: &Agent,
         gc: NoGcScope<'_, 'scope>,
-    ) -> ScopedCollection<'scope, PropertyKeySet<'static>> {
+    ) -> ScopedCollection<'scope, Self::Of<'static>> {
         ScopedCollection::new(agent, self.unbind(), gc)
     }
 }

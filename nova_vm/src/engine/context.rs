@@ -443,6 +443,30 @@ unsafe impl<T: Bindable> Bindable for Option<T> {
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<T: Bindable> Bindable for Box<T> {
+    type Of<'a> = Box<T::Of<'a>>;
+
+    // Note: Box is simple enough to always inline the code.
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        unsafe { std::mem::transmute::<_, _>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        unsafe { std::mem::transmute::<_, _>(self) }
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
 unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
     type Of<'a> = Result<T::Of<'a>, E::Of<'a>>;
 

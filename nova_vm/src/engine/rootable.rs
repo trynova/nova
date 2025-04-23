@@ -48,6 +48,7 @@ use crate::ecmascript::{
 use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
+        abstract_operations::keyed_group::KeyedGroup,
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
@@ -111,6 +112,7 @@ pub mod private {
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::{
         ecmascript::{
+            abstract_operations::keyed_group::KeyedGroup,
             builtins::{
                 ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
                 ECMAScriptFunction,
@@ -262,6 +264,7 @@ pub mod private {
         ValueVec(Vec<Value<'static>>),
         PropertyKeyVec(Vec<PropertyKey<'static>>),
         PropertyKeySet(PropertyKeySet<'static>),
+        KeyedGroup(Box<KeyedGroup<'static>>),
     }
 
     impl HeapMarkAndSweep for HeapRootCollectionData {
@@ -279,6 +282,7 @@ pub mod private {
                 Self::ValueVec(values) => values.as_slice().mark_values(queues),
                 Self::PropertyKeyVec(items) => items.mark_values(queues),
                 Self::PropertyKeySet(items) => items.mark_values(queues),
+                Self::KeyedGroup(group) => group.mark_values(queues),
             }
         }
 
@@ -296,6 +300,7 @@ pub mod private {
                 Self::ValueVec(values) => values.as_mut_slice().sweep_values(compactions),
                 Self::PropertyKeyVec(items) => items.sweep_values(compactions),
                 Self::PropertyKeySet(items) => items.sweep_values(compactions),
+                Self::KeyedGroup(group) => group.sweep_values(compactions),
             }
         }
     }
@@ -390,6 +395,32 @@ pub mod private {
 
         fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
             let HeapRootCollectionData::PropertyKeySet(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+    }
+    impl RootableCollectionSealed for Box<KeyedGroup<'static>> {
+        fn to_heap_data(self) -> HeapRootCollectionData {
+            HeapRootCollectionData::KeyedGroup(self.unbind())
+        }
+
+        fn from_heap_data(value: HeapRootCollectionData) -> Self {
+            let HeapRootCollectionData::KeyedGroup(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data(value: &HeapRootCollectionData) -> &Self {
+            let HeapRootCollectionData::KeyedGroup(value) = value else {
+                unreachable!()
+            };
+            value
+        }
+
+        fn get_heap_data_mut(value: &mut HeapRootCollectionData) -> &mut Self {
+            let HeapRootCollectionData::KeyedGroup(value) = value else {
                 unreachable!()
             };
             value
@@ -910,3 +941,4 @@ pub trait RootableCollection: core::fmt::Debug + RootableCollectionSealed {}
 impl RootableCollection for Vec<Value<'static>> {}
 impl RootableCollection for Vec<PropertyKey<'static>> {}
 impl RootableCollection for PropertyKeySet<'static> {}
+impl RootableCollection for Box<KeyedGroup<'static>> {}

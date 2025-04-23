@@ -11,7 +11,7 @@ use crate::{
         types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
     },
     engine::{
-        Scoped,
+        ScopableCollection, Scoped,
         bytecode::vm::{
             Environment, Executable, Instruction, Vm, VmIterator, array_create,
             copy_data_properties_into_object, initialize_referenced_binding, put_value,

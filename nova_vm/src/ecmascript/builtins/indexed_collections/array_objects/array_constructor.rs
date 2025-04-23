@@ -118,7 +118,7 @@ impl ArrayConstructor {
         // 4. If numberOfArgs = 0, then
         if arguments.is_empty() {
             // a. Return ! ArrayCreate(0, proto).
-            return Ok(array_create(agent, 0, 0, proto, gc).unwrap().into_value());
+            Ok(array_create(agent, 0, 0, proto, gc).unwrap().into_value())
         } else if arguments.len() == 1 {
             // 5. Else if numberOfArgs = 1, then
             // a. Let len be values[0].

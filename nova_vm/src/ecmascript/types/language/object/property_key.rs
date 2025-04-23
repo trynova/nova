@@ -189,7 +189,7 @@ impl<'a> PropertyKey<'a> {
         )
     }
 
-    pub(super) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
+    pub(crate) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
         let mut hasher = AHasher::default();
         match self {
             PropertyKey::Symbol(sym) => {

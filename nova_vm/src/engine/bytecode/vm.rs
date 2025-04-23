@@ -56,7 +56,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        ScopableCollection, Scoped, TryResult,
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
@@ -1125,7 +1125,8 @@ impl Vm {
                             .referenced_name
                             .bind(gc.nogc())),
                     };
-                    let pk = match pk_result {
+
+                    match pk_result {
                         Ok(pk) => pk.bind(gc.nogc()),
                         Err(pk_value) => {
                             let scoped_function = function.scope(agent, gc.nogc());
@@ -1142,8 +1143,7 @@ impl Vm {
                             function = unsafe { scoped_function.take(agent).bind(gc.nogc()) };
                             pk
                         }
-                    };
-                    pk
+                    }
                 } else {
                     let pk: PropertyKey = String::EMPTY_STRING.into();
                     pk.bind(gc.nogc())
