@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
+mod radix;
 
 use core::ops::{Index, IndexMut};
 
@@ -25,10 +26,12 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::NumberIndex,
     },
+    with_radix,
 };
 
 pub use data::NumberHeapData;
 use num_traits::{PrimInt, Zero};
+use radix::make_float_string_ascii_lowercase;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -1313,6 +1316,48 @@ impl<'a> Number<'a> {
     pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
+    }
+
+    // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
+    pub(crate) fn to_string_radix_n<'gc>(
+        agent: &mut Agent,
+        x: Self,
+        radix: u32,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
+        String::from_string(
+            agent,
+            with_radix!(
+                radix,
+                match x {
+                    Number::Integer(x) => {
+                        lexical::to_string_with_options::<_, RADIX>(
+                            x.into_i64(),
+                            &lexical::write_integer_options::STANDARD,
+                        )
+                        .to_ascii_lowercase()
+                    }
+                    Number::Number(x) => {
+                        let x = agent[x];
+                        let mut string = lexical::to_string_with_options::<_, RADIX>(
+                            x,
+                            &lexical::write_float_options::JAVASCRIPT_LITERAL,
+                        );
+                        make_float_string_ascii_lowercase(&mut string);
+                        string
+                    }
+                    Number::SmallF64(x) => {
+                        let mut string = lexical::to_string_with_options::<_, RADIX>(
+                            x.into_f64(),
+                            &lexical::write_float_options::JAVASCRIPT_LITERAL,
+                        );
+                        make_float_string_ascii_lowercase(&mut string);
+                        string
+                    }
+                }
+            ),
+            gc,
+        )
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
