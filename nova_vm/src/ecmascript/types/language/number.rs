@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
-mod with_radix;
+mod radix;
 
 use core::ops::{Index, IndexMut};
 
@@ -31,6 +31,7 @@ use crate::{
 
 pub use data::NumberHeapData;
 use num_traits::{PrimInt, Zero};
+use radix::make_float_string_ascii_lowercase;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -1334,19 +1335,24 @@ impl<'a> Number<'a> {
                             x.into_i64(),
                             &lexical::write_integer_options::STANDARD,
                         )
+                        .to_ascii_lowercase()
                     }
                     Number::Number(x) => {
                         let x = agent[x];
-                        lexical::to_string_with_options::<_, RADIX>(
+                        let mut string = lexical::to_string_with_options::<_, RADIX>(
                             x,
                             &lexical::write_float_options::JAVASCRIPT_LITERAL,
-                        )
+                        );
+                        make_float_string_ascii_lowercase(&mut string);
+                        string
                     }
                     Number::SmallF64(x) => {
-                        lexical::to_string_with_options::<_, RADIX>(
+                        let mut string = lexical::to_string_with_options::<_, RADIX>(
                             x.into_f64(),
                             &lexical::write_float_options::JAVASCRIPT_LITERAL,
-                        )
+                        );
+                        make_float_string_ascii_lowercase(&mut string);
+                        string
                     }
                 }
             ),

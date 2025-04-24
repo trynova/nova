@@ -624,15 +624,14 @@ impl<'a> BigInt<'a> {
         String::from_string(
             agent,
             match x {
-                BigInt::SmallBigInt(x) => {
-                    with_radix!(
-                        radix,
-                        lexical::to_string_with_options::<_, RADIX>(
-                            x.into_i64(),
-                            &lexical::write_integer_options::STANDARD,
-                        )
+                BigInt::SmallBigInt(x) => with_radix!(
+                    radix,
+                    lexical::to_string_with_options::<_, RADIX>(
+                        x.into_i64(),
+                        &lexical::write_integer_options::STANDARD,
                     )
-                }
+                )
+                .to_ascii_lowercase(),
                 BigInt::BigInt(x) => agent[x].data.to_str_radix(radix),
             },
             gc,

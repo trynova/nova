@@ -152,3 +152,12 @@ macro_rules! with_radix {
         }
     };
 }
+
+pub(crate) fn make_float_string_ascii_lowercase(str: &mut str) {
+    match &*str {
+        "NaN" | "Infinity" | "-Infinity" => (),
+        _ => {
+            str.make_ascii_lowercase();
+        }
+    }
+}
