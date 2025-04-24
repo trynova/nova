@@ -4,7 +4,7 @@
 
 use super::{CompileContext, CompileEvaluation, Instruction, JumpIndex, is_reference};
 use crate::ecmascript::types::{String, Value};
-use oxc_ast::ast;
+use oxc_ast::ast::{self, BindingPatternKind, ForStatementLeft};
 use oxc_ecmascript::BoundNames;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,9 +187,23 @@ fn for_in_of_body_evaluation(
                 } else {
                     // 2. Else,
                     // a. Assert: lhsKind is VAR-BINDING.
+                    assert_eq!(lhs_kind, LeftHandSideKind::VarBinding);
                     // b. Assert: lhs is a ForBinding.
                     // c. Let status be Completion(BindingInitialization of lhs with arguments nextValue and undefined).
-                    todo!();
+                    match lhs {
+                        ForStatementLeft::VariableDeclaration(decl) => {
+                            assert_eq!(decl.declarations.len(), 1);
+                            let declaration = decl.declarations.first().unwrap();
+                            ctx.add_instruction(Instruction::Load);
+                            match &declaration.id.kind {
+                                BindingPatternKind::BindingIdentifier(_) => unreachable!(),
+                                BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
+                                BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
+                                BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
                 }
             } else {
                 // ii. Else,
