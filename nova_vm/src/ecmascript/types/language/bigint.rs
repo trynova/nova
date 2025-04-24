@@ -20,10 +20,11 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::BigIntIndex,
     },
+    with_radix,
 };
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
-use num_bigint::{Sign, ToBigInt};
+use num_bigint::Sign;
 
 impl<'a> IntoValue<'a> for BigInt<'a> {
     fn into_value(self) -> Value<'a> {
@@ -624,10 +625,18 @@ impl<'a> BigInt<'a> {
             agent,
             match x {
                 BigInt::SmallBigInt(x) => {
-                    // NOTE: The rust standard library provides no way to convert
-                    // numbers into strings with a radix which is why I am borrowing
-                    // num_bigints `to_str_radix` implementation.
-                    x.into_i64().to_bigint().unwrap().to_str_radix(radix)
+                    let mut buf = [b'0'; lexical_core::BUFFER_SIZE];
+                    let buf = with_radix!(
+                        radix,
+                        lexical_core::write_with_options::<_, RADIX>(
+                            x.into_i64(),
+                            &mut buf,
+                            &lexical_core::write_integer_options::STANDARD,
+                        )
+                    );
+
+                    // SAFETY: We know that the buffer only contains valid ASCII characters
+                    unsafe { std::string::String::from_utf8_unchecked(buf.into()) }
                 }
                 BigInt::BigInt(x) => agent[x].data.to_str_radix(radix),
             },

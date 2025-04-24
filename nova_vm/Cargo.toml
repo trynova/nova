@@ -30,7 +30,7 @@ small_string = { path = "../small_string" }
 sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
-radix-ecmascript = { workspace = true }
+lexical-core = { workspace = true }
 
 [features]
 default = [

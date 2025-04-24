@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
+mod with_radix;
 
 use core::ops::{Index, IndexMut};
 
@@ -25,11 +26,11 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::NumberIndex,
     },
+    with_radix,
 };
 
 pub use data::NumberHeapData;
 use num_traits::{PrimInt, Zero};
-use radix_ecmascript::ToRadixStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -1323,11 +1324,39 @@ impl<'a> Number<'a> {
         radix: u32,
         gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
-        String::from_string(
-            agent,
-            x.into_f64(agent).to_radix_str(radix as u8).unwrap(),
-            gc,
-        )
+        let mut buf = [b'0'; lexical_core::BUFFER_SIZE];
+
+        let buf = with_radix!(
+            radix,
+            match x {
+                Number::Integer(x) => {
+                    lexical_core::write_with_options::<_, RADIX>(
+                        x.into_i64(),
+                        &mut buf,
+                        &lexical_core::write_integer_options::STANDARD,
+                    )
+                }
+                Number::Number(x) => {
+                    let x = agent[x];
+                    lexical_core::write_with_options::<_, RADIX>(
+                        x,
+                        &mut buf,
+                        &lexical_core::write_float_options::JAVASCRIPT_LITERAL,
+                    )
+                }
+                Number::SmallF64(x) => {
+                    lexical_core::write_with_options::<_, RADIX>(
+                        x.into_f64(),
+                        &mut buf,
+                        &lexical_core::write_float_options::JAVASCRIPT_LITERAL,
+                    )
+                }
+            }
+        );
+
+        // SAFETY: We know that the buffer only contains valid ASCII characters
+        let string = unsafe { std::string::String::from_utf8_unchecked(buf.into()) };
+        String::from_string(agent, string, gc)
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
