@@ -1324,39 +1324,34 @@ impl<'a> Number<'a> {
         radix: u32,
         gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
-        let mut buf = [b'0'; lexical_core::BUFFER_SIZE];
-
-        let buf = with_radix!(
-            radix,
-            match x {
-                Number::Integer(x) => {
-                    lexical_core::write_with_options::<_, RADIX>(
-                        x.into_i64(),
-                        &mut buf,
-                        &lexical_core::write_integer_options::STANDARD,
-                    )
+        String::from_string(
+            agent,
+            with_radix!(
+                radix,
+                match x {
+                    Number::Integer(x) => {
+                        lexical::to_string_with_options::<_, RADIX>(
+                            x.into_i64(),
+                            &lexical::write_integer_options::STANDARD,
+                        )
+                    }
+                    Number::Number(x) => {
+                        let x = agent[x];
+                        lexical::to_string_with_options::<_, RADIX>(
+                            x,
+                            &lexical::write_float_options::JAVASCRIPT_LITERAL,
+                        )
+                    }
+                    Number::SmallF64(x) => {
+                        lexical::to_string_with_options::<_, RADIX>(
+                            x.into_f64(),
+                            &lexical::write_float_options::JAVASCRIPT_LITERAL,
+                        )
+                    }
                 }
-                Number::Number(x) => {
-                    let x = agent[x];
-                    lexical_core::write_with_options::<_, RADIX>(
-                        x,
-                        &mut buf,
-                        &lexical_core::write_float_options::JAVASCRIPT_LITERAL,
-                    )
-                }
-                Number::SmallF64(x) => {
-                    lexical_core::write_with_options::<_, RADIX>(
-                        x.into_f64(),
-                        &mut buf,
-                        &lexical_core::write_float_options::JAVASCRIPT_LITERAL,
-                    )
-                }
-            }
-        );
-
-        // SAFETY: We know that the buffer only contains valid ASCII characters
-        let string = unsafe { std::string::String::from_utf8_unchecked(buf.into()) };
-        String::from_string(agent, string, gc)
+            ),
+            gc,
+        )
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)

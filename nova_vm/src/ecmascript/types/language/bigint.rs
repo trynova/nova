@@ -625,18 +625,13 @@ impl<'a> BigInt<'a> {
             agent,
             match x {
                 BigInt::SmallBigInt(x) => {
-                    let mut buf = [b'0'; lexical_core::BUFFER_SIZE];
-                    let buf = with_radix!(
+                    with_radix!(
                         radix,
-                        lexical_core::write_with_options::<_, RADIX>(
+                        lexical::to_string_with_options::<_, RADIX>(
                             x.into_i64(),
-                            &mut buf,
-                            &lexical_core::write_integer_options::STANDARD,
+                            &lexical::write_integer_options::STANDARD,
                         )
-                    );
-
-                    // SAFETY: We know that the buffer only contains valid ASCII characters
-                    unsafe { std::string::String::from_utf8_unchecked(buf.into()) }
+                    )
                 }
                 BigInt::BigInt(x) => agent[x].data.to_str_radix(radix),
             },
