@@ -146,7 +146,7 @@ impl<'a> IntoNumeric<'a> for Number<'a> {
 impl core::fmt::Debug for Number<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self {
-            Number::Number(idx) => write!(f, "Number({:?})", idx),
+            Number::Number(idx) => write!(f, "Number({idx:?})"),
             Number::Integer(value) => write!(f, "{}", value.into_i64()),
             Number::SmallF64(value) => write!(f, "{}", value.into_f64()),
         }

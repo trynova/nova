@@ -1050,10 +1050,8 @@ impl DatePrototype {
         let minute = min_from_time(tv);
         let second = sec_from_time(tv);
         let ms = ms_from_time(tv);
-        let date_string = format!(
-            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-            year, month, day, hour, minute, second, ms
-        );
+        let date_string =
+            format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{ms:03}Z");
         Ok(Value::from_string(agent, date_string, gc.into_nogc()))
     }
 

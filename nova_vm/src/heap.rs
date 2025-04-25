@@ -547,5 +547,5 @@ impl PropertyKeyHeapIndexable for Agent {}
 #[test]
 fn init_heap() {
     let heap = Heap::new();
-    println!("{:#?}", heap);
+    println!("{heap:#?}");
 }

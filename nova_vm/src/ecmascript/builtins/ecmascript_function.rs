@@ -1116,7 +1116,7 @@ pub(crate) fn set_function_name<'a>(
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.as_str(agent);
-                    String::from_string(agent, format!("[{}]", descriptor), gc)
+                    String::from_string(agent, format!("[{descriptor}]"), gc)
                 })
         }
         // TODO: Private Name

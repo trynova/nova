@@ -973,11 +973,8 @@ pub(crate) fn string_to_big_int<'a>(
     if let Some(num_big_int) = num_big_int {
         Ok(BigInt::from_num_bigint(agent, num_big_int))
     } else {
-        let message = String::from_string(
-            agent,
-            format!("Cannot convert {} to a BigInt", literal),
-            nogc,
-        );
+        let message =
+            String::from_string(agent, format!("Cannot convert {literal} to a BigInt"), nogc);
         Err(agent.throw_exception_with_message(ExceptionType::SyntaxError, message, nogc))
     }
 }

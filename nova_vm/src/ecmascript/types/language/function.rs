@@ -54,15 +54,15 @@ pub enum Function<'a> {
 impl core::fmt::Debug for Function<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Function::BoundFunction(d) => write!(f, "BoundFunction({:?})", d),
-            Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({:?})", d),
-            Function::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({:?})", d),
+            Function::BoundFunction(d) => write!(f, "BoundFunction({d:?})"),
+            Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({d:?})"),
+            Function::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({d:?})"),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(d) => {
-                write!(f, "BuiltinConstructorFunction({:?})", d)
+                write!(f, "BuiltinConstructorFunction({d:?})")
             }
             Function::BuiltinPromiseResolvingFunction(d) => {
-                write!(f, "BuiltinPromiseResolvingFunction({:?})", d)
+                write!(f, "BuiltinPromiseResolvingFunction({d:?})")
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

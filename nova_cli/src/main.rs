@@ -227,7 +227,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match result {
                             Ok(result) => {
                                 if verbose {
-                                    println!("{:?}", result);
+                                    println!("{result:?}");
                                 }
                             }
                             Err(error) => {
@@ -312,7 +312,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let result = script_evaluation(agent, script.unbind(), gc.reborrow());
                     match result {
                         Ok(result) => {
-                            println!("{:?}\n", result);
+                            println!("{result:?}\n");
                         }
                         Err(error) => {
                             eprintln!(

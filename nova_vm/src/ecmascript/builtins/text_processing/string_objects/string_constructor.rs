@@ -220,7 +220,7 @@ impl StringConstructor {
             if !(0..=0x10FFFF).contains(&next_cp) {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
-                    format!("{:?} is not a valid code point", next_cp),
+                    format!("{next_cp:?} is not a valid code point"),
                     gc.into_nogc(),
                 ));
             }
@@ -243,7 +243,7 @@ impl StringConstructor {
                 if !(0..=0x10FFFF).contains(&next_cp) {
                     return Err(agent.throw_exception(
                         ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp),
+                        format!("{next_cp:?} is not a valid code point"),
                         gc.into_nogc(),
                     ));
                 }
@@ -274,7 +274,7 @@ impl StringConstructor {
                 if !(0..=0x10FFFF).contains(&next_cp) {
                     return Err(agent.throw_exception(
                         ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp),
+                        format!("{next_cp:?} is not a valid code point"),
                         gc.into_nogc(),
                     ));
                 }
