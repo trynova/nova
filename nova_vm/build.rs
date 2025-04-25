@@ -16,7 +16,7 @@ fn replace_invalid_key_characters(string: &str) -> String {
     // If the first character is a number or a hyphen, prefix the string with an underscore.
     if let Some(first_char) = string.chars().next() {
         if first_char.is_numeric() || first_char == '-' {
-            string = format!("_{}", string);
+            string = format!("_{string}");
         }
     }
 
@@ -33,7 +33,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
     for line in reader.lines() {
         let line = line.unwrap();
         if strings.contains(&line) {
-            panic!("Duplicate strings {}", line);
+            panic!("Duplicate strings {line}");
         }
         if SmallString::try_from(line.as_str()).is_err() {
             i += 1;
@@ -58,7 +58,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
     output.push_str("];\n\n#[allow(non_snake_case)]\npub struct BuiltinStrings {\n");
     for string in &strings {
         output.push_str("    /// ```js\n");
-        output.push_str(&format!("    /// \"{}\"\n", string));
+        output.push_str(&format!("    /// \"{string}\"\n"));
         output.push_str("    /// ```\n");
         output.push_str("    pub r#");
         output.push_str(&replace_invalid_key_characters(string));

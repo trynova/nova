@@ -512,7 +512,7 @@ impl Vm {
             }
             Instruction::Debug => {
                 if agent.options.print_internals {
-                    eprintln!("Debug: {:#?}", vm);
+                    eprintln!("Debug: {vm:#?}");
                 }
             }
             Instruction::ResolveBinding => {

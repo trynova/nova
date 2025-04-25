@@ -164,14 +164,13 @@ impl BaseTest262Runner {
                 message.push_str("...");
             }
             // These escape codes make this line overwrite the previous line.
-            print!("{}\x1B[0K\r", message);
+            print!("{message}\x1B[0K\r");
         }
 
         if metadata.flags.is_async {
             assert!(
                 metadata.negative.is_none(),
-                "Unexpected negative async expectation in {:?}",
-                path
+                "Unexpected negative async expectation in {path:?}",
             );
         }
 
@@ -227,7 +226,7 @@ impl BaseTest262Runner {
                 } else {
                     println!("Loose mode run:")
                 }
-                println!("Running: {:?}", command);
+                println!("Running: {command:?}");
                 println!();
             }
 
@@ -238,7 +237,7 @@ impl BaseTest262Runner {
             );
             if self.in_test_eval {
                 println!();
-                println!("Test result: {:?}", expectation);
+                println!("Test result: {expectation:?}");
                 if !strict {
                     println!();
                 }
@@ -296,7 +295,7 @@ impl BaseTest262Runner {
                             Ok(0) => break,
                             Ok(bytes_read) => read += bytes_read,
                             Err(e) if e.kind() == ErrorKind::Interrupted => {}
-                            Err(e) => panic!("{:?}", e),
+                            Err(e) => panic!("{e:?}"),
                         }
                     }
                     &buffer[..read]
@@ -347,7 +346,7 @@ impl BaseTest262Runner {
                     if e.kind() == ErrorKind::UnexpectedEof {
                         TestExpectation::Fail
                     } else {
-                        panic!("{:?}", e);
+                        panic!("{e:?}");
                     }
                 }
             }
@@ -693,7 +692,7 @@ mod test_metadata {
                 // ErrorKind::Interrupted errors are non-fatal, and the
                 // operation should be retried.
                 Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-                Err(error) => panic!("{:?}", error),
+                Err(error) => panic!("{error:?}"),
             };
 
             assert_ne!(
@@ -719,7 +718,7 @@ mod test_metadata {
                 let read_bytes = match reader.read(&mut buffer) {
                     Ok(read_bytes) => read_bytes,
                     Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-                    Err(error) => panic!("{:?}", error),
+                    Err(error) => panic!("{error:?}"),
                 };
 
                 assert_ne!(
@@ -873,14 +872,13 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
     if !canonical_path.starts_with(&base_runner.tests_base)
         || !is_test_file(canonical_path.file_name().unwrap().to_str().unwrap())
     {
-        eprintln!("{:?} is not a valid test file", canonical_path);
+        eprintln!("{canonical_path:?} is not a valid test file");
         std::process::exit(1);
     }
 
     let Some(result) = base_runner.run_test(&canonical_path) else {
         eprintln!(
-            "{:?} is a module or async test, which aren't yet supported by the test runner.",
-            path
+            "{path:?} is a module or async test, which aren't yet supported by the test runner.",
         );
         std::process::exit(1);
     };
@@ -1064,10 +1062,7 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
                 .get(path)
                 .copied()
                 .unwrap_or(TestExpectation::Pass);
-            println!(
-                "\t{:?} -- Expected {:?}, got {:?}",
-                path, expectation, result
-            );
+            println!("\t{path:?} -- Expected {expectation:?}, got {result:?}",);
         }
 
         std::process::exit(1);

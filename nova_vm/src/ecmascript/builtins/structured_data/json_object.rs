@@ -880,7 +880,7 @@ fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: St
                 let unit = c as u32;
                 // ii. Set product to the string-concatenation of product and
                 //     UnicodeEscape(unit).
-                write!(product, "\\u{:04x}", unit).unwrap();
+                write!(product, "\\u{unit:04x}").unwrap();
             }
             // c. Else,
             // i. Set product to the string-concatenation of product and
@@ -897,7 +897,7 @@ fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: St
 fn quote_property_key(agent: &Agent, product: &mut std::string::String, key: PropertyKey) {
     if let PropertyKey::Integer(key) = key {
         let key = key.into_i64();
-        write!(product, "\"{}\"", key).unwrap();
+        write!(product, "\"{key}\"").unwrap();
     } else {
         // Symbol keys do not get serialised into JSON.
         debug_assert!(key.is_string());

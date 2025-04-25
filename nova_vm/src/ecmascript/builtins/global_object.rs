@@ -449,7 +449,7 @@ pub fn eval_declaration_instantiation<'a>(
                         //     for the above step.
                         return Err(agent.throw_exception(
                             ExceptionType::SyntaxError,
-                            format!("Redeclaration of variable '{}'", name),
+                            format!("Redeclaration of variable '{name}'"),
                             gc.into_nogc(),
                         ));
                     }

@@ -1596,7 +1596,7 @@ fn test_heap_gc() {
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
     let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
-    println!("Object: {:#?}", obj);
+    println!("Object: {obj:#?}",);
     agent.heap.globals.borrow_mut().push(Some(obj));
     heap_gc(&mut agent, &mut [], gc.reborrow());
     println!("Objects: {:#?}", agent.heap.objects);
