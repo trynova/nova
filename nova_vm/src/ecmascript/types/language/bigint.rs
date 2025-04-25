@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
+mod operators;
+
 use super::{
     IntoPrimitive, IntoValue, Primitive, String, Value,
     into_numeric::IntoNumeric,
@@ -25,6 +27,10 @@ use crate::{
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
 use num_bigint::Sign;
+use operators::{
+    left_shift_bigint_bigint, left_shift_bigint_i64, left_shift_i64_bigint, left_shift_i64_i64,
+    right_shift_bigint_bigint, right_shift_bigint_i64, right_shift_i64_bigint, right_shift_i64_i64,
+};
 
 impl<'a> IntoValue<'a> for BigInt<'a> {
     fn into_value(self) -> Value<'a> {
@@ -436,7 +442,107 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ### [BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
+    /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
+    pub(crate) fn divide(
+        agent: &mut Agent,
+        x: Self,
+        y: Self,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
+        match (x, y) {
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+                let y = y.into_i64();
+                match y {
+                    0 => Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    )),
+                    1 => Ok(BigInt::SmallBigInt(x)),
+                    y => Ok(BigInt::SmallBigInt(
+                        SmallBigInt::try_from(x.into_i64() / y).unwrap(),
+                    )),
+                }
+            }
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
+                if x == SmallBigInt::zero() {
+                    return Ok(Self::SmallBigInt(SmallBigInt::zero()));
+                }
+                Ok(Self::from_num_bigint(agent, x.into_i64() / &agent[y].data))
+            }
+            (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
+                let y = y.into_i64();
+                match y {
+                    0 => Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    )),
+                    1 => Ok(BigInt::BigInt(x)),
+                    y => Ok(Self::from_num_bigint(agent, &agent[x].data / y)),
+                }
+            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => Ok(Self::from_num_bigint(
+                agent,
+                &agent[x].data / &agent[y].data,
+            )),
+        }
+    }
+
+    /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
+    ///
+    /// The abstract operation BigInt::remainder takes arguments n (a BigInt)
+    /// and d (a BigInt) and returns either a normal completion containing a
+    /// BigInt or a throw completion.
+    ///
+    /// > NOTE: The sign of the result is the sign of the dividend.
+    pub(crate) fn remainder(
+        agent: &mut Agent,
+        n: Self,
+        d: Self,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
+        match (n, d) {
+            (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
+                if d == SmallBigInt::zero() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    ));
+                }
+                let (n, d) = (n.into_i64(), d.into_i64());
+                let result = n % d;
+
+                Ok(BigInt::SmallBigInt(SmallBigInt::try_from(result).unwrap()))
+            }
+            (BigInt::SmallBigInt(n), BigInt::BigInt(d)) => {
+                Ok(Self::from_num_bigint(agent, n.into_i64() % &agent[d].data))
+            }
+            (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
+                if d == SmallBigInt::zero() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "Division by zero",
+                        gc,
+                    ));
+                }
+                Ok(Self::SmallBigInt(
+                    SmallBigInt::try_from(
+                        // Remainder can never be bigger than the divisor.
+                        i64::try_from(&agent[n].data % d.into_i64()).unwrap(),
+                    )
+                    .unwrap(),
+                ))
+            }
+            (BigInt::BigInt(n), BigInt::BigInt(d)) => Ok(Self::from_num_bigint(
+                agent,
+                &agent[n].data % &agent[d].data,
+            )),
+        }
+    }
+
+    /// ### [6.1.6.2.7 BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
     pub(crate) fn add(agent: &mut Agent, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
@@ -487,52 +593,102 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
-    pub(crate) fn divide(
+    /// ### [6.1.6.2.9 BigInt::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-leftShift)
+    ///
+    /// The abstract operation BigInt::leftShift takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a BigInt.
+    ///
+    /// > NOTE: Semantics here should be equivalent to a bitwise shift, treating
+    /// > the BigInt as an infinite length string of binary two's complement digits.
+    pub(crate) fn left_shift<'gc>(
         agent: &mut Agent,
         x: Self,
         y: Self,
-        gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Self> {
-        match (x, y) {
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, Self> {
+        if let Some(r) = match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
-                let y = y.into_i64();
-                match y {
-                    0 => Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    )),
-                    1 => Ok(BigInt::SmallBigInt(x)),
-                    y => Ok(BigInt::SmallBigInt(
-                        SmallBigInt::try_from(x.into_i64() / y).unwrap(),
-                    )),
-                }
+                left_shift_i64_i64(agent, x.into_i64(), y.into_i64())
             }
-            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
-                if x == SmallBigInt::zero() {
-                    return Ok(Self::SmallBigInt(SmallBigInt::zero()));
-                }
-                Ok(Self::from_num_bigint(agent, x.into_i64() / &agent[y].data))
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                let x = &agent[x].clone().data;
+                let y = &agent[y].clone().data;
+                left_shift_bigint_bigint(agent, x, y)
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
-                let y = y.into_i64();
-                match y {
-                    0 => Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    )),
-                    1 => Ok(BigInt::BigInt(x)),
-                    y => Ok(Self::from_num_bigint(agent, &agent[x].data / y)),
-                }
+                let x = &agent[x].clone().data;
+                left_shift_bigint_i64(agent, x, y.into_i64())
             }
-            (BigInt::BigInt(x), BigInt::BigInt(y)) => Ok(Self::from_num_bigint(
-                agent,
-                &agent[x].data / &agent[y].data,
-            )),
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
+                let y = &agent[y].clone().data;
+                left_shift_i64_bigint(agent, x.into_i64(), y)
+            }
+        } {
+            Ok(r)
+        } else {
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "BigInt is too large to allocate",
+                gc,
+            ))
         }
     }
+
+    /// ### [6.1.6.2.10 BigInt::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-signedRightShift)
+    ///
+    /// The abstract operation BigInt::signedRightShift takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a BigInt.
+    pub(crate) fn signed_right_shift<'gc>(
+        agent: &mut Agent,
+        x: Self,
+        y: Self,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, Self> {
+        if let Some(r) = match (x, y) {
+            (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
+                right_shift_i64_i64(agent, x.into_i64(), y.into_i64())
+            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                let x = &agent[x].clone().data;
+                let y = &agent[y].clone().data;
+                right_shift_bigint_bigint(agent, x, y)
+            }
+            (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
+                let x = &agent[x].clone().data;
+                right_shift_bigint_i64(agent, x, y.into_i64())
+            }
+            (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
+                let y = &agent[y].clone().data;
+                right_shift_i64_bigint(agent, x.into_i64(), y)
+            }
+        } {
+            Ok(r)
+        } else {
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "BigInt is too large to allocate",
+                gc,
+            ))
+        }
+    }
+
+    /// ### [6.1.6.2.11 BigInt::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unsignedRightShift)
+    ///
+    /// The abstract operation BigInt::unsignedRightShift takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a throw completion.
+    pub(crate) fn unsigned_right_shift<'gc>(
+        agent: &mut Agent,
+        _x: Self,
+        _y: Self,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "BigInts have no unsigned right shift, use >> instead",
+            gc,
+        ))
+    }
+
     /// ### [6.1.6.2.12 BigInt::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-lessThan)
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
@@ -548,53 +704,6 @@ impl<'a> BigInt<'a> {
             (BigInt::SmallBigInt(_), BigInt::BigInt(_)) => true,
             (BigInt::BigInt(b1), BigInt::BigInt(b2)) => agent[b1].data < agent[b2].data,
             (BigInt::SmallBigInt(b1), BigInt::SmallBigInt(b2)) => b1.into_i64() < b2.into_i64(),
-        }
-    }
-
-    /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
-    pub(crate) fn remainder(
-        agent: &mut Agent,
-        n: Self,
-        d: Self,
-        gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Self> {
-        match (n, d) {
-            (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
-                if d == SmallBigInt::zero() {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    ));
-                }
-                let (n, d) = (n.into_i64(), d.into_i64());
-                let result = n % d;
-
-                Ok(BigInt::SmallBigInt(SmallBigInt::try_from(result).unwrap()))
-            }
-            (BigInt::SmallBigInt(n), BigInt::BigInt(d)) => {
-                Ok(Self::from_num_bigint(agent, n.into_i64() % &agent[d].data))
-            }
-            (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
-                if d == SmallBigInt::zero() {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "Division by zero",
-                        gc,
-                    ));
-                }
-                Ok(Self::SmallBigInt(
-                    SmallBigInt::try_from(
-                        // Remainder can never be bigger than the divisor.
-                        i64::try_from(&agent[n].data % d.into_i64()).unwrap(),
-                    )
-                    .unwrap(),
-                ))
-            }
-            (BigInt::BigInt(n), BigInt::BigInt(d)) => Ok(Self::from_num_bigint(
-                agent,
-                &agent[n].data % &agent[d].data,
-            )),
         }
     }
 
