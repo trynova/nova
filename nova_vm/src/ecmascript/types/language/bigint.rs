@@ -27,10 +27,7 @@ use crate::{
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
 use num_bigint::Sign;
-use operators::{
-    left_shift_bigint_bigint, left_shift_bigint_i64, left_shift_i64_bigint, left_shift_i64_i64,
-    right_shift_bigint_bigint, right_shift_bigint_i64, right_shift_i64_bigint, right_shift_i64_i64,
-};
+use operators::{left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64};
 
 impl<'a> IntoValue<'a> for BigInt<'a> {
     fn into_value(self) -> Value<'a> {
@@ -608,20 +605,20 @@ impl<'a> BigInt<'a> {
     ) -> JsResult<'gc, Self> {
         if let Some(r) = match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
-                left_shift_i64_i64(agent, x.into_i64(), y.into_i64())
+                left_shift_i64(agent, x.into_i64(), y.into_i64())
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
                 let x = &agent[x].clone().data;
                 let y = &agent[y].clone().data;
-                left_shift_bigint_bigint(agent, x, y)
+                left_shift_bigint(agent, x, y)
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
                 let x = &agent[x].clone().data;
-                left_shift_bigint_i64(agent, x, y.into_i64())
+                left_shift_bigint(agent, x, y.into_i64())
             }
             (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
                 let y = &agent[y].clone().data;
-                left_shift_i64_bigint(agent, x.into_i64(), y)
+                left_shift_i64(agent, x.into_i64(), y)
             }
         } {
             Ok(r)
@@ -646,20 +643,20 @@ impl<'a> BigInt<'a> {
     ) -> JsResult<'gc, Self> {
         if let Some(r) = match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
-                right_shift_i64_i64(agent, x.into_i64(), y.into_i64())
+                right_shift_i64(agent, x.into_i64(), y.into_i64())
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
                 let x = &agent[x].clone().data;
                 let y = &agent[y].clone().data;
-                right_shift_bigint_bigint(agent, x, y)
+                right_shift_bigint(agent, x, y)
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
                 let x = &agent[x].clone().data;
-                right_shift_bigint_i64(agent, x, y.into_i64())
+                right_shift_bigint(agent, x, y.into_i64())
             }
             (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
                 let y = &agent[y].clone().data;
-                right_shift_i64_bigint(agent, x.into_i64(), y)
+                right_shift_i64(agent, x.into_i64(), y)
             }
         } {
             Ok(r)
