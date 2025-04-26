@@ -20,10 +20,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
             keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator,
-            set::{
-                Set,
-                data::{SetData, SetHeapData},
-            },
+            set::{Set, data::SetData},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
@@ -494,17 +491,4 @@ fn require_set_data_internal_slot<'a>(
             gc,
         )),
     }
-}
-
-/// ### [24.2.1.5 SetDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
-///
-/// The abstract operation SetDataSize takes argument setData (a List of either
-/// ECMAScript language values or EMPTY) and returns a non-negative integer.
-#[inline(always)]
-fn set_data_size(set_data: &SetHeapData) -> u32 {
-    // 1. Let count be 0.
-    // 2. For each element e of setData, do
-    // a. If e is not EMPTY, set count to count + 1.
-    // 3. Return count.
-    set_data.size()
 }

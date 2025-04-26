@@ -173,7 +173,7 @@ impl TypedArrayIntrinsicObject {
                 .unbind()?
                 .bind(gc.nogc());
             // b. Let len be the number of elements in values.
-            let len = values.len().to_i64().unwrap();
+            let len = values.len(agent).to_i64().unwrap();
             // c. Let targetObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
             let target_obj = typed_array_create_from_constructor_with_length(
                 agent,
@@ -186,7 +186,7 @@ impl TypedArrayIntrinsicObject {
             let scoped_target_obj = target_obj.scope(agent, gc.nogc());
             // d. Let k be 0.
             // e. Repeat, while k < len,
-            for (k, k_value) in values.iter().enumerate() {
+            for (k, k_value) in values.iter(agent).enumerate() {
                 // 𝔽(k)
                 //  i. Let Pk be ! ToString(𝔽(k)).
                 // ii. Let kValue be the first element of values.
@@ -202,7 +202,7 @@ impl TypedArrayIntrinsicObject {
                         mapper.get(agent),
                         scoped_this_arg.get(agent),
                         Some(ArgumentsList::from_mut_slice(&mut [
-                            k_value.get(agent).unbind(),
+                            k_value.get(gc.nogc()).unbind(),
                             fk,
                         ])),
                         gc.reborrow(),
@@ -212,7 +212,7 @@ impl TypedArrayIntrinsicObject {
                 } else {
                     // v. Else,
                     //      1. Let mappedValue be kValue.
-                    k_value.get(agent)
+                    k_value.get(gc.nogc())
                 };
                 // vi. Perform ? Set(targetObj, Pk, mappedValue, true).
                 set(

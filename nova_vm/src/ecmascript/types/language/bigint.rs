@@ -20,6 +20,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::BigIntIndex,
     },
+    with_radix,
 };
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
@@ -612,6 +613,29 @@ impl<'a> BigInt<'a> {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
             _ => false,
         }
+    }
+    // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
+    pub(crate) fn to_string_radix_n<'gc>(
+        agent: &mut Agent,
+        x: Self,
+        radix: u32,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
+        String::from_string(
+            agent,
+            match x {
+                BigInt::SmallBigInt(x) => with_radix!(
+                    radix,
+                    lexical::to_string_with_options::<_, RADIX>(
+                        x.into_i64(),
+                        &lexical::write_integer_options::STANDARD,
+                    )
+                )
+                .to_ascii_lowercase(),
+                BigInt::BigInt(x) => agent[x].data.to_str_radix(radix),
+            },
+            gc,
+        )
     }
 
     // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)

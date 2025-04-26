@@ -245,7 +245,7 @@ pub fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, sou
 
     for error in errors {
         let report = error.with_source_code(named_source.clone());
-        eprint!("{:?}", report);
+        eprint!("{report:?}");
     }
     eprintln!();
 

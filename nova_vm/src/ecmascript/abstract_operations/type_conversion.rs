@@ -453,6 +453,35 @@ impl IntegerOrInfinity {
     }
 }
 
+impl PartialEq<i64> for IntegerOrInfinity {
+    fn eq(&self, other: &i64) -> bool {
+        self.is_safe_integer() && self.0 == *other
+    }
+}
+
+impl PartialOrd<i64> for IntegerOrInfinity {
+    fn partial_cmp(&self, other: &i64) -> Option<std::cmp::Ordering> {
+        if !self.is_safe_integer() {
+            return None;
+        }
+        self.0.partial_cmp(other)
+    }
+}
+
+impl PartialEq<IntegerOrInfinity> for i64 {
+    fn eq(&self, other: &IntegerOrInfinity) -> bool {
+        other.eq(self)
+    }
+}
+impl PartialOrd<IntegerOrInfinity> for i64 {
+    fn partial_cmp(&self, other: &IntegerOrInfinity) -> Option<std::cmp::Ordering> {
+        if !other.is_safe_integer() {
+            return None;
+        }
+        self.partial_cmp(&other.0)
+    }
+}
+
 // SAFETY: Trivially safe.
 unsafe impl Bindable for IntegerOrInfinity {
     type Of<'a> = IntegerOrInfinity;
@@ -944,11 +973,8 @@ pub(crate) fn string_to_big_int<'a>(
     if let Some(num_big_int) = num_big_int {
         Ok(BigInt::from_num_bigint(agent, num_big_int))
     } else {
-        let message = String::from_string(
-            agent,
-            format!("Cannot convert {} to a BigInt", literal),
-            nogc,
-        );
+        let message =
+            String::from_string(agent, format!("Cannot convert {literal} to a BigInt"), nogc);
         Err(agent.throw_exception_with_message(ExceptionType::SyntaxError, message, nogc))
     }
 }

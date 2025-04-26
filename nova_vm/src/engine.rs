@@ -11,7 +11,7 @@ pub mod small_integer;
 use core::ops::ControlFlow;
 
 pub(crate) use bytecode::*;
-pub use rootable::{Global, Scoped, ScopedCollection};
+pub use rootable::{Global, ScopableCollection, Scoped, ScopedCollection};
 
 /// Result of methods that are not allowed to call JavaScript or perform
 /// garbage collection.

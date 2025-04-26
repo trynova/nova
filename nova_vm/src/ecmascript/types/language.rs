@@ -14,6 +14,7 @@ mod primitive;
 mod string;
 mod symbol;
 mod value;
+mod value_vec;
 
 pub use bigint::{BigInt, BigIntHeapData};
 pub(crate) use function::{
@@ -30,9 +31,10 @@ pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
+pub(crate) use object::ScopedPropertyKey;
 pub use object::{
     InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject,
-    PropertyKey, scope_property_keys,
+    PropertyKey, PropertyKeySet,
 };
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
@@ -73,3 +75,4 @@ pub(crate) use value::{
 pub(crate) use value::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT};
 #[cfg(feature = "weak-refs")]
 pub(crate) use value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
+pub(crate) use value_vec::ScopedValuesIterator;

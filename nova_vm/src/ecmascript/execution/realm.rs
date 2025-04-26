@@ -776,7 +776,7 @@ mod test {
                 unsafe { core::mem::transmute::<u32, IntrinsicFunctionIndexes>(changed_index) }
             );
         }
-        panic!("Found a missing BuiltinFunction at index {:?}", index);
+        panic!("Found a missing BuiltinFunction at index {index:?}");
     }
 
     fn panic_object_missing(index: usize) {
@@ -796,7 +796,7 @@ mod test {
                 unsafe { core::mem::transmute::<u32, IntrinsicConstructorIndexes>(changed_index) }
             );
         }
-        panic!("Found a missing object at index {:?}", index);
+        panic!("Found a missing object at index {index:?}");
     }
 
     #[test]
@@ -854,7 +854,7 @@ mod test {
             .enumerate()
             .find(|(_, item)| item.is_none());
         if let Some((missing_number_index, _)) = missing_number {
-            panic!("Found a missing Number at index {}", missing_number_index);
+            panic!("Found a missing Number at index {missing_number_index}");
         }
         let missing_object = agent
             .heap
@@ -878,7 +878,7 @@ mod test {
             .enumerate()
             .find(|(_, item)| item.is_none());
         if let Some((missing_symbol_index, _)) = missing_symbol {
-            panic!("Found a missing Symbol at index {}", missing_symbol_index);
+            panic!("Found a missing Symbol at index {missing_symbol_index}");
         }
         let missing_string = agent
             .heap
@@ -887,7 +887,7 @@ mod test {
             .enumerate()
             .find(|(_, item)| item.is_none());
         if let Some((missing_string_index, _)) = missing_string {
-            panic!("Found a missing String at index {}", missing_string_index);
+            panic!("Found a missing String at index {missing_string_index}");
         }
         assert!(agent.heap.regexps.is_empty());
     }

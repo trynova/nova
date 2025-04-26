@@ -30,7 +30,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped, ScopedCollection, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -1024,23 +1024,23 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
 pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
     agent: &mut Agent,
     scoped_o: Scoped<TypedArray>,
-    values: Vec<Scoped<Value>>,
+    values: ScopedCollection<Vec<Value>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let mut o = scoped_o.get(agent).bind(gc.nogc());
     // 1. Let len be the number of elements in values.
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
-    allocate_typed_array_buffer::<T>(agent, o, values.len(), gc.nogc()).unbind()?;
+    allocate_typed_array_buffer::<T>(agent, o, values.len(agent), gc.nogc()).unbind()?;
 
     // 3. Let k be 0.
     // 4. Repeat, while k < len,
     // b. Let kValue be the first element of values.
     // c. Remove the first element from values.
     // e. Set k to k + 1.
-    for (k, k_value) in values.iter().enumerate() {
+    for (k, k_value) in values.iter(agent).enumerate() {
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
-        let k_value = k_value.get(agent).bind(gc.nogc());
+        let k_value = k_value.get(gc.nogc());
         // d. Perform ? Set(O, Pk, kValue, true).
         if k_value.is_numeric() {
             unwrap_try(try_set(

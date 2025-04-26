@@ -8,11 +8,11 @@ use crate::{
     ecmascript::execution::Agent,
     engine::{
         context::{Bindable, NoGcScope, ScopeToken},
-        rootable::{HeapRootRef, Rootable},
+        rootable::{HeapRootCollectionData, HeapRootRef, Rootable},
     },
 };
 
-use super::RootableCollection;
+use super::{HeapRootData, RootableCollection};
 
 /// # Scoped heap root
 ///
@@ -103,16 +103,38 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
         match T::from_root_repr(&self.inner) {
             Ok(value) => value,
             Err(heap_root_ref) => {
-                let Some(&heap_data) = agent.stack_refs.borrow().get(heap_root_ref.to_index())
-                else {
+                let index = heap_root_ref.to_index();
+                let mut stack_refs = agent.stack_refs.borrow_mut();
+                let Some(heap_data) = stack_refs.get_mut(index) else {
                     handle_bound_check_failure()
                 };
+                let heap_data = core::mem::replace(heap_data, HeapRootData::Empty);
+                if index == stack_refs.len() - 1 {
+                    Self::drop_empty_slots(&mut stack_refs);
+                }
                 let Some(value) = T::from_heap_data(heap_data) else {
                     handle_invalid_scoped_conversion()
                 };
                 value
             }
         }
+    }
+
+    /// Internal helper function to drop empty slots from the stack. This
+    /// method is separate as dropping empty slots should be a reasonably
+    /// rare operation.
+    fn drop_empty_slots(stack_refs: &mut Vec<HeapRootData>) {
+        // We just replaced the last item with an Empty, so we can
+        // shorten the stack by at least one slot.
+        let last_non_empty_index = stack_refs
+            .iter()
+            .enumerate()
+            .rfind(|(_, v)| !matches!(v, HeapRootData::Empty))
+            .map_or(0, |(index, _)| index + 1);
+        debug_assert!(last_non_empty_index < stack_refs.len());
+        // SAFETY: The last non-empty index is necessarily within
+        // the bounds of the vector, so this only shortens it.
+        unsafe { stack_refs.set_len(last_non_empty_index) };
     }
 
     pub fn get(&self, agent: &Agent) -> T {
@@ -162,11 +184,19 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
         let heap_data = match T::to_root_repr(value) {
             Ok(stack_repr) => {
                 // The value doesn't need rooting.
-                *self = Self {
-                    inner: stack_repr,
-                    _marker: PhantomData,
-                    _scope: PhantomData,
-                };
+                let previous = core::mem::replace(
+                    self,
+                    Self {
+                        inner: stack_repr,
+                        _marker: PhantomData,
+                        _scope: PhantomData,
+                    },
+                );
+
+                // Let's take the previous value from the heap if it existed.
+                // SAFETY: The caller guarantees that the scoped value has not
+                // been shared.
+                let _ = unsafe { previous.take(agent) };
                 return;
             }
             Err(heap_data) => heap_data,
@@ -212,6 +242,10 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     ) -> Scoped<'scope, U> {
         let heap_data = match U::to_root_repr(value) {
             Ok(stack_repr) => {
+                // Let's take the previous value from the heap if it existed.
+                // SAFETY: The caller guarantees that the scoped value has not
+                // been shared.
+                let _ = unsafe { self.take(agent) };
                 // The value doesn't need rooting.
                 return Scoped {
                     inner: stack_repr,
@@ -251,6 +285,17 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     }
 }
 
+pub trait ScopableCollection: Bindable
+where
+    Self::Of<'static>: RootableCollection,
+{
+    fn scope<'scope>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> ScopedCollection<'scope, Self::Of<'static>>;
+}
+
 /// # Scoped heap root collection
 #[derive(Debug, Hash, Clone)]
 #[repr(transparent)]
@@ -262,7 +307,9 @@ pub struct ScopedCollection<'a, T: 'static + RootableCollection> {
 }
 
 impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
-    pub(crate) fn new(agent: &mut Agent, rootable: T, _gc: NoGcScope<'_, 'a>) -> Self {
+    /// Create a new ScopedCollection by moving a rootable collection onto the
+    /// Agent's heap.
+    pub(crate) fn new(agent: &Agent, rootable: T, _gc: NoGcScope<'_, 'a>) -> Self {
         let heap_data = rootable.to_heap_data();
         let inner = u32::try_from(agent.stack_ref_collections.borrow().len())
             .expect("ScopedCollections stack overflowed");
@@ -272,6 +319,39 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
             _marker: PhantomData,
             _scope: PhantomData,
         }
+    }
+
+    /// Take ownership of the rootable collection from the Agent's heap.
+    #[must_use]
+    pub(crate) fn take(self, agent: &Agent) -> T {
+        let index = self.inner;
+        let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
+        let heap_slot = stack_ref_collections.get_mut(index as usize).unwrap();
+        let heap_data = core::mem::replace(heap_slot, HeapRootCollectionData::Empty);
+        if index as usize == stack_ref_collections.len() - 1 {
+            Self::drop_empty_slots(&mut stack_ref_collections);
+        }
+        T::from_heap_data(heap_data)
+    }
+
+    /// Internal helper function to drop empty slots from the stack. This
+    /// method is separate as dropping empty slots should be a reasonably
+    /// rare operation.
+    fn drop_empty_slots(stack_ref_collections: &mut Vec<HeapRootCollectionData>) {
+        // We replaced the last stack item with an Empty, so we can shorten
+        // the stack by at least one.
+        let last_non_empty_index = stack_ref_collections
+            .iter()
+            .enumerate()
+            .rfind(|(_, v)| !matches!(v, HeapRootCollectionData::Empty))
+            .map_or(0, |(index, _)| index + 1);
+        debug_assert!(last_non_empty_index < stack_ref_collections.len());
+        // SAFETY: The last non-empty index is necessarily within
+        // the bounds of the vector, so this only shortens it. The
+        // items being dropped are also Empty slots which don't
+        // need any drop calls, so this is not a memory leak
+        // either.
+        unsafe { stack_ref_collections.set_len(last_non_empty_index) };
     }
 }
 

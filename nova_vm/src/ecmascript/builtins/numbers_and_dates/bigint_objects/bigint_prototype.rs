@@ -2,8 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity;
 use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -53,21 +55,43 @@ impl BigIntPrototype {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
+    /// ### [21.2.3.3 BigInt.prototype.toString ( [ radix ] )](https://tc39.es/ecma262/#sec-bigint.prototype.tostring)
+    ///
+    /// > NOTE: The optional radix should be an integral Number value in the
+    /// > inclusive interval from 2𝔽 to 36𝔽. If radix is undefined then 10𝔽 is
+    /// > used as the value of radix.
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let _x = this_big_int_value(agent, this_value, gc.nogc())
+        let x = this_big_int_value(agent, this_value, gc.nogc())
             .unbind()?
-            .bind(gc.nogc());
+            .scope(agent, gc.nogc());
         let radix = arguments.get(0).bind(gc.nogc());
+        // 2. If radix is undefined, let radixMV be 10.
         if radix.is_undefined() || radix == Value::from(10u8) {
-            // BigInt::to_string_radix_10(agent, x).map(|result| result.into_value())
-            todo!();
+            // 5. Return BigInt::toString(x, 10).
+            Ok(BigInt::to_string_radix_10(agent, x.get(agent), gc.nogc())
+                .unbind()
+                .into_value())
         } else {
-            todo!();
+            // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
+            let radix = to_integer_or_infinity(agent, radix.unbind(), gc.reborrow()).unbind()?;
+            let gc = gc.into_nogc();
+            let radix = radix.bind(gc);
+            // 4. If radixMV is not in the inclusive interval from 2 to 36, throw a RangeError exception.
+            if !(2..=36).contains(&radix) {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "radix must be an integer at least 2 and no greater than 36",
+                    gc,
+                ));
+            }
+            let radix = radix.into_i64() as u32;
+            // 5. Return BigInt::toString(x, radixMV).
+            Ok(BigInt::to_string_radix_n(agent, x.get(agent), radix, gc).into_value())
         }
     }
 

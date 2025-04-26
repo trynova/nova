@@ -191,7 +191,7 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
         for (old_key, new_key) in replacements.into_iter() {
             let binding = bindings.remove(&old_key.into()).unwrap();
             let did_insert = bindings.insert(new_key.into(), binding).is_none();
-            assert!(did_insert, "Failed to insert binding {:#?}", new_key);
+            assert!(did_insert, "Failed to insert binding {new_key:#?}");
         }
     }
 }

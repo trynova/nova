@@ -16,7 +16,7 @@ keywords = [
     "TypeScript",
     "VM",
     "data-oriented",
-    "data-oriented design"
+    "data-oriented design",
 ]
 categories = ["development-tools", "programming-languages"]
 authors = ["The Nova Team"]
@@ -46,6 +46,12 @@ sonic-rs = "0.3.17"
 unicode-normalization = "0.1.24"
 wtf8 = "0.1"
 fast_float = "0.2.0"
+lexical = { version = "7.0.4", default-features = false, features = [
+    "std",
+    "write-integers",
+    "write-floats",
+    "radix",
+] }
 
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]

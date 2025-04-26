@@ -22,7 +22,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
+        ScopableCollection, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -34,7 +34,7 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct IteratorRecord<'a> {
+pub struct IteratorRecord<'a> {
     pub(crate) iterator: Object<'a>,
     pub(crate) next_method: Function<'a>,
     // Note: The done field doesn't seem to be used anywhere.
@@ -60,12 +60,6 @@ unsafe impl Bindable for IteratorRecord<'_> {
             // done: self.done,
         }
     }
-}
-
-pub(crate) struct ScopedIteratorRecord<'a> {
-    pub(crate) iterator: Object<'a>,
-    pub(crate) next_method: Value<'a>,
-    pub(crate) done: bool,
 }
 
 /// ### [7.4.2 GetIteratorDirect ( obj )](https://tc39.es/ecma262/#sec-getiteratordirect)
@@ -642,9 +636,9 @@ pub(crate) fn iterator_to_list<'a, 'b>(
     agent: &mut Agent,
     iterator_record: IteratorRecord,
     mut gc: GcScope<'a, 'b>,
-) -> JsResult<'a, Vec<Scoped<'b, Value<'static>>>> {
+) -> JsResult<'a, ScopedCollection<'b, Vec<Value<'static>>>> {
     // 1. Let values be a new empty List.
-    let mut values = Vec::new();
+    let mut values = Vec::<Value>::new().scope(agent, gc.nogc());
 
     // 2. Let next be true.
     // 3. Repeat, while next is not false,
@@ -655,12 +649,11 @@ pub(crate) fn iterator_to_list<'a, 'b>(
         .bind(gc.nogc())
     {
         // i. Let nextValue be ? IteratorValue(next).
+        let next_value = iterator_value(agent, next.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // ii. Append nextValue to values.
-        values.push(
-            iterator_value(agent, next.unbind(), gc.reborrow())
-                .unbind()?
-                .scope(agent, gc.nogc()),
-        );
+        values.push(agent, next_value);
     }
 
     // 4. Return values.

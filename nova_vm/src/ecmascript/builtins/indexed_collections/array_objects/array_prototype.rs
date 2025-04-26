@@ -13,7 +13,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
 use crate::ecmascript::types::InternalMethods;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::{Rootable, Scopable};
-use crate::engine::{Scoped, TryResult, unwrap_try};
+use crate::engine::{ScopableCollection, Scoped, TryResult, unwrap_try};
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -3199,40 +3199,38 @@ impl ArrayPrototype {
         //   a. Return ? CompareArrayElements(x, y, comparator).
         // 5. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare,
         // skip-holes).
-        let sorted_list: Vec<Scoped<Value>> =
+        let sorted_list =
             sort_indexed_properties::<true>(agent, obj.get(agent), len, comparator, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
         // 6. Let itemCount be the number of elements in sortedList.
         let item_count = sorted_list.len();
+        let sorted_list = sorted_list.scope(agent, gc.nogc());
         // 7. Let j be 0.
-        let mut j = 0;
         // 8. Repeat, while j < itemCount,
-        while j < item_count {
+        for (j, value) in sorted_list.iter(agent).enumerate() {
             // a. Perform ? Set(obj, ! ToString(𝔽(j)), sortedList[j], true).
             set(
                 agent,
                 obj.get(agent),
                 j.try_into().unwrap(),
-                sorted_list[j].get(agent),
+                value.get(gc.nogc()).unbind(),
                 true,
                 gc.reborrow(),
             )
             .unbind()?;
             // b. Set j to j + 1.
-            j += 1;
         }
         // 9. NOTE: The call to SortIndexedProperties in step 5 uses
         // skip-holes. The remaining indices are deleted to preserve the number
         // of holes that were detected and excluded from the sort.
 
         // 10. Repeat, while j < len,
-        while j < len {
+        for j in item_count..len {
             // a. Perform ? DeletePropertyOrThrow(obj, ! ToString(𝔽(j))).
             delete_property_or_throw(agent, obj.get(agent), j.try_into().unwrap(), gc.reborrow())
                 .unbind()?;
             // b. Set j to j + 1.
-            j += 1;
         }
         // 11. Return obj.
         Ok(obj.get(agent).into_value())
@@ -3564,24 +3562,28 @@ impl ArrayPrototype {
         // called:
         //   a. Return ? CompareArrayElements(x, y, comparator).
         // 6. Let sortedList be ? SortIndexedProperties(O, len, SortCompare, read-through-holes).
-        let sorted_list: Vec<Scoped<Value>> =
+        let sorted_list =
             sort_indexed_properties::<false>(agent, o.get(agent), len, comparator, gc.reborrow())
                 .unbind()?;
         let gc = gc.into_nogc();
+        let sorted_list = sorted_list.bind(gc);
+        let a = a.get(agent).bind(gc);
+
         // 7. Let j be 0.
         // 8. Repeat, while j < len,
         //  a. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(j)), sortedList[j]).
         //  b. Set j to j + 1.
         // Fast path: Copy sorted items directly into array.
-        let a = a.get(agent).bind(gc);
-        let sorted_list = sorted_list
-            .into_iter()
-            .map(|v| Some(v.get(agent)))
-            .collect::<Vec<Option<Value>>>();
+        let sorted_list_as_slice = sorted_list.as_slice();
+        // SAFETY: Value has a nice optimisation for Option<Value>, so a Value
+        // slice is always a slice of Some(Value).
+        let sorted_list_as_slice = unsafe {
+            core::mem::transmute::<&[Value<'_>], &[Option<Value<'static>>]>(sorted_list_as_slice)
+        };
         let slice = a.as_mut_slice(agent);
-        slice.copy_from_slice(&sorted_list);
+        slice.copy_from_slice(sorted_list_as_slice);
         // 9. Return A.
-        Ok(a.into())
+        Ok(a.into_value())
     }
 
     fn to_spliced<'gc>(
@@ -4480,7 +4482,7 @@ fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool>(
     len: usize,
     comparator: Option<Scoped<'scope, Function<'static>>>,
     mut gc: GcScope<'gc, 'scope>,
-) -> JsResult<'gc, Vec<Scoped<'scope, Value<'static>>>> {
+) -> JsResult<'gc, Vec<Value<'gc>>> {
     let obj = obj.scope(agent, gc.nogc());
     // 1. Let items be a new empty List.
     let mut items = Vec::with_capacity(len);
@@ -4516,7 +4518,6 @@ fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool>(
     // SortCompare. If any such call returns an abrupt completion, stop before
     // performing any further calls to SortCompare and return that Completion
     // Record.
-
     let mut error: Option<JsError> = None;
     items.sort_by(|a, b| {
         if error.is_some() {
@@ -4535,8 +4536,9 @@ fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool>(
     if let Some(error) = error {
         return Err(error);
     }
+    let gc = gc.into_nogc();
     // 5. Return items.
-    Ok(items)
+    Ok(items.into_iter().map(|v| v.get(agent).bind(gc)).collect())
 }
 
 /// ### [23.1.3.30.2 CompareArrayElements ( x, y, comparator )](https://tc39.es/ecma262/#sec-comparearrayelements)
