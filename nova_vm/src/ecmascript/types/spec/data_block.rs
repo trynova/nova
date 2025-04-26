@@ -139,6 +139,7 @@ pub trait Viewable: private::Sealed + Copy + PartialEq {
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a>;
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a>;
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a>;
     fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
     /// Try reinterpret a Value to Viewable.
@@ -165,6 +166,14 @@ impl Viewable for u8 {
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_le()).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -203,6 +212,14 @@ impl Viewable for U8Clamped {
         Number::from(self.0.to_le()).into_numeric()
     }
 
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
+    }
+
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
@@ -237,6 +254,14 @@ impl Viewable for i8 {
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_le()).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -275,6 +300,14 @@ impl Viewable for u16 {
         Number::from(self.to_le()).into_numeric()
     }
 
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
+    }
+
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
@@ -309,6 +342,14 @@ impl Viewable for i16 {
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_le()).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -347,6 +388,14 @@ impl Viewable for u32 {
         Number::from(self.to_le()).into_numeric()
     }
 
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
+    }
+
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
@@ -381,6 +430,14 @@ impl Viewable for i32 {
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_le()).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -418,6 +475,14 @@ impl Viewable for u64 {
 
     fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         BigInt::from_u64(agent, self.to_le()).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -466,6 +531,14 @@ impl Viewable for i64 {
 
     fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         BigInt::from_i64(agent, self.to_le()).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -521,6 +594,14 @@ impl Viewable for f16 {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
+    }
+
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
@@ -562,6 +643,14 @@ impl Viewable for f32 {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
+    }
+
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
@@ -601,6 +690,14 @@ impl Viewable for f64 {
 
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
+    }
+
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
