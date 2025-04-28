@@ -8,9 +8,6 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use super::{
-    CompileContext, CompileEvaluation, Instruction, NamedEvaluationParameter, instructions::Instr,
-};
 use crate::{
     ecmascript::{
         execution::Agent,
@@ -20,6 +17,9 @@ use crate::{
     },
     engine::{
         Scoped,
+        bytecode::{
+            CompileContext, CompileEvaluation, NamedEvaluationParameter, instructions::Instr,
+        },
         context::{Bindable, GcToken, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -236,7 +236,7 @@ impl<'gc> Executable<'gc> {
 
     #[inline]
     fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        get_instruction(&agent[self].instructions[..], ip)
+        Instr::consume_instruction(&agent[self].instructions, ip)
     }
 
     #[inline]
@@ -364,50 +364,6 @@ impl Scoped<'_, Executable<'static>> {
     ) -> (Option<Executable<'gc>>, bool) {
         self.get(agent)
             .fetch_class_initializer_bytecode(agent, index, gc)
-    }
-}
-
-pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
-    let len = instructions.len();
-    let cur_ip = *ip;
-    if cur_ip >= len {
-        return None;
-    }
-    *ip += 1;
-    let kind: Instruction =
-        unsafe { core::mem::transmute::<u8, Instruction>(instructions[cur_ip]) };
-
-    let arg_count = kind.argument_count() as usize;
-
-    let cur_ip = *ip;
-    match arg_count {
-        0 => Some(Instr {
-            kind,
-            args: [None, None],
-        }),
-        1 => {
-            let bytes: [u8; 2] = [instructions[cur_ip], instructions[cur_ip + 1]];
-            let arg0 = IndexType::from_ne_bytes(bytes);
-            *ip += 2;
-            Some(Instr {
-                kind,
-                args: [Some(arg0), None],
-            })
-        }
-        2 => {
-            let bytes: [[u8; 2]; 2] = [
-                [instructions[cur_ip], instructions[cur_ip + 1]],
-                [instructions[cur_ip + 2], instructions[cur_ip + 3]],
-            ];
-            let arg0 = IndexType::from_ne_bytes(bytes[0]);
-            let arg1 = IndexType::from_ne_bytes(bytes[1]);
-            *ip += 4;
-            Some(Instr {
-                kind,
-                args: [Some(arg0), Some(arg1)],
-            })
-        }
-        _ => unreachable!(),
     }
 }
 
