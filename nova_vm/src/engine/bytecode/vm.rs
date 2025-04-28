@@ -2590,11 +2590,16 @@ fn apply_string_or_numeric_binary_operator<'gc>(
                 BigInt::remainder(agent, lnum, rnum, gc).map(|bigint| bigint.into_value())?
             }
             // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
-            BinaryOperator::ShiftRightZeroFill => todo!(),
+            BinaryOperator::ShiftRightZeroFill => {
+                BigInt::unsigned_right_shift(agent, lnum, rnum, gc)?
+            }
             // <<	BigInt	BigInt::leftShift
-            BinaryOperator::ShiftLeft => todo!(),
+            BinaryOperator::ShiftLeft => {
+                BigInt::left_shift(agent, lnum, rnum, gc).map(|bigint| bigint.into_value())?
+            }
             // >>	BigInt	BigInt::signedRightShift
-            BinaryOperator::ShiftRight => todo!(),
+            BinaryOperator::ShiftRight => BigInt::signed_right_shift(agent, lnum, rnum, gc)
+                .map(|bigint| bigint.into_value())?,
             // +	BigInt	BigInt::add
             BinaryOperator::Addition => BigInt::add(agent, lnum, rnum).into_value(),
             // -	BigInt	BigInt::subtract
