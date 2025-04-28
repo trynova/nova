@@ -180,10 +180,7 @@ impl TryFrom<HeapRootData> for MapIterator<'_> {
 impl<'a> CreateHeapData<MapIteratorHeapData<'a>, MapIterator<'a>> for Heap {
     fn create(&mut self, data: MapIteratorHeapData<'a>) -> MapIterator<'a> {
         self.map_iterators.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<MapIteratorHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<MapIteratorHeapData<'static>>>();
         MapIterator(MapIteratorIndex::last(&self.map_iterators))
     }
 }

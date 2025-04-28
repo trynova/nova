@@ -179,7 +179,6 @@ pub struct Heap {
     pub string_lookup_table: HashTable<HeapString<'static>>,
     pub string_hasher: ahash::RandomState,
     /// Counts allocations for garbage collection triggering.
-    #[cfg(feature = "interleaved-gc")]
     pub(crate) alloc_counter: usize,
 }
 
@@ -291,7 +290,6 @@ impl Heap {
             weak_refs: Vec::with_capacity(0),
             #[cfg(feature = "weak-refs")]
             weak_sets: Vec::with_capacity(0),
-            #[cfg(feature = "interleaved-gc")]
             alloc_counter: 0,
         };
 
@@ -308,19 +306,13 @@ impl Heap {
         _: NoGcScope<'a, '_>,
     ) -> Module<'a> {
         self.modules.push(Some(module.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<ModuleHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<ModuleHeapData<'static>>>();
         Module::last(&self.modules)
     }
 
     pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
         self.realms.push(Some(realm.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<RealmRecord<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<RealmRecord<'static>>>();
         Realm::last(&self.realms)
     }
 
@@ -330,10 +322,7 @@ impl Heap {
         _: NoGcScope<'a, '_>,
     ) -> Script<'a> {
         self.scripts.push(Some(script.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
         Script::last(&self.scripts)
     }
 
@@ -433,10 +422,7 @@ impl Heap {
     pub unsafe fn alloc_number<'gc>(&mut self, number: f64) -> HeapNumber<'gc> {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
@@ -452,10 +438,7 @@ impl Heap {
             prototype: None,
         };
         self.objects.push(Some(object_data));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
         ObjectIndex::last(&self.objects).into()
     }
 
@@ -472,10 +455,7 @@ impl Heap {
             prototype: Some(prototype.unbind()),
         };
         self.objects.push(Some(object_data));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
         ObjectIndex::last(&self.objects).into()
     }
 }

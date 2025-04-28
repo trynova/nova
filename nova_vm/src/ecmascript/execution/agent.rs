@@ -304,7 +304,10 @@ impl GcAgent {
         }
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
-        heap_gc(&mut self.agent, &mut self.realm_roots, gc);
+        let Self {
+            agent, realm_roots, ..
+        } = self;
+        heap_gc(agent, realm_roots, gc);
     }
 }
 
@@ -341,6 +344,26 @@ impl Agent {
             stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
             vm_stack: Vec::with_capacity(16),
         }
+    }
+
+    pub fn gc(&mut self, gc: GcScope) {
+        let mut root_realms = self
+            .heap
+            .realms
+            .iter()
+            .enumerate()
+            .map(|(i, _)| Some(Realm::from_index(i)))
+            .collect::<Vec<_>>();
+        heap_gc(self, &mut root_realms, gc);
+    }
+
+    /// Checks if garbage collection should be performed based on the number of
+    /// bytes allocated since last garbage collection.
+    pub(crate) fn check_gc(&mut self) -> bool {
+        // Perform garbage collection if over 2 MiB of allocations have been
+        // performed since last GC.
+        const ALLOC_COUNTER_LIMIT: usize = 1024 * 1024 * 2;
+        self.heap.alloc_counter > ALLOC_COUNTER_LIMIT
     }
 
     fn get_created_realm_root(&mut self) -> Realm<'static> {

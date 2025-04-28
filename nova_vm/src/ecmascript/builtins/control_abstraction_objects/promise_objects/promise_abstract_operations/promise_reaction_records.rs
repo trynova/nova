@@ -230,10 +230,7 @@ impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
 impl<'a> CreateHeapData<PromiseReactionRecord<'a>, PromiseReaction<'a>> for Heap {
     fn create(&mut self, data: PromiseReactionRecord<'a>) -> PromiseReaction<'a> {
         self.promise_reaction_records.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<PromiseReactionRecord<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<PromiseReactionRecord<'static>>>();
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }
 }

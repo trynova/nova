@@ -199,10 +199,7 @@ pub(crate) struct AwaitReaction<'a> {
 impl<'a> CreateHeapData<AwaitReaction<'a>, AwaitReactionIdentifier<'a>> for Heap {
     fn create(&mut self, data: AwaitReaction<'a>) -> AwaitReactionIdentifier<'a> {
         self.await_reactions.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<AwaitReaction<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<AwaitReaction<'static>>>();
         AwaitReactionIdentifier::last(&self.await_reactions)
     }
 }

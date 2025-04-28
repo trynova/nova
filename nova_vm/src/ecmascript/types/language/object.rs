@@ -3777,10 +3777,7 @@ impl HeapMarkAndSweep for Object<'static> {
 impl<'a> CreateHeapData<ObjectHeapData<'a>, OrdinaryObject<'a>> for Heap {
     fn create(&mut self, data: ObjectHeapData<'a>) -> OrdinaryObject<'a> {
         self.objects.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
         OrdinaryObject(ObjectIndex::last(&self.objects))
     }
 }

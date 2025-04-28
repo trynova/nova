@@ -349,10 +349,7 @@ impl<'a> InternalMethods<'a> for Generator<'a> {}
 impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
     fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
         self.generators.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<GeneratorHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<GeneratorHeapData<'static>>>();
         Generator(GeneratorIndex::last(&self.generators))
     }
 }

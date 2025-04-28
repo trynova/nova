@@ -435,10 +435,7 @@ impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'stati
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
         self.bound_functions.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<BoundFunctionHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<BoundFunctionHeapData<'static>>>();
         BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
     }
 }

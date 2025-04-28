@@ -466,10 +466,7 @@ impl HeapMarkAndSweep for Error<'static> {
 impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
     fn create(&mut self, data: ErrorHeapData<'a>) -> Error<'a> {
         self.errors.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<ErrorHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<ErrorHeapData<'static>>>();
         Error(ErrorIndex::last(&self.errors))
     }
 }

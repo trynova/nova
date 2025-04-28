@@ -214,15 +214,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             weak_refs,
             #[cfg(feature = "weak-refs")]
             weak_sets,
-            #[cfg(feature = "interleaved-gc")]
-            alloc_counter,
+            alloc_counter: _,
         } = heap;
-        #[cfg(feature = "interleaved-gc")]
-        {
-            // Note: Explicitly ignore the field to avoid using .. which might
-            // lead to missing added fields in the future.
-            let _ = alloc_counter;
-        }
         let Environments {
             declarative: declarative_environments,
             function: function_environments,
@@ -1128,13 +1121,8 @@ fn sweep(
         weak_refs,
         #[cfg(feature = "weak-refs")]
         weak_sets,
-        #[cfg(feature = "interleaved-gc")]
-        alloc_counter,
+        alloc_counter: _,
     } = heap;
-    #[cfg(feature = "interleaved-gc")]
-    {
-        *alloc_counter = 0;
-    }
     let Environments {
         declarative,
         function,

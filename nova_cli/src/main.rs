@@ -166,13 +166,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 create_global_this_value,
                 initialize_global,
             );
-            let mut is_first = true;
             for path in paths {
-                if is_first {
-                    is_first = false;
-                } else {
-                    agent.gc();
-                }
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
