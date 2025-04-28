@@ -4626,7 +4626,3 @@ fn compare_array_elements<'a>(
         Ok(x.as_str(agent).cmp(y.as_str(agent)))
     }
 }
-
-fn compare_typed_array_elements() -> Ordering {
-    todo!();
-}

@@ -139,8 +139,24 @@ pub trait Viewable: private::Sealed + Copy + PartialEq {
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a>;
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a>;
+    #[inline(always)]
+    fn into_ne_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        if cfg!(target_endian = "little") {
+            self.into_le_value(agent, gc)
+        } else {
+            self.into_be_value(agent, gc)
+        }
+    }
     fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
+    #[inline(always)]
+    fn from_ne_value(agent: &mut Agent, value: Numeric) -> Self {
+        if cfg!(target_endian = "little") {
+            Self::from_le_value(agent, value)
+        } else {
+            Self::from_be_value(agent, value)
+        }
+    }
     /// Try reinterpret a Value to Viewable.
     ///
     /// This method is intended for cases where the ECMAScript specification
