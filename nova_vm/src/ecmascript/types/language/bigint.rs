@@ -27,8 +27,8 @@ use crate::{
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
 use num_bigint::{Sign, ToBigInt};
-use std::ops::{BitAnd, BitOr, BitXor};
 use operators::{left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64};
+use std::ops::{BitAnd, BitOr, BitXor};
 
 impl<'a> IntoValue<'a> for BigInt<'a> {
     fn into_value(self) -> Value<'a> {
