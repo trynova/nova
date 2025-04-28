@@ -2607,11 +2607,11 @@ fn apply_string_or_numeric_binary_operator<'gc>(
             // *	BigInt	BigInt::multiply
             BinaryOperator::Multiplication => BigInt::multiply(agent, lnum, rnum).into_value(),
             // |	BigInt	BigInt::bitwiseOR
-            BinaryOperator::BitwiseOR => todo!(),
+            BinaryOperator::BitwiseOR => BigInt::bitwise_or(agent, lnum, rnum).into_value(),
             // ^	BigInt	BigInt::bitwiseXOR
-            BinaryOperator::BitwiseXOR => todo!(),
+            BinaryOperator::BitwiseXOR => BigInt::bitwise_xor(agent, lnum, rnum).into_value(),
             // &	BigInt	BigInt::bitwiseAND
-            BinaryOperator::BitwiseAnd => todo!(),
+            BinaryOperator::BitwiseAnd => BigInt::bitwise_and(agent, lnum, rnum).into_value(),
             _ => unreachable!(),
         })
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {

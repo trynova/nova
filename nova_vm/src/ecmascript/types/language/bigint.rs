@@ -12,7 +12,7 @@ use super::{
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
 };
 use crate::{
-    SmallInteger,
+    SmallInteger, bigint_bitwise_op,
     ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
     engine::{
         context::{Bindable, NoGcScope},
@@ -26,8 +26,9 @@ use crate::{
 };
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
-use num_bigint::Sign;
+use num_bigint::{Sign, ToBigInt};
 use operators::{left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64};
+use std::ops::{BitAnd, BitOr, BitXor};
 
 impl<'a> IntoValue<'a> for BigInt<'a> {
     fn into_value(self) -> Value<'a> {
@@ -720,6 +721,31 @@ impl<'a> BigInt<'a> {
             _ => false,
         }
     }
+
+    /// ### [6.1.6.2.18 BigInt::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseAND)
+    ///
+    /// The abstract operation BigInt::bitwiseAND takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a BigInt.
+    pub(crate) fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> Self {
+        bigint_bitwise_op!(agent, x, y, BitAnd::bitand)
+    }
+
+    /// ### [6.1.6.2.19 BigInt::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseXOR)
+    ///
+    /// The abstract operation BigInt::bitwiseXOR takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a BigInt.
+    pub(crate) fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> Self {
+        bigint_bitwise_op!(agent, x, y, BitXor::bitxor)
+    }
+
+    /// ### [6.1.6.2.20 BigInt::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseOR)
+    ///
+    /// The abstract operation BigInt::bitwiseOR takes arguments x (a BigInt)
+    /// and y (a BigInt) and returns a BigInt.
+    pub(crate) fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> Self {
+        bigint_bitwise_op!(agent, x, y, BitOr::bitor)
+    }
+
     // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
     pub(crate) fn to_string_radix_n<'gc>(
         agent: &mut Agent,
