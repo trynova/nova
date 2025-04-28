@@ -305,7 +305,9 @@ impl GcAgent {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
         let Self {
-            agent, realm_roots, ..
+            agent,
+            realm_roots,
+            ..
         } = self;
         heap_gc(agent, realm_roots, gc);
     }
@@ -362,9 +364,8 @@ impl Agent {
     pub(crate) fn check_gc(&mut self) -> bool {
         // Perform garbage collection if over 2 MiB of allocations have been
         // performed since last GC.
-        // const ALLOC_COUNTER_LIMIT: usize = 1024 * 1024 * 2;
-        // self.heap.alloc_counter > ALLOC_COUNTER_LIMIT
-        false
+        const ALLOC_COUNTER_LIMIT: usize = 1024 * 1024 * 2;
+        self.heap.alloc_counter > ALLOC_COUNTER_LIMIT
     }
 
     fn get_created_realm_root(&mut self) -> Realm<'static> {
