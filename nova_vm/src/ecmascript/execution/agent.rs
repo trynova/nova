@@ -305,9 +305,7 @@ impl GcAgent {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
         let Self {
-            agent,
-            realm_roots,
-            ..
+            agent, realm_roots, ..
         } = self;
         heap_gc(agent, realm_roots, gc);
     }
