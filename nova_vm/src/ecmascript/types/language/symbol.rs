@@ -181,10 +181,7 @@ impl HeapMarkAndSweep for Symbol<'static> {
 impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
     fn create(&mut self, data: SymbolHeapData<'a>) -> Symbol<'a> {
         self.symbols.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<SymbolHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<SymbolHeapData<'static>>>();
         Symbol(SymbolIndex::last(&self.symbols))
     }
 }

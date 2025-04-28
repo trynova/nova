@@ -405,10 +405,7 @@ impl<'a> InternalMethods<'a> for AsyncGenerator<'a> {}
 impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap {
     fn create(&mut self, data: AsyncGeneratorHeapData<'a>) -> AsyncGenerator<'a> {
         self.async_generators.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<AsyncGeneratorHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<AsyncGeneratorHeapData<'static>>>();
         AsyncGenerator(AsyncGeneratorIndex::last(&self.async_generators))
     }
 }

@@ -1217,11 +1217,9 @@ impl HeapMarkAndSweep for ECMAScriptFunction<'static> {
 impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> for Heap {
     fn create(&mut self, data: ECMAScriptFunctionHeapData<'a>) -> ECMAScriptFunction<'a> {
         self.ecmascript_functions.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter +=
-                core::mem::size_of::<Option<ECMAScriptFunctionHeapData<'static>>>();
-        }
+        self.alloc_counter +=
+            core::mem::size_of::<Option<ECMAScriptFunctionHeapData<'static>>>();
+
         ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }
 }

@@ -915,10 +915,7 @@ pub fn create_builtin_function<'a>(
 impl<'a> CreateHeapData<BuiltinFunctionHeapData<'a>, BuiltinFunction<'a>> for Heap {
     fn create(&mut self, data: BuiltinFunctionHeapData<'a>) -> BuiltinFunction<'a> {
         self.builtin_functions.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<BuiltinFunctionHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<BuiltinFunctionHeapData<'static>>>();
         BuiltinFunctionIndex::last(&self.builtin_functions).into()
     }
 }

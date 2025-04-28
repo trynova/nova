@@ -11,8 +11,6 @@ use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
-#[cfg(feature = "interleaved-gc")]
-use crate::{ecmascript::execution::Realm, heap::heap_gc::heap_gc};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -344,36 +342,16 @@ impl Vm {
         executable: Scoped<Executable>,
         mut gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
-        #[cfg(feature = "interleaved-gc")]
-        let do_gc = !agent.options.disable_gc;
-        #[cfg(feature = "interleaved-gc")]
-        let mut instr_count = 0u8;
-
         let stack_depth = agent.stack_refs.borrow().len();
         let instructions = executable.get_instructions(agent);
         while let Some(instr) = get_instruction(instructions, &mut self.ip) {
-            #[cfg(feature = "interleaved-gc")]
-            if do_gc {
-                instr_count = instr_count.wrapping_add(1);
-                const ALLOC_COUNTER_LIMIT: usize = 1024 * 1024 * 2;
-                // Check allocation counter roughly every 256 instructions and
-                // perform garbage collection if over 2 MiB of allocations have
-                // been performed since last GC.
-                if instr_count == 0 && agent.heap.alloc_counter > ALLOC_COUNTER_LIMIT {
-                    let mut root_realms = agent
-                        .heap
-                        .realms
-                        .iter()
-                        .enumerate()
-                        .map(|(i, _)| Some(Realm::from_index(i)))
-                        .collect::<Vec<_>>();
-                    with_vm_gc(
-                        agent,
-                        &mut self,
-                        |agent, gc| heap_gc(agent, &mut root_realms, gc),
-                        gc.reborrow(),
-                    );
-                }
+            if agent.check_gc() {
+                with_vm_gc(
+                    agent,
+                    &mut self,
+                    |agent, gc| agent.gc(gc),
+                    gc.reborrow(),
+                );
             }
             match Self::execute_instruction(
                 agent,

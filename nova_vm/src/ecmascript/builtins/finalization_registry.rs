@@ -153,11 +153,9 @@ impl Rootable for FinalizationRegistry<'_> {
 impl<'a> CreateHeapData<FinalizationRegistryHeapData<'a>, FinalizationRegistry<'a>> for Heap {
     fn create(&mut self, data: FinalizationRegistryHeapData<'a>) -> FinalizationRegistry<'a> {
         self.finalization_registrys.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter +=
-                core::mem::size_of::<Option<FinalizationRegistryHeapData<'static>>>();
-        }
+        self.alloc_counter +=
+            core::mem::size_of::<Option<FinalizationRegistryHeapData<'static>>>();
+
         FinalizationRegistry(FinalizationRegistryIndex::last(
             &self.finalization_registrys,
         ))

@@ -149,10 +149,7 @@ impl TryFrom<HeapRootData> for WeakMap<'_> {
 impl<'a> CreateHeapData<WeakMapHeapData<'a>, WeakMap<'a>> for Heap {
     fn create(&mut self, data: WeakMapHeapData<'a>) -> WeakMap<'a> {
         self.weak_maps.push(Some(data.unbind()));
-        #[cfg(feature = "interleaved-gc")]
-        {
-            self.alloc_counter += core::mem::size_of::<Option<WeakMapHeapData<'static>>>();
-        }
+        self.alloc_counter += core::mem::size_of::<Option<WeakMapHeapData<'static>>>();
         WeakMap(WeakMapIndex::last(&self.weak_maps))
     }
 }
