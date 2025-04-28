@@ -346,12 +346,7 @@ impl Vm {
         let instructions = executable.get_instructions(agent);
         while let Some(instr) = get_instruction(instructions, &mut self.ip) {
             if agent.check_gc() {
-                with_vm_gc(
-                    agent,
-                    &mut self,
-                    |agent, gc| agent.gc(gc),
-                    gc.reborrow(),
-                );
+                with_vm_gc(agent, &mut self, |agent, gc| agent.gc(gc), gc.reborrow());
             }
             match Self::execute_instruction(
                 agent,
