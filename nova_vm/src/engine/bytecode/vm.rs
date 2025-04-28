@@ -1313,7 +1313,7 @@ impl Vm {
                 let (compiled_initializer_bytecode, has_constructor_parent) = executable
                     .fetch_class_initializer_bytecode(
                         agent,
-                        class_initializer_bytecode_index as usize,
+                        class_initializer_bytecode_index,
                         gc.nogc(),
                     );
 
