@@ -2866,17 +2866,19 @@ impl TypedArrayPrototype {
         };
         // 2. Let obj be the this value.
         let obj = this_value;
-        // 3. Let taRecord be ? ValidateTypedArray(obj, seq-cst).
-        let ta_record = validate_typed_array(agent, obj, Ordering::SeqCst, nogc).unbind()?;
-        let obj = ta_record.object;
+        // 3. Let taRecord be ? ValidateTypedArray(obj, seq-cst).
+        let ta_record = validate_typed_array(agent, obj, Ordering::SeqCst, nogc)
+            .unbind()?
+            .bind(gc.nogc());
         // 4. Let len be TypedArrayLength(taRecord).
         // 5. NOTE: The following closure performs a numeric comparison rather than the string comparison used in 23.1.3.30.
         // 6. Let SortCompare be a new Abstract Closure with parameters (x, y) that captures comparator and performs the following steps when called:
         //    a. Return ? CompareTypedArrayElements(x, y, comparator).
         // 7. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare, read-through-holes).
-        let scoped_obj = obj.scope(agent, nogc);
         if let Some(comparator) = comparator {
-            match scoped_obj.get(agent) {
+            let obj = ta_record.object;
+            let scoped_obj = ta_record.object.scope(agent, nogc);
+            match obj {
                 TypedArray::Int8Array(_) => sort_comparator_typed_array::<i8>(
                     agent,
                     ta_record.unbind(),
@@ -2963,86 +2965,54 @@ impl TypedArrayPrototype {
                     gc,
                 )?,
             };
+            // 10. Return obj.
+            Ok(scoped_obj.get(agent).into_value())
         } else {
+            let ta_record = ta_record.unbind();
             let nogc = gc.into_nogc();
-            match scoped_obj.get(agent) {
-                TypedArray::Int8Array(_) => sort_total_cmp_typed_array::<i8>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Uint8Array(_) => sort_total_cmp_typed_array::<u8>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Uint8ClampedArray(_) => sort_total_cmp_typed_array::<U8Clamped>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Int16Array(_) => sort_total_cmp_typed_array::<i16>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Uint16Array(_) => sort_total_cmp_typed_array::<u16>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Int32Array(_) => sort_total_cmp_typed_array::<i32>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Uint32Array(_) => sort_total_cmp_typed_array::<u32>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::BigInt64Array(_) => sort_total_cmp_typed_array::<i64>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::BigUint64Array(_) => sort_total_cmp_typed_array::<u64>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
+            let ta_record = ta_record.bind(nogc);
+            let obj = ta_record.object;
+            match obj {
+                TypedArray::Int8Array(_) => {
+                    sort_total_cmp_typed_array::<i8>(agent, ta_record, nogc)?
+                }
+                TypedArray::Uint8Array(_) => {
+                    sort_total_cmp_typed_array::<u8>(agent, ta_record, nogc)?
+                }
+                TypedArray::Uint8ClampedArray(_) => {
+                    sort_total_cmp_typed_array::<U8Clamped>(agent, ta_record, nogc)?
+                }
+                TypedArray::Int16Array(_) => {
+                    sort_total_cmp_typed_array::<i16>(agent, ta_record, nogc)?
+                }
+                TypedArray::Uint16Array(_) => {
+                    sort_total_cmp_typed_array::<u16>(agent, ta_record, nogc)?
+                }
+                TypedArray::Int32Array(_) => {
+                    sort_total_cmp_typed_array::<i32>(agent, ta_record, nogc)?
+                }
+                TypedArray::Uint32Array(_) => {
+                    sort_total_cmp_typed_array::<u32>(agent, ta_record, nogc)?
+                }
+                TypedArray::BigInt64Array(_) => {
+                    sort_total_cmp_typed_array::<i64>(agent, ta_record, nogc)?
+                }
+                TypedArray::BigUint64Array(_) => {
+                    sort_total_cmp_typed_array::<u64>(agent, ta_record, nogc)?
+                }
                 #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => sort_ecmascript_cmp_typed_array::<f16>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Float32Array(_) => sort_ecmascript_cmp_typed_array::<f32>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
-                TypedArray::Float64Array(_) => sort_ecmascript_cmp_typed_array::<f64>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    nogc,
-                )?,
+                TypedArray::Float16Array(_) => {
+                    sort_ecmascript_cmp_typed_array::<f16>(agent, ta_record, nogc)?
+                }
+                TypedArray::Float32Array(_) => {
+                    sort_ecmascript_cmp_typed_array::<f32>(agent, ta_record, nogc)?
+                }
+                TypedArray::Float64Array(_) => {
+                    sort_ecmascript_cmp_typed_array::<f64>(agent, ta_record, nogc)?
+                }
             };
-        };
-        // 10. Return obj.
-        Ok(scoped_obj.get(agent).into_value())
+            Ok(obj.into_value())
+        }
     }
 
     fn subarray<'gc>(
@@ -3576,13 +3546,13 @@ fn fill_typed_array<'a, T: Viewable>(
 fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
-    ta: Scoped<TypedArray>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let array_buffer = ta.get(agent).get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.get(agent).byte_offset(agent);
-    let byte_length = ta.get(agent).byte_length(agent);
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
     let byte_slice = array_buffer.as_mut_slice(agent);
     if byte_slice.is_empty() {
         return Ok(());
@@ -3617,6 +3587,9 @@ pub trait ECMAScriptOrd {
 impl ECMAScriptOrd for f16 {
     fn ecmascript_cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.is_nan() {
+            if other.is_nan() {
+                return std::cmp::Ordering::Equal;
+            }
             return std::cmp::Ordering::Greater;
         }
         if other.is_nan() {
@@ -3638,6 +3611,9 @@ impl ECMAScriptOrd for f16 {
 impl ECMAScriptOrd for f32 {
     fn ecmascript_cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.is_nan() {
+            if other.is_nan() {
+                return std::cmp::Ordering::Equal;
+            }
             return std::cmp::Ordering::Greater;
         }
         if other.is_nan() {
@@ -3659,6 +3635,9 @@ impl ECMAScriptOrd for f32 {
 impl ECMAScriptOrd for f64 {
     fn ecmascript_cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.is_nan() {
+            if other.is_nan() {
+                return std::cmp::Ordering::Equal;
+            }
             return std::cmp::Ordering::Greater;
         }
         if other.is_nan() {
@@ -3680,13 +3659,13 @@ impl ECMAScriptOrd for f64 {
 fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScriptOrd>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
-    ta: Scoped<TypedArray>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let array_buffer = ta.get(agent).get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.get(agent).byte_offset(agent);
-    let byte_length = ta.get(agent).byte_length(agent);
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
     let byte_slice = array_buffer.as_mut_slice(agent);
     if byte_slice.is_empty() {
         return Ok(());
@@ -3709,27 +3688,7 @@ fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScrip
         ));
     }
     let slice = &mut slice[..len];
-    let mut items: Vec<T> = slice.to_vec();
-    items.sort_by(|a, b| a.ecmascript_cmp(b));
-    let array_buffer = ta.get(agent).get_viewed_array_buffer(agent, gc);
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    let len = len.min(slice.len());
-    let slice = &mut slice[..len];
-    let copy_len = items.len().min(len);
-    slice[..copy_len].copy_from_slice(&items[..copy_len]);
+    slice.sort_by(|a, b| a.ecmascript_cmp(b));
     Ok(())
 }
 
@@ -3740,10 +3699,12 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     comparator: Scoped<Function>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let ta_record = ta_record.bind(gc.nogc());
+    let local_ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
-    let array_buffer = ta.get(agent).get_viewed_array_buffer(agent, gc.nogc());
-    let byte_offset = ta.get(agent).byte_offset(agent);
-    let byte_length = ta.get(agent).byte_length(agent);
+    let array_buffer = local_ta.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_offset = local_ta.byte_offset(agent);
+    let byte_length = local_ta.byte_length(agent);
     let byte_slice = array_buffer.as_slice(agent);
     if byte_slice.is_empty() || len == 0 {
         return Ok(());
