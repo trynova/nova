@@ -3534,11 +3534,7 @@ fn fill_typed_array<'a, T: Viewable>(
     // 18. Let k be startIndex.
     let k = start_index as usize;
     // 19. Repeat, while k < endIndex,
-    let value = if cfg!(target_endian = "little") {
-        T::from_le_value(agent, value)
-    } else {
-        T::from_be_value(agent, value)
-    };
+    let value = T::from_ne_value(agent, value);
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
