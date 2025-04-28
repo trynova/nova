@@ -1121,8 +1121,10 @@ fn sweep(
         weak_refs,
         #[cfg(feature = "weak-refs")]
         weak_sets,
-        alloc_counter: _,
+        alloc_counter,
     } = heap;
+    // Reset the allocation counter.
+    *alloc_counter = 0;
     let Environments {
         declarative,
         function,
