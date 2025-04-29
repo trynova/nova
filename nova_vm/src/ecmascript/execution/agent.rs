@@ -895,17 +895,17 @@ impl HeapMarkAndSweep for Agent {
 
         execution_context_stack
             .iter_mut()
-            .for_each(|entry| entry.sweep_values(&compactions));
+            .for_each(|entry| entry.sweep_values(compactions));
         stack_refs
             .borrow_mut()
             .iter_mut()
-            .for_each(|entry| entry.sweep_values(&compactions));
+            .for_each(|entry| entry.sweep_values(compactions));
         stack_ref_collections
             .borrow_mut()
             .iter_mut()
-            .for_each(|entry| entry.sweep_values(&compactions));
+            .for_each(|entry| entry.sweep_values(compactions));
         vm_stack
             .iter_mut()
-            .for_each(|entry| unsafe { entry.as_mut().sweep_values(&compactions) });
+            .for_each(|entry| unsafe { entry.as_mut().sweep_values(compactions) });
     }
 }

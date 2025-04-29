@@ -1956,8 +1956,8 @@ impl ElementArrays {
     ) -> (ElementsVector<'static>, ElementsVector<'static>) {
         let cap = ElementArrayKey::from(length);
         let len = length as u32;
-        let key_elements_index = self.push_with_key(cap, &keys, None);
-        let value_elements_index = self.push_with_key(cap, &values, descriptors);
+        let key_elements_index = self.push_with_key(cap, keys, None);
+        let value_elements_index = self.push_with_key(cap, values, descriptors);
         (
             ElementsVector {
                 elements_index: key_elements_index,
