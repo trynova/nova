@@ -9,7 +9,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                construct, get, length_of_array_like, set, species_constructor, try_set,
+                construct, get, length_of_array_like, set, species_constructor,
             },
             type_conversion::{to_big_int, to_index, to_number},
         },
@@ -37,7 +37,6 @@ use crate::{
         Scoped, ScopedCollection, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::indexes::TypedArrayIndex,
 };
@@ -76,6 +75,7 @@ impl From<CachedBufferByteLength> for Option<usize> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
     pub object: TypedArray<'a>,
     pub cached_buffer_byte_length: CachedBufferByteLength,
@@ -799,7 +799,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
     }
 
     // 9. Let elementLength be TypedArrayLength(srcRecord).
-    let element_length = typed_array_length::<O>(agent, &src_record, gc);
+    let element_length = typed_array_length::<Src>(agent, &src_record, gc);
 
     // 10. Let byteLength be elementSize × elementLength.
     let byte_length = element_size * element_length;
@@ -893,22 +893,18 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
 /// a throw completion.
 pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
     agent: &mut Agent,
-    o: TypedArray,
-    buffer: ArrayBuffer,
-    byte_offset: Option<Value>,
-    length: Option<Value>,
+    scoped_o: Scoped<TypedArray>,
+    scoped_buffer: Scoped<ArrayBuffer>,
+    byte_offset: Option<Scoped<Value>>,
+    length: Option<Scoped<Value>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let o = o.bind(gc.nogc());
-    let scoped_o = o.scope(agent, gc.nogc());
-    let buffer = buffer.bind(gc.nogc());
-    let scoped_buffer = buffer.scope(agent, gc.nogc());
     // 1. Let elementSize be TypedArrayElementSize(O).
     let element_size = size_of::<T>();
 
     // 2. Let offset be ? ToIndex(byteOffset).
     let offset = if let Some(byte_offset) = byte_offset {
-        to_index(agent, byte_offset, gc.reborrow()).unbind()? as usize
+        to_index(agent, byte_offset.get(agent), gc.reborrow()).unbind()? as usize
     } else {
         0
     };
@@ -928,11 +924,16 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
 
     // 5. If length is not undefined, then
     // a. Let newLength be ? ToIndex(length).
-    let new_length = length
-        .map(|length| to_index(agent, length, gc.reborrow()))
-        .transpose()
-        .unbind()?
-        .map(|length| length as usize);
+    let new_length = if let Some(length) = length {
+        let length = length.get(agent).bind(gc.nogc());
+        if length.is_undefined() {
+            None
+        } else {
+            Some(to_index(agent, length.unbind(), gc.reborrow()).unbind()? as usize)
+        }
+    } else {
+        None
+    };
 
     let buffer = scoped_buffer.get(agent).bind(gc.nogc());
     // 6. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
@@ -951,7 +952,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
     let o_heap_data = &mut agent[o];
 
     // 8. If length is undefined and bufferIsFixedLength is false, then
-    if length.is_none() && !buffer_is_fixed_length {
+    if new_length.is_none() && !buffer_is_fixed_length {
         // a. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
             return Err(agent.throw_exception_with_static_message(
@@ -1046,28 +1047,16 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
         let k_value = k_value.get(gc.nogc());
         // d. Perform ? Set(O, Pk, kValue, true).
-        if k_value.is_numeric() {
-            unwrap_try(try_set(
-                agent,
-                o.into_object(),
-                pk,
-                k_value,
-                true,
-                gc.nogc(),
-            ))
-            .unbind()?;
-        } else {
-            set(
-                agent,
-                o.unbind().into_object(),
-                pk,
-                k_value.unbind(),
-                true,
-                gc.reborrow(),
-            )
-            .unbind()?;
-            o = scoped_o.get(agent).bind(gc.nogc());
-        }
+        set(
+            agent,
+            o.unbind().into_object(),
+            pk,
+            k_value.unbind(),
+            true,
+            gc.reborrow(),
+        )
+        .unbind()?;
+        o = scoped_o.get(agent).bind(gc.nogc());
     }
 
     // 5. Assert: values is now an empty List.
@@ -1431,21 +1420,21 @@ fn intrinsic_default_constructor<T: Viewable + 'static>(agent: &Agent) -> Builti
     default_constructor
 }
 
-fn is_expected_typed_array_type<T: Viewable + 'static>(result: TypedArray) -> bool {
+fn has_matching_content_type<T: Viewable + 'static>(result: TypedArray) -> bool {
+    let is_bigint = T::IS_BIGINT;
     match result {
-        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
-        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
-        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
-        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
-        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
-        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
-        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
-        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
-        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
+        TypedArray::Int8Array(_)
+        | TypedArray::Uint8Array(_)
+        | TypedArray::Uint8ClampedArray(_)
+        | TypedArray::Int16Array(_)
+        | TypedArray::Uint16Array(_)
+        | TypedArray::Int32Array(_)
+        | TypedArray::Uint32Array(_)
+        | TypedArray::Float32Array(_)
+        | TypedArray::Float64Array(_) => !is_bigint,
+        TypedArray::BigInt64Array(_) | TypedArray::BigUint64Array(_) => is_bigint,
         #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
-        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
-        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
+        TypedArray::Float16Array(_) => !is_bigint,
     }
 }
 
@@ -1478,11 +1467,11 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let is_type_match = is_expected_typed_array_type::<T>(result);
+    let is_type_match = has_matching_content_type::<T>(result);
     if !is_type_match {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "TypedArray out of bounds",
+            "TypedArray species did not match exemplar",
             gc.into_nogc(),
         ));
     }
@@ -1522,7 +1511,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let is_type_match = is_expected_typed_array_type::<T>(result);
+    let is_type_match = has_matching_content_type::<T>(result);
     if !is_type_match {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,

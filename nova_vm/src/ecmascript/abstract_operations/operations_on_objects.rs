@@ -43,7 +43,7 @@ use crate::{
         rootable::{Rootable, Scopable},
         unwrap_try,
     },
-    heap::{Heap, ObjectEntry},
+    heap::{Heap, ObjectEntry, WellKnownSymbolIndexes},
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -1428,7 +1428,7 @@ pub(crate) fn species_constructor<'a>(
     let s = get(
         agent,
         c.unbind(),
-        BUILTIN_STRING_MEMORY.Symbol_species.into(),
+        WellKnownSymbolIndexes::Species.into(),
         gc.reborrow(),
     )
     .unbind()?

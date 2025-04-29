@@ -333,7 +333,7 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
                 TypedArray::Int32Array(_) => intrinsics.int32_array_prototype(),
                 TypedArray::Uint32Array(_) => intrinsics.uint32_array_prototype(),
                 TypedArray::BigInt64Array(_) => intrinsics.big_int64_array_prototype(),
-                TypedArray::BigUint64Array(_) => intrinsics.big_int64_array_prototype(),
+                TypedArray::BigUint64Array(_) => intrinsics.big_uint64_array_prototype(),
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => intrinsics.float16_array_prototype(),
                 TypedArray::Float32Array(_) => intrinsics.float32_array_prototype(),
