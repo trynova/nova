@@ -23,8 +23,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
@@ -113,8 +113,7 @@ impl<'a> Array<'a> {
             object_index: None,
             elements: cloned_elements,
         };
-        agent.heap.arrays.push(Some(data));
-        Array(ArrayIndex::last(&agent.heap.arrays))
+        agent.heap.create(data)
     }
 
     #[inline]
@@ -391,7 +390,10 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     return TryResult::Continue(false);
                 }
                 let Heap {
-                    elements, arrays, ..
+                    elements,
+                    arrays,
+                    alloc_counter,
+                    ..
                 } = &mut agent.heap;
                 let array_heap_data = &mut arrays[self];
                 array_heap_data.elements.reserve(elements, index + 1);
@@ -403,6 +405,10 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     array_heap_data.elements.len = index;
                 }
                 // ii. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", lengthDesc).
+                *alloc_counter += core::mem::size_of::<Option<Value>>();
+                if element_descriptor.is_some() {
+                    *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+                }
                 array_heap_data
                     .elements
                     .push(elements, value, element_descriptor);
@@ -801,7 +807,7 @@ fn ordinary_define_own_property_for_array(
 
     // 2. If current is undefined, then
     if current_descriptor.is_none() && current_value.is_none() {
-        // Holegc
+        // Hole
 
         // a. If extensible is false, return false.
         if !elements.writable() {
@@ -814,20 +820,8 @@ fn ordinary_define_own_property_for_array(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            let (descriptors, _) = agent
-                .heap
-                .elements
-                .get_descriptors_and_slice_mut(elements.into());
-            let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor).unwrap();
-            if let Some(descriptors) = descriptors {
-                descriptors.insert(index, elem_descriptor.unbind());
-            } else {
-                agent.heap.elements.set_descriptor(
-                    elements.into(),
-                    index as usize,
-                    Some(elem_descriptor),
-                )
-            }
+            let elem_descriptor = ElementDescriptor::from_accessor_descriptor(descriptor);
+            insert_element_descriptor(agent, elements, index, None, elem_descriptor);
         }
         // d. Else,
         else {
@@ -835,23 +829,13 @@ fn ordinary_define_own_property_for_array(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            let (descriptors, slice) = agent
-                .heap
-                .elements
-                .get_descriptors_and_slice_mut(elements.into());
-            slice[index as usize] = Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
-            let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
-            if let Some(descriptor) = elem_descriptor {
-                if let Some(descriptors) = descriptors {
-                    descriptors.insert(index, descriptor.unbind());
-                } else {
-                    agent.heap.elements.set_descriptor(
-                        elements.into(),
-                        index as usize,
-                        Some(descriptor),
-                    )
-                }
-            }
+            insert_data_descriptor(
+                agent,
+                elements,
+                index,
+                Some(descriptor_value.unwrap_or(Value::Undefined)),
+                ElementDescriptor::from_data_descriptor(descriptor),
+            );
         }
 
         // e. Return true.
@@ -947,28 +931,13 @@ fn ordinary_define_own_property_for_array(
         //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
         //      the value of the corresponding field in Desc if Desc has that field, or to the
         //      attribute's default value otherwise.
-        let new_descriptor = match (descriptor.get, descriptor.set) {
-            (None, None) => unreachable!(),
-            (None, Some(set)) => ElementDescriptor::new_with_set_ec(set, enumerable, configurable),
-            (Some(get), None) => ElementDescriptor::new_with_get_ec(get, enumerable, configurable),
-            (Some(get), Some(set)) => {
-                ElementDescriptor::new_with_get_set_ec(get, set, enumerable, configurable)
-            }
-        };
-        let (descriptors, slice) = agent
-            .heap
-            .elements
-            .get_descriptors_and_slice_mut(elements.into());
-        slice[index as usize] = None;
-        if let Some(descriptors) = descriptors {
-            descriptors.insert(index, new_descriptor.unbind());
-        } else {
-            agent.heap.elements.set_descriptor(
-                elements.into(),
-                index as usize,
-                Some(new_descriptor),
-            )
-        }
+        let elem_descriptor = ElementDescriptor::from_accessor_descriptor_fields(
+            descriptor.get,
+            descriptor.set,
+            enumerable,
+            configurable,
+        );
+        insert_element_descriptor(agent, elements, index, None, elem_descriptor);
     }
     // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
     else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {
@@ -985,26 +954,17 @@ fn ordinary_define_own_property_for_array(
         //      enumerable, respectively, and whose [[Value]] and [[Writable]] attributes are
         //      set to the value of the corresponding field in Desc if Desc has that field, or
         //      to the attribute's default value otherwise.
-        // try object.propertyStorage().set(property_key, PropertyDescriptor{
-        //     .value = descriptor.value or else .undefined,
-        //     .writable = descriptor.writable or else false,
-        //     .enumerable = enumerable,
-        //     .configurable = configurable,
-        // });
-        let (descriptors, slice) = agent
-            .heap
-            .elements
-            .get_descriptors_and_slice_mut(elements.into());
-        if let Some(elem_descriptor) = ElementDescriptor::new_with_wec(
-            descriptor.writable.unwrap_or(false),
-            enumerable,
-            configurable,
-        ) {
-            descriptors.unwrap().insert(index, elem_descriptor);
-        } else {
-            descriptors.unwrap().remove(&index);
-        }
-        slice[index as usize] = Some(descriptor.value.unwrap_or(Value::Undefined).unbind());
+        mutate_element_descriptor(
+            agent,
+            elements,
+            index,
+            Some(descriptor.value.unwrap_or(Value::Undefined)),
+            ElementDescriptor::new_with_wec(
+                descriptor.writable.unwrap_or(false),
+                enumerable,
+                configurable,
+            ),
+        );
     }
     // c. Else,
     else {
@@ -1013,31 +973,96 @@ fn ordinary_define_own_property_for_array(
         let mut descriptor = descriptor;
         let result_value = descriptor.value.or(current_value);
         descriptor.writable = descriptor.writable.or(current_writable);
-        descriptor.get = descriptor.get.or(current_getter).map(Function::unbind);
-        descriptor.set = descriptor.set.or(current_setter).map(Function::unbind);
+        descriptor.get = descriptor.get.or(current_getter);
+        descriptor.set = descriptor.set.or(current_setter);
         descriptor.enumerable = Some(descriptor.enumerable.unwrap_or(current_enumerable));
         descriptor.configurable = Some(descriptor.configurable.unwrap_or(current_configurable));
+        let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
+        mutate_data_descriptor(agent, elements, index, result_value, elem_descriptor);
+    }
+
+    true
+}
+
+fn mutate_data_descriptor(
+    agent: &mut Agent,
+    elements: SealableElementsVector,
+    index: u32,
+    descriptor_value: Option<Value>,
+    elem_descriptor: Option<ElementDescriptor>,
+) {
+    if let Some(descriptor) = elem_descriptor {
+        insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
+    } else {
         let (descriptors, slice) = agent
             .heap
             .elements
             .get_descriptors_and_slice_mut(elements.into());
-        slice[index as usize] = result_value.unbind();
-        if let Some(elem_descriptor) = ElementDescriptor::from_property_descriptor(descriptor) {
-            if let Some(descriptors) = descriptors {
-                descriptors.insert(index, elem_descriptor.unbind());
-            } else {
-                agent.heap.elements.set_descriptor(
-                    elements.into(),
-                    index as usize,
-                    Some(elem_descriptor),
-                )
-            }
-        } else if let Some(descriptors) = descriptors {
+        slice[index as usize] = descriptor_value.unbind();
+        if let Some(descriptors) = descriptors {
             descriptors.remove(&index);
         }
     }
+}
 
-    true
+fn mutate_element_descriptor(
+    agent: &mut Agent,
+    elements: SealableElementsVector,
+    index: u32,
+    descriptor_value: Option<Value>,
+    elem_descriptor: Option<ElementDescriptor>,
+) {
+    if let Some(descriptor) = elem_descriptor {
+        insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
+    } else if let (Some(descriptors), _) = agent
+        .heap
+        .elements
+        .get_descriptors_and_slice_mut(elements.into())
+    {
+        descriptors.remove(&index);
+    }
+}
+
+fn insert_data_descriptor(
+    agent: &mut Agent,
+    elements: SealableElementsVector,
+    index: u32,
+    descriptor_value: Option<Value>,
+    elem_descriptor: Option<ElementDescriptor>,
+) {
+    if let Some(descriptor) = elem_descriptor {
+        insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
+    } else {
+        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>();
+        agent[elements][index as usize] =
+            Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
+    }
+}
+
+fn insert_element_descriptor(
+    agent: &mut Agent,
+    elements: SealableElementsVector,
+    index: u32,
+    descriptor_value: Option<Value>,
+    descriptor: ElementDescriptor,
+) {
+    let (descriptors, slice) = agent
+        .heap
+        .elements
+        .get_descriptors_and_slice_mut(elements.into());
+    slice[index as usize] = descriptor_value.unbind();
+    if let Some(descriptors) = descriptors {
+        let inserted = descriptors.insert(index, descriptor.unbind()).is_none();
+        if inserted {
+            agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+        }
+    } else {
+        agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+        agent
+            .heap
+            .elements
+            .set_descriptor(elements.into(), index as usize, Some(descriptor))
+    }
 }
 
 /// A partial view to the Agent's Heap that allows accessing array heap data.

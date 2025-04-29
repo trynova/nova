@@ -6,6 +6,7 @@ use super::{ArrayBuffer, ArrayBufferHeapData};
 use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::types::{Numeric, Viewable};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::heap::CreateHeapData;
 use crate::{
     Heap,
     ecmascript::{
@@ -13,7 +14,6 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, DataBlock, Function, IntoFunction, Number, Object, Value},
     },
-    heap::indexes::ArrayBufferIndex,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?
@@ -73,11 +73,8 @@ pub(crate) fn allocate_array_buffer<'a>(
     } else {
         ArrayBufferHeapData::new_fixed_length(block)
     };
-    agent.heap.array_buffers.push(Some(obj));
     // 9. Return obj.
-    Ok(ArrayBuffer(ArrayBufferIndex::last(
-        &agent.heap.array_buffers,
-    )))
+    Ok(agent.heap.create(obj).bind(gc))
 }
 
 /// ### [25.1.3.2 ArrayBufferByteLength ( arrayBuffer, order )](https://tc39.es/ecma262/#sec-arraybufferbytelength)

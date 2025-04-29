@@ -40,7 +40,7 @@ pub(crate) use function_environment::{
     FunctionEnvironmentRecord, ThisBindingStatus, new_class_field_initializer_environment,
     new_class_static_element_environment, new_function_environment,
 };
-pub(crate) use global_environment::GlobalEnvironmentRecord;
+pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
 pub(crate) use object_environment::ObjectEnvironmentRecord;
 pub(crate) use private_environment::PrivateEnvironmentRecord;
 
@@ -340,12 +340,12 @@ pub(crate) enum Environment<'a> {
 }
 
 impl Environment<'_> {
-    pub(crate) fn get_outer_env<'a>(self, agent: &Agent, _: NoGcScope<'a, '_>) -> OuterEnv<'a> {
+    pub(crate) fn get_outer_env<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> OuterEnv<'a> {
         match self {
-            Environment::Declarative(index) => agent[index].outer_env,
-            Environment::Function(index) => agent[agent[index].declarative_environment].outer_env,
+            Environment::Declarative(index) => index.get_outer_env(agent, gc),
+            Environment::Function(index) => index.get_outer_env(agent, gc),
             Environment::Global(_) => None,
-            Environment::Object(index) => agent[index].outer_env,
+            Environment::Object(index) => index.get_outer_env(agent, gc),
         }
     }
 
@@ -1010,10 +1010,15 @@ impl Environments {
     pub(crate) fn push_object_environment<'a>(
         &mut self,
         env: ObjectEnvironmentRecord,
+        decl_env: DeclarativeEnvironmentRecord,
         _: NoGcScope<'a, '_>,
-    ) -> ObjectEnvironment<'a> {
+    ) -> (ObjectEnvironment<'a>, DeclarativeEnvironment<'a>) {
         self.object.push(Some(env));
-        ObjectEnvironment::from_u32(self.object.len() as u32)
+        self.declarative.push(Some(decl_env));
+        (
+            ObjectEnvironment::from_u32(self.object.len() as u32),
+            DeclarativeEnvironment::from_u32(self.declarative.len() as u32),
+        )
     }
 
     pub(crate) fn get_declarative_environment(

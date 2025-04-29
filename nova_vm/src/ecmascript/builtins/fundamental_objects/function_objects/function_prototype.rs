@@ -532,8 +532,7 @@ fn create_throw_type_error_backing_object(
     };
     let (keys, values) = agent
         .heap
-        .elements
-        .create_object_entries(&[length_entry, name_entry]);
+        .create_elements_with_object_entries(&[length_entry, name_entry]);
 
     agent.heap.create(ObjectHeapData {
         // The value of the [[Extensible]] internal slot of this function is false.

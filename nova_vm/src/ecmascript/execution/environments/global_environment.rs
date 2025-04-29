@@ -46,13 +46,13 @@ pub struct GlobalEnvironmentRecord {
     /// bindings as well as FunctionDeclaration, GeneratorDeclaration,
     /// AsyncFunctionDeclaration, AsyncGeneratorDeclaration, and
     /// VariableDeclaration bindings in global code for the associated realm.
-    pub(crate) object_record: ObjectEnvironment<'static>,
+    object_record: ObjectEnvironment<'static>,
 
     /// ### \[\[GlobalThisValue\]\]
     ///
     /// The value returned by this in global scope. Hosts may provide any
     /// ECMAScript Object value.
-    pub(crate) global_this_value: Object<'static>,
+    global_this_value: Object<'static>,
 
     /// ### \[\[DeclarativeRecord\]\]
     ///
@@ -60,7 +60,7 @@ pub struct GlobalEnvironmentRecord {
     /// associated realm code except for FunctionDeclaration,
     /// GeneratorDeclaration, AsyncFunctionDeclaration,
     /// AsyncGeneratorDeclaration, and VariableDeclaration bindings.
-    pub(crate) declarative_record: DeclarativeEnvironment<'static>,
+    declarative_record: DeclarativeEnvironment<'static>,
 
     /// ### \[\[VarNames\]\]
     ///
@@ -70,47 +70,6 @@ pub struct GlobalEnvironmentRecord {
     /// realm.
     // TODO: Use the Heap to set this.
     var_names: AHashSet<String<'static>>,
-}
-
-impl GlobalEnvironmentRecord {
-    /// ### [9.1.2.5 NewGlobalEnvironment ( G, thisValue )](https://tc39.es/ecma262/#sec-newglobalenvironment)
-    ///
-    /// The abstract operation NewGlobalEnvironment takes arguments G (an
-    /// Object) and thisValue (an Object) and returns a Global Environment
-    /// Record.
-    pub(crate) fn new(
-        agent: &mut Agent,
-        global: Object,
-        this_value: Object,
-    ) -> GlobalEnvironmentRecord {
-        // 1. Let objRec be NewObjectEnvironment(G, false, null).
-        let obj_rec = ObjectEnvironmentRecord::new(global, false, None);
-        agent.heap.environments.object.push(Some(obj_rec));
-        let object_record = ObjectEnvironment::last(&agent.heap.environments.object);
-
-        // 2. Let dclRec be NewDeclarativeEnvironment(null).
-        let dcl_rec = DeclarativeEnvironmentRecord::new(None);
-        agent.heap.environments.declarative.push(Some(dcl_rec));
-        let declarative_record = DeclarativeEnvironment::last(&agent.heap.environments.declarative);
-
-        // 3. Let env be a new Global Environment Record.
-        GlobalEnvironmentRecord {
-            // 4. Set env.[[ObjectRecord]] to objRec.
-            object_record,
-
-            // 5. Set env.[[GlobalThisValue]] to thisValue.
-            global_this_value: this_value.unbind(),
-
-            // 6. Set env.[[DeclarativeRecord]] to dclRec.
-            declarative_record,
-
-            // 7. Set env.[[VarNames]] to a new empty List.
-            var_names: AHashSet::default(),
-            // 8. Set env.[[OuterEnv]] to null.
-            // NOTE: We do not expose an outer environment, so this is implicit.
-        }
-        // 9. Return env.
-    }
 }
 
 impl HeapMarkAndSweep for GlobalEnvironmentRecord {
@@ -148,6 +107,51 @@ impl HeapMarkAndSweep for GlobalEnvironmentRecord {
             }
         }
     }
+}
+
+/// ### [9.1.2.5 NewGlobalEnvironment ( G, thisValue )](https://tc39.es/ecma262/#sec-newglobalenvironment)
+///
+/// The abstract operation NewGlobalEnvironment takes arguments G (an
+/// Object) and thisValue (an Object) and returns a Global Environment
+/// Record.
+pub(crate) fn new_global_environment<'a>(
+    agent: &mut Agent,
+    global: Object,
+    this_value: Object,
+    gc: NoGcScope<'a, '_>,
+) -> GlobalEnvironment<'a> {
+    // 1. Let objRec be NewObjectEnvironment(G, false, null).
+    let obj_rec = ObjectEnvironmentRecord::new(global, false, None);
+    // 2. Let dclRec be NewDeclarativeEnvironment(null).
+    let dcl_rec = DeclarativeEnvironmentRecord::new(None);
+    agent.heap.alloc_counter += core::mem::size_of::<Option<ObjectEnvironmentRecord>>()
+        + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
+    let (object_record, declarative_record) = agent
+        .heap
+        .environments
+        .push_object_environment(obj_rec, dcl_rec, gc);
+
+    // 3. Let env be a new Global Environment Record.
+    agent.heap.alloc_counter += core::mem::size_of::<Option<GlobalEnvironmentRecord>>();
+    agent.heap.environments.push_global_environment(
+        GlobalEnvironmentRecord {
+            // 4. Set env.[[ObjectRecord]] to objRec.
+            object_record: object_record.unbind(),
+
+            // 5. Set env.[[GlobalThisValue]] to thisValue.
+            global_this_value: this_value.unbind(),
+
+            // 6. Set env.[[DeclarativeRecord]] to dclRec.
+            declarative_record: declarative_record.unbind(),
+
+            // 7. Set env.[[VarNames]] to a new empty List.
+            var_names: AHashSet::default(),
+            // 8. Set env.[[OuterEnv]] to null.
+            // NOTE: We do not expose an outer environment, so this is implicit.
+        },
+        gc,
+    )
+    // 9. Return env.
 }
 
 impl GlobalEnvironment<'_> {
@@ -492,9 +496,9 @@ impl GlobalEnvironment<'_> {
             return TryResult::Continue(Ok(dcl_rec.delete_binding(agent, name)));
         }
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc);
         // 4. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = obj_rec.get_binding_object(agent, gc);
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let existing_prop = try_has_own_property(agent, global_object, n, gc)?;
@@ -542,7 +546,7 @@ impl GlobalEnvironment<'_> {
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 4. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let scoped_name = name.scope(agent, gc.nogc());
@@ -659,7 +663,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = obj_rec.get_binding_object(agent, gc);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
@@ -690,7 +694,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
         let existing_prop =
@@ -724,7 +728,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = obj_rec.get_binding_object(agent, gc);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let has_property = try_has_own_property(agent, global_object, n, gc)?;
@@ -756,7 +760,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
         let scoped_global_object = global_object.scope(agent, gc.nogc());
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
@@ -788,7 +792,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = obj_rec.get_binding_object(agent, gc);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
@@ -828,7 +832,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
         let scoped_global_object = global_object.scope(agent, gc.nogc());
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
@@ -875,7 +879,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = obj_rec.get_binding_object(agent, gc);
         let n = PropertyKey::from(name);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property = try_has_own_property(agent, global_object, n, gc)?;
@@ -924,7 +928,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object.bind(nogc);
+        let global_object = obj_rec.get_binding_object(agent, nogc);
         let scoped_global_object = global_object.scope(agent, nogc);
         let n = PropertyKey::from(name);
         let name = name.scope(agent, nogc);
@@ -976,7 +980,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = obj_rec.get_binding_object(agent, gc);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
@@ -1050,7 +1054,7 @@ impl GlobalEnvironment<'_> {
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object.bind(nogc);
+        let global_object = obj_rec.get_binding_object(agent, nogc);
         let scoped_global_object = global_object.scope(agent, nogc);
         let n = PropertyKey::from(name);
         let scoped_n = n.scope(agent, nogc);

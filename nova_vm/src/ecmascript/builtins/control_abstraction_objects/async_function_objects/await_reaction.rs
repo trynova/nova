@@ -73,7 +73,7 @@ impl AwaitReactionIdentifier<'_> {
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
         let execution_context = agent[self].execution_context.take().unwrap();
-        agent.execution_context_stack.push(execution_context);
+        agent.push_execution_context(execution_context);
 
         // 3. d. Resume the suspended evaluation of asyncContext using NormalCompletion(v) as the result of the operation that suspended it.
         // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
@@ -98,7 +98,7 @@ impl AwaitReactionIdentifier<'_> {
             ExecutionResult::Return(result) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
                 // 2. d. Remove acAsyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-                agent.execution_context_stack.pop();
+                agent.pop_execution_context();
                 // 2. e. If result is a normal completion, then
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
                 //    f. Else if result is a return completion, then
@@ -111,7 +111,7 @@ impl AwaitReactionIdentifier<'_> {
             ExecutionResult::Throw(err) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
                 // 2. d. Remove acAsyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-                agent.execution_context_stack.pop();
+                agent.pop_execution_context();
                 // 2. g. i. Assert: result is a throw completion.
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
                 agent[self].return_promise_capability.clone().reject(
@@ -124,7 +124,7 @@ impl AwaitReactionIdentifier<'_> {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
                 agent[self].vm = Some(vm);
-                agent[self].execution_context = Some(agent.execution_context_stack.pop().unwrap());
+                agent[self].execution_context = Some(agent.pop_execution_context().unwrap());
 
                 // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
                 // which resume execution of the function.

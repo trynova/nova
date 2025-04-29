@@ -217,6 +217,10 @@ impl<'gc> Executable<'gc> {
             // This bytecode was the last-allocated bytecode, and we can drop
             // it from the Heap without affecting any other indexes. The caller
             // guarantees that the Executable will not be used anymore.
+            agent.heap.alloc_counter = agent
+                .heap
+                .alloc_counter
+                .saturating_sub(core::mem::size_of::<ExecutableHeapData>());
             let _ = agent.heap.executables.pop().unwrap();
         }
     }

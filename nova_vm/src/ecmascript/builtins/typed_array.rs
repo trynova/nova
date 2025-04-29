@@ -71,7 +71,7 @@ pub enum TypedArray<'a> {
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
 }
 
-impl TypedArray<'_> {
+impl<'a> TypedArray<'a> {
     pub(crate) fn get_index(self) -> usize {
         match self {
             TypedArray::Int8Array(index)
@@ -90,11 +90,35 @@ impl TypedArray<'_> {
         }
     }
 
+    pub(crate) fn get_typed_array_index(self) -> TypedArrayIndex<'a> {
+        match self {
+            TypedArray::Int8Array(index)
+            | TypedArray::Uint8Array(index)
+            | TypedArray::Uint8ClampedArray(index)
+            | TypedArray::Int16Array(index)
+            | TypedArray::Uint16Array(index)
+            | TypedArray::Int32Array(index)
+            | TypedArray::Uint32Array(index)
+            | TypedArray::BigInt64Array(index)
+            | TypedArray::BigUint64Array(index)
+            | TypedArray::Float32Array(index)
+            | TypedArray::Float64Array(index) => index,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(index) => index,
+        }
+    }
+
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = agent[self].byte_length;
         if byte_length == ViewedArrayBufferByteLength::heap() {
-            Some(*agent.heap.typed_array_byte_lengths.get(&self).unwrap())
+            Some(
+                *agent
+                    .heap
+                    .typed_array_byte_lengths
+                    .get(&self.get_typed_array_index().unbind())
+                    .unwrap(),
+            )
         } else if byte_length == ViewedArrayBufferByteLength::auto() {
             None
         } else {
@@ -106,7 +130,13 @@ impl TypedArray<'_> {
     pub fn array_length(self, agent: &Agent) -> Option<usize> {
         let array_length = agent[self].array_length;
         if array_length == TypedArrayArrayLength::heap() {
-            Some(*agent.heap.typed_array_array_lengths.get(&self).unwrap())
+            Some(
+                *agent
+                    .heap
+                    .typed_array_array_lengths
+                    .get(&self.get_typed_array_index().unbind())
+                    .unwrap(),
+            )
         } else if array_length == TypedArrayArrayLength::auto() {
             None
         } else {
@@ -118,19 +148,47 @@ impl TypedArray<'_> {
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = agent[self].byte_offset;
         if byte_offset == ViewedArrayBufferByteOffset::heap() {
-            *agent.heap.typed_array_byte_offsets.get(&self).unwrap()
+            *agent
+                .heap
+                .typed_array_byte_offsets
+                .get(&self.get_typed_array_index().unbind())
+                .unwrap()
         } else {
             byte_offset.0 as usize
         }
     }
 
     #[inline]
-    pub fn get_viewed_array_buffer<'a>(
+    pub fn get_viewed_array_buffer<'gc>(
         self,
         agent: &Agent,
-        _: NoGcScope<'a, '_>,
-    ) -> ArrayBuffer<'a> {
+        _: NoGcScope<'gc, '_>,
+    ) -> ArrayBuffer<'gc> {
         agent[self].viewed_array_buffer
+    }
+
+    pub(crate) fn set_overflowing_byte_offset(self, agent: &mut Agent, byte_offset: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(TypedArrayIndex<'static>, usize)>();
+        agent
+            .heap
+            .typed_array_byte_offsets
+            .insert(self.get_typed_array_index().unbind(), byte_offset);
+    }
+
+    pub(crate) fn set_overflowing_byte_length(self, agent: &mut Agent, byte_length: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(TypedArrayIndex<'static>, usize)>();
+        agent
+            .heap
+            .typed_array_byte_lengths
+            .insert(self.get_typed_array_index().unbind(), byte_length);
+    }
+
+    pub(crate) fn set_overflowing_array_length(self, agent: &mut Agent, array_length: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(TypedArrayIndex<'static>, usize)>();
+        agent
+            .heap
+            .typed_array_array_lengths
+            .insert(self.get_typed_array_index().unbind(), array_length);
     }
 }
 
@@ -155,23 +213,9 @@ impl<'a> From<TypedArrayIndex<'a>> for TypedArray<'a> {
     }
 }
 
-impl<'a> IntoBaseIndex<'a, TypedArrayHeapData<'static>> for TypedArray<'a> {
+impl<'a> IntoBaseIndex<'a, TypedArrayHeapData<'static>> for TypedArrayIndex<'a> {
     fn into_base_index(self) -> TypedArrayIndex<'a> {
-        match self {
-            TypedArray::Int8Array(i)
-            | TypedArray::Uint8Array(i)
-            | TypedArray::Uint8ClampedArray(i)
-            | TypedArray::Int16Array(i)
-            | TypedArray::Uint16Array(i)
-            | TypedArray::Int32Array(i)
-            | TypedArray::Uint32Array(i)
-            | TypedArray::BigInt64Array(i)
-            | TypedArray::BigUint64Array(i)
-            | TypedArray::Float32Array(i)
-            | TypedArray::Float64Array(i) => i,
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(i) => i,
-        }
+        self
     }
 }
 
@@ -852,12 +896,12 @@ impl TryFrom<HeapRootData> for TypedArray<'_> {
     }
 }
 
-impl<'a> CreateHeapData<TypedArrayHeapData<'a>, TypedArray<'a>> for Heap {
-    fn create(&mut self, data: TypedArrayHeapData<'a>) -> TypedArray<'a> {
+impl<'a> CreateHeapData<TypedArrayHeapData<'a>, TypedArrayIndex<'a>> for Heap {
+    fn create(&mut self, data: TypedArrayHeapData<'a>) -> TypedArrayIndex<'a> {
         self.typed_arrays.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<TypedArrayHeapData<'static>>>();
         // TODO: The type should be checked based on data or something equally stupid
-        TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
+        TypedArrayIndex::last(&self.typed_arrays)
     }
 }
 

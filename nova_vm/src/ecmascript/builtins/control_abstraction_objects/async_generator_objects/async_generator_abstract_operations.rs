@@ -201,7 +201,7 @@ pub(super) fn async_generator_resume(
     // 4. Suspend callerContext.
     // 6. Push genContext onto the execution context stack; genContext is now
     //    the running execution context.
-    agent.execution_context_stack.push(gen_context);
+    agent.push_execution_context(gen_context);
 
     let scoped_generator = generator.scope(agent, nogc);
 
@@ -236,7 +236,7 @@ pub(super) fn resume_handle_result(
     match execution_result {
         ExecutionResult::Return(result) => {
             // Function is done.
-            let _ = agent.execution_context_stack.pop().unwrap();
+            let _ = agent.pop_execution_context().unwrap();
             let generator = scoped_generator.get(agent).bind(gc.nogc());
             // AsyncGeneratorStart step 4:
             // g. Set acGenerator.[[AsyncGeneratorState]] to draining-queue.
@@ -258,7 +258,7 @@ pub(super) fn resume_handle_result(
         }
         ExecutionResult::Throw(err) => {
             // Function is done.
-            let _ = agent.execution_context_stack.pop().unwrap();
+            let _ = agent.pop_execution_context().unwrap();
             let generator = scoped_generator.get(agent).bind(gc.nogc());
             // AsyncGeneratorStart step 4:
             // g. Set acGenerator.[[AsyncGeneratorState]] to draining-queue.
@@ -310,7 +310,7 @@ fn async_generator_perform_await(
     mut gc: GcScope,
 ) {
     // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
-    let execution_context = agent.execution_context_stack.pop().unwrap();
+    let execution_context = agent.pop_execution_context().unwrap();
     let generator = scoped_generator.get(agent).bind(gc.nogc());
     generator.transition_to_awaiting(agent, vm, kind, execution_context);
     // 8. Remove asyncContext from the execution context stack and
@@ -394,11 +394,9 @@ pub(super) fn async_generator_yield(
     // 5. Let completion be NormalCompletion(value).
     let completion = AsyncGeneratorRequestCompletion::Ok(value);
     // 6. Assert: The execution context stack has at least two elements.
-    assert!(agent.execution_context_stack.len() >= 2);
     // 7. Let previousContext be the second to top element of the execution context stack.
-    let previous_context = &agent.execution_context_stack[agent.execution_context_stack.len() - 2];
     // 8. Let previousRealm be previousContext's Realm.
-    let previous_realm = previous_context.realm;
+    let previous_realm = agent.get_previous_context_realm(gc.nogc());
     // 9. Perform AsyncGeneratorCompleteStep(generator, completion, false, previousRealm).
     async_generator_complete_step(
         agent,
@@ -428,7 +426,7 @@ pub(super) fn async_generator_yield(
         // 12. Else,
         // a. Set generator.[[AsyncGeneratorState]] to suspended-yield.
         let generator = generator.get(agent).bind(gc.nogc());
-        let gen_context = agent.execution_context_stack.pop().unwrap();
+        let gen_context = agent.pop_execution_context().unwrap();
         // b. Remove genContext from the execution context stack and restore
         //    the execution context that is at the top of the execution context
         //    stack as the running execution context.

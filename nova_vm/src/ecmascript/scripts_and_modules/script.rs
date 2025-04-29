@@ -359,7 +359,7 @@ pub fn script_evaluation<'a>(
     // TODO: 9. Suspend the running execution context.
 
     // 10. Push scriptContext onto the execution context stack; scriptContext is now the running execution context.
-    agent.execution_context_stack.push(script_context);
+    agent.push_execution_context(script_context);
 
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // NOTE: We cannot define the script here due to reference safety.
@@ -401,7 +401,7 @@ pub fn script_evaluation<'a>(
     };
 
     // 14. Suspend scriptContext and remove it from the execution context stack.
-    _ = agent.execution_context_stack.pop();
+    _ = agent.pop_execution_context();
 
     // TODO: 15. Assert: The execution context stack is not empty.
     // This is not currently true as we do not push an "empty" context stack to the root before running script evaluation.

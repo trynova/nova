@@ -27,7 +27,7 @@ use self::{
         ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24, ElementArray2Pow32,
         ElementArrays,
     },
-    indexes::{NumberIndex, ObjectIndex},
+    indexes::NumberIndex,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
@@ -39,7 +39,7 @@ use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHea
 use crate::ecmascript::builtins::{
     ArrayBufferHeapData,
     data_view::{DataView, data::DataViewHeapData},
-    typed_array::{TypedArray, data::TypedArrayHeapData},
+    typed_array::data::TypedArrayHeapData,
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
@@ -84,8 +84,8 @@ use crate::{
         types::{
             BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String,
-            StringHeapData, Symbol, SymbolHeapData, bigint::HeapBigInt,
+            HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject,
+            PropertyKey, String, StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -96,8 +96,10 @@ use crate::{
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
+use element_array::{ElementDescriptor, ElementsVector};
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
+use indexes::TypedArrayIndex;
 use wtf8::Wtf8;
 
 #[derive(Debug)]
@@ -157,11 +159,11 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_byte_lengths: AHashMap<TypedArray<'static>, usize>,
+    pub typed_array_byte_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_byte_offsets: AHashMap<TypedArray<'static>, usize>,
+    pub typed_array_byte_offsets: AHashMap<TypedArrayIndex<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_array_lengths: AHashMap<TypedArray<'static>, usize>,
+    pub typed_array_array_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
     #[cfg(feature = "weak-refs")]
     pub weak_maps: Vec<Option<WeakMapHeapData<'static>>>,
     #[cfg(feature = "weak-refs")]
@@ -426,20 +428,53 @@ impl Heap {
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
+    pub(crate) fn create_elements_with_object_entries<'gc>(
+        &mut self,
+        entries: &[ObjectEntry<'gc>],
+    ) -> (ElementsVector<'gc>, ElementsVector<'gc>) {
+        self.alloc_counter += entries.iter().fold(0, |acc, entry| {
+            acc + core::mem::size_of::<Option<Value>>() * 2
+                + if entry.is_trivial() {
+                    0
+                } else {
+                    core::mem::size_of::<(u32, ElementDescriptor)>()
+                }
+        });
+        self.elements.create_with_object_entries(entries)
+    }
+
+    pub(crate) fn create_elements_with_key_value_descriptor_entries<'gc>(
+        &mut self,
+        entries: Vec<(
+            PropertyKey<'gc>,
+            Option<ElementDescriptor>,
+            Option<Value<'gc>>,
+        )>,
+    ) -> (ElementsVector<'gc>, ElementsVector<'gc>) {
+        self.alloc_counter += entries.iter().fold(0, |acc, entry| {
+            acc + core::mem::size_of::<Option<Value>>() * 2
+                + if entry.1.is_none() {
+                    0
+                } else {
+                    core::mem::size_of::<(u32, ElementDescriptor)>()
+                }
+        });
+        self.elements
+            .create_with_key_value_descriptor_entries(entries)
+    }
+
     pub(crate) fn create_null_object(
         &mut self,
         entries: &[ObjectEntry],
     ) -> OrdinaryObject<'static> {
-        let (keys, values) = self.elements.create_object_entries(entries);
+        let (keys, values) = self.create_elements_with_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
             keys: keys.unbind(),
             values: values.unbind(),
             prototype: None,
         };
-        self.objects.push(Some(object_data));
-        self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        ObjectIndex::last(&self.objects).into()
+        self.create(object_data)
     }
 
     pub(crate) fn create_object_with_prototype(
@@ -447,16 +482,14 @@ impl Heap {
         prototype: Object,
         entries: &[ObjectEntry],
     ) -> OrdinaryObject<'static> {
-        let (keys, values) = self.elements.create_object_entries(entries);
+        let (keys, values) = self.create_elements_with_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
             keys: keys.unbind(),
             values: values.unbind(),
             prototype: Some(prototype.unbind()),
         };
-        self.objects.push(Some(object_data));
-        self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        ObjectIndex::last(&self.objects).into()
+        self.create(object_data)
     }
 }
 
