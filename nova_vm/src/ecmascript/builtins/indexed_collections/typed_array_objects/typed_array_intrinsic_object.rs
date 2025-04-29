@@ -4170,6 +4170,14 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
                 copy_between_different_type_typed_arrays::<T, u64>(&kept, byte_slice);
             }
         }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, f16>(&kept, byte_slice);
+            }
+        }
         TypedArray::Float32Array(_) => {
             if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
                 copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
