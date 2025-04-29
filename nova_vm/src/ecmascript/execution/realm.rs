@@ -685,7 +685,7 @@ pub(crate) fn initialize_host_defined_realm(
     };
 
     // 6. Push newContext onto the execution context stack; newContext is now the running execution context.
-    agent.execution_context_stack.push(new_context);
+    agent.push_execution_context(new_context);
 
     // 7. If the host requires use of an exotic object to serve as realm's global object,
     // let global be such an object created in a host-defined manner.

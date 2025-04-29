@@ -97,7 +97,7 @@ impl Generator<'_> {
         // 6. Suspend methodContext.
         // 8. Push genContext onto the execution context stack; genContext is now the running
         // execution context.
-        agent.execution_context_stack.push(execution_context);
+        agent.push_execution_context(execution_context);
 
         let saved = generator.scope(agent, gc.nogc());
 
@@ -122,7 +122,7 @@ impl Generator<'_> {
         // execution context that is at the top of the execution context stack as the running
         // execution context.
         // GeneratorYield 6 is the same.
-        let execution_context = agent.execution_context_stack.pop().unwrap();
+        let execution_context = agent.pop_execution_context().unwrap();
 
         // 10. Assert: When we return here, genContext has already been removed
         // from the execution context stack and methodContext is the currently
@@ -236,7 +236,7 @@ impl Generator<'_> {
         // 7. Suspend methodContext.
         // 9. Push genContext onto the execution context stack; genContext is now the running
         // execution context.
-        agent.execution_context_stack.push(execution_context);
+        agent.push_execution_context(execution_context);
 
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
@@ -251,7 +251,7 @@ impl Generator<'_> {
         // execution context that is at the top of the execution context stack as the running
         // execution context.
         // GeneratorYield 6 is the same.
-        let execution_context = agent.execution_context_stack.pop().unwrap();
+        let execution_context = agent.pop_execution_context().unwrap();
 
         // 11. Assert: When we return here, genContext has already been removed
         // from the execution context stack and methodContext is the currently

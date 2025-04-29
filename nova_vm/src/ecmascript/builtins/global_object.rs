@@ -328,7 +328,7 @@ pub fn perform_eval<'gc>(
         ecmascript_code: Some(ecmascript_code),
     };
     // 27. Push evalContext onto the execution context stack; evalContext is now the running execution context.
-    agent.execution_context_stack.push(eval_context);
+    agent.push_execution_context(eval_context);
 
     // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
     let result = eval_declaration_instantiation(
@@ -360,7 +360,7 @@ pub fn perform_eval<'gc>(
     };
 
     // 31. Suspend evalContext and remove it from the execution context stack.
-    agent.execution_context_stack.pop().unwrap().suspend();
+    agent.pop_execution_context().unwrap().suspend();
 
     // TODO:
     // 32. Resume the context that is now on the top of the execution context stack as the running execution context.

@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule},
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value, ValueRootRepr},
-    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -119,7 +119,7 @@ impl Job {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm(gc.nogc()) != realm {
-                agent.execution_context_stack.push(ExecutionContext {
+                agent.push_execution_context(ExecutionContext {
                     ecmascript_code: None,
                     function: None,
                     realm,
@@ -319,7 +319,7 @@ pub struct Agent {
     pub(crate) symbol_id: usize,
     pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol<'static>>,
     pub(crate) host_hooks: &'static dyn HostHooks,
-    pub(crate) execution_context_stack: Vec<ExecutionContext>,
+    execution_context_stack: Vec<ExecutionContext>,
     /// Temporary storage for on-stack heap roots.
     ///
     /// TODO: With Realm-specific heaps we'll need a side-table to define which
@@ -369,7 +369,7 @@ impl Agent {
     fn get_created_realm_root(&mut self) -> Realm<'static> {
         assert!(!self.execution_context_stack.is_empty());
         let identifier = self.current_realm_id_internal();
-        let _ = self.execution_context_stack.pop();
+        let _ = self.pop_execution_context();
         identifier.unbind()
     }
 
@@ -436,7 +436,7 @@ impl Agent {
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
         let execution_stack_depth_before_call = self.execution_context_stack.len();
-        self.execution_context_stack.push(ExecutionContext {
+        self.push_execution_context(ExecutionContext {
             ecmascript_code: None,
             function: None,
             realm: realm.unbind(),
@@ -450,7 +450,7 @@ impl Agent {
             self.execution_context_stack.len(),
             execution_stack_depth_before_call + 1
         );
-        self.execution_context_stack.pop();
+        self.pop_execution_context();
         result
     }
 
@@ -552,6 +552,28 @@ impl Agent {
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
         self.execution_context_stack.last().unwrap()
+    }
+
+    /// Returns the realm of the previous execution context.
+    ///
+    /// See steps 6-8 of [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield).
+    pub(crate) fn get_previous_context_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> Realm<'a> {
+        // 6. Assert: The execution context stack has at least two elements.
+        assert!(self.execution_context_stack.len() >= 2);
+        // 7. Let previousContext be the second to top element of the execution
+        //    context stack.
+        let previous_context =
+            &self.execution_context_stack[self.execution_context_stack.len() - 2];
+        // 8. Let previousRealm be previousContext's Realm.
+        previous_context.realm.bind(gc)
+    }
+
+    pub(crate) fn push_execution_context(&mut self, context: ExecutionContext) {
+        self.execution_context_stack.push(context);
+    }
+
+    pub(crate) fn pop_execution_context(&mut self) -> Option<ExecutionContext> {
+        self.execution_context_stack.pop()
     }
 
     pub(crate) fn current_source_code<'a>(&self, gc: NoGcScope<'a, '_>) -> SourceCode<'a> {
@@ -810,3 +832,80 @@ impl TryFrom<u16> for ExceptionType {
 }
 
 impl PrimitiveHeapIndexable for Agent {}
+
+impl HeapMarkAndSweep for Agent {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            heap,
+            execution_context_stack,
+            stack_refs,
+            stack_ref_collections,
+            vm_stack,
+            options: _,
+            symbol_id: _,
+            global_symbol_registry: _,
+            host_hooks: _,
+        } = self;
+
+        execution_context_stack.iter().for_each(|ctx| {
+            ctx.mark_values(queues);
+        });
+        stack_refs
+            .borrow()
+            .iter()
+            .for_each(|value| value.mark_values(queues));
+        stack_ref_collections
+            .borrow()
+            .iter()
+            .for_each(|collection| collection.mark_values(queues));
+        vm_stack.iter().for_each(|vm_ptr| {
+            unsafe { vm_ptr.as_ref() }.mark_values(queues);
+        });
+        let mut last_filled_global_value = None;
+        heap.globals
+            .borrow()
+            .iter()
+            .enumerate()
+            .for_each(|(i, &value)| {
+                if let Some(value) = value {
+                    value.mark_values(queues);
+                    last_filled_global_value = Some(i);
+                }
+            });
+        // Remove as many `None` global values without moving any `Some(Value)` values.
+        if let Some(last_filled_global_value) = last_filled_global_value {
+            heap.globals
+                .borrow_mut()
+                .drain(last_filled_global_value + 1..);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Agent {
+            heap: _,
+            execution_context_stack,
+            stack_refs,
+            stack_ref_collections,
+            vm_stack,
+            options: _,
+            symbol_id: _,
+            global_symbol_registry: _,
+            host_hooks: _,
+        } = self;
+
+        execution_context_stack
+            .iter_mut()
+            .for_each(|entry| entry.sweep_values(&compactions));
+        stack_refs
+            .borrow_mut()
+            .iter_mut()
+            .for_each(|entry| entry.sweep_values(&compactions));
+        stack_ref_collections
+            .borrow_mut()
+            .iter_mut()
+            .for_each(|entry| entry.sweep_values(&compactions));
+        vm_stack
+            .iter_mut()
+            .for_each(|entry| unsafe { entry.as_mut().sweep_values(&compactions) });
+    }
+}

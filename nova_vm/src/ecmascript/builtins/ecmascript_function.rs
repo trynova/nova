@@ -529,7 +529,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
                 gc.nogc(),
             );
             // c. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
-            agent.execution_context_stack.pop();
+            agent.pop_execution_context();
             // d. Return ThrowCompletion(error).
             return Err(error.unbind());
         }
@@ -542,7 +542,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         let result = ordinary_call_evaluate_body(agent, f.unbind(), arguments_list.unbind(), gc);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
-        agent.execution_context_stack.pop();
+        agent.pop_execution_context();
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.
@@ -640,7 +640,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         );
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
-        agent.execution_context_stack.pop();
+        agent.pop_execution_context();
         // 10. If result is a return completion, then
         // 11. Else,
         //   a. ReturnIfAbrupt(result).
@@ -731,10 +731,10 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
     };
     // 11. If callerContext is not already suspended, suspend callerContext.
     // 12. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
-    agent.execution_context_stack.push(callee_context);
+    agent.push_execution_context(callee_context);
     // 13. NOTE: Any exception objects produced after this point are associated with calleeRealm.
     // 14. Return calleeContext.
-    agent.execution_context_stack.last().unwrap()
+    agent.running_execution_context()
 }
 
 /// ### [10.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )](https://tc39.es/ecma262/#sec-ordinarycallbindthis)
