@@ -1311,15 +1311,13 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::BigInt64Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::BigInt64Array => {
+            Object::BigInt64Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::BigUint64Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::BigUint64Array => {
+            Object::BigUint64Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::DataView => agent.heap.create(DataViewHeapData::default()).into_object(),
         ProtoIntrinsics::FinalizationRegistry => agent
@@ -1327,40 +1325,34 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .create(FinalizationRegistryHeapData::default())
             .into_object(),
         #[cfg(feature = "proposal-float16array")]
-        ProtoIntrinsics::Float16Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Float16Array => {
+            Object::Float16Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Float32Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Float32Array => {
+            Object::Float32Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Float64Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Float64Array => {
+            Object::Float64Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         ProtoIntrinsics::Generator => agent
             .heap
             .create(GeneratorHeapData::default())
             .into_object(),
         ProtoIntrinsics::GeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Int16Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Int16Array => {
+            Object::Int16Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Int32Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Int32Array => {
+            Object::Int32Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Int8Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Int8Array => {
+            Object::Int8Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         ProtoIntrinsics::Iterator => agent
             .heap
             .create_object_with_prototype(
@@ -1393,25 +1385,21 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .create(SharedArrayBufferHeapData::default())
             .into_object(),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint16Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Uint16Array => {
+            Object::Uint16Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint32Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Uint32Array => {
+            Object::Uint32Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint8Array => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Uint8Array => {
+            Object::Uint8Array(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint8ClampedArray => agent
-            .heap
-            .create(TypedArrayHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Uint8ClampedArray => {
+            Object::Uint8ClampedArray(agent.heap.create(TypedArrayHeapData::default()))
+        }
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
         #[cfg(feature = "weak-refs")]

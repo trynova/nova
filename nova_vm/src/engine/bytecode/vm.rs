@@ -1535,12 +1535,13 @@ impl Vm {
                 // 2. Assert: newTarget is an Object.
                 // 3. Let func be GetSuperConstructor().
                 let (new_target, func) = {
-                    let data = &agent[this_env];
+                    let new_target = this_env.get_new_target(agent, gc.nogc());
+                    let function_object = this_env.get_function_object(agent, gc.nogc());
                     (
-                        Function::try_from(data.new_target.unwrap())
+                        Function::try_from(new_target.unwrap())
                             .unwrap()
                             .bind(gc.nogc()),
-                        unwrap_try(data.function_object.try_get_prototype_of(agent, gc.nogc())),
+                        unwrap_try(function_object.try_get_prototype_of(agent, gc.nogc())),
                     )
                 };
                 // 4. Let argList be ? ArgumentListEvaluation of Arguments.
@@ -1602,7 +1603,9 @@ impl Vm {
                     .bind(gc.nogc());
                 // 9. Let F be thisER.[[FunctionObject]].
                 // 10. Assert: F is an ECMAScript function object.
-                let Function::ECMAScriptFunction(_f) = agent[this_er].function_object else {
+                let Function::ECMAScriptFunction(_f) =
+                    this_er.get_function_object(agent, gc.nogc())
+                else {
                     unreachable!();
                 };
                 // 11. Perform ? InitializeInstanceElements(result, F).
@@ -2346,7 +2349,13 @@ impl Vm {
                     unreachable!()
                 };
                 // 3. Return envRec.[[NewTarget]].
-                vm.result = Some(agent[env_rec].new_target.unwrap().into_value());
+                vm.result = Some(
+                    env_rec
+                        .get_new_target(agent, gc.nogc())
+                        .unwrap()
+                        .into_value()
+                        .unbind(),
+                );
             }
             other => todo!("{other:?}"),
         }

@@ -73,6 +73,7 @@ impl ArrayBuffer<'_> {
     #[inline]
     pub fn set_detach_key(self, agent: &mut Agent, key: Option<DetachKey>) {
         if let Some(key) = key {
+            agent.heap.alloc_counter += core::mem::size_of::<(ArrayBuffer, DetachKey)>();
             agent
                 .heap
                 .array_buffer_detach_keys

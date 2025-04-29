@@ -141,14 +141,17 @@ impl<'a> InternalSlots<'a> for Error<'a> {
             if let (Some(message_entry), Some(cause_entry)) = (message_entry, cause_entry) {
                 agent
                     .heap
-                    .elements
-                    .create_object_entries(&[message_entry, cause_entry])
+                    .create_elements_with_object_entries(&[message_entry, cause_entry])
             } else if let Some(message_entry) = message_entry {
-                agent.heap.elements.create_object_entries(&[message_entry])
+                agent
+                    .heap
+                    .create_elements_with_object_entries(&[message_entry])
             } else if let Some(cause_entry) = cause_entry {
-                agent.heap.elements.create_object_entries(&[cause_entry])
+                agent
+                    .heap
+                    .create_elements_with_object_entries(&[cause_entry])
             } else {
-                agent.heap.elements.create_object_entries(&[])
+                agent.heap.create_elements_with_object_entries(&[])
             };
         let backing_object = agent.heap.create(ObjectHeapData {
             extensible: true,

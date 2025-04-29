@@ -116,16 +116,23 @@ impl<'a> PropertyStorage<'a> {
                         .set_descriptor(values, index, element_descriptor);
                 } else {
                     let Heap {
-                        elements, objects, ..
+                        elements,
+                        objects,
+                        alloc_counter,
+                        ..
                     } = &mut agent.heap;
                     let object_heap_data = objects
                         .get_mut(object.get_index())
                         .expect("Invalid ObjectIndex")
                         .as_mut()
                         .expect("Invalid ObjectIndex");
+                    *alloc_counter += core::mem::size_of::<Option<Value>>() * 2;
                     object_heap_data
                         .keys
                         .push(elements, Some(property_key), None);
+                    if element_descriptor.is_some() {
+                        *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+                    }
                     object_heap_data
                         .values
                         .push(elements, value, element_descriptor);

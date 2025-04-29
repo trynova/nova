@@ -6,6 +6,7 @@ use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
+use crate::heap::CreateHeapData;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -17,7 +18,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoObject, Number, Object, PropertyDescriptor, Value},
     },
-    heap::{Heap, WellKnownSymbolIndexes, indexes::ArrayIndex},
+    heap::{Heap, WellKnownSymbolIndexes},
 };
 
 use super::{Array, ArrayHeapData, data::SealableElementsVector};
@@ -71,10 +72,9 @@ pub(crate) fn array_create<'a>(
         object_index,
         elements: SealableElementsVector::from_elements_vector(elements),
     };
-    agent.heap.arrays.push(Some(data));
 
     // 7. Return A.
-    Ok(Array(ArrayIndex::last(&agent.heap.arrays)))
+    Ok(agent.heap.create(data))
 }
 
 /// ### [10.4.2.3 ArraySpeciesCreate ( originalArray, length )](https://tc39.es/ecma262/#sec-arrayspeciescreate)

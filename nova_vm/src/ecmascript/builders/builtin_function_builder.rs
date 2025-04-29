@@ -595,7 +595,10 @@ impl
             }
         }
 
-        let (keys, values) = agent.heap.elements.create_with_stuff(properties);
+        let (keys, values) = agent
+            .heap
+            .elements
+            .create_with_key_value_descriptor_entries(properties);
 
         let prototype = Some(
             agent
@@ -672,7 +675,10 @@ impl
             }
         }
 
-        let (keys, values) = agent.heap.elements.create_with_stuff(properties);
+        let (keys, values) = agent
+            .heap
+            .elements
+            .create_with_key_value_descriptor_entries(properties);
 
         let slot = agent
             .heap

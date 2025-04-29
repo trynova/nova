@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{ObjectEnvironment, OuterEnv};
+use super::{Environment, ObjectEnvironment, OuterEnv};
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_define_property_or_throw, try_get, try_has_property, try_set,
 };
@@ -41,7 +41,7 @@ pub struct ObjectEnvironmentRecord {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.
-    pub(crate) binding_object: Object<'static>,
+    binding_object: Object<'static>,
 
     /// ### \[\[IsWithEnvironment\]\]
     ///
@@ -52,7 +52,7 @@ pub struct ObjectEnvironmentRecord {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    pub(crate) outer_env: OuterEnv<'static>,
+    outer_env: OuterEnv<'static>,
 }
 
 impl ObjectEnvironmentRecord {
@@ -102,6 +102,18 @@ impl HeapMarkAndSweep for ObjectEnvironmentRecord {
 }
 
 impl ObjectEnvironment<'_> {
+    pub(crate) fn get_binding_object<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
+        agent[self].binding_object.bind(gc)
+    }
+
+    pub(crate) fn get_outer_env<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Environment<'a>> {
+        agent[self].outer_env.bind(gc)
+    }
+
     /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec

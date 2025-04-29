@@ -115,17 +115,19 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
         let last_index = agent[self].last_index;
-        let (keys, values) = agent.heap.elements.create_object_entries(&[ObjectEntry {
-            key: BUILTIN_STRING_MEMORY.lastIndex.into(),
-            value: ObjectEntryPropertyDescriptor::Data {
-                value: last_index
-                    .get_value()
-                    .map_or(Value::Undefined, |i| i.into()),
-                writable: true,
-                enumerable: false,
-                configurable: false,
-            },
-        }]);
+        let (keys, values) = agent
+            .heap
+            .create_elements_with_object_entries(&[ObjectEntry {
+                key: BUILTIN_STRING_MEMORY.lastIndex.into(),
+                value: ObjectEntryPropertyDescriptor::Data {
+                    value: last_index
+                        .get_value()
+                        .map_or(Value::Undefined, |i| i.into()),
+                    writable: true,
+                    enumerable: false,
+                    configurable: false,
+                },
+            }]);
         let backing_object = agent.heap.create(ObjectHeapData {
             extensible: true,
             prototype,

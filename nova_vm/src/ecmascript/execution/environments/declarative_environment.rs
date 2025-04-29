@@ -4,7 +4,7 @@
 
 use ahash::AHashMap;
 
-use super::{DeclarativeEnvironment, OuterEnv};
+use super::{DeclarativeEnvironment, Environment, OuterEnv};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, agent::ExceptionType},
@@ -25,10 +25,10 @@ pub struct DeclarativeEnvironmentRecord {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    pub(crate) outer_env: OuterEnv<'static>,
+    outer_env: OuterEnv<'static>,
 
     /// The environment's bindings.
-    pub(crate) bindings: AHashMap<String<'static>, Binding>,
+    bindings: AHashMap<String<'static>, Binding>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -133,6 +133,14 @@ impl DeclarativeEnvironmentRecord {
         Some(value)
     }
 
+    fn get_binding(&self, name: String<'static>) -> Option<&Binding> {
+        self.bindings.get(&name)
+    }
+
+    fn get_binding_mut(&mut self, name: String<'static>) -> Option<&mut Binding> {
+        self.bindings.get_mut(&name)
+    }
+
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     pub(super) fn delete_binding(&mut self, name: String) -> bool {
         // 1. Assert: envRec has a binding for N.
@@ -197,6 +205,14 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
 }
 
 impl DeclarativeEnvironment<'_> {
+    pub(crate) fn get_outer_env<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Environment<'a>> {
+        agent[self].outer_env.bind(gc)
+    }
+
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
@@ -359,6 +375,22 @@ impl DeclarativeEnvironment<'_> {
         }
     }
 
+    pub(crate) fn get_binding<'a>(
+        self,
+        agent: &'a Agent,
+        name: String<'static>,
+    ) -> Option<&'a Binding> {
+        agent[self].get_binding(name)
+    }
+
+    pub(crate) fn get_binding_mut<'a>(
+        self,
+        agent: &'a mut Agent,
+        name: String<'static>,
+    ) -> Option<&'a mut Binding> {
+        agent[self].get_binding_mut(name)
+    }
+
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     ///
     /// The DeleteBinding concrete method of a Declarative Environment Record
@@ -427,10 +459,10 @@ pub(crate) fn new_declarative_environment<'a>(
 ) -> DeclarativeEnvironment<'a> {
     // 1. Let env be a new Declarative Environment Record containing no bindings.
     // 2. Set env.[[OuterEnv]] to E.
+    agent.heap.alloc_counter += core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
+    // 3. Return env.
     agent
         .heap
         .environments
-        .push_declarative_environment(DeclarativeEnvironmentRecord::new(outer_env), gc);
-    // 3. Return env.
-    DeclarativeEnvironment::last(&agent.heap.environments.declarative)
+        .push_declarative_environment(DeclarativeEnvironmentRecord::new(outer_env), gc)
 }

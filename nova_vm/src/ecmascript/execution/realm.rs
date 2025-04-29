@@ -4,9 +4,8 @@
 
 mod intrinsics;
 
-use super::{
-    Agent, ExecutionContext, GlobalEnvironmentRecord, JsResult, environments::GlobalEnvironment,
-};
+use super::new_global_environment;
+use super::{Agent, ExecutionContext, JsResult, environments::GlobalEnvironment};
 use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
@@ -370,16 +369,10 @@ pub(crate) fn set_realm_global_object(
     agent[realm_id].global_object = global_object.unbind();
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
-    let new_global_env = GlobalEnvironmentRecord::new(agent, global_object, this_value);
+    let new_global_env = new_global_environment(agent, global_object, this_value, gc);
 
     // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
-    agent[realm_id].global_env = Some(
-        agent
-            .heap
-            .environments
-            .push_global_environment(new_global_env, gc)
-            .unbind(),
-    );
+    agent[realm_id].global_env = Some(new_global_env.unbind());
 
     // 7. Return UNUSED.
 }

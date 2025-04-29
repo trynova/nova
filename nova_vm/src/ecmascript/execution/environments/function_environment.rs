@@ -40,19 +40,19 @@ pub struct FunctionEnvironmentRecord {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
-    pub(crate) this_value: Option<Value<'static>>,
+    this_value: Option<Value<'static>>,
 
     /// ### \[\[ThisBindingStatus\]\]
     ///
     /// If the value is LEXICAL, this is an ArrowFunction and does not have a
     /// local this value.
-    pub(crate) this_binding_status: ThisBindingStatus,
+    this_binding_status: ThisBindingStatus,
 
     /// ### \[\[FunctionObject\]\]
     ///
     /// The function object whose invocation caused this Environment Record to
     /// be created.
-    pub(crate) function_object: Function<'static>,
+    function_object: Function<'static>,
 
     /// ### \[\[NewTarget\]\]
     ///
@@ -60,7 +60,7 @@ pub struct FunctionEnvironmentRecord {
     /// internal method, \[\[NewTarget\]\] is the value of the
     /// \[\[Construct\]\] newTarget parameter. Otherwise, its value is
     /// undefined.
-    pub(crate) new_target: Option<Object<'static>>,
+    new_target: Option<Object<'static>>,
 
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
@@ -68,7 +68,7 @@ pub struct FunctionEnvironmentRecord {
     ///
     /// TODO: Use Struct of Arrays to keep the DeclarativeEnvironment alignside
     /// FunctionEnvironment
-    pub(crate) declarative_environment: DeclarativeEnvironment<'static>,
+    declarative_environment: DeclarativeEnvironment<'static>,
 }
 
 impl HeapMarkAndSweep for FunctionEnvironmentRecord {
@@ -116,9 +116,10 @@ pub(crate) fn new_function_environment<'a>(
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironmentRecord::new(Some(ecmascript_function_object.environment));
-    agent.heap.environments.declarative.push(Some(dcl_env));
-    let declarative_environment =
-        DeclarativeEnvironment::last(&agent.heap.environments.declarative);
+    let declarative_environment = agent
+        .heap
+        .environments
+        .push_declarative_environment(dcl_env, gc);
     // 2. Set env.[[FunctionObject]] to F.
     let function_object = f.into_function().unbind();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
@@ -142,6 +143,8 @@ pub(crate) fn new_function_environment<'a>(
         declarative_environment: declarative_environment.unbind(),
     };
     // 7. Return env.
+    agent.heap.alloc_counter += core::mem::size_of::<Option<FunctionEnvironmentRecord>>()
+        + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
     agent.heap.environments.push_function_environment(env, gc)
 }
 
@@ -160,9 +163,10 @@ pub(crate) fn new_class_static_element_environment<'a>(
 ) -> FunctionEnvironment<'a> {
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironmentRecord::new(Some(agent.current_lexical_environment(gc)));
-    agent.heap.environments.declarative.push(Some(dcl_env));
-    let declarative_environment =
-        DeclarativeEnvironment::last(&agent.heap.environments.declarative);
+    let declarative_environment = agent
+        .heap
+        .environments
+        .push_declarative_environment(dcl_env, gc);
 
     let env = FunctionEnvironmentRecord {
         this_value: Some(class_constructor.into_value().unbind()),
@@ -175,9 +179,11 @@ pub(crate) fn new_class_static_element_environment<'a>(
         new_target: None,
 
         // 6. Set env.[[OuterEnv]] to F.[[Environment]].
-        declarative_environment,
+        declarative_environment: declarative_environment.unbind(),
     };
     // 7. Return env.
+    agent.heap.alloc_counter += core::mem::size_of::<Option<FunctionEnvironmentRecord>>()
+        + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
     agent.heap.environments.push_function_environment(env, gc)
 }
 
@@ -188,26 +194,49 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
     outer_env: Environment,
     gc: NoGcScope<'a, '_>,
 ) -> FunctionEnvironment<'a> {
-    agent
+    let declarative_environment = agent
         .heap
         .environments
-        .declarative
-        .push(Some(DeclarativeEnvironmentRecord::new(Some(outer_env))));
-    let declarative_environment =
-        DeclarativeEnvironment::last(&agent.heap.environments.declarative);
+        .push_declarative_environment(DeclarativeEnvironmentRecord::new(Some(outer_env)), gc);
+    agent.heap.alloc_counter += core::mem::size_of::<Option<FunctionEnvironmentRecord>>()
+        + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
     agent.heap.environments.push_function_environment(
         FunctionEnvironmentRecord {
             this_value: Some(class_instance.into_value().unbind()),
             this_binding_status: ThisBindingStatus::Initialized,
             function_object: class_constructor.unbind(),
             new_target: None,
-            declarative_environment,
+            declarative_environment: declarative_environment.unbind(),
         },
         gc,
     )
 }
 
 impl FunctionEnvironment<'_> {
+    pub(crate) fn get_function_object<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Function<'a> {
+        agent[self].function_object.bind(gc)
+    }
+
+    pub(crate) fn get_new_target<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Object<'a>> {
+        agent[self].new_target.bind(gc)
+    }
+
+    pub(crate) fn get_outer_env<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Environment<'a>> {
+        agent[self].declarative_environment.get_outer_env(agent, gc)
+    }
+
     pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
         agent[self].this_binding_status
     }
@@ -300,7 +329,7 @@ impl FunctionEnvironment<'_> {
             return Ok(());
         };
 
-        let binding = agent[dcl_rec].bindings.get_mut(&name.unbind()).unwrap();
+        let binding = dcl_rec.get_binding_mut(agent, name.unbind()).unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {

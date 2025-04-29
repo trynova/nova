@@ -607,6 +607,7 @@ impl<'a> CreateHeapData<(StringHeapData, u64), String<'a>> for Heap {
         self.alloc_counter += core::mem::size_of::<Option<StringHeapData>>();
         let index = StringIndex::last(&self.strings);
         let heap_string = HeapString(index);
+        self.alloc_counter += core::mem::size_of::<HeapString>();
         self.string_lookup_table
             .insert_unique(hash, heap_string, |_| hash);
         String::String(heap_string)

@@ -14,7 +14,7 @@ use crate::{
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        scripts_and_modules::source_code::SourceCode,
+        scripts_and_modules::source_code::{SourceCode, SourceCodeHeapData},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
             Value,
@@ -275,6 +275,10 @@ pub(crate) fn create_dynamic_function<'a>(
                 // In this branch, since we're not returning the function, we
                 // know `source_code` won't be reachable from any heap object,
                 // so we pop it off the heap to help GC along.
+                agent.heap.alloc_counter = agent
+                    .heap
+                    .alloc_counter
+                    .saturating_sub(core::mem::size_of::<Option<SourceCodeHeapData<'static>>>());
                 agent.heap.source_codes.pop();
                 debug_assert_eq!(
                     source_code.unwrap().get_index(),

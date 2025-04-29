@@ -694,6 +694,82 @@ impl<'a> ElementDescriptor<'a> {
         })
     }
 
+    pub fn from_data_descriptor(descriptor: PropertyDescriptor<'a>) -> Option<Self> {
+        debug_assert!(descriptor.is_data_descriptor());
+        let configurable = descriptor.configurable.unwrap_or(false);
+        let enumerable = descriptor.enumerable.unwrap_or(false);
+        let writable = descriptor.writable.unwrap_or(false);
+        if configurable && enumerable && writable {
+            // Default data descriptor, return None.
+            return None;
+        }
+        Some(match (writable, enumerable, configurable) {
+            (true, true, true) => unreachable!(),
+            (true, true, false) => Self::WritableEnumerableUnconfigurableData,
+            (true, false, true) => Self::WritableUnenumerableConfigurableData,
+            (true, false, false) => Self::WritableUnenumerableUnconfigurableData,
+            (false, true, true) => Self::ReadOnlyEnumerableConfigurableData,
+            (false, true, false) => Self::ReadOnlyEnumerableUnconfigurableData,
+            (false, false, true) => Self::ReadOnlyUnenumerableConfigurableData,
+            (false, false, false) => Self::ReadOnlyUnenumerableUnconfigurableData,
+        })
+    }
+
+    pub fn from_accessor_descriptor(descriptor: PropertyDescriptor<'a>) -> Self {
+        let enumerable = descriptor.enumerable.unwrap_or(false);
+        let configurable = descriptor.configurable.unwrap_or(false);
+        match (descriptor.get, descriptor.set) {
+            (None, Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
+                (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
+                (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
+                (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
+            },
+            (Some(get), None) => match (enumerable, configurable) {
+                (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
+                (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
+                (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
+                (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
+            },
+            (Some(get), Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
+                (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
+                (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
+                (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn from_accessor_descriptor_fields(
+        get: Option<Function<'a>>,
+        set: Option<Function<'a>>,
+        enumerable: bool,
+        configurable: bool,
+    ) -> Self {
+        match (get, set) {
+            (None, Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
+                (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
+                (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
+                (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
+            },
+            (Some(get), None) => match (enumerable, configurable) {
+                (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
+                (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
+                (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
+                (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
+            },
+            (Some(get), Some(set)) => match (enumerable, configurable) {
+                (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
+                (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
+                (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
+                (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
+            },
+            _ => unreachable!(),
+        }
+    }
+
     pub fn to_property_descriptor(
         descriptor: Option<Self>,
         value: Option<Value>,
@@ -1871,7 +1947,32 @@ impl ElementArrays {
         }
     }
 
-    pub(crate) fn create_with_stuff<'a>(
+    fn push_elements(
+        &mut self,
+        length: usize,
+        keys: &[Option<Value>],
+        values: &[Option<Value>],
+        descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
+    ) -> (ElementsVector<'static>, ElementsVector<'static>) {
+        let cap = ElementArrayKey::from(length);
+        let len = length as u32;
+        let key_elements_index = self.push_with_key(cap, &keys, None);
+        let value_elements_index = self.push_with_key(cap, &values, descriptors);
+        (
+            ElementsVector {
+                elements_index: key_elements_index,
+                cap,
+                len,
+            },
+            ElementsVector {
+                elements_index: value_elements_index,
+                cap,
+                len,
+            },
+        )
+    }
+
+    pub(crate) fn create_with_key_value_descriptor_entries<'a>(
         &mut self,
         mut entries: Vec<(
             PropertyKey<'a>,
@@ -1903,25 +2004,10 @@ impl ElementArrays {
                     .insert(index as u32, descriptor.unbind());
             }
         });
-        let cap = ElementArrayKey::from(length);
-        let len = length as u32;
-        let key_elements_index = self.push_with_key(cap, &keys, None);
-        let value_elements_index = self.push_with_key(cap, &values, descriptors);
-        (
-            ElementsVector {
-                elements_index: key_elements_index,
-                cap,
-                len,
-            },
-            ElementsVector {
-                elements_index: value_elements_index,
-                cap,
-                len,
-            },
-        )
+        self.push_elements(length, &keys, &values, descriptors)
     }
 
-    pub(crate) fn create_object_entries<'a>(
+    pub(crate) fn create_with_object_entries<'a>(
         &mut self,
         entries: &[ObjectEntry<'a>],
     ) -> (ElementsVector<'a>, ElementsVector<'a>) {
@@ -1951,22 +2037,7 @@ impl ElementArrays {
                     .insert(index as u32, descriptor.unbind());
             }
         }
-        let cap = ElementArrayKey::from(length);
-        let len = length as u32;
-        let key_elements_index = self.push_with_key(cap, &keys, None);
-        let value_elements_index = self.push_with_key(cap, &values, descriptors);
-        (
-            ElementsVector {
-                elements_index: key_elements_index,
-                cap,
-                len,
-            },
-            ElementsVector {
-                elements_index: value_elements_index,
-                cap,
-                len,
-            },
-        )
+        self.push_elements(length, &keys, &values, descriptors)
     }
 
     pub fn get<'a>(&self, vector: ElementsVector) -> &[Option<Value<'a>>] {

@@ -188,7 +188,7 @@ pub fn perform_eval<'gc>(
         // b. If thisEnvRec is a Function Environment Record, then
         if let Environment::Function(this_env_rec) = this_env_rec {
             // i. Let F be thisEnvRec.[[FunctionObject]].
-            let f = agent[this_env_rec].function_object;
+            let f = this_env_rec.get_function_object(agent, gc.nogc());
             // ii. Set inFunction to true.
             _in_function = true;
             // iii. Set inMethod to thisEnvRec.HasSuperBinding().

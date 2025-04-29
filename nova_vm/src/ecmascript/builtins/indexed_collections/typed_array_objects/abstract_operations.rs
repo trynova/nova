@@ -35,7 +35,7 @@ use crate::{
         rootable::Scopable,
         unwrap_try,
     },
-    heap::indexes::TypedArrayIndex,
+    heap::CreateHeapData,
 };
 
 #[repr(transparent)]
@@ -143,8 +143,7 @@ pub(crate) fn typed_array_create<'a, T: Viewable>(
     // 11. Return A.
     let a = TypedArrayHeapData::new(None);
 
-    agent.heap.typed_arrays.push(Some(a));
-    let index = TypedArrayIndex::last(&agent.heap.typed_arrays);
+    let index = agent.heap.create(a);
 
     let a = match T::PROTO {
         ProtoIntrinsics::Uint8Array => TypedArray::Uint8Array(index),
@@ -867,16 +866,28 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
 
     let o_heap_data = &mut agent[o];
 
+    let heap_byte_length = byte_length.into();
+    let heap_array_length = element_length.into();
+
     // 13. Set O.[[ViewedArrayBuffer]] to data.
     o_heap_data.viewed_array_buffer = data.unbind();
     // 14. Set O.[[ByteLength]] to byteLength.
-    o_heap_data.byte_length = Some(byte_length).into();
+    o_heap_data.byte_length = heap_byte_length;
     // 15. Set O.[[ByteOffset]] to 0.
     o_heap_data.byte_offset = 0.into();
     // 16. Set O.[[ArrayLength]] to elementLength.
-    o_heap_data.array_length = Some(element_length).into();
-    // 17. Return unused.
+    o_heap_data.array_length = heap_array_length;
 
+    if heap_byte_length.is_overflowing() {
+        o.set_overflowing_byte_length(agent, byte_length);
+        // Note: if byte length doesn't overflow then array length cannot
+        // overflow either.
+        if heap_array_length.is_overflowing() {
+            o.set_overflowing_array_length(agent, element_length);
+        }
+    }
+
+    // 17. Return unused.
     Ok(())
 }
 
@@ -957,10 +968,20 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             ));
         }
 
+        let heap_byte_offset = offset.into();
+
         // b. Set O.[[ByteLength]] to auto.
         o_heap_data.byte_length = ViewedArrayBufferByteLength::auto();
         // c. Set O.[[ArrayLength]] to auto.
         o_heap_data.array_length = TypedArrayArrayLength::auto();
+        // 10. Set O.[[ViewedArrayBuffer]] to buffer.
+        o_heap_data.viewed_array_buffer = buffer.unbind();
+        // 11. Set O.[[ByteOffset]] to offset.
+        o_heap_data.byte_offset = heap_byte_offset;
+
+        if heap_byte_offset.is_overflowing() {
+            o.set_overflowing_byte_offset(agent, offset);
+        }
     } else {
         // 9. Else,
         let new_byte_length = if let Some(new_length) = new_length {
@@ -1001,16 +1022,32 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             }
         };
 
-        // c. Set O.[[ByteLength]] to newByteLength.
-        o_heap_data.byte_length = Some(new_byte_length).into();
-        // d. Set O.[[ArrayLength]] to newByteLength / elementSize.
-        o_heap_data.array_length = Some(new_byte_length / element_size).into();
-    }
+        let heap_byte_length = new_byte_length.into();
+        let length = new_byte_length / element_size;
+        let heap_array_length = length.into();
+        let heap_byte_offset = offset.into();
 
-    // 10. Set O.[[ViewedArrayBuffer]] to buffer.
-    o_heap_data.viewed_array_buffer = buffer.unbind();
-    // 11. Set O.[[ByteOffset]] to offset.
-    o_heap_data.byte_offset = offset.into();
+        // c. Set O.[[ByteLength]] to newByteLength.
+        o_heap_data.byte_length = heap_byte_length;
+        // d. Set O.[[ArrayLength]] to newByteLength / elementSize.
+        o_heap_data.array_length = heap_array_length;
+        // 10. Set O.[[ViewedArrayBuffer]] to buffer.
+        o_heap_data.viewed_array_buffer = buffer.unbind();
+        // 11. Set O.[[ByteOffset]] to offset.
+        o_heap_data.byte_offset = heap_byte_offset;
+
+        if heap_byte_length.is_overflowing() {
+            o.set_overflowing_byte_length(agent, new_byte_length);
+            // Note: if byte length doesn't overflow then array length cannot
+            // overflow either.
+            if heap_array_length.is_overflowing() {
+                o.set_overflowing_array_length(agent, length);
+            }
+        }
+        if heap_byte_offset.is_overflowing() {
+            o.set_overflowing_byte_offset(agent, offset);
+        }
+    }
 
     // 12. Return unused.
     Ok(())
@@ -1148,30 +1185,25 @@ pub(crate) fn allocate_typed_array_buffer<'a, T: Viewable>(
 
     let o_heap_data = &mut agent[o];
 
+    let heap_byte_length = byte_length.into();
+    let heap_array_length = length.into();
+
     // 5. Set O.[[ViewedArrayBuffer]] to data.
     o_heap_data.viewed_array_buffer = data.unbind();
     // 6. Set O.[[ByteLength]] to byteLength.
-    o_heap_data.byte_length = Some(byte_length).into();
+    o_heap_data.byte_length = heap_byte_length;
     // 7. Set O.[[ByteOffset]] to 0.
     o_heap_data.byte_offset = 0.into();
     // 8. Set O.[[ArrayLength]] to length.
-    o_heap_data.array_length = Some(length).into();
+    o_heap_data.array_length = heap_array_length;
 
-    let is_heap_byte_length = o_heap_data.byte_length == ViewedArrayBufferByteLength::heap();
-    let is_heap_array_length = o_heap_data.array_length == TypedArrayArrayLength::heap();
-
-    if is_heap_byte_length {
-        agent
-            .heap
-            .typed_array_byte_offsets
-            .insert(o.unbind(), byte_length);
-    }
-
-    if is_heap_array_length {
-        agent
-            .heap
-            .typed_array_array_lengths
-            .insert(o.unbind(), length);
+    if heap_byte_length.is_overflowing() {
+        o.set_overflowing_byte_length(agent, byte_length);
+        // Note: if byte length doesn't overflow then array length cannot
+        // overflow either.
+        if heap_array_length.is_overflowing() {
+            o.set_overflowing_array_length(agent, length);
+        }
     }
 
     // 9. Return unused.

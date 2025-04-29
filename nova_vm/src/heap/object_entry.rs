@@ -22,6 +22,19 @@ impl<'a> ObjectEntry<'a> {
             },
         }
     }
+
+    /// Returns true if the entry is a data entry with WEC bits all true.
+    pub(crate) fn is_trivial(&self) -> bool {
+        matches!(
+            self.value,
+            ObjectEntryPropertyDescriptor::Data {
+                writable: true,
+                enumerable: true,
+                configurable: true,
+                ..
+            }
+        )
+    }
 }
 
 impl<'a> From<PropertyDescriptor<'a>> for ObjectEntryPropertyDescriptor<'a> {
