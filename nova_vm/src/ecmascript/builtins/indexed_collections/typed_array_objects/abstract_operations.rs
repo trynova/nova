@@ -14,7 +14,7 @@ use crate::{
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
-            ArgumentsList, ArrayBuffer,
+            ArgumentsList, ArrayBuffer, BuiltinFunction,
             array_buffer::{
                 Ordering, ViewedArrayBufferByteLength, allocate_array_buffer,
                 array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
@@ -1393,14 +1393,7 @@ pub(crate) fn typed_array_create_same_type<'a>(
     Ok(result.unbind())
 }
 
-/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
-pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
-    agent: &mut Agent,
-    exemplar: TypedArray,
-    length: i64,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, TypedArray<'a>> {
-    // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+fn intrinsic_default_constructor<T: Viewable + 'static>(agent: &Agent) -> BuiltinFunction<'static> {
     let default_constructor = {
         if TypeId::of::<T>() == TypeId::of::<i8>() {
             agent.current_realm_record().intrinsics().int8_array()
@@ -1425,21 +1418,46 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
             agent.current_realm_record().intrinsics().big_uint64_array()
         } else if TypeId::of::<T>() == TypeId::of::<f32>() {
             agent.current_realm_record().intrinsics().float32_array()
+        } else if TypeId::of::<T>() == TypeId::of::<f64>() {
+            agent.current_realm_record().intrinsics().float64_array()
         } else {
             #[cfg(feature = "proposal-float16array")]
-            {
-                if TypeId::of::<T>() == TypeId::of::<f16>() {
-                    agent.current_realm_record().intrinsics().float16_array()
-                } else {
-                    agent.current_realm_record().intrinsics().float64_array()
-                }
+            if TypeId::of::<T>() == TypeId::of::<f16>() {
+                return agent.current_realm_record().intrinsics().float16_array();
             }
-            #[cfg(not(feature = "proposal-float16array"))]
-            {
-                agent.current_realm_record().intrinsics().float64_array()
-            }
+            unreachable!()
         }
     };
+    default_constructor
+}
+
+fn is_expected_typed_array_type<T: Viewable + 'static>(result: TypedArray) -> bool {
+    match result {
+        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
+        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
+        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
+        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
+        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
+        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
+        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
+        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
+        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
+        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
+        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
+    }
+}
+
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
+    agent: &mut Agent,
+    exemplar: TypedArray,
+    length: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
+    let default_constructor = intrinsic_default_constructor::<T>(agent);
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
@@ -1460,22 +1478,8 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let type_id_matches = match result {
-        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
-        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
-        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
-        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
-        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
-        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
-        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
-        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
-        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
-        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
-        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
-    };
-    if !type_id_matches {
+    let is_type_match = is_expected_typed_array_type::<T>(result);
+    if !is_type_match {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray out of bounds",
@@ -1495,45 +1499,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = {
-        if TypeId::of::<T>() == TypeId::of::<i8>() {
-            agent.current_realm_record().intrinsics().int8_array()
-        } else if TypeId::of::<T>() == TypeId::of::<u8>() {
-            agent.current_realm_record().intrinsics().uint8_array()
-        } else if TypeId::of::<T>() == TypeId::of::<U8Clamped>() {
-            agent
-                .current_realm_record()
-                .intrinsics()
-                .uint8_clamped_array()
-        } else if TypeId::of::<T>() == TypeId::of::<i16>() {
-            agent.current_realm_record().intrinsics().int16_array()
-        } else if TypeId::of::<T>() == TypeId::of::<u16>() {
-            agent.current_realm_record().intrinsics().uint16_array()
-        } else if TypeId::of::<T>() == TypeId::of::<i32>() {
-            agent.current_realm_record().intrinsics().int32_array()
-        } else if TypeId::of::<T>() == TypeId::of::<u32>() {
-            agent.current_realm_record().intrinsics().uint32_array()
-        } else if TypeId::of::<T>() == TypeId::of::<i64>() {
-            agent.current_realm_record().intrinsics().big_int64_array()
-        } else if TypeId::of::<T>() == TypeId::of::<u64>() {
-            agent.current_realm_record().intrinsics().big_uint64_array()
-        } else if TypeId::of::<T>() == TypeId::of::<f32>() {
-            agent.current_realm_record().intrinsics().float32_array()
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            {
-                if TypeId::of::<T>() == TypeId::of::<f16>() {
-                    agent.current_realm_record().intrinsics().float16_array()
-                } else {
-                    agent.current_realm_record().intrinsics().float64_array()
-                }
-            }
-            #[cfg(not(feature = "proposal-float16array"))]
-            {
-                agent.current_realm_record().intrinsics().float64_array()
-            }
-        }
-    };
+    let default_constructor = intrinsic_default_constructor::<T>(agent);
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
@@ -1556,25 +1522,11 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let type_id_matches = match result {
-        TypedArray::Int8Array(_) => TypeId::of::<T>() == TypeId::of::<i8>(),
-        TypedArray::Uint8Array(_) => TypeId::of::<T>() == TypeId::of::<u8>(),
-        TypedArray::Uint8ClampedArray(_) => TypeId::of::<T>() == TypeId::of::<U8Clamped>(),
-        TypedArray::Int16Array(_) => TypeId::of::<T>() == TypeId::of::<i16>(),
-        TypedArray::Uint16Array(_) => TypeId::of::<T>() == TypeId::of::<u16>(),
-        TypedArray::Int32Array(_) => TypeId::of::<T>() == TypeId::of::<i32>(),
-        TypedArray::Uint32Array(_) => TypeId::of::<T>() == TypeId::of::<u32>(),
-        TypedArray::BigInt64Array(_) => TypeId::of::<T>() == TypeId::of::<i64>(),
-        TypedArray::BigUint64Array(_) => TypeId::of::<T>() == TypeId::of::<u64>(),
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => TypeId::of::<T>() == TypeId::of::<f16>(),
-        TypedArray::Float32Array(_) => TypeId::of::<T>() == TypeId::of::<f32>(),
-        TypedArray::Float64Array(_) => TypeId::of::<T>() == TypeId::of::<f64>(),
-    };
-    if !type_id_matches {
+    let is_type_match = is_expected_typed_array_type::<T>(result);
+    if !is_type_match {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "TypedArray out of bounds",
+            "can't convert BigInt to number",
             gc.into_nogc(),
         ));
     }

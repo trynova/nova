@@ -1307,29 +1307,6 @@ impl TypedArrayPrototype {
             .unbind()?
             .bind(gc.nogc());
         let o = ta_record.object;
-        // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1338,104 +1315,141 @@ impl TypedArrayPrototype {
                 gc.into_nogc(),
             ));
         };
+        // 3. Let len be TypedArrayLength(taRecord).
         let a = match o {
-            TypedArray::Int8Array(_) => filter_typed_array::<i8>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Uint8Array(_) => filter_typed_array::<u8>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Uint8ClampedArray(_) => filter_typed_array::<U8Clamped>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Int16Array(_) => filter_typed_array::<i16>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Uint16Array(_) => filter_typed_array::<u16>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Int32Array(_) => filter_typed_array::<i32>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Uint32Array(_) => filter_typed_array::<u32>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::BigInt64Array(_) => filter_typed_array::<i64>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::BigUint64Array(_) => filter_typed_array::<u64>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
+            TypedArray::Int8Array(_) => {
+                let len = typed_array_length::<i8>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<i8>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Uint8Array(_) => {
+                let len = typed_array_length::<i8>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<u8>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                let len = typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<U8Clamped>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Int16Array(_) => {
+                let len = typed_array_length::<i16>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<i16>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Uint16Array(_) => {
+                let len = typed_array_length::<u16>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<u16>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Int32Array(_) => {
+                let len = typed_array_length::<i32>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<i32>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Uint32Array(_) => {
+                let len = typed_array_length::<u32>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<u32>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::BigInt64Array(_) => {
+                let len = typed_array_length::<i64>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<i64>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::BigUint64Array(_) => {
+                let len = typed_array_length::<u64>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<u64>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => filter_typed_array::<f16>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Float32Array(_) => filter_typed_array::<f32>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
-            TypedArray::Float64Array(_) => filter_typed_array::<f64>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                o.unbind(),
-                len,
-                gc,
-            )?,
+            TypedArray::Float16Array(_) => {
+                let len = typed_array_length::<f16>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<f16>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Float32Array(_) => {
+                let len = typed_array_length::<f32>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<f32>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
+            TypedArray::Float64Array(_) => {
+                let len = typed_array_length::<f64>(agent, &ta_record, gc.nogc()) as i64;
+                filter_typed_array::<f64>(
+                    agent,
+                    callback.unbind(),
+                    this_arg.unbind(),
+                    o.unbind(),
+                    len,
+                    gc,
+                )?
+            }
         };
         Ok(a.into_value())
     }
@@ -3954,11 +3968,13 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
     // 8. Repeat, while k < len,
     // b. Let kValue be ! Get(O, Pk).
     let ta = scoped_o.get(agent);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let array_buffer = ta
+        .get_viewed_array_buffer(agent, gc.nogc())
+        .scope(agent, gc.nogc());
     for k in 0..len {
-        let array_buffer = ta.get_viewed_array_buffer(agent, gc.nogc());
-        let byte_offset = ta.byte_offset(agent);
-        let byte_length = ta.byte_length(agent);
-        let byte_slice = array_buffer.as_slice(agent);
+        let byte_slice = array_buffer.get(agent).as_slice(agent);
         let byte_slice = if let Some(byte_length) = byte_length {
             let end_index = byte_offset + byte_length;
             if end_index <= byte_slice.len() {
@@ -3979,11 +3995,10 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
         }
         let index: usize = k.try_into().unwrap();
         let value = slice.get(index).copied();
-        let k_value = value.map_or_else(
-            || Value::Undefined,
-            |v| v.into_le_value(agent, gc.nogc()).into_value(),
-        );
-        let call = call_function(
+        let k_value = value.map_or(Value::Undefined, |v| {
+            v.into_le_value(agent, gc.nogc()).into_value()
+        });
+        let result = call_function(
             agent,
             callback.get(agent),
             this_arg.get(agent),
@@ -3996,15 +4011,15 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
         )
         .unbind()?
         .bind(gc.nogc());
-        let selected = to_boolean(agent, call);
+        let selected = to_boolean(agent, result);
         if selected {
             kept.push(value.unwrap_or(T::default()));
         }
     }
     // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
-    let len = kept.len() as i64;
-    let o = scoped_o.get(agent);
-    let a = typed_array_species_create_with_length::<T>(agent, o, len, gc.reborrow())
+    let captured = kept.len() as i64;
+    let o = scoped_o.get(agent).bind(gc.nogc());
+    let a = typed_array_species_create_with_length::<T>(agent, o.unbind(), captured, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     // 10. Let n be 0.
@@ -4026,7 +4041,7 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
         &mut byte_slice[byte_offset..]
     };
     let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    let len = (len as usize).min(slice.len());
+    let len = (captured as usize).min(slice.len());
     let copy_len = slice.len().min(len);
     slice[..copy_len].copy_from_slice(&kept);
     // 12. Return A.
