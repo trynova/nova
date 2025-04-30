@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -34,28 +34,36 @@ impl Builtin for SharedArrayBufferGetSpecies {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferConstructor::species);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferConstructor::get_species);
 }
 impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 
 impl SharedArrayBufferConstructor {
     fn constructor<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("SharedArrayBuffer", gc.into_nogc()))
     }
 
-    fn species<'gc>(
+    /// ### [25.2.4.2 get SharedArrayBuffer \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-sharedarraybuffer-%symbol.species%)
+    ///
+    /// SharedArrayBuffer\[%Symbol.species%\] is an accessor property whose set
+    /// accessor function is undefined.
+    ///
+    /// > Note: The value of the "name" property of this function is
+    /// > "get \[Symbol.species\]".
+    fn get_species<'gc>(
         _agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        // 1. Return the this value.
+        Ok(this_value.bind(gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

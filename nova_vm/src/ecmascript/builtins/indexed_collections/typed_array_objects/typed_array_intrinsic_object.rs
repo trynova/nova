@@ -2622,12 +2622,12 @@ impl TypedArrayPrototype {
     }
 
     fn map<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("TypedArray.prototype.map", gc.into_nogc()))
     }
 
     /// ### [23.2.3.23 %TypedArray%.prototype.reduce ( callback [ , initialValue ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduce)
@@ -2914,21 +2914,21 @@ impl TypedArrayPrototype {
     }
 
     fn set<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("TypedArray.prototype.set", gc.into_nogc()))
     }
 
     fn slice<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("TypedArray.prototype.slice", gc.into_nogc()))
     }
 
     /// ### [23.2.3.28 get %TypedArray%.prototype.some](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.some)
@@ -3191,21 +3191,21 @@ impl TypedArrayPrototype {
     }
 
     fn subarray<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Err(agent.todo("TypedArray.prototype.subarray", gc.into_nogc()))
     }
 
     fn to_locale_string<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Err(agent.todo("TypedArray.prototype.toLocaleString", gc.into_nogc()))
     }
 
     /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tospliced)
@@ -3281,12 +3281,12 @@ impl TypedArrayPrototype {
     }
 
     fn to_sorted<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Err(agent.todo("TypedArray.prototype.toSorted", gc.into_nogc()))
     }
 
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
@@ -3308,12 +3308,12 @@ impl TypedArrayPrototype {
     }
 
     fn with<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Err(agent.todo("TypedArray.prototype.with", gc.into_nogc()))
     }
 
     /// ### [23.2.3.38 get %TypedArray%.prototype \[ %Symbol.toStringTag% \]](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)

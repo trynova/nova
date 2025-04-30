@@ -3460,12 +3460,12 @@ impl ArrayPrototype {
     }
 
     fn to_locale_string<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Err(agent.todo("Array.prototype.toLocaleString", gc.into_nogc()))
     }
 
     fn to_reversed<'gc>(

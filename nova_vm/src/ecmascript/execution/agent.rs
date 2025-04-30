@@ -509,6 +509,14 @@ impl Agent {
             .into_value()
     }
 
+    pub(crate) fn todo<'a>(&mut self, feature: &'static str, gc: NoGcScope<'a, '_>) -> JsError<'a> {
+        self.throw_exception(
+            ExceptionType::Error,
+            format!("{feature} not implemented"),
+            gc,
+        )
+    }
+
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception_with_static_message<'a>(
         &mut self,

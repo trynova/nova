@@ -46,33 +46,6 @@ use crate::{
     heap::{Heap, ObjectEntry, WellKnownSymbolIndexes},
 };
 
-/// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
-///
-/// The abstract operation MakeBasicObject takes argument internalSlotsList (a
-/// List of internal slot names) and returns an Object. It is the source of all
-/// ECMAScript objects that are created algorithmically, including both
-/// ordinary objects and exotic objects. It factors out common steps used in
-/// creating all objects, and centralizes object creation. It performs the
-/// following steps when called:
-///
-/// > NOTE: Within this specification, exotic objects are created in abstract
-/// > operations such as ArrayCreate and BoundFunctionCreate by first calling
-/// > MakeBasicObject to obtain a basic, foundational object, and then
-/// > overriding some or all of that object's internal methods. In order to
-/// > encapsulate exotic object creation, the object's essential internal
-/// > methods are never modified outside those operations.
-pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) -> Object<'static> {
-    // 1. Let obj be a newly created object with an internal slot for each name in internalSlotsList.
-    // 2. Set obj's essential internal methods to the default ordinary object definitions specified in 10.1.
-    // 3. Assert: If the caller will not be overriding both obj's [[GetPrototypeOf]] and [[SetPrototypeOf]] essential
-    // internal methods, then internalSlotsList contains [[Prototype]].
-    // 4. Assert: If the caller will not be overriding all of obj's [[SetPrototypeOf]], [[IsExtensible]], and
-    // [[PreventExtensions]] essential internal methods, then internalSlotsList contains [[Extensible]].
-    // 5. If internalSlotsList contains [[Extensible]], set obj.[[Extensible]] to true.
-    // 6. Return obj.
-    todo!()
-}
-
 /// ### [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
 ///
 /// The abstract operation Get takes arguments O (an Object) and P (a property

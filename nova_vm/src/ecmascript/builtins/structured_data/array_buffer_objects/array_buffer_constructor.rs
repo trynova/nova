@@ -56,7 +56,7 @@ impl Builtin for ArrayBufferGetSpecies {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferConstructor::species);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferConstructor::get_species);
 }
 impl BuiltinGetter for ArrayBufferGetSpecies {}
 
@@ -165,7 +165,7 @@ impl ArrayBufferConstructor {
     /// > subclass constructor may over-ride that default behaviour for the
     /// > `ArrayBuffer.prototype.slice ( start, end )` method by redefining its
     /// > `%Symbol.species%` property.
-    fn species<'gc>(
+    fn get_species<'gc>(
         _agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,

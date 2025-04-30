@@ -556,10 +556,10 @@ pub(crate) use if_abrupt_close_iterator;
 /// perform any actions it would normally perform when it has reached its
 /// completed state.
 pub(crate) fn async_iterator_close<'a>(
-    _agent: &mut Agent,
+    agent: &mut Agent,
     _iterator_record: &IteratorRecord,
     _completion: JsResult<Value>,
-    _gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -573,7 +573,7 @@ pub(crate) fn async_iterator_close<'a>(
     // 6. If innerResult.[[Type]] is throw, return ? innerResult.
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     // 8. Return ? completion.
-    todo!()
+    Err(agent.todo("AsyncIteratorClose", gc.into_nogc()))
 }
 
 /// ### [7.4.14 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
@@ -614,9 +614,9 @@ pub(crate) fn create_iter_result_object<'a>(
 /// an Iterator (27.1.1.2) object record whose next method returns the
 /// successive elements of list.
 pub(crate) fn create_list_iterator_record<'a>(
-    _agent: &mut Agent,
+    agent: &mut Agent,
     _list: &[Value],
-    _gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
     // a. For each element E of list, do
@@ -624,7 +624,7 @@ pub(crate) fn create_list_iterator_record<'a>(
     // b. Return NormalCompletion(undefined).
     // 2. Let iterator be CreateIteratorFromClosure(closure, empty, %IteratorPrototype%).
     // 3. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: %GeneratorFunction.prototype.prototype.next%, [[Done]]: false }.
-    todo!()
+    Err(agent.todo("CreateListIteratorRecord", gc.into_nogc()))
 }
 
 /// ### [7.4.16 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)

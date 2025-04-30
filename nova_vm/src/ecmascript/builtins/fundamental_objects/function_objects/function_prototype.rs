@@ -370,10 +370,6 @@ impl FunctionPrototype {
                     .to_string();
                 Ok(Value::from_string(agent, source_text, gc.nogc()).unbind())
             }
-            // 4. If func is an Object and IsCallable(func) is true, return an
-            // implementation-defined String source code representation of func.
-            // The representation must have the syntax of a NativeFunction.
-            Function::BoundFunction(_) => todo!(),
             // 3. If func is a built-in function object, return an
             // implementation-defined String source code representation of func.
             // The representation must have the syntax of a NativeFunction.
@@ -396,19 +392,22 @@ impl FunctionPrototype {
                 );
                 Ok(Value::from_string(agent, initial_name, gc.nogc()).unbind())
             }
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(_) => {
                 Ok(Value::from_static_str(agent, "class { [ native code ] }", gc.nogc()).unbind())
             }
-            Function::BuiltinPromiseResolvingFunction(_) => {
+            // 4. If func is an Object and IsCallable(func) is true, return an
+            // implementation-defined String source code representation of func.
+            // The representation must have the syntax of a NativeFunction.
+            Function::BoundFunction(_) | Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
                 Ok(
                     Value::from_static_str(agent, "function () { [ native code ] }", gc.nogc())
                         .unbind(),
                 )
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
+            Function::BuiltinGeneratorFunction
+            | Function::BuiltinPromiseCollectorFunction
+            | Function::BuiltinProxyRevokerFunction => unreachable!(),
         }
 
         // NOTE: NativeFunction means the following string:
