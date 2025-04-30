@@ -13,7 +13,7 @@ use crate::{
                 IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
                 iterator_step_value,
             },
-            testing_and_comparison::{is_callable, require_object_coercible},
+            testing_and_comparison::{is_callable, is_constructor, require_object_coercible},
             type_conversion::{
                 to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
             },
@@ -43,7 +43,7 @@ use crate::{
         rootable::{Rootable, Scopable},
         unwrap_try,
     },
-    heap::{Heap, ObjectEntry},
+    heap::{Heap, ObjectEntry, WellKnownSymbolIndexes},
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)
@@ -1394,6 +1394,59 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     };
     // 6. Repeat,
     is_prototype_of_loop(agent, p.unbind(), o.unbind(), gc)
+}
+
+/// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-speciesconstructor)
+pub(crate) fn species_constructor<'a>(
+    agent: &mut Agent,
+    o: Object<'a>,
+    default_constructor: Function<'a>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Function<'a>> {
+    // 1. Let C be ? Get(O, "constructor").
+    let c = get(
+        agent,
+        o,
+        BUILTIN_STRING_MEMORY.constructor.into(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 2. If C is undefined, return defaultConstructor.
+    if c.is_undefined() {
+        return Ok(default_constructor);
+    }
+    // 3. If C is not an Object, throw a TypeError exception.
+    let Ok(c) = Object::try_from(c) else {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "constructor property value is not an object",
+            gc.into_nogc(),
+        ));
+    };
+    // 4. Let S be ? Get(C, %Symbol.species%).
+    let s = get(
+        agent,
+        c.unbind(),
+        WellKnownSymbolIndexes::Species.into(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 5. If S is either undefined or null, return defaultConstructor.
+    if s.is_undefined() || s.is_null() {
+        return Ok(default_constructor);
+    }
+    // 6. If IsConstructor(S) is true, return S.
+    if let Some(s) = is_constructor(agent, s) {
+        return Ok(s.unbind());
+    }
+    // 7. Throw a TypeError exception.
+    Err(agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "constructor species is not a constructor",
+        gc.into_nogc(),
+    ))
 }
 
 pub(crate) fn is_prototype_of_loop<'a>(

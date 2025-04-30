@@ -55,7 +55,7 @@ use super::abstract_operations::{
     TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds,
     make_typed_array_with_buffer_witness_record, typed_array_byte_length,
     typed_array_create_from_constructor_with_length, typed_array_create_same_type,
-    typed_array_length, validate_typed_array,
+    typed_array_length, typed_array_species_create_with_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -1287,13 +1287,123 @@ impl TypedArrayPrototype {
         o.map(|o| o.into_value())
     }
 
+    /// ### [23.2.3.10 %TypedArray%.prototype.filter ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.filter)
+    /// The interpretation and use of the arguments of this method
+    /// are the same as for Array.prototype.filter as defined in 23.1.3.8.
     fn filter<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        // 1. Let O be the this value.
+        let this_value = this_value.bind(gc.nogc());
+        let callback = arguments.get(0).bind(gc.nogc());
+        let this_arg = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let o = ta_record.object;
+        // 4. If IsCallable(callback) is false, throw a TypeError exception.
+        let Some(callback) = is_callable(callback, gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc.into_nogc(),
+            ));
+        };
+        // 3. Let len be TypedArrayLength(taRecord).
+        let a = match o {
+            TypedArray::Int8Array(_) => filter_typed_array::<i8>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Uint8Array(_) => filter_typed_array::<u8>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Uint8ClampedArray(_) => filter_typed_array::<U8Clamped>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Int16Array(_) => filter_typed_array::<i16>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Uint16Array(_) => filter_typed_array::<u16>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Int32Array(_) => filter_typed_array::<i32>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Uint32Array(_) => filter_typed_array::<u32>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::BigInt64Array(_) => filter_typed_array::<i64>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::BigUint64Array(_) => filter_typed_array::<u64>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => filter_typed_array::<f16>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Float32Array(_) => filter_typed_array::<f32>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+            TypedArray::Float64Array(_) => filter_typed_array::<f64>(
+                agent,
+                callback.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc,
+            )?,
+        };
+        Ok(a.into_value())
     }
 
     /// ### 23.2.3.11 %TypedArray%.prototype.find ( predicate [ , thisArg ] )(https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.find)
@@ -1979,66 +2089,131 @@ impl TypedArrayPrototype {
         let offset = o.byte_offset(agent);
         let viewed_array_buffer = o.get_viewed_array_buffer(agent, gc);
         // Note: Above ToString might have detached the ArrayBuffer or shrunk its length.
-        let (is_invalid_typed_array, after_len) = if recheck_buffer {
+        let after_len = if recheck_buffer {
             let is_detached = is_detached_buffer(agent, viewed_array_buffer);
             let ta_record =
                 make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered, gc);
             match o {
-                TypedArray::Int8Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
-                    typed_array_length::<i8>(agent, &ta_record, gc),
-                ),
-                TypedArray::Uint8Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
-                    typed_array_length::<u8>(agent, &ta_record, gc),
-                ),
-                TypedArray::Uint8ClampedArray(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc),
-                    typed_array_length::<U8Clamped>(agent, &ta_record, gc),
-                ),
-                TypedArray::Int16Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
-                    typed_array_length::<i16>(agent, &ta_record, gc),
-                ),
-                TypedArray::Uint16Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc),
-                    typed_array_length::<u16>(agent, &ta_record, gc),
-                ),
-                TypedArray::Int32Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
-                    typed_array_length::<i32>(agent, &ta_record, gc),
-                ),
-                TypedArray::Uint32Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc),
-                    typed_array_length::<u32>(agent, &ta_record, gc),
-                ),
-                TypedArray::BigInt64Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc),
-                    typed_array_length::<i64>(agent, &ta_record, gc),
-                ),
-                TypedArray::BigUint64Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc),
-                    typed_array_length::<u64>(agent, &ta_record, gc),
-                ),
+                TypedArray::Int8Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<i8>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Uint8Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<u8>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Uint8ClampedArray(_) => {
+                    let is_invalid = is_detached
+                        || is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<U8Clamped>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Int16Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<i16>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Uint16Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<u16>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Int32Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<i32>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Uint32Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<u32>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::BigInt64Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<i64>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::BigUint64Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<u64>(agent, &ta_record, gc))
+                    }
+                }
                 #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc),
-                    typed_array_length::<f16>(agent, &ta_record, gc),
-                ),
-                TypedArray::Float32Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc),
-                    typed_array_length::<f32>(agent, &ta_record, gc),
-                ),
-                TypedArray::Float64Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc),
-                    typed_array_length::<f64>(agent, &ta_record, gc),
-                ),
+                TypedArray::Float16Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<f16>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Float32Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<f32>(agent, &ta_record, gc))
+                    }
+                }
+                TypedArray::Float64Array(_) => {
+                    let is_invalid =
+                        is_detached || is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc);
+                    if is_invalid {
+                        None
+                    } else {
+                        Some(typed_array_length::<f64>(agent, &ta_record, gc))
+                    }
+                }
             }
         } else {
             // Note: Growable SharedArrayBuffers are a thing, and can change the
             // length at any point in time but they can never shrink the buffer.
-            // Hence the TypedArray or any of its indexes rae never invalidated.
-            (false, len)
+            // Hence the TypedArray or any of its indexes are never invalidated.
+            Some(len)
+        };
+        let Some(after_len) = after_len else {
+            return Ok(
+                String::from_string(agent, sep.repeat(len.saturating_sub(1)), gc).into_value(),
+            );
         };
         for k in 0..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
@@ -2046,7 +2221,7 @@ impl TypedArrayPrototype {
                 r.push_str(sep);
             }
             // c. If element is not undefined, then
-            if is_invalid_typed_array || k >= after_len {
+            if k >= after_len {
                 // Note: element is undefined if the ViewedArrayBuffer was
                 // detached by ToString call, or was shrunk to less than len.
                 continue;
@@ -3787,4 +3962,235 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     let copy_len = items.len().min(len);
     slice[..copy_len].copy_from_slice(&items[..copy_len]);
     Ok(())
+}
+
+fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
+    agent: &mut Agent,
+    callback: Function<'_>,
+    this_arg: Value,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let o = ta_record.object.bind(gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let callback = callback.bind(gc.nogc());
+    let this_arg = this_arg.bind(gc.nogc());
+    let o = o.bind(gc.nogc());
+    let callback = callback.scope(agent, gc.nogc());
+    let this_arg = this_arg.scope(agent, gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
+    // 5. Let kept be a new empty List.
+    // 6. Let captured be 0.
+    let mut kept: Vec<T> = Vec::with_capacity(len.try_into().unwrap());
+    // 7. Let k be 0.
+    // 8. Repeat, while k < len,
+    // b. Let kValue be ! Get(O, Pk).
+    let byte_offset = scoped_o.get(agent).byte_offset(agent);
+    let byte_length = scoped_o.get(agent).byte_length(agent);
+    let local_array_buffer = scoped_o
+        .get(agent)
+        .get_viewed_array_buffer(agent, gc.nogc());
+    let array_buffer = local_array_buffer.scope(agent, gc.nogc());
+    let properly_aligned = unsafe {
+        local_array_buffer
+            .as_slice(agent)
+            .align_to::<T>()
+            .0
+            .is_empty()
+    };
+    if !properly_aligned {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc.into_nogc(),
+        ));
+    }
+    for k in 0..len {
+        let byte_slice = array_buffer.get(agent).as_slice(agent);
+        let byte_slice = if let Some(byte_length) = byte_length {
+            let end_index = byte_offset + byte_length;
+            if end_index <= byte_slice.len() {
+                &byte_slice[byte_offset..end_index]
+            } else {
+                &[]
+            }
+        } else {
+            &byte_slice[byte_offset..]
+        };
+        let (_, slice, _) = unsafe { byte_slice.align_to::<T>() };
+        let index: usize = k.try_into().unwrap();
+        let value = slice.get(index).copied();
+        let k_value = value.map_or(Value::Undefined, |v| {
+            v.into_le_value(agent, gc.nogc()).into_value()
+        });
+        let result = call_function(
+            agent,
+            callback.get(agent),
+            this_arg.get(agent),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                k_value.unbind(),
+                Number::try_from(k).unwrap().into_value(),
+                scoped_o.get(agent).into_value(),
+            ])),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let selected = to_boolean(agent, result);
+        if selected {
+            kept.push(value.unwrap_or(T::default()));
+        }
+    }
+    // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
+    let captured = kept.len();
+    let o = scoped_o.get(agent).bind(gc.nogc());
+    let a = typed_array_species_create_with_length::<T>(
+        agent,
+        o.unbind(),
+        captured as i64,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 10. Let n be 0.
+    // 11. For each element e of kept, do
+    let array_buffer = a.get_viewed_array_buffer(agent, gc.nogc());
+    let byte_offset = a.byte_offset(agent);
+    let byte_length = a.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(a.unbind());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(a.unbind());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    match a {
+        TypedArray::Int8Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, i8>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Uint8Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, u8>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Uint8ClampedArray(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, U8Clamped>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Int16Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, i16>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Uint16Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, u16>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Int32Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, i32>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Uint32Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, u32>(&kept, byte_slice);
+            }
+        }
+        TypedArray::BigInt64Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, i64>(&kept, byte_slice);
+            }
+        }
+        TypedArray::BigUint64Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, u64>(&kept, byte_slice);
+            }
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, f16>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Float32Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, f32>(&kept, byte_slice);
+            }
+        }
+        TypedArray::Float64Array(_) => {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
+            } else {
+                copy_between_different_type_typed_arrays::<T, f64>(&kept, byte_slice);
+            }
+        }
+    }
+    // 12. Return A.
+    Ok(a.unbind())
+}
+
+fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
+    kept: &[Src],
+    byte_slice: &mut [u8],
+) {
+    assert_eq!(Src::IS_BIGINT, Dst::IS_BIGINT);
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<Dst>() };
+    if !head.is_empty() {
+        panic!("ArrayBuffer not correctly aligned");
+    }
+    let len = kept.len().min(slice.len());
+    let slice = &mut slice[..len];
+    let kept = &kept[..len];
+    if Dst::IS_FLOAT {
+        for (dst, src) in slice.iter_mut().zip(kept.iter()) {
+            *dst = Dst::from_f64(src.into_f64());
+        }
+    } else if !Dst::IS_FLOAT {
+        for (dst, src) in slice.iter_mut().zip(kept.iter()) {
+            *dst = Dst::from_bits(src.into_bits());
+        }
+    }
+}
+
+fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut [u8]) {
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        panic!("ArrayBuffer not correctly aligned");
+    }
+    let len = kept.len().min(slice.len());
+    let slice = &mut slice[..len];
+    let kept = &kept[..len];
+    slice.copy_from_slice(kept);
 }

@@ -9,7 +9,10 @@ use core::{
     ops::{Deref, DerefMut},
     ptr::{self, NonNull, read_unaligned, write_unaligned},
 };
-use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
+use std::{
+    alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc},
+    f32, f64,
+};
 
 use num_bigint::Sign;
 
@@ -133,6 +136,7 @@ pub trait Viewable: private::Sealed + Copy + PartialEq {
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
     const IS_BIGINT: bool = false;
+    const IS_FLOAT: bool = false;
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics;
@@ -169,6 +173,29 @@ pub trait Viewable: private::Sealed + Copy + PartialEq {
     /// Thus, this method must not do conversion, rounding, or clamping of
     /// numeric values.
     fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self>;
+    fn default() -> Self;
+
+    /// Convert a Viewable value into a u64 holding an integer.
+    ///
+    /// This is used to convert Viewables to other Viewables without having to
+    /// go through a conversion into Value.
+    fn into_bits(self) -> u64;
+    /// Convert a u64 holding an integer into a Viewable.
+    ///
+    /// This is used to convert Viewables to other Viewables without having to
+    /// go through a conversion into Value.
+    fn from_bits(bits: u64) -> Self;
+
+    /// Convert a Viewable value into an f64.
+    ///
+    /// This is used to convert Viewables to other Viewables without having to
+    /// go through a conversion into Value.
+    fn into_f64(self) -> f64;
+    /// Convert an f64 into a Viewable.
+    ///
+    /// This is used to convert Viewables to other Viewables without having to
+    /// go through a conversion into Value.
+    fn from_f64(value: f64) -> Self;
 }
 
 impl Viewable for u8 {
@@ -206,6 +233,26 @@ impl Viewable for u8 {
         };
         u8::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self.into()
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 impl Viewable for U8Clamped {
     #[cfg(feature = "array-buffer")]
@@ -241,6 +288,26 @@ impl Viewable for U8Clamped {
             return None;
         };
         u8::try_from(value.into_i64()).ok().map(U8Clamped)
+    }
+
+    fn default() -> Self {
+        U8Clamped(0)
+    }
+
+    fn into_bits(self) -> u64 {
+        self.0.into()
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        U8Clamped(bits.clamp(0, 255) as u8)
+    }
+
+    fn into_f64(self) -> f64 {
+        self.0.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        U8Clamped(value.clamp(0.0, 255.0).round_ties_even() as u8)
     }
 }
 impl Viewable for i8 {
@@ -278,6 +345,26 @@ impl Viewable for i8 {
         };
         i8::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 impl Viewable for u16 {
     #[cfg(feature = "array-buffer")]
@@ -313,6 +400,26 @@ impl Viewable for u16 {
             return None;
         };
         u16::try_from(value.into_i64()).ok()
+    }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
     }
 }
 impl Viewable for i16 {
@@ -350,6 +457,26 @@ impl Viewable for i16 {
         };
         i16::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 impl Viewable for u32 {
     #[cfg(feature = "array-buffer")]
@@ -386,6 +513,26 @@ impl Viewable for u32 {
         };
         u32::try_from(value.into_i64()).ok()
     }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 impl Viewable for i32 {
     #[cfg(feature = "array-buffer")]
@@ -421,6 +568,26 @@ impl Viewable for i32 {
             return None;
         };
         i32::try_from(value.into_i64()).ok()
+    }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
     }
 }
 impl Viewable for u64 {
@@ -469,6 +636,26 @@ impl Viewable for u64 {
             return Some(value);
         };
         None
+    }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits
+    }
+
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
     }
 }
 impl Viewable for i64 {
@@ -524,9 +711,32 @@ impl Viewable for i64 {
         };
         None
     }
+
+    fn default() -> Self {
+        0
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
+    const IS_FLOAT: bool = true;
+
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -565,8 +775,29 @@ impl Viewable for f16 {
             None
         }
     }
+    fn default() -> Self {
+        f16::NAN
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 impl Viewable for f32 {
+    const IS_FLOAT: bool = true;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
@@ -606,8 +837,30 @@ impl Viewable for f32 {
             None
         }
     }
+
+    fn default() -> Self {
+        f32::NAN
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self.into()
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as Self
+    }
 }
 impl Viewable for f64 {
+    const IS_FLOAT: bool = true;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
@@ -638,6 +891,26 @@ impl Viewable for f64 {
             return None;
         };
         Some(value.into_f64(agent))
+    }
+
+    fn default() -> Self {
+        f64::NAN
+    }
+
+    fn into_bits(self) -> u64 {
+        self as u64
+    }
+
+    fn from_bits(bits: u64) -> Self {
+        bits as Self
+    }
+
+    fn into_f64(self) -> f64 {
+        self
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value
     }
 }
 

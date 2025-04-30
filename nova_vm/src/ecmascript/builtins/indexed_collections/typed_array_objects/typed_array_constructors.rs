@@ -763,7 +763,6 @@ fn typed_array_constructor<'gc, T: Viewable>(
 
         // ii. If firstArgument has a [[TypedArrayName]] internal slot, then
         if let Ok(first_argument) = TypedArray::try_from(first_argument) {
-            let first_argument = first_argument.bind(gc.nogc());
             // 1. Perform ? InitializeTypedArrayFromTypedArray(O, firstArgument).
             match first_argument {
                 TypedArray::Int8Array(_) => initialize_typed_array_from_typed_array::<T, i8>(
@@ -865,25 +864,25 @@ fn typed_array_constructor<'gc, T: Viewable>(
                 .bind(gc.nogc()),
             }
         } else if let Ok(first_argument) = ArrayBuffer::try_from(first_argument) {
-            let first_argument = first_argument.bind(gc.nogc());
+            // SAFETY: scoped_first_argument is not shared.
+            let scoped_first_argument =
+                unsafe { scoped_first_argument.replace_self(agent, first_argument.unbind()) };
             // iii. Else if firstArgument has an [[ArrayBufferData]] internal
             //      slot, then
             // 1. If numberOfArgs > 1, let byteOffset be args[1]; else let
             //    byteOffset be undefined.
-            let byte_offset = second_argument.map(|v| v.get(agent).bind(gc.nogc()));
 
             // 2. If numberOfArgs > 2, let length be args[2]; else let length
             //    be undefined.
-            let length = third_argument.map(|v| v.get(agent).bind(gc.nogc()));
 
             // 3. Perform ? InitializeTypedArrayFromArrayBuffer(O, firstArgument, byteOffset, length).
 
             initialize_typed_array_from_array_buffer::<T>(
                 agent,
-                o.unbind(),
-                first_argument.unbind(),
-                byte_offset.unbind(),
-                length.unbind(),
+                scoped_o.clone(),
+                scoped_first_argument,
+                second_argument,
+                third_argument,
                 gc,
             )?;
         } else {
