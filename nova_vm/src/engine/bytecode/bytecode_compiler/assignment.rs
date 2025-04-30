@@ -45,8 +45,7 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             ast::AssignmentTarget::TSAsExpression(_)
             | ast::AssignmentTarget::TSSatisfiesExpression(_)
             | ast::AssignmentTarget::TSNonNullExpression(_)
-            | ast::AssignmentTarget::TSTypeAssertion(_)
-            | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
+            | ast::AssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         };
 
         if self.operator == AssignmentOperator::Assign {
@@ -197,8 +196,7 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
             ast::AssignmentTarget::TSAsExpression(_)
             | ast::AssignmentTarget::TSSatisfiesExpression(_)
             | ast::AssignmentTarget::TSNonNullExpression(_)
-            | ast::AssignmentTarget::TSTypeAssertion(_)
-            | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
+            | ast::AssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
     }
 }

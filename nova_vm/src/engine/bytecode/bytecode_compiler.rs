@@ -883,6 +883,8 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::UnaryExpression(init) => init.compile(ctx),
                         ast::PropertyKey::UpdateExpression(init) => init.compile(ctx),
                         ast::PropertyKey::YieldExpression(init) => init.compile(ctx),
+                        // TODO: Implement this expression.
+                        ast::PropertyKey::V8IntrinsicExpression(_) => todo!(),
                         ast::PropertyKey::JSXElement(_)
                         | ast::PropertyKey::JSXFragment(_)
                         | ast::PropertyKey::TSAsExpression(_)
@@ -1576,6 +1578,8 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
             ast::Expression::YieldExpression(x) => x.compile(ctx),
+            // TODO: Implement this expression.
+            ast::Expression::V8IntrinsicExpression(_) => todo!(),
             ast::Expression::JSXElement(_)
             | ast::Expression::JSXFragment(_)
             | ast::Expression::TSAsExpression(_)
@@ -1595,7 +1599,6 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
             ast::SimpleAssignmentTarget::PrivateFieldExpression(_) => todo!(),
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::TSAsExpression(_)
-            | ast::SimpleAssignmentTarget::TSInstantiationExpression(_)
             | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
@@ -2381,6 +2384,8 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                     init.compile(ctx);
                 }
                 ast::ForStatementInit::YieldExpression(init) => init.compile(ctx),
+                // TODO: determine how to handle this case
+                ast::ForStatementInit::V8IntrinsicExpression(_) => todo!(),
                 ast::ForStatementInit::JSXElement(_)
                 | ast::ForStatementInit::JSXFragment(_)
                 | ast::ForStatementInit::TSAsExpression(_)
