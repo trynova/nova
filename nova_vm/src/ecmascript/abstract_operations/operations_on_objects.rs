@@ -2412,7 +2412,7 @@ pub(crate) fn initialize_instance_elements<'a>(
         let outer_priv_env = constructor_data.private_environment;
         let source_code = constructor_data.source_code;
         let decl_env = new_class_field_initializer_environment(agent, f, o, outer_env, gc.nogc());
-        agent.execution_context_stack.push(ExecutionContext {
+        agent.push_execution_context(ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
                 lexical_environment: Environment::Function(decl_env.unbind()),
                 variable_environment: Environment::Function(decl_env.unbind()),
@@ -2426,7 +2426,7 @@ pub(crate) fn initialize_instance_elements<'a>(
         });
         let bytecode = bytecode.scope(agent, gc.nogc());
         let result = Vm::execute(agent, bytecode, None, gc).into_js_result();
-        agent.execution_context_stack.pop();
+        agent.pop_execution_context();
         result?;
     }
     Ok(())

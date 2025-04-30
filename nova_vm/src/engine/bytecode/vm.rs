@@ -69,7 +69,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
-use super::{executable::get_instruction, iterator::ActiveIterator};
+use super::iterator::ActiveIterator;
 
 struct EmptyParametersList(ast::FormalParameters<'static>);
 unsafe impl Send for EmptyParametersList {}
@@ -344,7 +344,7 @@ impl Vm {
     ) -> ExecutionResult<'gc> {
         let stack_depth = agent.stack_refs.borrow().len();
         let instructions = executable.get_instructions(agent);
-        while let Some(instr) = get_instruction(instructions, &mut self.ip) {
+        while let Some(instr) = Instr::consume_instruction(instructions, &mut self.ip) {
             if agent.check_gc() {
                 with_vm_gc(agent, &mut self, |agent, gc| agent.gc(gc), gc.reborrow());
             }
@@ -410,14 +410,8 @@ impl Vm {
         }
         match instr.kind {
             Instruction::ArrayCreate => {
-                let result = array_create(
-                    agent,
-                    0,
-                    instr.args[0].unwrap() as usize,
-                    None,
-                    gc.into_nogc(),
-                )?
-                .into_value();
+                let result = array_create(agent, 0, instr.get_first_index(), None, gc.into_nogc())?
+                    .into_value();
                 vm.stack.push(result.unbind());
             }
             Instruction::ArrayPush => {
@@ -490,7 +484,7 @@ impl Vm {
             }
             Instruction::ResolveBinding => {
                 let identifier =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
 
                 let reference = resolve_binding(agent, identifier.unbind(), None, gc)?;
 
@@ -514,8 +508,7 @@ impl Vm {
                 vm.result = Some(result.unbind());
             }
             Instruction::LoadConstant => {
-                let constant =
-                    executable.fetch_constant(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                let constant = executable.fetch_constant(agent, instr.get_first_index(), gc.nogc());
                 vm.stack.push(constant.unbind());
             }
             Instruction::Load => {
@@ -542,8 +535,7 @@ impl Vm {
                 vm.result = Some(*vm.stack.last().expect("Trying to get from empty stack"));
             }
             Instruction::StoreConstant => {
-                let constant =
-                    executable.fetch_constant(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                let constant = executable.fetch_constant(agent, instr.get_first_index(), gc.nogc());
                 vm.result = Some(constant.unbind());
             }
             Instruction::UnaryMinus => {
@@ -619,13 +611,10 @@ impl Vm {
                 .unwrap();
             }
             Instruction::ObjectDefineMethod => {
-                let FunctionExpression { expression, .. } = executable.fetch_function_expression(
-                    agent,
-                    instr.args[0].unwrap() as usize,
-                    gc.nogc(),
-                );
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
                 let function_expression = expression.get();
-                let enumerable = instr.args[1].unwrap() != 0;
+                let enumerable = instr.get_second_bool();
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = vm.stack.pop().unwrap();
                 let prop_key = with_vm_gc(
@@ -719,13 +708,10 @@ impl Vm {
                 // c. Return unused.
             }
             Instruction::ObjectDefineGetter => {
-                let FunctionExpression { expression, .. } = executable.fetch_function_expression(
-                    agent,
-                    instr.args[0].unwrap() as usize,
-                    gc.nogc(),
-                );
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
                 let function_expression = expression.get();
-                let enumerable = instr.args[1].unwrap() != 0;
+                let enumerable = instr.get_second_bool();
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = vm.stack.pop().unwrap();
                 let prop_key = with_vm_gc(
@@ -815,13 +801,10 @@ impl Vm {
                 // c. Return unused.
             }
             Instruction::ObjectDefineSetter => {
-                let FunctionExpression { expression, .. } = executable.fetch_function_expression(
-                    agent,
-                    instr.args[0].unwrap() as usize,
-                    gc.nogc(),
-                );
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
                 let function_expression = expression.get();
-                let enumerable = instr.args[1].unwrap() != 0;
+                let enumerable = instr.get_second_bool();
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = vm.stack.pop().unwrap();
                 let prop_key = with_vm_gc(
@@ -1004,7 +987,7 @@ impl Vm {
                     .unwrap()
                     .bind(gc.nogc());
 
-                let num_excluded_items = usize::from(instr.args[0].unwrap());
+                let num_excluded_items = instr.get_first_index();
                 let mut excluded_items = PropertyKeySet::new(gc.nogc());
                 assert!(vm.reference.is_none());
                 for _ in 0..num_excluded_items {
@@ -1037,8 +1020,7 @@ impl Vm {
                 let ArrowFunctionExpression {
                     expression,
                     identifier,
-                } = executable
-                    .fetch_arrow_function_expression(agent, instr.args[0].unwrap() as usize);
+                } = executable.fetch_arrow_function_expression(agent, instr.get_first_index());
                 let function_expression = expression.get();
                 let identifier = *identifier;
                 // 2. Let env be the LexicalEnvironment of the running execution context.
@@ -1130,11 +1112,7 @@ impl Vm {
                     expression,
                     identifier,
                     ..
-                } = executable.fetch_function_expression(
-                    agent,
-                    instr.args[0].unwrap() as usize,
-                    gc.nogc(),
-                );
+                } = executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
                 let function_expression = expression.get();
                 let identifier = *identifier;
 
@@ -1196,11 +1174,7 @@ impl Vm {
                 let function = ordinary_function_create(agent, params, gc.nogc());
                 let FunctionExpression {
                     compiled_bytecode, ..
-                } = executable.fetch_function_expression(
-                    agent,
-                    instr.args[0].unwrap() as usize,
-                    gc.nogc(),
-                );
+                } = executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
                 if let Some(compiled_bytecode) = compiled_bytecode {
                     agent[function].compiled_bytecode = Some(compiled_bytecode.unbind());
                 }
@@ -1273,16 +1247,10 @@ impl Vm {
                     expression,
                     compiled_bytecode,
                     ..
-                } = executable.fetch_function_expression(
-                    agent,
-                    instr.args[0].unwrap() as usize,
-                    gc.nogc(),
-                );
+                } = executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
                 let function_expression = expression.get();
                 let compiled_bytecode = *compiled_bytecode;
-                let has_constructor_parent = instr.args[1].unwrap();
-                assert!(has_constructor_parent <= 1);
-                let has_constructor_parent = has_constructor_parent == 1;
+                let has_constructor_parent = instr.get_second_bool();
 
                 let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
                 let function_prototype = if has_constructor_parent {
@@ -1341,11 +1309,11 @@ impl Vm {
                 vm.result = Some(function.into_value().unbind());
             }
             Instruction::ClassDefineDefaultConstructor => {
-                let class_initializer_bytecode_index = instr.args[0].unwrap();
+                let class_initializer_bytecode_index = instr.get_first_index();
                 let (compiled_initializer_bytecode, has_constructor_parent) = executable
                     .fetch_class_initializer_bytecode(
                         agent,
-                        class_initializer_bytecode_index as usize,
+                        class_initializer_bytecode_index,
                         gc.nogc(),
                     );
 
@@ -1567,12 +1535,13 @@ impl Vm {
                 // 2. Assert: newTarget is an Object.
                 // 3. Let func be GetSuperConstructor().
                 let (new_target, func) = {
-                    let data = &agent[this_env];
+                    let new_target = this_env.get_new_target(agent, gc.nogc());
+                    let function_object = this_env.get_function_object(agent, gc.nogc());
                     (
-                        Function::try_from(data.new_target.unwrap())
+                        Function::try_from(new_target.unwrap())
                             .unwrap()
                             .bind(gc.nogc()),
-                        unwrap_try(data.function_object.try_get_prototype_of(agent, gc.nogc())),
+                        unwrap_try(function_object.try_get_prototype_of(agent, gc.nogc())),
                     )
                 };
                 // 4. Let argList be ? ArgumentListEvaluation of Arguments.
@@ -1634,7 +1603,9 @@ impl Vm {
                     .bind(gc.nogc());
                 // 9. Let F be thisER.[[FunctionObject]].
                 // 10. Assert: F is an ECMAScript function object.
-                let Function::ECMAScriptFunction(_f) = agent[this_er].function_object else {
+                let Function::ECMAScriptFunction(_f) =
+                    this_er.get_function_object(agent, gc.nogc())
+                else {
                     unreachable!();
                 };
                 // 11. Perform ? InitializeInstanceElements(result, F).
@@ -1679,7 +1650,7 @@ impl Vm {
             }
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
                 let property_name_string =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
                 let base_value = vm.result.take().unwrap().bind(gc.nogc());
                 let strict = agent
                     .running_execution_context()
@@ -1695,12 +1666,12 @@ impl Vm {
                 });
             }
             Instruction::Jump => {
-                let ip = instr.args[0].unwrap() as usize;
+                let ip = instr.get_jump_slot();
                 vm.ip = ip;
             }
             Instruction::JumpIfNot => {
                 let result = vm.result.take().unwrap();
-                let ip = instr.args[0].unwrap() as usize;
+                let ip = instr.get_jump_slot();
                 if !to_boolean(agent, result) {
                     vm.ip = ip;
                 }
@@ -1711,7 +1682,7 @@ impl Vm {
                     unreachable!()
                 };
                 if result {
-                    let ip = instr.args[0].unwrap() as usize;
+                    let ip = instr.get_jump_slot();
                     vm.ip = ip;
                 }
             }
@@ -1909,9 +1880,8 @@ impl Vm {
                     .bind(gc.nogc());
             }
             Instruction::InitializeVariableEnvironment => {
-                let num_variables = instr.args[0].unwrap();
-                assert!(instr.args[1].unwrap() <= 1);
-                let strict = instr.args[1].unwrap() == 1;
+                let num_variables = instr.get_first_index();
+                let strict = instr.get_second_bool();
 
                 // 10.2.11 FunctionDeclarationInstantiation
                 // 28.b. Let varEnv be NewDeclarativeEnvironment(env).
@@ -1979,8 +1949,7 @@ impl Vm {
             }
             Instruction::CreateMutableBinding => {
                 let lex_env = agent.current_lexical_environment(gc.nogc());
-                let name =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                let name = executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
 
                 unwrap_try(lex_env.try_create_mutable_binding(
                     agent,
@@ -1992,8 +1961,7 @@ impl Vm {
             }
             Instruction::CreateImmutableBinding => {
                 let lex_env = agent.current_lexical_environment(gc.nogc());
-                let name =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                let name = executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
                 lex_env
                     .create_immutable_binding(agent, name, true, gc.nogc())
                     .unwrap();
@@ -2003,7 +1971,7 @@ impl Vm {
                 return Err(JsError::new(result));
             }
             Instruction::ThrowError => {
-                let exception_type_immediate = instr.args[0].unwrap();
+                let exception_type_immediate = instr.get_first_arg();
                 let message = String::try_from(vm.result.take().unwrap()).unwrap();
 
                 let exception_type = ExceptionType::try_from(exception_type_immediate).unwrap();
@@ -2016,7 +1984,7 @@ impl Vm {
             }
             Instruction::PushExceptionJumpTarget => {
                 vm.exception_jump_target_stack.push(ExceptionJumpTarget {
-                    ip: instr.args[0].unwrap() as usize,
+                    ip: instr.get_jump_slot(),
                     lexical_environment: agent.current_lexical_environment(gc.nogc()).unbind(),
                 });
             }
@@ -2035,7 +2003,7 @@ impl Vm {
                 vm.result = Some(result.into());
             }
             Instruction::BeginSimpleArrayBindingPattern => {
-                let lexical = instr.args[1].unwrap() == 1;
+                let lexical = instr.get_second_bool();
                 let env = if lexical {
                     // Lexical binding, const [] = a; or let [] = a;
                     Some(
@@ -2051,7 +2019,7 @@ impl Vm {
                 vm.iterator_stack.pop().unwrap();
             }
             Instruction::BeginSimpleObjectBindingPattern => {
-                let lexical = instr.args[0].unwrap() == 1;
+                let lexical = instr.get_first_bool();
                 let env = if lexical {
                     // Lexical binding, const {} = a; or let {} = a;
                     Some(
@@ -2079,7 +2047,7 @@ impl Vm {
                 unreachable!("BeginArrayBindingPattern should take care of stepping over these");
             }
             Instruction::StringConcat => {
-                let argument_count = instr.args[0].unwrap() as usize;
+                let argument_count = instr.get_first_index();
                 let first_arg_index = vm.stack.len() - argument_count;
                 let mut length = 0;
                 let all_easy = vm.stack[first_arg_index..]
@@ -2277,7 +2245,7 @@ impl Vm {
                         // Iterator finished: pop the iterator from the stack
                         // and jump to escape the iterator loop.
                         vm.iterator_stack.pop();
-                        vm.ip = instr.args[0].unwrap() as usize;
+                        vm.ip = instr.get_jump_slot();
                     }
                 } else {
                     // Iterator threw an error: pop the iterator from the stack
@@ -2381,7 +2349,13 @@ impl Vm {
                     unreachable!()
                 };
                 // 3. Return envRec.[[NewTarget]].
-                vm.result = Some(agent[env_rec].new_target.unwrap().into_value());
+                vm.result = Some(
+                    env_rec
+                        .get_new_target(agent, gc.nogc())
+                        .unwrap()
+                        .into_value()
+                        .unbind(),
+                );
             }
             other => todo!("{other:?}"),
         }
@@ -2390,7 +2364,7 @@ impl Vm {
     }
 
     fn get_call_args<'gc>(&mut self, instr: &Instr, _gc: NoGcScope<'gc, '_>) -> Vec<Value<'gc>> {
-        let instr_arg0 = instr.args[0].unwrap();
+        let instr_arg0 = instr.get_first_arg();
         let arg_count = if instr_arg0 != IndexType::MAX {
             instr_arg0 as usize
         } else {

@@ -68,8 +68,7 @@ pub(crate) fn function_create_backing_object<'a>(
     };
     let (keys, values) = agent
         .heap
-        .elements
-        .create_object_entries(&[length_entry, name_entry]);
+        .create_elements_with_object_entries(&[length_entry, name_entry]);
     let backing_object = agent.heap.create(ObjectHeapData {
         extensible: true,
         prototype,

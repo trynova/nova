@@ -742,15 +742,9 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let Agent {
-        heap: Heap {
-            builtin_functions, ..
-        },
-        execution_context_stack,
-        ..
-    } = agent;
-    let heap_data = &builtin_functions[f];
+    let heap_data = &agent[f];
     let callee_realm = heap_data.realm;
+    let func = heap_data.behaviour;
     // 3. Let calleeContext be a new execution context.
     let callee_context = ExecutionContext {
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
@@ -763,11 +757,10 @@ pub(crate) fn builtin_call_or_construct<'gc>(
         script_or_module: None,
     };
     // 9. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
-    execution_context_stack.push(callee_context);
+    agent.push_execution_context(callee_context);
     // 10. Let result be the Completion Record that is the result of evaluating F in a manner that conforms to
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
-    let func = heap_data.behaviour;
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
@@ -800,7 +793,7 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     // Note
     // When calleeContext is removed from the execution context stack it must not be destroyed if it has been
     // suspended and retained by an accessible Generator for later resumption.
-    let _callee_context = agent.execution_context_stack.pop();
+    let _callee_context = agent.pop_execution_context();
     // 13. Return ? result.
     result
 }

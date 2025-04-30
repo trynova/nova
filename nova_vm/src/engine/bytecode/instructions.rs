@@ -372,9 +372,14 @@ impl Instruction {
             | Self::BindingPatternBindNamed
             | Self::ClassDefineConstructor
             | Self::InitializeVariableEnvironment
+            | Self::IteratorStepValue
+            | Self::Jump
+            | Self::JumpIfNot
+            | Self::JumpIfTrue
             | Self::ObjectDefineGetter
             | Self::ObjectDefineMethod
-            | Self::ObjectDefineSetter => 2,
+            | Self::ObjectDefineSetter
+            | Self::PushExceptionJumpTarget => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
             | Self::BeginSimpleObjectBindingPattern
@@ -393,18 +398,25 @@ impl Instruction {
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
-            | Self::IteratorStepValue
-            | Self::Jump
-            | Self::JumpIfNot
-            | Self::JumpIfTrue
             | Self::LoadConstant
-            | Self::PushExceptionJumpTarget
             | Self::ResolveBinding
             | Self::StoreConstant
             | Self::StringConcat
             | Self::ThrowError => 1,
             _ => 0,
         }
+    }
+
+    pub fn has_double_arg(self) -> bool {
+        debug_assert_eq!(self.argument_count(), 2);
+        matches!(
+            self,
+            Self::IteratorStepValue
+                | Self::Jump
+                | Self::JumpIfNot
+                | Self::JumpIfTrue
+                | Self::PushExceptionJumpTarget
+        )
     }
 
     pub fn has_constant_index(self) -> bool {
@@ -434,7 +446,8 @@ impl Instruction {
     pub fn has_function_expression_index(self) -> bool {
         matches!(
             self,
-            |Self::ClassDefineConstructor| Self::InstantiateArrowFunctionExpression
+            Self::ClassDefineConstructor
+                | Self::InstantiateArrowFunctionExpression
                 | Self::InstantiateOrdinaryFunctionExpression
                 | Self::ObjectDefineGetter
                 | Self::ObjectDefineMethod
@@ -458,13 +471,178 @@ impl Instruction {
     }
 }
 
+union InstructionArgs {
+    none: (),
+    single_arg: u16,
+    two_args: [u16; 2],
+    double_arg: u32,
+}
+
+impl core::fmt::Debug for InstructionArgs {
+    fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Instr {
     pub kind: Instruction,
-    pub args: [Option<IndexType>; 2],
+    args: InstructionArgs,
 }
 
 impl Instr {
+    pub(super) fn consume_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
+        let len = instructions.len();
+        let cur_ip = *ip;
+        if cur_ip >= len {
+            return None;
+        }
+        *ip += 1;
+        let kind =
+            Instruction::try_from(instructions[cur_ip]).expect("Invalid bytecode instruction");
+
+        let arg_count = kind.argument_count() as usize;
+
+        let cur_ip = *ip;
+        match arg_count {
+            0 => Some(Instr::new(kind)),
+            1 => {
+                let bytes: [u8; 2] = [instructions[cur_ip], instructions[cur_ip + 1]];
+                let arg0 = IndexType::from_ne_bytes(bytes);
+                *ip += 2;
+                Some(Instr::new_with_arg(kind, arg0))
+            }
+            2 => {
+                if kind.has_double_arg() {
+                    let mut bytes = [0u8; 4];
+                    bytes.copy_from_slice(&instructions[cur_ip..cur_ip + 4]);
+                    *ip += 4;
+                    let arg = u32::from_ne_bytes(bytes);
+                    Some(Instr::new_with_double_arg(kind, arg))
+                } else {
+                    let mut bytes0 = [0u8; 2];
+                    let mut bytes1 = [0u8; 2];
+                    bytes0.copy_from_slice(&instructions[cur_ip..cur_ip + 2]);
+                    bytes1.copy_from_slice(&instructions[cur_ip + 2..cur_ip + 4]);
+                    *ip += 4;
+                    let arg0 = IndexType::from_ne_bytes(bytes0);
+                    let arg1 = IndexType::from_ne_bytes(bytes1);
+                    Some(Instr::new_with_two_args(kind, arg0, arg1))
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    pub(crate) fn new(kind: Instruction) -> Self {
+        Self {
+            kind,
+            args: InstructionArgs { none: () },
+        }
+    }
+
+    pub(crate) fn new_with_arg(kind: Instruction, arg: u16) -> Self {
+        Self {
+            kind,
+            args: InstructionArgs { single_arg: arg },
+        }
+    }
+
+    pub(crate) fn new_with_two_args(kind: Instruction, arg1: u16, arg2: u16) -> Self {
+        Self {
+            kind,
+            args: InstructionArgs {
+                two_args: [arg1, arg2],
+            },
+        }
+    }
+
+    pub(crate) fn new_with_double_arg(kind: Instruction, arg: u32) -> Self {
+        Self {
+            kind,
+            args: InstructionArgs { double_arg: arg },
+        }
+    }
+
+    pub(crate) fn get_first_arg(&self) -> IndexType {
+        match self.kind.argument_count() {
+            // SAFETY: one u16 arg is guaranteed.
+            1 => unsafe { self.args.single_arg },
+            2 => {
+                assert!(!self.kind.has_double_arg());
+                // SAFETY: two u16 args are guaranteed.
+                unsafe { self.args.two_args[0] }
+            }
+            _ => panic!("Instruction does not have an argument"),
+        }
+    }
+
+    pub(crate) fn get_first_index(&self) -> usize {
+        match self.kind.argument_count() {
+            // SAFETY: one u16 arg is guaranteed.
+            1 => unsafe { self.args.single_arg as usize },
+            2 => {
+                assert!(!self.kind.has_double_arg());
+                // SAFETY: two u16 args are guaranteed.
+                unsafe { self.args.two_args[0] as usize }
+            }
+            _ => panic!("Instruction does not have an argument"),
+        }
+    }
+
+    pub(crate) fn get_second_index(&self) -> usize {
+        match self.kind.argument_count() {
+            2 => {
+                assert!(!self.kind.has_double_arg());
+                // SAFETY: two u16 args are guaranteed.
+                unsafe { self.args.two_args[1] as usize }
+            }
+            _ => panic!("Instruction does not have two argument"),
+        }
+    }
+
+    pub(crate) fn get_first_bool(&self) -> bool {
+        let first_arg = match self.kind.argument_count() {
+            // SAFETY: one u16 arg is guaranteed.
+            1 => unsafe { self.args.single_arg },
+            2 => {
+                assert!(!self.kind.has_double_arg());
+                // SAFETY: two u16 args are guaranteed.
+                unsafe { self.args.two_args[1] }
+            }
+            _ => panic!("Instruction does not have two argument"),
+        };
+        if first_arg == 0 || first_arg == 1 {
+            first_arg == 1
+        } else {
+            panic!("First argument was not a boolean")
+        }
+    }
+
+    pub(crate) fn get_second_bool(&self) -> bool {
+        match self.kind.argument_count() {
+            2 => {
+                assert!(!self.kind.has_double_arg());
+                // SAFETY: two u16 args are guaranteed.
+                let second_arg = unsafe { self.args.two_args[1] };
+                if second_arg == 0 || second_arg == 1 {
+                    second_arg == 1
+                } else {
+                    panic!("Second argument was not a boolean")
+                }
+            }
+            _ => panic!("Instruction does not have two argument"),
+        }
+    }
+
+    pub(crate) fn get_jump_slot(&self) -> usize {
+        assert!(self.kind.has_jump_slot());
+        assert_eq!(self.kind.argument_count(), 2);
+        // SAFETY: Instruction is a jump.
+        let jump = unsafe { self.args.double_arg };
+        jump as usize
+    }
+
     pub(crate) fn debug_print(
         &self,
         agent: &mut Agent,
@@ -477,7 +655,8 @@ impl Instr {
                 eprintln!("  {}: {:?}", ip, self.kind);
             }
             1 => {
-                let arg0 = self.args.first().unwrap().unwrap();
+                // SAFETY: Instruction has a single argument.
+                let arg0 = unsafe { self.args.single_arg };
                 eprintln!(
                     "  {}: {:?}({})",
                     ip,
@@ -486,14 +665,19 @@ impl Instr {
                 );
             }
             2 => {
-                let arg0 = self.args.first().unwrap().unwrap();
-                let arg1 = self.args.last().unwrap().unwrap();
-                eprintln!(
-                    "  {}: {:?}({})",
-                    ip,
-                    self.kind,
-                    Self::print_two_args(agent, self.kind, arg0, arg1, exe, gc)
-                );
+                if self.kind.has_jump_slot() {
+                    let jump_slot = self.get_jump_slot();
+                    eprintln!("  {}: {:?}({})", ip, self.kind, jump_slot);
+                } else {
+                    // SAFETY: Instruction has two arguments.
+                    let [arg0, arg1] = unsafe { self.args.two_args };
+                    eprintln!(
+                        "  {}: {:?}({})",
+                        ip,
+                        self.kind,
+                        Self::print_two_args(agent, self.kind, arg0, arg1, exe, gc)
+                    );
+                }
             }
             _ => unreachable!(),
         }
@@ -561,8 +745,6 @@ impl Instr {
         exe: Scoped<Executable>,
         gc: NoGcScope,
     ) -> std::string::String {
-        let index0 = arg0 as usize;
-        let index1 = arg1 as usize;
         match kind {
             Instruction::BeginSimpleArrayBindingPattern => {
                 format!("{{ length: {}, env: {} }}", arg0, arg1 == 1)
@@ -570,12 +752,12 @@ impl Instr {
             Instruction::BindingPatternBindNamed => {
                 format!(
                     "{{ {}: {} }}",
-                    debug_print_constant(agent, exe.clone(), index1, gc),
-                    debug_print_identifier(agent, exe, index0, gc)
+                    debug_print_constant(agent, exe.clone(), arg1 as usize, gc),
+                    debug_print_identifier(agent, exe, arg0 as usize, gc)
                 )
             }
             Instruction::ClassDefineConstructor => {
-                if index1 == 1 {
+                if arg1 == 1 {
                     "constructor() { super() }".to_string()
                 } else {
                     "constructor()".to_string()
@@ -712,32 +894,479 @@ impl Iterator for InstructionIter<'_> {
     type Item = (usize, Instr);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.instructions.len() {
-            return None;
-        }
         let index = self.index;
+        let instr = Instr::consume_instruction(self.instructions, &mut self.index)?;
 
-        let kind: Instruction = unsafe { core::mem::transmute(self.instructions[self.index]) };
-        self.index += 1;
+        Some((index, instr))
+    }
+}
 
-        let mut args: [Option<IndexType>; 2] = [None, None];
+impl TryFrom<u8> for Instruction {
+    type Error = ();
 
-        for item in args.iter_mut().take(kind.argument_count() as usize) {
-            let length = self.instructions[self.index..].len();
-            if length >= 2 {
-                let bytes = IndexType::from_ne_bytes(unsafe {
-                    *core::mem::transmute::<*const u8, *const [u8; 2]>(
-                        self.instructions[self.index..].as_ptr(),
-                    )
-                });
-                self.index += 2;
-                *item = Some(bytes);
-            } else {
-                self.index += 1;
-                *item = None;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        const ADDITION: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Addition,
+            ))
+        };
+        const BITWISEAND: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::BitwiseAnd,
+            ))
+        };
+        const BITWISEOR: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::BitwiseOR,
+            ))
+        };
+        const BITWISEXOR: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::BitwiseXOR,
+            ))
+        };
+        const DIVISION: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Division,
+            ))
+        };
+        const EQUALITY: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Equality,
+            ))
+        };
+        const EXPONENTIAL: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Exponential,
+            ))
+        };
+        const GREATEREQUALTHAN: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::GreaterEqualThan,
+            ))
+        };
+        const GREATERTHAN_UNUSED: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::GreaterThan,
+            ))
+        };
+        const LESSEQUALTHAN: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::LessEqualThan,
+            ))
+        };
+        const LESSTHAN_UNUSED: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::LessThan,
+            ))
+        };
+        const MULTIPLICATION: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Multiplication,
+            ))
+        };
+        const IN: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::In,
+            ))
+        };
+        const INEQUALITY: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Inequality,
+            ))
+        };
+        const INSTANCEOF: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Instanceof,
+            ))
+        };
+        const REMAINDER: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Remainder,
+            ))
+        };
+        const SHIFTLEFT: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::ShiftLeft,
+            ))
+        };
+        const SHIFTRIGHT: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::ShiftRight,
+            ))
+        };
+        const SHIFTRIGHTZEROFILL: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::ShiftRightZeroFill,
+            ))
+        };
+        const STRICTEQUALITY: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::StrictEquality,
+            ))
+        };
+        const STRICTINEQUALITY: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::StrictInequality,
+            ))
+        };
+        const SUBTRACTION: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Subtraction,
+            ))
+        };
+        const DEBUG: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Debug) };
+        const ARRAYCREATE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ArrayCreate) };
+        const ARRAYPUSH: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ArrayPush) };
+        const ARRAYSETVALUE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ArraySetValue) };
+        const ARRAYELISION: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ArrayElision) };
+        const AWAIT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Await) };
+        const BITWISENOT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::BitwiseNot) };
+        const CREATECATCHBINDING: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateCatchBinding) };
+        const CREATEUNMAPPEDARGUMENTSOBJECT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateUnmappedArgumentsObject) };
+        const COPYDATAPROPERTIES: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::CopyDataProperties) };
+        const COPYDATAPROPERTIESINTOOBJECT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::CopyDataPropertiesIntoObject) };
+        const DELETE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Delete) };
+        const DIRECTEVALCALL: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::DirectEvalCall) };
+        const EVALUATECALL: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::EvaluateCall) };
+        const EVALUATENEW: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::EvaluateNew) };
+        const EVALUATESUPER: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::EvaluateSuper) };
+        const EVALUATEPROPERTYACCESSWITHEXPRESSIONKEY: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::EvaluatePropertyAccessWithExpressionKey)
+        };
+        const EVALUATEPROPERTYACCESSWITHIDENTIFIERKEY: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::EvaluatePropertyAccessWithIdentifierKey)
+        };
+        const GETVALUE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GetValue) };
+        const GETVALUEKEEPREFERENCE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::GetValueKeepReference) };
+        const GREATERTHAN: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GreaterThan) };
+        const GREATERTHANEQUALS: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::GreaterThanEquals) };
+        const HASPROPERTY: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::HasProperty) };
+        const INCREMENT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Increment) };
+        const DECREMENT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Decrement) };
+        const INSTANCEOFOPERATOR: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::InstanceofOperator) };
+        const INSTANTIATEARROWFUNCTIONEXPRESSION: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::InstantiateArrowFunctionExpression)
+        };
+        const INSTANTIATEORDINARYFUNCTIONEXPRESSION: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::InstantiateOrdinaryFunctionExpression)
+        };
+        const CLASSDEFINECONSTRUCTOR: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ClassDefineConstructor) };
+        const CLASSDEFINEDEFAULTCONSTRUCTOR: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ClassDefineDefaultConstructor) };
+        const ISLOOSELYEQUAL: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IsLooselyEqual) };
+        const ISSTRICTLYEQUAL: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IsStrictlyEqual) };
+        const ISNULLORUNDEFINED: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IsNullOrUndefined) };
+        const ISNULL: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::IsNull) };
+        const ISUNDEFINED: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::IsUndefined) };
+        const ISOBJECT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::IsObject) };
+        const ISCONSTRUCTOR: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IsConstructor) };
+        const JUMP: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Jump) };
+        const JUMPIFNOT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::JumpIfNot) };
+        const JUMPIFTRUE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::JumpIfTrue) };
+        const LESSTHAN: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LessThan) };
+        const LESSTHANEQUALS: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::LessThanEquals) };
+        const LOAD: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Load) };
+        const LOADCOPY: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LoadCopy) };
+        const LOADCONSTANT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LoadConstant) };
+        const LOADSTORESWAP: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::LoadStoreSwap) };
+        const LOADTHISVALUE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::LoadThisValue) };
+        const SWAP: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Swap) };
+        const LOGICALNOT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LogicalNot) };
+        const OBJECTCREATE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectCreate) };
+        const OBJECTDEFINEPROPERTY: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineProperty) };
+        const OBJECTDEFINEMETHOD: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineMethod) };
+        const OBJECTDEFINEGETTER: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineGetter) };
+        const OBJECTDEFINESETTER: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineSetter) };
+        const OBJECTSETPROTOTYPE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectSetPrototype) };
+        const POPEXCEPTIONJUMPTARGET: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::PopExceptionJumpTarget) };
+        const POPREFERENCE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::PopReference) };
+        const PUSHEXCEPTIONJUMPTARGET: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::PushExceptionJumpTarget) };
+        const PUSHREFERENCE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::PushReference) };
+        const PUTVALUE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::PutValue) };
+        const RESOLVEBINDING: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ResolveBinding) };
+        const RESOLVETHISBINDING: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ResolveThisBinding) };
+        const RETHROWEXCEPTIONIFANY: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::RethrowExceptionIfAny) };
+        const RETURN: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Return) };
+        const STORE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Store) };
+        const STORECOPY: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::StoreCopy) };
+        const STORECONSTANT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::StoreConstant) };
+        const STRINGCONCAT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::StringConcat) };
+        const THROW: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Throw) };
+        const THROWERROR: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ThrowError) };
+        const TONUMBER: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToNumber) };
+        const TONUMERIC: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToNumeric) };
+        const TOOBJECT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToObject) };
+        const TOSTRING: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToString) };
+        const TYPEOF: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Typeof) };
+        const UNARYMINUS: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::UnaryMinus) };
+        const YIELD: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Yield) };
+        const CREATEIMMUTABLEBINDING: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateImmutableBinding) };
+        const CREATEMUTABLEBINDING: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateMutableBinding) };
+        const INITIALIZEREFERENCEDBINDING: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::InitializeReferencedBinding) };
+        const INITIALIZEVARIABLEENVIRONMENT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::InitializeVariableEnvironment) };
+        const ENTERDECLARATIVEENVIRONMENT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::EnterDeclarativeEnvironment) };
+        const ENTERCLASSSTATICELEMENTENVIRONMENT: u8 = unsafe {
+            std::mem::transmute::<_, u8>(Instruction::EnterClassStaticElementEnvironment)
+        };
+        const EXITDECLARATIVEENVIRONMENT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ExitDeclarativeEnvironment) };
+        const EXITVARIABLEENVIRONMENT: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::ExitVariableEnvironment) };
+        const BEGINSIMPLEOBJECTBINDINGPATTERN: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BeginSimpleObjectBindingPattern) };
+        const BEGINSIMPLEARRAYBINDINGPATTERN: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BeginSimpleArrayBindingPattern) };
+        const BINDINGPATTERNBIND: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternBind) };
+        const BINDINGPATTERNBINDNAMED: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternBindNamed) };
+        const BINDINGPATTERNBINDREST: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternBindRest) };
+        const BINDINGPATTERNSKIP: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternSkip) };
+        const BINDINGPATTERNGETVALUE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternGetValue) };
+        const BINDINGPATTERNGETVALUENAMED: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternGetValueNamed) };
+        const BINDINGPATTERNGETRESTVALUE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternGetRestValue) };
+        const FINISHBINDINGPATTERN: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::FinishBindingPattern) };
+        const ENUMERATEOBJECTPROPERTIES: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::EnumerateObjectProperties) };
+        const GETITERATORSYNC: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::GetIteratorSync) };
+        const GETITERATORASYNC: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::GetIteratorAsync) };
+        const ITERATORSTEPVALUE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorStepValue) };
+        const ITERATORSTEPVALUEORUNDEFINED: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorStepValueOrUndefined) };
+        const ITERATORRESTINTOARRAY: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorRestIntoArray) };
+        const ITERATORCLOSE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorClose) };
+        const ASYNCITERATORCLOSE: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::AsyncIteratorClose) };
+        const GETNEWTARGET: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GetNewTarget) };
+        match value {
+            ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Addition,
+            )),
+            BITWISEAND => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::BitwiseAnd,
+            )),
+            BITWISEOR => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::BitwiseOR,
+            )),
+            BITWISEXOR => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::BitwiseXOR,
+            )),
+            DIVISION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Division,
+            )),
+            EQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Equality,
+            )),
+            EXPONENTIAL => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Exponential,
+            )),
+            GREATEREQUALTHAN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::GreaterEqualThan,
+            )),
+            GREATERTHAN_UNUSED => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::GreaterThan,
+            )),
+            LESSEQUALTHAN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::LessEqualThan,
+            )),
+            LESSTHAN_UNUSED => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::LessThan,
+            )),
+            MULTIPLICATION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Multiplication,
+            )),
+            IN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::In,
+            )),
+            INEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Inequality,
+            )),
+            INSTANCEOF => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Instanceof,
+            )),
+            REMAINDER => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Remainder,
+            )),
+            SHIFTLEFT => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::ShiftLeft,
+            )),
+            SHIFTRIGHT => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::ShiftRight,
+            )),
+            SHIFTRIGHTZEROFILL => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::ShiftRightZeroFill,
+            )),
+            STRICTEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::StrictEquality,
+            )),
+            STRICTINEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::StrictInequality,
+            )),
+            SUBTRACTION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
+                BinaryOperator::Subtraction,
+            )),
+            DEBUG => Ok(Instruction::Debug),
+            ARRAYCREATE => Ok(Instruction::ArrayCreate),
+            ARRAYPUSH => Ok(Instruction::ArrayPush),
+            ARRAYSETVALUE => Ok(Instruction::ArraySetValue),
+            ARRAYELISION => Ok(Instruction::ArrayElision),
+            AWAIT => Ok(Instruction::Await),
+            BITWISENOT => Ok(Instruction::BitwiseNot),
+            CREATECATCHBINDING => Ok(Instruction::CreateCatchBinding),
+            CREATEUNMAPPEDARGUMENTSOBJECT => Ok(Instruction::CreateUnmappedArgumentsObject),
+            COPYDATAPROPERTIES => Ok(Instruction::CopyDataProperties),
+            COPYDATAPROPERTIESINTOOBJECT => Ok(Instruction::CopyDataPropertiesIntoObject),
+            DELETE => Ok(Instruction::Delete),
+            DIRECTEVALCALL => Ok(Instruction::DirectEvalCall),
+            EVALUATECALL => Ok(Instruction::EvaluateCall),
+            EVALUATENEW => Ok(Instruction::EvaluateNew),
+            EVALUATESUPER => Ok(Instruction::EvaluateSuper),
+            EVALUATEPROPERTYACCESSWITHEXPRESSIONKEY => {
+                Ok(Instruction::EvaluatePropertyAccessWithExpressionKey)
             }
+            EVALUATEPROPERTYACCESSWITHIDENTIFIERKEY => {
+                Ok(Instruction::EvaluatePropertyAccessWithIdentifierKey)
+            }
+            GETVALUE => Ok(Instruction::GetValue),
+            GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
+            GREATERTHAN => Ok(Instruction::GreaterThan),
+            GREATERTHANEQUALS => Ok(Instruction::GreaterThanEquals),
+            HASPROPERTY => Ok(Instruction::HasProperty),
+            INCREMENT => Ok(Instruction::Increment),
+            DECREMENT => Ok(Instruction::Decrement),
+            INSTANCEOFOPERATOR => Ok(Instruction::InstanceofOperator),
+            INSTANTIATEARROWFUNCTIONEXPRESSION => {
+                Ok(Instruction::InstantiateArrowFunctionExpression)
+            }
+            INSTANTIATEORDINARYFUNCTIONEXPRESSION => {
+                Ok(Instruction::InstantiateOrdinaryFunctionExpression)
+            }
+            CLASSDEFINECONSTRUCTOR => Ok(Instruction::ClassDefineConstructor),
+            CLASSDEFINEDEFAULTCONSTRUCTOR => Ok(Instruction::ClassDefineDefaultConstructor),
+            ISLOOSELYEQUAL => Ok(Instruction::IsLooselyEqual),
+            ISSTRICTLYEQUAL => Ok(Instruction::IsStrictlyEqual),
+            ISNULLORUNDEFINED => Ok(Instruction::IsNullOrUndefined),
+            ISNULL => Ok(Instruction::IsNull),
+            ISUNDEFINED => Ok(Instruction::IsUndefined),
+            ISOBJECT => Ok(Instruction::IsObject),
+            ISCONSTRUCTOR => Ok(Instruction::IsConstructor),
+            JUMP => Ok(Instruction::Jump),
+            JUMPIFNOT => Ok(Instruction::JumpIfNot),
+            JUMPIFTRUE => Ok(Instruction::JumpIfTrue),
+            LESSTHAN => Ok(Instruction::LessThan),
+            LESSTHANEQUALS => Ok(Instruction::LessThanEquals),
+            LOAD => Ok(Instruction::Load),
+            LOADCOPY => Ok(Instruction::LoadCopy),
+            LOADCONSTANT => Ok(Instruction::LoadConstant),
+            LOADSTORESWAP => Ok(Instruction::LoadStoreSwap),
+            LOADTHISVALUE => Ok(Instruction::LoadThisValue),
+            SWAP => Ok(Instruction::Swap),
+            LOGICALNOT => Ok(Instruction::LogicalNot),
+            OBJECTCREATE => Ok(Instruction::ObjectCreate),
+            OBJECTDEFINEPROPERTY => Ok(Instruction::ObjectDefineProperty),
+            OBJECTDEFINEMETHOD => Ok(Instruction::ObjectDefineMethod),
+            OBJECTDEFINEGETTER => Ok(Instruction::ObjectDefineGetter),
+            OBJECTDEFINESETTER => Ok(Instruction::ObjectDefineSetter),
+            OBJECTSETPROTOTYPE => Ok(Instruction::ObjectSetPrototype),
+            POPEXCEPTIONJUMPTARGET => Ok(Instruction::PopExceptionJumpTarget),
+            POPREFERENCE => Ok(Instruction::PopReference),
+            PUSHEXCEPTIONJUMPTARGET => Ok(Instruction::PushExceptionJumpTarget),
+            PUSHREFERENCE => Ok(Instruction::PushReference),
+            PUTVALUE => Ok(Instruction::PutValue),
+            RESOLVEBINDING => Ok(Instruction::ResolveBinding),
+            RESOLVETHISBINDING => Ok(Instruction::ResolveThisBinding),
+            RETHROWEXCEPTIONIFANY => Ok(Instruction::RethrowExceptionIfAny),
+            RETURN => Ok(Instruction::Return),
+            STORE => Ok(Instruction::Store),
+            STORECOPY => Ok(Instruction::StoreCopy),
+            STORECONSTANT => Ok(Instruction::StoreConstant),
+            STRINGCONCAT => Ok(Instruction::StringConcat),
+            THROW => Ok(Instruction::Throw),
+            THROWERROR => Ok(Instruction::ThrowError),
+            TONUMBER => Ok(Instruction::ToNumber),
+            TONUMERIC => Ok(Instruction::ToNumeric),
+            TOOBJECT => Ok(Instruction::ToObject),
+            TOSTRING => Ok(Instruction::ToString),
+            TYPEOF => Ok(Instruction::Typeof),
+            UNARYMINUS => Ok(Instruction::UnaryMinus),
+            YIELD => Ok(Instruction::Yield),
+            CREATEIMMUTABLEBINDING => Ok(Instruction::CreateImmutableBinding),
+            CREATEMUTABLEBINDING => Ok(Instruction::CreateMutableBinding),
+            INITIALIZEREFERENCEDBINDING => Ok(Instruction::InitializeReferencedBinding),
+            INITIALIZEVARIABLEENVIRONMENT => Ok(Instruction::InitializeVariableEnvironment),
+            ENTERDECLARATIVEENVIRONMENT => Ok(Instruction::EnterDeclarativeEnvironment),
+            ENTERCLASSSTATICELEMENTENVIRONMENT => {
+                Ok(Instruction::EnterClassStaticElementEnvironment)
+            }
+            EXITDECLARATIVEENVIRONMENT => Ok(Instruction::ExitDeclarativeEnvironment),
+            EXITVARIABLEENVIRONMENT => Ok(Instruction::ExitVariableEnvironment),
+            BEGINSIMPLEOBJECTBINDINGPATTERN => Ok(Instruction::BeginSimpleObjectBindingPattern),
+            BEGINSIMPLEARRAYBINDINGPATTERN => Ok(Instruction::BeginSimpleArrayBindingPattern),
+            BINDINGPATTERNBIND => Ok(Instruction::BindingPatternBind),
+            BINDINGPATTERNBINDNAMED => Ok(Instruction::BindingPatternBindNamed),
+            BINDINGPATTERNBINDREST => Ok(Instruction::BindingPatternBindRest),
+            BINDINGPATTERNSKIP => Ok(Instruction::BindingPatternSkip),
+            BINDINGPATTERNGETVALUE => Ok(Instruction::BindingPatternGetValue),
+            BINDINGPATTERNGETVALUENAMED => Ok(Instruction::BindingPatternGetValueNamed),
+            BINDINGPATTERNGETRESTVALUE => Ok(Instruction::BindingPatternGetRestValue),
+            FINISHBINDINGPATTERN => Ok(Instruction::FinishBindingPattern),
+            ENUMERATEOBJECTPROPERTIES => Ok(Instruction::EnumerateObjectProperties),
+            GETITERATORSYNC => Ok(Instruction::GetIteratorSync),
+            GETITERATORASYNC => Ok(Instruction::GetIteratorAsync),
+            ITERATORSTEPVALUE => Ok(Instruction::IteratorStepValue),
+            ITERATORSTEPVALUEORUNDEFINED => Ok(Instruction::IteratorStepValueOrUndefined),
+            ITERATORRESTINTOARRAY => Ok(Instruction::IteratorRestIntoArray),
+            ITERATORCLOSE => Ok(Instruction::IteratorClose),
+            ASYNCITERATORCLOSE => Ok(Instruction::AsyncIteratorClose),
+            GETNEWTARGET => Ok(Instruction::GetNewTarget),
+            _ => Err(()),
         }
-
-        Some((index, Instr { kind, args }))
     }
 }

@@ -111,11 +111,8 @@ pub(super) fn execute_simple_array_binding<'a>(
                     vm,
                     |agent, mut gc| {
                         let value = value.scope(agent, gc.nogc());
-                        let binding_id = executable.fetch_identifier(
-                            agent,
-                            instr.args[0].unwrap() as usize,
-                            gc.nogc(),
-                        );
+                        let binding_id =
+                            executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
                         let lhs = resolve_binding(
                             agent,
                             binding_id.unbind(),
@@ -213,17 +210,14 @@ pub(super) fn execute_simple_object_binding<'a>(
                     agent,
                     vm,
                     |agent, mut gc| {
-                        let binding_id = executable.fetch_identifier(
-                            agent,
-                            instr.args[0].unwrap() as usize,
-                            gc.nogc(),
-                        );
+                        let binding_id =
+                            executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
                         let property_key = if instr.kind == Instruction::BindingPatternBind {
                             binding_id.into()
                         } else {
                             let key_value = executable.fetch_constant(
                                 agent,
-                                instr.args[1].unwrap() as usize,
+                                instr.get_second_index(),
                                 gc.nogc(),
                             );
                             // SAFETY: It should be impossible for binding pattern
@@ -273,7 +267,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                         let property_key = unsafe {
                             PropertyKey::from_value_unchecked(executable.fetch_constant(
                                 agent,
-                                instr.args[0].unwrap() as usize,
+                                instr.get_first_index(),
                                 gc.nogc(),
                             ))
                         };
@@ -301,11 +295,8 @@ pub(super) fn execute_simple_object_binding<'a>(
                     vm,
                     |agent, mut gc| {
                         // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
-                        let binding_id = executable.fetch_identifier(
-                            agent,
-                            instr.args[0].unwrap() as usize,
-                            gc.nogc(),
-                        );
+                        let binding_id =
+                            executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
                         // TODO: Properly handle potential GC.
                         let lhs = resolve_binding(
                             agent,

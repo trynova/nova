@@ -15,6 +15,12 @@ use crate::{
 pub(crate) struct ViewedArrayBufferByteLength(pub u32);
 
 impl ViewedArrayBufferByteLength {
+    /// Returns `true` if the byte length is stored in an associated map in the
+    /// heap.
+    pub(crate) const fn is_overflowing(self) -> bool {
+        self.0 == Self::heap().0
+    }
+
     pub const fn value(value: u32) -> Self {
         Self(value)
     }
@@ -42,14 +48,18 @@ impl Default for ViewedArrayBufferByteLength {
 impl From<Option<usize>> for ViewedArrayBufferByteLength {
     fn from(value: Option<usize>) -> Self {
         match value {
-            Some(value) => {
-                if value >= Self::heap().0 as usize {
-                    Self::heap()
-                } else {
-                    Self::value(value as u32)
-                }
-            }
+            Some(value) => Self::from(value),
             None => Self::auto(),
+        }
+    }
+}
+
+impl From<usize> for ViewedArrayBufferByteLength {
+    fn from(value: usize) -> Self {
+        if value >= Self::heap().0 as usize {
+            Self::heap()
+        } else {
+            Self::value(value as u32)
         }
     }
 }
@@ -61,14 +71,18 @@ impl From<Option<usize>> for ViewedArrayBufferByteLength {
 pub(crate) struct ViewedArrayBufferByteOffset(pub u32);
 
 impl ViewedArrayBufferByteOffset {
-    pub const fn value(value: u32) -> Self {
+    pub(crate) const fn value(value: u32) -> Self {
         Self(value)
+    }
+
+    pub(crate) fn is_overflowing(self) -> bool {
+        self.0 == Self::heap().0
     }
 
     /// A sentinel value of `u32::MAX` means that the byte offset is stored in
     /// an associated map in the heap. This will most likely be a very rare
     /// case, only applicable for 4GB+ buffers.
-    pub const fn heap() -> Self {
+    pub(crate) const fn heap() -> Self {
         Self(u32::MAX)
     }
 }

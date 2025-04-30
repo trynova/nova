@@ -276,17 +276,17 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     }
 
     fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
-        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_jump_slot());
         self._push_instruction(instruction);
         self.add_jump_index()
     }
 
     fn add_jump_instruction_to_index(&mut self, instruction: Instruction, jump_index: JumpIndex) {
-        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_jump_slot());
         self._push_instruction(instruction);
-        self.add_index(jump_index.index);
+        self.add_double_index(jump_index.index);
     }
 
     fn get_jump_index_to_here(&self) -> JumpIndex {
@@ -388,6 +388,12 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         self.instructions.extend_from_slice(&bytes);
     }
 
+    fn add_double_index(&mut self, index: usize) {
+        let index = u32::try_from(index).expect("Immediate value is too large");
+        let bytes: [u8; 4] = index.to_ne_bytes();
+        self.instructions.extend_from_slice(&bytes);
+    }
+
     fn add_instruction_with_function_expression(
         &mut self,
         instruction: Instruction,
@@ -438,17 +444,16 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     }
 
     fn add_jump_index(&mut self) -> JumpIndex {
-        self.add_index(0);
+        self.add_double_index(0);
         JumpIndex {
-            index: self.instructions.len() - core::mem::size_of::<IndexType>(),
+            index: self.instructions.len() - core::mem::size_of::<u32>(),
         }
     }
 
     fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
-        assert!(target.index < IndexType::MAX as usize);
-        let bytes: [u8; 2] = (target.index as IndexType).to_ne_bytes();
-        self.instructions[source.index] = bytes[0];
-        self.instructions[source.index + 1] = bytes[1];
+        assert!(target.index < u32::MAX as usize);
+        let bytes: [u8; 4] = (target.index as u32).to_ne_bytes();
+        self.instructions[source.index..source.index + 4].copy_from_slice(&bytes);
     }
 
     fn set_jump_target_here(&mut self, jump: JumpIndex) {

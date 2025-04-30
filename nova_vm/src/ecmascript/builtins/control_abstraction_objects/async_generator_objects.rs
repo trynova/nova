@@ -267,7 +267,7 @@ impl AsyncGenerator<'_> {
         else {
             unreachable!()
         };
-        agent.execution_context_stack.push(execution_context);
+        agent.push_execution_context(execution_context);
         agent[self].async_generator_state = Some(AsyncGeneratorState::Executing(queue));
         let scoped_generator = self.scope(agent, gc.nogc());
         let execution_result = match kind {

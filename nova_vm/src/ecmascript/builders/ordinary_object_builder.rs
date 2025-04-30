@@ -262,7 +262,11 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
 
 impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
+        let (keys, values) = self
+            .agent
+            .heap
+            .elements
+            .create_with_key_value_descriptor_entries(vec![]);
         let slot = self
             .agent
             .heap
@@ -282,7 +286,11 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
 
 impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
+        let (keys, values) = self
+            .agent
+            .heap
+            .elements
+            .create_with_key_value_descriptor_entries(vec![]);
         let slot = self
             .agent
             .heap
@@ -318,7 +326,7 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
             .agent
             .heap
             .elements
-            .create_with_stuff(self.properties.0);
+            .create_with_key_value_descriptor_entries(self.properties.0);
         let slot = self
             .agent
             .heap
@@ -354,7 +362,7 @@ impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, Crea
             .agent
             .heap
             .elements
-            .create_with_stuff(self.properties.0);
+            .create_with_key_value_descriptor_entries(self.properties.0);
         let slot = self
             .agent
             .heap

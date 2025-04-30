@@ -73,57 +73,14 @@ use crate::{
 };
 
 pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
-    let Agent {
-        heap,
-        execution_context_stack,
-        stack_refs,
-        stack_ref_collections,
-        vm_stack,
-        options: _,
-        symbol_id: _,
-        global_symbol_registry: _,
-        host_hooks: _,
-    } = agent;
-    let mut bits = HeapBits::new(heap);
-    let mut queues = WorkQueues::new(heap);
+    let mut bits = HeapBits::new(&agent.heap);
+    let mut queues = WorkQueues::new(&agent.heap);
 
     root_realms.iter().for_each(|realm| {
         if let Some(realm) = realm {
             queues.realms.push(realm.unbind());
         }
     });
-
-    execution_context_stack.iter().for_each(|ctx| {
-        ctx.mark_values(&mut queues);
-    });
-    stack_refs
-        .borrow()
-        .iter()
-        .for_each(|value| value.mark_values(&mut queues));
-    stack_ref_collections
-        .borrow()
-        .iter()
-        .for_each(|collection| collection.mark_values(&mut queues));
-    vm_stack.iter().for_each(|vm_ptr| {
-        unsafe { vm_ptr.as_ref() }.mark_values(&mut queues);
-    });
-    let mut last_filled_global_value = None;
-    heap.globals
-        .borrow()
-        .iter()
-        .enumerate()
-        .for_each(|(i, &value)| {
-            if let Some(value) = value {
-                value.mark_values(&mut queues);
-                last_filled_global_value = Some(i);
-            }
-        });
-    // Remove as many `None` global values without moving any `Some(Value)` values.
-    if let Some(last_filled_global_value) = last_filled_global_value {
-        heap.globals
-            .borrow_mut()
-            .drain(last_filled_global_value + 1..);
-    }
 
     queues.strings.extend(
         (0..BUILTIN_STRINGS_LIST.len()).map(|index| HeapString(StringIndex::from_index(index))),
@@ -143,6 +100,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         WellKnownSymbolIndexes::ToStringTag.into(),
         WellKnownSymbolIndexes::Unscopables.into(),
     ]);
+    agent.mark_values(&mut queues);
 
     while !queues.is_empty() {
         let Heap {
@@ -215,7 +173,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             #[cfg(feature = "weak-refs")]
             weak_sets,
             alloc_counter: _,
-        } = heap;
+        } = &agent.heap;
         let Environments {
             declarative: declarative_environments,
             function: function_environments,
@@ -1040,17 +998,7 @@ fn sweep(
         realm.sweep_values(&compactions);
     }
 
-    let Agent {
-        heap,
-        execution_context_stack,
-        stack_refs,
-        stack_ref_collections,
-        vm_stack,
-        options: _,
-        symbol_id: _,
-        global_symbol_registry: _,
-        host_hooks: _,
-    } = agent;
+    agent.sweep_values(&compactions);
 
     let Heap {
         #[cfg(feature = "array-buffer")]
@@ -1121,8 +1069,10 @@ fn sweep(
         weak_refs,
         #[cfg(feature = "weak-refs")]
         weak_sets,
-        alloc_counter: _,
-    } = heap;
+        alloc_counter,
+    } = &mut agent.heap;
+    // Reset the allocation counter.
+    *alloc_counter = 0;
     let Environments {
         declarative,
         function,
@@ -1542,30 +1492,6 @@ fn sweep(
             s.spawn(|| {
                 sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
             });
-        }
-        if !execution_context_stack.is_empty() {
-            s.spawn(|| {
-                execution_context_stack
-                    .iter_mut()
-                    .for_each(|entry| entry.sweep_values(&compactions));
-            });
-        }
-        if !stack_refs.borrow().is_empty() {
-            stack_refs
-                .borrow_mut()
-                .iter_mut()
-                .for_each(|entry| entry.sweep_values(&compactions));
-        }
-        if !stack_ref_collections.borrow().is_empty() {
-            stack_ref_collections
-                .borrow_mut()
-                .iter_mut()
-                .for_each(|entry| entry.sweep_values(&compactions));
-        }
-        if !vm_stack.is_empty() {
-            vm_stack
-                .iter_mut()
-                .for_each(|entry| unsafe { entry.as_mut().sweep_values(&compactions) });
         }
     });
 }
