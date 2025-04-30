@@ -8,13 +8,14 @@ use data::TypedArrayArrayLength;
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::canonical_numeric_index_string,
         execution::{Agent, JsResult},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
             INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
-            IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            IntoObject, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            String, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
             UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
@@ -370,11 +371,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. Let value be TypedArrayGetElement(O, numericIndex).
@@ -410,11 +412,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn try_has_property(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, return IsValidIntegerIndex(O, numericIndex).
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
@@ -449,12 +452,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
@@ -509,7 +513,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn internal_define_own_property<'gc>(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
@@ -517,6 +521,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         let property_descriptor = property_descriptor.bind(gc.nogc());
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc.nogc());
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
@@ -577,12 +582,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn try_get<'gc>(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. Return TypedArrayGetElement(O, numericIndex).
@@ -618,11 +624,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let o = self.bind(gc.nogc());
-        let property_key = property_key.bind(gc.nogc());
+        let mut property_key = property_key.bind(gc.nogc());
         let receiver = receiver.bind(gc.nogc());
 
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc.nogc());
         // b. If numericIndex is not undefined, then
         if property_key.is_array_index() {
             Ok(unwrap_try(self.try_get(
@@ -666,13 +673,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn try_set(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         value: Value,
         receiver: Value,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
@@ -698,13 +706,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn internal_set<'gc>(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         value: Value,
         receiver: Value,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc.nogc());
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
@@ -730,11 +739,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn try_delete(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
+        ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
@@ -907,4 +917,26 @@ impl HeapMarkAndSweep for TypedArray<'static> {
             TypedArray::Float16Array(data) => compactions.typed_arrays.shift_index(data),
         }
     }
+}
+
+fn ta_canonical_numeric_index_string<'a>(
+    agent: &mut Agent,
+    p: &mut PropertyKey,
+    gc: NoGcScope<'a, '_>,
+) {
+    let Ok(numeric_index) = String::try_from(unsafe { p.into_value_unchecked() }) else {
+        return;
+    };
+    let numeric_index = canonical_numeric_index_string(agent, numeric_index, gc);
+    let Some(numeric_index) = numeric_index else {
+        return;
+    };
+    if let Number::Integer(numeric_index) = numeric_index {
+        // Got proper integer index.
+        *p = PropertyKey::Integer(numeric_index);
+    } else {
+        // Non-integer index: this should pass into the "!IsValidIntegerIndex"
+        // code path. Negative indexes are always invalid so we use that.
+        *p = PropertyKey::Integer((-1i32).into())
+    };
 }

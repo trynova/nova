@@ -1338,6 +1338,8 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
     // keys must start with one of "1".."9".
     if str == "0" {
         return Some(0.into());
+    } else if str == "-0" {
+        return None;
     } else if !str.is_empty()
         && (str.starts_with('-') || (b'1'..=b'9').contains(&str.as_bytes()[0]))
     {
