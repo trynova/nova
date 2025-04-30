@@ -4157,10 +4157,6 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
             }
         }
     }
-
-    let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    let copy_len = captured.min(slice.len());
-    slice[..copy_len].copy_from_slice(&kept);
     // 12. Return A.
     Ok(a.unbind())
 }
