@@ -919,11 +919,8 @@ impl HeapMarkAndSweep for TypedArray<'static> {
     }
 }
 
-fn ta_canonical_numeric_index_string<'a>(
-    agent: &mut Agent,
-    p: &mut PropertyKey,
-    gc: NoGcScope<'a, '_>,
-) {
+/// Canonicalize the given property key if it is a numeric string key.
+fn ta_canonical_numeric_index_string(agent: &mut Agent, p: &mut PropertyKey, gc: NoGcScope) {
     let Ok(numeric_index) = String::try_from(unsafe { p.into_value_unchecked() }) else {
         return;
     };
