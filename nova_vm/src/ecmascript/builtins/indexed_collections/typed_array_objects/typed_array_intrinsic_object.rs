@@ -3057,7 +3057,65 @@ fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut
     slice.copy_from_slice(kept);
 }
 
-fn with_typed_array<'a, T: Viewable>(
+fn split_typed_array_views<'a, T: Viewable + std::fmt::Debug>(
+    agent: &'a mut Agent,
+    a: TypedArray<'a>,
+    o: TypedArray<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, (&'a mut [T], &'a [T])> {
+    let a_buf = a.get_viewed_array_buffer(agent, gc);
+    let o_buf = o.get_viewed_array_buffer(agent, gc);
+    assert!(
+        !std::ptr::eq(
+            a_buf.as_mut_slice(agent).as_mut_ptr(),
+            o_buf.as_slice(agent).as_ptr()
+        ),
+        "Must not point to the same buffer"
+    );
+    let a_offset = a.byte_offset(agent);
+    let a_len = a.byte_length(agent);
+    let a_bytes = a_buf.as_mut_slice(agent);
+    if a_bytes.is_empty() || a_offset > a_bytes.len() {
+        return Ok((&mut [], &[]));
+    }
+    let a_slice = if let Some(a_len) = a_len {
+        let end_index = a_offset + a_len;
+        if end_index <= a_bytes.len() {
+            &mut a_bytes[a_offset..end_index]
+        } else {
+            &mut []
+        }
+    } else {
+        &mut a_bytes[a_offset..]
+    };
+    let a_ptr = a_slice.as_mut_ptr();
+    let a_len = a_slice.len();
+    let o_offset = o.byte_offset(agent);
+    let o_len = o.byte_length(agent);
+    let o_bytes = o_buf.as_slice(agent);
+    let o_slice = if let Some(o_len) = o_len {
+        let end_index = o_offset + o_len;
+        if end_index <= o_bytes.len() {
+            &o_bytes[o_offset..end_index]
+        } else {
+            &[]
+        }
+    } else {
+        &o_bytes[o_offset..]
+    };
+    let a_slice = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
+    let (a_head, a_aligned, _) = unsafe { a_slice.align_to_mut::<T>() };
+    if !a_head.is_empty() {
+        panic!("TypedArray is not properly aligned");
+    }
+    let (o_head, o_aligned, _) = unsafe { o_slice.align_to::<T>() };
+    if !o_head.is_empty() {
+        panic!("TypedArray is not properly aligned");
+    }
+    Ok((a_aligned, o_aligned))
+}
+
+fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     index: Value,
@@ -3068,9 +3126,8 @@ fn with_typed_array<'a, T: Viewable>(
     let value = value.bind(gc.nogc());
     let o = ta_record.object;
     let scoped_value = value.scope(agent, gc.nogc());
-    // 3. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
     // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
+    // 5. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
     let relative_index = if let Value::Integer(index) = index {
         index.into_i64()
     } else {
@@ -3079,6 +3136,16 @@ fn with_typed_array<'a, T: Viewable>(
             .bind(gc.nogc())
             .into_i64()
     };
+    let numeric_value = scoped_value
+        .get(agent)
+        .into_value()
+        .to_numeric(agent, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    // 7. If O.[[ContentType]] is bigint, let numericValue be ? ToBigInt(value).
+    let numeric_value = T::from_le_value(agent, numeric_value);
+    // 3. Let len be TypedArrayLength(taRecord).
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
     // 5. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
     let actual_index = if relative_index >= 0 {
         relative_index
@@ -3086,19 +3153,11 @@ fn with_typed_array<'a, T: Viewable>(
         // 6. Else, let actualIndex be len + relativeIndex.
         len + relative_index
     };
-    // 7. If O.[[ContentType]] is bigint, let numericValue be ? ToBigInt(value).
-    let value = scoped_value
-        .get(agent)
-        .into_value()
-        .to_numeric(agent, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
-    let numeric_value = T::from_le_value(agent, value);
     // 9. If IsValidIntegerIndex(O, 𝔽(actualIndex)) is false, throw a RangeError exception.
     if is_valid_integer_index_generic(agent, o, actual_index, gc.nogc()).is_none() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
-            "TypedArray is not properly aligned",
+            "Index out of bounds",
             gc.into_nogc(),
         ));
     }
@@ -3107,30 +3166,19 @@ fn with_typed_array<'a, T: Viewable>(
         .unbind()?
         .bind(gc.nogc());
     // 11. Let k be 0.
-    let mut k = 0;
-    // 12. Repeat, while k < len,
-    while k < len {
-        // a. Let Pk be ! ToString(𝔽(k)).
-        let pk = PropertyKey::from(SmallInteger::from(k as u32));
-        // b. If k = actualIndex, let fromValue be numericValue.
-        let from_value = if k == actual_index {
-            numeric_value.into_le_value(agent, gc.nogc()).into_value()
-        } else {
-            // c. Else, let fromValue be ! Get(O, Pk).
-            unwrap_try(try_get(agent, o, pk, gc.nogc()))
-        };
-        // d. Perform ! Set(A, Pk, fromValue, true).
-        unwrap_try(try_set(
-            agent,
-            a.into_object(),
-            pk,
-            from_value.unbind(),
-            true,
-            gc.nogc(),
-        ))
-        .unwrap();
-        //     e. Set k to k + 1.
-        k += 1;
+    // 12. Repeat, while k < len
+    //  a. Let Pk be ! ToString(𝔽(k)).
+    //  b. If k = actualIndex, let fromValue be numericValue.
+    //  c. Else, let fromValue be ! Get(O, Pk).
+    //  d. Perform ! Set(A, Pk, fromValue, true).
+    //  e. Set k to k + 1.
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, o, gc.nogc()).unwrap();
+    let len = len as usize;
+    let a_slice = &mut a_slice[..len];
+    let o_slice = &o_slice[..len];
+    a_slice.copy_from_slice(o_slice);
+    if !o_slice.is_empty() && o_slice.len() == len {
+        a_slice[actual_index as usize] = numeric_value;
     }
     // 13. Return A.
     Ok(a.unbind())
