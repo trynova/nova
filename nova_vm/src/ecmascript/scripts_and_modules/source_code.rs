@@ -171,7 +171,7 @@ pub struct SourceCodeHeapData<'a> {
     /// references would necessarily and definitely be invalid.
     source: HeapString<'a>,
     /// Semantic analysis results obtained when parsing a source file.
-    /// 
+    ///
     /// This only exists until this source code gets compiled. Since it's only
     /// needed then, the compiler takes this semantic out of the source file,
     /// obtaining ownership over it.
