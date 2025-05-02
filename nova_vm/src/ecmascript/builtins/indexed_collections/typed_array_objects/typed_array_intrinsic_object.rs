@@ -1782,23 +1782,8 @@ impl TypedArrayPrototype {
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc)
             .unbind()?
             .bind(gc);
-        // 3. Let len be TypedArrayLength(taRecord).
         let o = ta_record.object;
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc)) as i64;
-        // 4. Let middle be floor(len / 2).
-        // 5. Let lower be 0.
-        let len = len as usize;
-        // 6. Repeat, while lower ≠ middle,
-        //    a. Let upper be len - lower - 1.
-        //    b. Let upperP be ! ToString(𝔽(upper)).
-        //    c. Let lowerP be ! ToString(𝔽(lower)).
-        //    d. Let lowerValue be ! Get(O, lowerP).
-        //    e. Let upperValue be ! Get(O, upperP).
-        //    f. Perform ! Set(O, lowerP, upperValue, true).
-        //    g. Perform ! Set(O, upperP, lowerValue, true).
-        //    h. Set lower to lower + 1.
-        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, o, len, gc)?);
+        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, ta_record, o, gc)?);
         // 7. Return O.
         Ok(o.into_value())
     }
@@ -2337,10 +2322,23 @@ fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool
 
 fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords<'_>,
     ta: TypedArray,
-    len: usize,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    // 3. Let len be TypedArrayLength(taRecord).
+    let len = typed_array_length::<T>(agent, &ta_record, gc);
+    // 4. Let middle be floor(len / 2).
+    // 5. Let lower be 0.
+    // 6. Repeat, while lower ≠ middle,
+    //    a. Let upper be len - lower - 1.
+    //    b. Let upperP be ! ToString(𝔽(upper)).
+    //    c. Let lowerP be ! ToString(𝔽(lower)).
+    //    d. Let lowerValue be ! Get(O, lowerP).
+    //    e. Let upperValue be ! Get(O, upperP).
+    //    f. Perform ! Set(O, lowerP, upperValue, true).
+    //    g. Perform ! Set(O, upperP, lowerValue, true).
+    //    h. Set lower to lower + 1.
     let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
     let slice = &mut slice[..len];
     slice.reverse();
