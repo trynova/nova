@@ -24,10 +24,10 @@ use crate::{
 
 use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
 
-pub(crate) fn instantiation(
-    ctx: &mut CompileContext,
-    formals: &FormalParameters,
-    body: &FunctionBody<'_>,
+pub(crate) fn instantiation<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    formals: &'s FormalParameters<'s>,
+    body: &'s FunctionBody<'s>,
     strict: bool,
     is_lexical: bool,
 ) {
@@ -94,9 +94,7 @@ pub(crate) fn instantiation(
     //   e. Set the LexicalEnvironment of calleeContext to env.
     if !strict && has_parameter_expressions {
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i += 1;
-        }
+        ctx.current_lexical_depth += 1;
     }
 
     // 21. For each String paramName of parameterNames, do
@@ -215,9 +213,7 @@ pub(crate) fn instantiation(
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
         if !strict {
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                *i += 1;
-            }
+            ctx.current_lexical_depth += 1;
         }
     } else {
         // 28. Else,

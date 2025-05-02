@@ -149,13 +149,50 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
                 match &decl.declaration {
                     ExportDefaultDeclarationKind::FunctionDeclaration(decl) => decl.bound_names(f),
                     ExportDefaultDeclarationKind::ClassDeclaration(decl) => decl.bound_names(f),
-                    ExportDefaultDeclarationKind::TSAsExpression(_)
+                    ExportDefaultDeclarationKind::BooleanLiteral(_)
+                    | ExportDefaultDeclarationKind::NullLiteral(_)
+                    | ExportDefaultDeclarationKind::NumericLiteral(_)
+                    | ExportDefaultDeclarationKind::BigIntLiteral(_)
+                    | ExportDefaultDeclarationKind::RegExpLiteral(_)
+                    | ExportDefaultDeclarationKind::StringLiteral(_)
+                    | ExportDefaultDeclarationKind::TemplateLiteral(_)
+                    | ExportDefaultDeclarationKind::Identifier(_)
+                    | ExportDefaultDeclarationKind::MetaProperty(_)
+                    | ExportDefaultDeclarationKind::Super(_)
+                    | ExportDefaultDeclarationKind::ArrayExpression(_)
+                    | ExportDefaultDeclarationKind::ArrowFunctionExpression(_)
+                    | ExportDefaultDeclarationKind::AssignmentExpression(_)
+                    | ExportDefaultDeclarationKind::AwaitExpression(_)
+                    | ExportDefaultDeclarationKind::BinaryExpression(_)
+                    | ExportDefaultDeclarationKind::CallExpression(_)
+                    | ExportDefaultDeclarationKind::ChainExpression(_)
+                    | ExportDefaultDeclarationKind::ClassExpression(_)
+                    | ExportDefaultDeclarationKind::ConditionalExpression(_)
+                    | ExportDefaultDeclarationKind::FunctionExpression(_)
+                    | ExportDefaultDeclarationKind::ImportExpression(_)
+                    | ExportDefaultDeclarationKind::LogicalExpression(_)
+                    | ExportDefaultDeclarationKind::NewExpression(_)
+                    | ExportDefaultDeclarationKind::ObjectExpression(_)
+                    | ExportDefaultDeclarationKind::ParenthesizedExpression(_)
+                    | ExportDefaultDeclarationKind::SequenceExpression(_)
+                    | ExportDefaultDeclarationKind::TaggedTemplateExpression(_)
+                    | ExportDefaultDeclarationKind::ThisExpression(_)
+                    | ExportDefaultDeclarationKind::UnaryExpression(_)
+                    | ExportDefaultDeclarationKind::UpdateExpression(_)
+                    | ExportDefaultDeclarationKind::YieldExpression(_)
+                    | ExportDefaultDeclarationKind::PrivateInExpression(_)
+                    | ExportDefaultDeclarationKind::V8IntrinsicExpression(_)
+                    | ExportDefaultDeclarationKind::ComputedMemberExpression(_)
+                    | ExportDefaultDeclarationKind::StaticMemberExpression(_)
+                    | ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
+                    ExportDefaultDeclarationKind::JSXElement(_)
+                    | ExportDefaultDeclarationKind::JSXFragment(_)
+                    | ExportDefaultDeclarationKind::TSAsExpression(_)
                     | ExportDefaultDeclarationKind::TSInstantiationExpression(_)
                     | ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
                     | ExportDefaultDeclarationKind::TSNonNullExpression(_)
                     | ExportDefaultDeclarationKind::TSSatisfiesExpression(_)
                     | ExportDefaultDeclarationKind::TSTypeAssertion(_) => unreachable!(),
-                    _ => {}
                 }
             }
             // StatementListItem : Declaration
@@ -179,14 +216,15 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
             Statement::VariableDeclaration(decl) => decl.bound_names(f),
             Statement::FunctionDeclaration(decl) => decl.bound_names(f),
             Statement::ClassDeclaration(decl) => decl.bound_names(f),
-            Statement::TSExportAssignment(_) | Statement::TSNamespaceExportDeclaration(_) => {
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => {
                 unreachable!()
             }
-            Statement::TSTypeAliasDeclaration(_) => todo!(),
-            Statement::TSInterfaceDeclaration(_) => todo!(),
-            Statement::TSEnumDeclaration(_) => todo!(),
-            Statement::TSModuleDeclaration(_) => todo!(),
-            Statement::TSImportEqualsDeclaration(_) => todo!(),
         }
     }
 }
@@ -199,7 +237,9 @@ impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'a> {
         // 1. Return a new empty List.
         // LabelledItem : FunctionDeclaration
         // 1. Return BoundNames of FunctionDeclaration.
-        self.body.lexically_declared_names(f);
+        if let Statement::FunctionDeclaration(decl) = &self.body {
+            decl.bound_names(f);
+        }
     }
 }
 
@@ -224,8 +264,8 @@ impl<'a> LexicallyScopedDeclarations<'a> for BlockStatement<'a> {
         &'a self,
         f: &mut F,
     ) {
-        for case in &self.body {
-            case.lexically_scoped_declarations(f);
+        for st in &self.body {
+            st.lexically_scoped_declarations(f);
         }
     }
 }
@@ -442,6 +482,39 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                         // 1. Return a List whose sole element is this ExportDeclaration.
                         f(LexicallyScopedDeclaration::DefaultExport);
                     }
+                    ExportDefaultDeclarationKind::BooleanLiteral(_) |
+                    ExportDefaultDeclarationKind::NullLiteral(_) |
+                    ExportDefaultDeclarationKind::NumericLiteral(_) |
+                    ExportDefaultDeclarationKind::BigIntLiteral(_) |
+                    ExportDefaultDeclarationKind::RegExpLiteral(_) |
+                    ExportDefaultDeclarationKind::StringLiteral(_) |
+                    ExportDefaultDeclarationKind::TemplateLiteral(_) |
+                    ExportDefaultDeclarationKind::Identifier(_) |
+                    ExportDefaultDeclarationKind::MetaProperty(_) |
+                    ExportDefaultDeclarationKind::Super(_) |
+                    ExportDefaultDeclarationKind::ArrayExpression(_) |
+                    ExportDefaultDeclarationKind::ArrowFunctionExpression(_) |
+                    ExportDefaultDeclarationKind::AwaitExpression(_) |
+                    ExportDefaultDeclarationKind::BinaryExpression(_) |
+                    ExportDefaultDeclarationKind::CallExpression(_) |
+                    ExportDefaultDeclarationKind::ChainExpression(_) |
+                    ExportDefaultDeclarationKind::ConditionalExpression(_) |
+                    ExportDefaultDeclarationKind::ImportExpression(_) |
+                    ExportDefaultDeclarationKind::LogicalExpression(_) |
+                    ExportDefaultDeclarationKind::NewExpression(_) |
+                    ExportDefaultDeclarationKind::ObjectExpression(_) |
+                    ExportDefaultDeclarationKind::ParenthesizedExpression(_) |
+                    ExportDefaultDeclarationKind::SequenceExpression(_) |
+                    ExportDefaultDeclarationKind::TaggedTemplateExpression(_) |
+                    ExportDefaultDeclarationKind::ThisExpression(_) |
+                    ExportDefaultDeclarationKind::UnaryExpression(_) |
+                    ExportDefaultDeclarationKind::UpdateExpression(_) |
+                    ExportDefaultDeclarationKind::YieldExpression(_) |
+                    ExportDefaultDeclarationKind::PrivateInExpression(_) |
+                    ExportDefaultDeclarationKind::V8IntrinsicExpression(_) |
+                    ExportDefaultDeclarationKind::ComputedMemberExpression(_) |
+                    ExportDefaultDeclarationKind::StaticMemberExpression(_) |
+                    ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
                     ExportDefaultDeclarationKind::JSXElement(_) |
                     ExportDefaultDeclarationKind::JSXFragment(_) |
                     ExportDefaultDeclarationKind::TSAsExpression(_) |
@@ -450,7 +523,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     ExportDefaultDeclarationKind::TSNonNullExpression(_) |
                     ExportDefaultDeclarationKind::TSSatisfiesExpression(_) |
                     ExportDefaultDeclarationKind::TSTypeAssertion(_) => unreachable!(),
-                    _ => {},
                 }
             }
             Statement::TSEnumDeclaration(_) |
@@ -478,6 +550,8 @@ impl<'a> LexicallyScopedDeclarations<'a> for LabeledStatement<'a> {
         // 1. Return « FunctionDeclaration ».
         if let Statement::FunctionDeclaration(decl) = &self.body {
             f(LexicallyScopedDeclaration::Function(decl));
+        } else if let Statement::LabeledStatement(decl) = &self.body {
+            decl.body.lexically_scoped_declarations(f);
         }
     }
 }
@@ -1316,16 +1390,28 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
             | Statement::SwitchStatement(_)
             | Statement::ThrowStatement(_)
             | Statement::TryStatement(_)
+            | Statement::VariableDeclaration(_)
             | Statement::WhileStatement(_)
             | Statement::WithStatement(_) => {
                 self.body.var_declared_names(f);
             }
             // LabelledItem : FunctionDeclaration
             Statement::FunctionDeclaration(decl) => {
-                // 1. Return BoundNames of FunctionDeclaration.´
+                // 1. Return BoundNames of FunctionDeclaration.
                 decl.bound_names(f);
             }
-            _ => {}
+            Statement::ClassDeclaration(_)
+            | Statement::ImportDeclaration(_)
+            | Statement::ExportAllDeclaration(_)
+            | Statement::ExportDefaultDeclaration(_)
+            | Statement::ExportNamedDeclaration(_) => self.body.var_declared_names(f),
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1447,6 +1533,9 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for LabeledStatement<'a> {
             | Statement::WithStatement(_) => {
                 // 2. Return VarScopedDeclarations of Statement.
                 self.body.var_scoped_declarations(f);
+            }
+            Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                decl.var_scoped_declarations(f);
             }
             Statement::FunctionDeclaration(decl) => {
                 // LabelledItem : FunctionDeclaration

@@ -7,6 +7,9 @@ mod block_declaration_instantiation;
 mod class_definition_evaluation;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
+mod labelled_statement;
+
+use std::{cell::RefCell, rc::Rc};
 
 use super::{
     Executable, ExecutableHeapData, FunctionExpression, Instruction, SendableRef,
@@ -26,9 +29,11 @@ use crate::{
     engine::context::{Bindable, NoGcScope},
     heap::CreateHeapData,
 };
+use ahash::AHashMap;
 use num_traits::Num;
 use oxc_ast::ast::{
-    self, BindingPattern, BindingRestElement, CallExpression, NewExpression, Statement,
+    self, BindingPattern, BindingRestElement, CallExpression, LabelIdentifier, NewExpression,
+    Statement,
 };
 use oxc_ecmascript::BoundNames;
 use oxc_span::Atom;
@@ -48,7 +53,39 @@ pub(crate) enum NamedEvaluationParameter {
     ReferenceStack,
 }
 
-pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
+pub(crate) struct JumpTarget {
+    /// Depth of the lexical of the jump target.
+    ///
+    /// This is used to determine how many ExitDeclarativeEnvironment
+    /// instructions are needed before jumping to this target from a continue
+    /// or break statement.
+    depth: u32,
+    /// `continue;` statements that target this jump target.
+    pub(crate) continues: Vec<JumpIndex>,
+    /// `break;` statements that target this jump target.
+    pub(crate) breaks: Vec<JumpIndex>,
+}
+
+impl JumpTarget {
+    pub(super) fn new(depth: u32) -> Self {
+        Self {
+            depth,
+            continues: vec![],
+            breaks: vec![],
+        }
+    }
+}
+
+/// Context for bytecode compilation.
+///
+/// The lifetimes on this context are:
+/// - `'agent`: The lifetime of the Agent, which owns the heap.
+/// - `'script`: The lifetime of the oxc Program struct which contains the AST.
+/// - `'gc`: The garbage collector marker lifetime, needed for tracking garbage
+///   collected data lifetime.
+/// - `'scope`: The Javascript scope marker lifetime, only here because `gc`
+///   tracks it.
+pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
     /// Instructions being built
@@ -66,12 +103,10 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     ///
     /// Otherwise, all bindings being created are variable scoped.
     lexical_binding_state: bool,
-    /// Current depth of the lexical scope away from our continue/break target.
-    current_depth_of_loop_scope: Option<u16>,
-    /// `continue;` statement jumps that were present in the current loop.
-    current_continue: Option<Vec<JumpIndex>>,
-    /// `break;` statement jumps that were present in the current loop.
-    current_break: Option<Vec<JumpIndex>>,
+    /// Current depth of the lexical scope stack.
+    current_lexical_depth: u32,
+    current_jump_target: Option<Rc<RefCell<JumpTarget>>>,
+    labelled_statements: Option<Box<AHashMap<Atom<'script>, Rc<RefCell<JumpTarget>>>>>,
     /// `?.` chain jumps that were present in a chain expression.
     optional_chains: Option<Vec<JumpIndex>>,
     /// In a `(a?.b).unbind()?.bind(gc.nogc()).()` chain the evaluation of `(a?.b)` must be considered a
@@ -79,11 +114,11 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     is_call_optional_chain_this: bool,
 }
 
-impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
+impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     pub(super) fn new(
         agent: &'a mut Agent,
         gc: NoGcScope<'gc, 'scope>,
-    ) -> CompileContext<'a, 'gc, 'scope> {
+    ) -> CompileContext<'a, 's, 'gc, 'scope> {
         CompileContext {
             agent,
             gc,
@@ -94,20 +129,65 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
             class_initializer_bytecodes: Vec::new(),
             name_identifier: None,
             lexical_binding_state: false,
-            current_depth_of_loop_scope: None,
-            current_continue: None,
-            current_break: None,
+            current_lexical_depth: 0,
             optional_chains: None,
+            current_jump_target: None,
+            labelled_statements: None,
             is_call_optional_chain_this: false,
         }
+    }
+
+    pub(super) fn return_jump_target(&mut self, jump_target: Option<Rc<RefCell<JumpTarget>>>) {
+        let Some(jump_target) = jump_target else {
+            return;
+        };
+        self.current_jump_target.replace(jump_target);
+    }
+
+    pub(super) fn push_new_jump_target(
+        &mut self,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+    ) -> Option<Rc<RefCell<JumpTarget>>> {
+        let depth = self.current_lexical_depth;
+        let jump_target = Rc::new(RefCell::new(JumpTarget::new(depth)));
+        if let Some(label_set) = label_set {
+            for label in label_set {
+                let pervious = self
+                    .labelled_statements
+                    .as_mut()
+                    .unwrap()
+                    .insert(label.name, jump_target.clone());
+                assert!(pervious.is_none());
+            }
+        }
+        self.current_jump_target.replace(jump_target)
+    }
+
+    pub(super) fn take_current_jump_target(
+        &mut self,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+    ) -> JumpTarget {
+        if let Some(label_set) = label_set {
+            for label in label_set {
+                // Note: removing the labeled statement here is important, as
+                // without it the Rc::into_inner below will fail.
+                self.labelled_statements
+                    .as_mut()
+                    .unwrap()
+                    .remove(&label.name);
+            }
+        }
+        Rc::into_inner(self.current_jump_target.take().unwrap())
+            .unwrap()
+            .into_inner()
     }
 
     /// Compile a class static field with an optional initializer into the
     /// current context.
     pub(crate) fn compile_class_static_field(
         &mut self,
-        identifier_name: &ast::IdentifierName,
-        value: &Option<ast::Expression>,
+        identifier_name: &'s ast::IdentifierName<'s>,
+        value: &'s Option<ast::Expression<'s>>,
     ) {
         let identifier = String::from_str(self.agent, identifier_name.name.as_str(), self.gc);
         // Turn the static name to a 'this' property access.
@@ -142,7 +222,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     pub(crate) fn compile_class_computed_field(
         &mut self,
         property_key_id: String<'gc>,
-        value: &Option<ast::Expression<'_>>,
+        value: &'s Option<ast::Expression<'s>>,
     ) {
         // Resolve 'this' into the stack.
         self.add_instruction(Instruction::ResolveThisBinding);
@@ -178,7 +258,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     ///
     /// This is useful when the function body is part of a larger whole, namely
     /// with class constructors.
-    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'_>) {
+    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'s>) {
         if self.agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Function ===");
@@ -201,7 +281,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         self.compile_statements(body);
     }
 
-    pub(super) fn compile_statements(&mut self, body: &[Statement]) {
+    pub(super) fn compile_statements(&mut self, body: &'s [Statement<'s>]) {
         let iter = body.iter();
 
         for stmt in iter {
@@ -466,14 +546,32 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub(crate) struct JumpIndex {
     pub(crate) index: usize,
 }
 
-pub(crate) trait CompileEvaluation {
-    fn compile(&self, ctx: &mut CompileContext);
+pub(crate) trait CompileEvaluation<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>);
+}
+
+pub(crate) trait CompileLabelledEvaluation<'s> {
+    fn compile_labelled(
+        &'s self,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+    );
+}
+
+impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
+    fn compile_labelled(
+        &'a self,
+        _label_set: Option<&mut Vec<&'a LabelIdentifier<'a>>>,
+        ctx: &mut CompileContext<'_, 'a, '_, '_>,
+    ) {
+        self.compile(ctx);
+    }
 }
 
 pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
@@ -500,21 +598,21 @@ fn is_chain_expression(expression: &ast::Expression) -> bool {
     }
 }
 
-impl CompileEvaluation for ast::NumericLiteral<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::NumericLiteral<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let constant = ctx.agent.heap.create(self.value);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
-impl CompileEvaluation for ast::BooleanLiteral {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::BooleanLiteral {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, self.value);
     }
 }
 
-impl CompileEvaluation for ast::BigIntLiteral<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::BigIntLiteral<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Drop out the trailing 'n' from BigInt literals.
         let last_index = self.raw.len() - 1;
         let (big_int_str, radix) = match self.base {
@@ -531,36 +629,36 @@ impl CompileEvaluation for ast::BigIntLiteral<'_> {
     }
 }
 
-impl CompileEvaluation for ast::NullLiteral {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::NullLiteral {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
     }
 }
 
-impl CompileEvaluation for ast::StringLiteral<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::StringLiteral<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let constant = String::from_str(ctx.agent, self.value.as_str(), ctx.gc);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
-impl CompileEvaluation for ast::IdentifierReference<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::IdentifierReference<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let identifier = String::from_str(ctx.agent, self.name.as_str(), ctx.gc);
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
-impl CompileEvaluation for ast::BindingIdentifier<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::BindingIdentifier<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let identifier = String::from_str(ctx.agent, self.name.as_str(), ctx.gc);
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
-impl CompileEvaluation for ast::UnaryExpression<'_> {
-    /// ### [13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
+    /// ### ['a 13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self.operator {
             // 13.5.5 Unary - Operator
             // https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation
@@ -667,8 +765,8 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::BinaryExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::BinaryExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let lref be ? Evaluation of leftOperand.
         self.left.compile(ctx);
 
@@ -729,8 +827,8 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::LogicalExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::LogicalExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         self.left.compile(ctx);
         if is_reference(&self.left) {
             ctx.add_instruction(Instruction::GetValue);
@@ -767,14 +865,14 @@ impl CompileEvaluation for ast::LogicalExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ParenthesizedExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ParenthesizedExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         self.expression.compile(ctx);
     }
 }
 
-impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ArrowFunctionExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // CompileContext holds a name identifier for us if this is NamedEvaluation.
         let identifier = ctx.name_identifier.take();
         ctx.add_arrow_function_expression(ArrowFunctionExpression {
@@ -789,8 +887,8 @@ impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::Function<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::Function<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // CompileContext holds a name identifier for us if this is NamedEvaluation.
         let identifier = ctx.name_identifier.take();
         ctx.add_instruction_with_function_expression(
@@ -808,8 +906,8 @@ impl CompileEvaluation for ast::Function<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ObjectExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // TODO: Consider preparing the properties onto the stack and creating
         // the object with a known size.
         ctx.add_instruction(Instruction::ObjectCreate);
@@ -967,8 +1065,8 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ArrayExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let elements_min_count = self.elements.len();
         ctx.add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
         for ele in &self.elements {
@@ -1004,7 +1102,10 @@ impl CompileEvaluation for ast::ArrayExpression<'_> {
     }
 }
 
-fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> usize {
+fn compile_arguments<'s>(
+    arguments: &'s [ast::Argument<'s>],
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) -> usize {
     // If the arguments don't contain the spread operator, then we can know the
     // number of arguments at compile-time and we can pass it as an argument to
     // the call instruction.
@@ -1084,8 +1185,8 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
     }
 }
 
-impl CompileEvaluation for CallExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for CallExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Direct eval
         if !self.optional {
             if let ast::Expression::Identifier(ident) = &self.callee {
@@ -1173,8 +1274,8 @@ impl CompileEvaluation for CallExpression<'_> {
     }
 }
 
-impl CompileEvaluation for NewExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for NewExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         self.callee.compile(ctx);
         if is_reference(&self.callee) {
             ctx.add_instruction(Instruction::GetValue);
@@ -1186,9 +1287,9 @@ impl CompileEvaluation for NewExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::MemberExpression<'_> {
-    /// ### [13.3.2 Property Accessors](https://tc39.es/ecma262/#sec-property-accessors)
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::MemberExpression<'s> {
+    /// ### ['a 13.3.2 Property Accessors](https://tc39.es/ecma262/#sec-property-accessors)
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::MemberExpression::ComputedMemberExpression(x) => x.compile(ctx),
             ast::MemberExpression::StaticMemberExpression(x) => x.compile(ctx),
@@ -1197,8 +1298,8 @@ impl CompileEvaluation for ast::MemberExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let baseReference be ? Evaluation of MemberExpression.
         self.object.compile(ctx);
 
@@ -1247,8 +1348,8 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::StaticMemberExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::StaticMemberExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let baseReference be ? Evaluation of MemberExpression.
         self.object.compile(ctx);
 
@@ -1289,14 +1390,14 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::PrivateFieldExpression<'s> {
+    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
         todo!()
     }
 }
 
-impl CompileEvaluation for ast::AwaitExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AwaitExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let exprRef be ? Evaluation of UnaryExpression.
         self.argument.compile(ctx);
         // 2. Let value be ? GetValue(exprRef).
@@ -1308,8 +1409,8 @@ impl CompileEvaluation for ast::AwaitExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ChainExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ChainExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // It's possible that we're compiling a ChainExpression inside a call
         // that is itself in a ChainExpression. We will drop into the previous
         // chain in this case.
@@ -1371,10 +1472,10 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ConditionalExpression<'_> {
-    /// ## [13.14 Conditional Operator ( ? : )](https://tc39.es/ecma262/#sec-conditional-operator)
+impl<'s> CompileEvaluation<'s> for ast::ConditionalExpression<'s> {
+    /// ## ['a 13.14 Conditional Operator ( ? : )](https://tc39.es/ecma262/#sec-conditional-operator)
     /// ### [13.14.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-conditional-operator-runtime-semantics-evaluation)
-    fn compile(&self, ctx: &mut CompileContext) {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let lref be ? Evaluation of ShortCircuitExpression.
         self.test.compile(ctx);
         // 2. Let lval be ToBoolean(? GetValue(lref)).
@@ -1405,14 +1506,14 @@ impl CompileEvaluation for ast::ConditionalExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ImportExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ImportExpression<'s> {
+    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
         todo!()
     }
 }
 
-impl CompileEvaluation for ast::MetaProperty<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::MetaProperty<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.meta.name == "new" && self.property.name == "target" {
             ctx.add_instruction(Instruction::GetNewTarget);
         } else {
@@ -1421,14 +1522,14 @@ impl CompileEvaluation for ast::MetaProperty<'_> {
     }
 }
 
-impl CompileEvaluation for ast::PrivateInExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::PrivateInExpression<'s> {
+    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
         todo!()
     }
 }
 #[cfg(feature = "regexp")]
-impl CompileEvaluation for ast::RegExpLiteral<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::RegExpLiteral<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let pattern = match self.regex.pattern {
             ast::RegExpPattern::Raw(pattern) => pattern,
             ast::RegExpPattern::Invalid(pattern) => pattern,
@@ -1441,28 +1542,28 @@ impl CompileEvaluation for ast::RegExpLiteral<'_> {
     }
 }
 
-impl CompileEvaluation for ast::SequenceExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::SequenceExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         for expr in &self.expressions {
             expr.compile(ctx);
         }
     }
 }
 
-impl CompileEvaluation for ast::Super {
-    fn compile(&self, _ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::Super {
+    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
         todo!()
     }
 }
 
-impl CompileEvaluation for ast::TaggedTemplateExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
+    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
         todo!()
     }
 }
 
-impl CompileEvaluation for ast::TemplateLiteral<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::TemplateLiteral<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.is_no_substitution_template() {
             let constant = String::from_str(
                 ctx.agent,
@@ -1508,14 +1609,14 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ThisExpression {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ThisExpression {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         ctx.add_instruction(Instruction::ResolveThisBinding);
     }
 }
 
-impl CompileEvaluation for ast::YieldExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.delegate {
             todo!("`yield*` is not yet supported");
         }
@@ -1537,8 +1638,8 @@ impl CompileEvaluation for ast::YieldExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::Expression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::Expression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::Expression::ArrayExpression(x) => x.compile(ctx),
             ast::Expression::ArrowFunctionExpression(x) => x.compile(ctx),
@@ -1591,8 +1692,8 @@ impl CompileEvaluation for ast::Expression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::UpdateExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::UpdateExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match &self.argument {
             ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => x.compile(ctx),
@@ -1626,10 +1727,10 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ExpressionStatement<'_> {
-    /// ### [14.5.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-expression-statement-runtime-semantics-evaluation)
+impl<'s> CompileEvaluation<'s> for ast::ExpressionStatement<'s> {
+    /// ### ['a 14.5.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-expression-statement-runtime-semantics-evaluation)
     /// `ExpressionStatement : Expression ;`
-    fn compile(&self, ctx: &mut CompileContext) {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let exprRef be ? Evaluation of Expression.
         self.expression.compile(ctx);
         if is_reference(&self.expression) {
@@ -1639,8 +1740,8 @@ impl CompileEvaluation for ast::ExpressionStatement<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ReturnStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ReturnStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if let Some(expr) = &self.argument {
             expr.compile(ctx);
             if is_reference(expr) {
@@ -1653,8 +1754,8 @@ impl CompileEvaluation for ast::ReturnStatement<'_> {
     }
 }
 
-impl CompileEvaluation for ast::IfStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // if (test) consequent
         self.test.compile(ctx);
         if is_reference(&self.test) {
@@ -1688,8 +1789,8 @@ impl CompileEvaluation for ast::IfStatement<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ArrayPattern<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.elements.is_empty() && self.rest.is_none() {
             return;
         }
@@ -1716,15 +1817,14 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
     }
 }
 
-fn simple_array_pattern<'a, 'b, I>(
-    ctx: &mut CompileContext,
+fn simple_array_pattern<'s, I>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
     elements: I,
-    rest: Option<&BindingRestElement>,
+    rest: Option<&'s BindingRestElement<'s>>,
     num_elements: usize,
     has_environment: bool,
 ) where
-    'b: 'a,
-    I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
+    I: Iterator<Item = Option<&'s BindingPattern<'s>>>,
 {
     ctx.lexical_binding_state = has_environment;
     ctx.add_instruction_with_immediate_and_immediate(
@@ -1794,14 +1894,13 @@ fn simple_array_pattern<'a, 'b, I>(
     }
 }
 
-fn complex_array_pattern<'a, 'b, I>(
-    ctx: &mut CompileContext,
+fn complex_array_pattern<'s, I>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
     elements: I,
-    rest: Option<&BindingRestElement>,
+    rest: Option<&'s BindingRestElement<'s>>,
     has_environment: bool,
 ) where
-    'b: 'a,
-    I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
+    I: Iterator<Item = Option<&'s BindingPattern<'s>>>,
 {
     ctx.lexical_binding_state = has_environment;
     for ele in elements {
@@ -1893,8 +1992,8 @@ fn complex_array_pattern<'a, 'b, I>(
     }
 }
 
-impl CompileEvaluation for ast::ObjectPattern<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ObjectPattern<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if !self.contains_expression() {
             simple_object_pattern(self, ctx, ctx.lexical_binding_state);
         } else {
@@ -1903,9 +2002,9 @@ impl CompileEvaluation for ast::ObjectPattern<'_> {
     }
 }
 
-fn simple_object_pattern(
-    pattern: &ast::ObjectPattern<'_>,
-    ctx: &mut CompileContext,
+fn simple_object_pattern<'s>(
+    pattern: &'s ast::ObjectPattern<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
     has_environment: bool,
 ) {
     ctx.lexical_binding_state = has_environment;
@@ -2002,9 +2101,9 @@ fn simple_object_pattern(
     }
 }
 
-fn complex_object_pattern(
-    object_pattern: &ast::ObjectPattern<'_>,
-    ctx: &mut CompileContext,
+fn complex_object_pattern<'s>(
+    object_pattern: &'s ast::ObjectPattern<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
     has_environment: bool,
 ) {
     ctx.lexical_binding_state = has_environment;
@@ -2121,8 +2220,8 @@ fn complex_object_pattern(
     }
 }
 
-impl CompileEvaluation for ast::VariableDeclaration<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self.kind {
             // VariableStatement : var VariableDeclarationList ;
             ast::VariableDeclarationKind::Var => {
@@ -2152,7 +2251,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                             ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
                             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
                         }
-                        return;
+                        continue;
                     };
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
@@ -2232,11 +2331,14 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                             Instruction::StoreConstant,
                             Value::Undefined,
                         );
-                        return;
+                        continue;
                     };
 
+                    let do_push_reference = !init.is_literal();
                     //  LexicalBinding : BindingIdentifier Initializer
-                    ctx.add_instruction(Instruction::PushReference);
+                    if do_push_reference {
+                        ctx.add_instruction(Instruction::PushReference);
+                    }
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
                         // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
@@ -2254,7 +2356,9 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     }
 
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
-                    ctx.add_instruction(Instruction::PopReference);
+                    if do_push_reference {
+                        ctx.add_instruction(Instruction::PopReference);
+                    }
                     ctx.add_instruction(Instruction::InitializeReferencedBinding);
                     // 6. Return empty.
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -2266,8 +2370,8 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
     }
 }
 
-impl CompileEvaluation for ast::BlockStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.body.is_empty() {
             // Block : {}
             // 1. Return EMPTY.
@@ -2280,22 +2384,23 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
         }
         if ctx.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
             // Block did not end in a return so we overwrite the result with undefined.
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            // TODO: This should be removed; block doesn't reset the value.
+            // ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
         if did_enter_declarative_environment {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                *i -= 1;
-            }
+            ctx.current_lexical_depth -= 1;
         }
     }
 }
 
-impl CompileEvaluation for ast::ForStatement<'_> {
-    fn compile<'gc>(&self, ctx: &mut CompileContext<'_, 'gc, '_>) {
-        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
-        let previous_continue = ctx.current_continue.replace(vec![]);
-        let previous_break = ctx.current_break.replace(vec![]);
+impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
+    fn compile_labelled<'gc>(
+        &'s self,
+        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+    ) {
+        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
 
         let mut per_iteration_lets: Vec<String<'_>> = vec![];
         let mut is_lexical = false;
@@ -2397,7 +2502,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
         let create_per_iteration_env = if !per_iteration_lets.is_empty() {
-            Some(|ctx: &mut CompileContext<'_, 'gc, '_>| {
+            Some(|ctx: &mut CompileContext<'_, '_, 'gc, '_>| {
                 if per_iteration_lets.len() == 1 {
                     // NOTE: Optimization for the usual case of a single let
                     // binding. We do not need to push and pop from the stack
@@ -2458,8 +2563,8 @@ impl CompileEvaluation for ast::ForStatement<'_> {
 
         self.body.compile(ctx);
 
-        let own_continues = ctx.current_continue.take().unwrap();
-        for continue_entry in own_continues {
+        let jump_target = ctx.take_current_jump_target(label_set);
+        for continue_entry in jump_target.continues {
             ctx.set_jump_target_here(continue_entry);
         }
 
@@ -2473,8 +2578,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         ctx.add_jump_instruction_to_index(Instruction::Jump, loop_jump);
         ctx.set_jump_target_here(end_jump);
 
-        let own_breaks = ctx.current_break.take().unwrap();
-        for break_entry in own_breaks {
+        for break_entry in jump_target.breaks {
             ctx.set_jump_target_here(break_entry);
         }
         if is_lexical {
@@ -2482,15 +2586,17 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             // we need to exit from once we exit the loop.
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
-        ctx.current_break = previous_break;
-        ctx.current_continue = previous_continue;
-        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
+        ctx.return_jump_target(previous_jump_target);
     }
 }
 
-impl CompileEvaluation for ast::SwitchStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        let previous_break = ctx.current_break.replace(vec![]);
+impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
+    fn compile_labelled(
+        &'s self,
+        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+    ) {
+        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
         // 1. Let exprRef be ? Evaluation of Expression.
         self.discriminant.compile(ctx);
         if is_reference(&self.discriminant) {
@@ -2572,25 +2678,35 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
             }
         }
 
-        let own_breaks = ctx.current_break.take().unwrap();
-        for break_entry in own_breaks {
+        let jump_target = ctx.take_current_jump_target(label_set);
+        for break_entry in jump_target.breaks {
             ctx.set_jump_target_here(break_entry);
         }
-        ctx.current_break = previous_break;
+        if !jump_target.continues.is_empty() {
+            // Some called continue inside a switch statement; these presumably
+            // belong to a loop outside.
+            let mut previous_jump_target = previous_jump_target.as_ref().unwrap().borrow_mut();
+            previous_jump_target
+                .continues
+                .extend_from_slice(&jump_target.continues);
+            // It's unlikely that any duplicates would exist but it is
+            // technically possible. We'll try avoid those.
+            previous_jump_target.continues.sort();
+            previous_jump_target.continues.dedup();
+        }
+        ctx.return_jump_target(previous_jump_target);
 
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if did_enter_declarative_environment {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                *i -= 1;
-            }
+            ctx.current_lexical_depth -= 1;
         }
         // 9. Return R.
     }
 }
 
-impl CompileEvaluation for ast::ThrowStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ThrowStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         self.argument.compile(ctx);
         if is_reference(&self.argument) {
             ctx.add_instruction(Instruction::GetValue);
@@ -2599,8 +2715,8 @@ impl CompileEvaluation for ast::ThrowStatement<'_> {
     }
 }
 
-impl CompileEvaluation for ast::TryStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.finalizer.is_some() {
             todo!();
         }
@@ -2621,9 +2737,8 @@ impl CompileEvaluation for ast::TryStatement<'_> {
             // Note: We skip the declarative environment if there is no catch
             // param as it's not observable.
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                *i += 1;
-            }
+            ctx.current_lexical_depth += 1;
+
             // 3. For each element argName of the BoundNames of CatchParameter, do
             // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
             exception_param.pattern.bound_names(&mut |arg_name| {
@@ -2661,20 +2776,20 @@ impl CompileEvaluation for ast::TryStatement<'_> {
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if catch_clause.param.is_some() {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                *i -= 1;
-            }
+            ctx.current_lexical_depth -= 1;
         }
         // 9. Return ? B.
         ctx.set_jump_target_here(jump_to_end);
     }
 }
 
-impl CompileEvaluation for ast::WhileStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
-        let previous_continue = ctx.current_continue.replace(vec![]);
-        let previous_break = ctx.current_break.replace(vec![]);
+impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
+    fn compile_labelled(
+        &'s self,
+        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+    ) {
+        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
 
         // 2. Repeat
         let start_jump = ctx.get_jump_index_to_here();
@@ -2696,34 +2811,33 @@ impl CompileEvaluation for ast::WhileStatement<'_> {
         // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
         // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
         ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump.clone());
-        let own_continues = ctx.current_continue.take().unwrap();
-        for continue_entry in own_continues {
+        let jump_target = ctx.take_current_jump_target(label_set);
+        for continue_entry in jump_target.continues {
             ctx.set_jump_target(continue_entry, start_jump.clone());
         }
 
         ctx.set_jump_target_here(end_jump);
 
-        let own_breaks = ctx.current_break.take().unwrap();
-        for break_entry in own_breaks {
+        for break_entry in jump_target.breaks {
             ctx.set_jump_target_here(break_entry);
         }
-        ctx.current_break = previous_break;
-        ctx.current_continue = previous_continue;
-        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
+        ctx.return_jump_target(previous_jump_target);
     }
 }
 
-impl CompileEvaluation for ast::DoWhileStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
-        let previous_continue = ctx.current_continue.replace(vec![]);
-        let previous_break = ctx.current_break.replace(vec![]);
+impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
+    fn compile_labelled(
+        &'s self,
+        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+    ) {
+        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
 
         let start_jump = ctx.get_jump_index_to_here();
         self.body.compile(ctx);
 
-        let own_continues = ctx.current_continue.take().unwrap();
-        for continue_entry in own_continues {
+        let jump_target = ctx.take_current_jump_target(label_set);
+        for continue_entry in jump_target.continues {
             ctx.set_jump_target_here(continue_entry);
         }
 
@@ -2736,51 +2850,69 @@ impl CompileEvaluation for ast::DoWhileStatement<'_> {
         ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
         ctx.set_jump_target_here(end_jump);
 
-        let own_breaks = ctx.current_break.take().unwrap();
-        for break_entry in own_breaks {
+        for break_entry in jump_target.breaks {
             ctx.set_jump_target_here(break_entry);
         }
-        ctx.current_break = previous_break;
-        ctx.current_continue = previous_continue;
-        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
+        ctx.return_jump_target(previous_jump_target);
     }
 }
 
-impl CompileEvaluation for ast::BreakStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        if let Some(label) = &self.label {
-            let label = label.name.as_str();
-            todo!("break {};", label);
-        }
-        if let Some(depth) = ctx.current_depth_of_loop_scope {
-            for _ in 0..depth {
-                // We have to exit the declarative environments we've entered.
-                ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            }
+impl<'s> CompileEvaluation<'s> for ast::BreakStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let depth = ctx.current_lexical_depth;
+        let jump_target = if let Some(label) = &self.label {
+            ctx.labelled_statements
+                .as_ref()
+                .unwrap()
+                .get(&label.name)
+                .unwrap()
+                .clone()
+        } else {
+            ctx.current_jump_target.as_ref().unwrap().clone()
+        };
+        let mut jump_target = jump_target.borrow_mut();
+        let jump_depth = jump_target.depth;
+        assert!(depth >= jump_depth);
+        for _ in jump_depth..depth {
+            // We have to exit the declarative environments we've entered.
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
         let break_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        ctx.current_break.as_mut().unwrap().push(break_jump);
+        jump_target.breaks.push(break_jump);
     }
 }
 
-impl CompileEvaluation for ast::ContinueStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        if let Some(label) = &self.label {
-            let label = label.name.as_str();
-            todo!("continue {};", label);
-        }
-        let depth = ctx.current_depth_of_loop_scope.unwrap();
-        for _ in 0..depth {
+impl<'s> CompileEvaluation<'s> for ast::ContinueStatement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let depth = ctx.current_lexical_depth;
+        let jump_target = if let Some(label) = &self.label {
+            ctx.labelled_statements
+                .as_ref()
+                .unwrap()
+                .get(&label.name)
+                .unwrap()
+                .clone()
+        } else {
+            ctx.current_jump_target.as_ref().unwrap().clone()
+        };
+        let mut jump_target = jump_target.borrow_mut();
+        let jump_depth = jump_target.depth;
+        assert!(depth >= jump_depth);
+        for _ in jump_depth..depth {
             // We have to exit the declarative environments we've entered.
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
         let continue_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        ctx.current_continue.as_mut().unwrap().push(continue_jump);
+        jump_target.continues.push(continue_jump);
+        if let Some(label) = &self.label {
+            let label = label.name.as_str();
+            todo!("continue {};", label);
+        }
     }
 }
 
-impl CompileEvaluation for ast::Statement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::Statement::ExpressionStatement(x) => x.compile(ctx),
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
@@ -2792,18 +2924,18 @@ impl CompileEvaluation for ast::Statement<'_> {
             }
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
-            ast::Statement::ForStatement(x) => x.compile(ctx),
+            ast::Statement::ForStatement(x) => x.compile_labelled(None, ctx),
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
             ast::Statement::TryStatement(x) => x.compile(ctx),
             Statement::BreakStatement(statement) => statement.compile(ctx),
             Statement::ContinueStatement(statement) => statement.compile(ctx),
             Statement::DebuggerStatement(_) => todo!(),
-            Statement::DoWhileStatement(statement) => statement.compile(ctx),
-            Statement::ForInStatement(statement) => statement.compile(ctx),
-            Statement::ForOfStatement(statement) => statement.compile(ctx),
-            Statement::LabeledStatement(_) => todo!(),
-            Statement::SwitchStatement(statement) => statement.compile(ctx),
-            Statement::WhileStatement(statement) => statement.compile(ctx),
+            Statement::DoWhileStatement(statement) => statement.compile_labelled(None, ctx),
+            Statement::ForInStatement(statement) => statement.compile_labelled(None, ctx),
+            Statement::ForOfStatement(statement) => statement.compile_labelled(None, ctx),
+            Statement::LabeledStatement(statement) => statement.compile_labelled(None, ctx),
+            Statement::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
+            Statement::WhileStatement(statement) => statement.compile_labelled(None, ctx),
             Statement::WithStatement(_) => todo!(),
             Statement::ClassDeclaration(x) => x.compile(ctx),
             Statement::ImportDeclaration(_) => todo!(),

@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{CompileContext, CompileEvaluation, Instruction, JumpIndex, is_reference};
+use super::{
+    CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex,
+    is_reference,
+};
 use crate::ecmascript::types::{String, Value};
 use oxc_ast::ast::{self, BindingPatternKind, ForStatementLeft};
 use oxc_ecmascript::BoundNames;
@@ -27,10 +30,10 @@ enum IteratorKind {
     Async,
 }
 
-fn for_in_of_head_evaluation<'gc>(
-    ctx: &mut CompileContext<'_, 'gc, '_>,
+fn for_in_of_head_evaluation<'s, 'gc>(
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     uninitialized_bound_names: Vec<String<'gc>>,
-    expr: &ast::Expression<'_>,
+    expr: &'s ast::Expression<'s>,
     iteration_kind: IterationKind,
 ) -> Option<JumpIndex> {
     // 1. Let oldEnv be the running execution context's LexicalEnvironment.
@@ -39,9 +42,8 @@ fn for_in_of_head_evaluation<'gc>(
         // a. Assert: uninitializedBoundNames has no duplicate entries.
         // b. Let newEnv be NewDeclarativeEnvironment(oldEnv).
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i += 1;
-        }
+        ctx.current_lexical_depth += 1;
+
         // c. For each String name of uninitializedBoundNames, do
         for name in uninitialized_bound_names.iter() {
             // i. Perform ! newEnv.CreateMutableBinding(name, false).
@@ -54,9 +56,7 @@ fn for_in_of_head_evaluation<'gc>(
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
     if !uninitialized_bound_names.is_empty() {
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i -= 1;
-        }
+        ctx.current_lexical_depth -= 1;
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
     if is_reference(expr) {
@@ -111,17 +111,17 @@ enum AssignmentPattern<'a> {
     ObjectAssignmentTarget(&'a ast::ObjectAssignmentTarget<'a>),
 }
 
-fn for_in_of_body_evaluation(
-    ctx: &mut CompileContext,
-    lhs: &ast::ForStatementLeft<'_>,
-    stmt: &ast::Statement<'_>,
+fn for_in_of_body_evaluation<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    lhs: &'s ast::ForStatementLeft<'s>,
+    stmt: &'s ast::Statement<'s>,
     // In the spec, keyResult contains the iteratorRecord.
     // For us that is on the iterator stack but we do have a potential jump to
     // the end from an undefined or null for-in iterator target value.
     key_result: Option<JumpIndex>,
     iteration_kind: IterationKind,
     lhs_kind: LeftHandSideKind,
-    // _label_set: (),
+    label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
 ) {
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
     let iterator_kind = match iteration_kind {
@@ -154,9 +154,7 @@ fn for_in_of_body_evaluation(
         None
     };
 
-    let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
-    let previous_continue = ctx.current_continue.replace(vec![]);
-    let previous_break = ctx.current_break.replace(vec![]);
+    let previous_jump_target = ctx.push_new_jump_target(None);
 
     // 6. Repeat,
     let repeat_jump = ctx.get_jump_index_to_here();
@@ -262,9 +260,8 @@ fn for_in_of_body_evaluation(
                     // Optimization: Only enter declarative environment if
                     // bound names exist.
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-                    if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                        *i += 1;
-                    }
+                    ctx.current_lexical_depth += 1;
+
                     entered_declarative_environment = true;
                 }
                 let identifier =
@@ -318,20 +315,18 @@ fn for_in_of_body_evaluation(
     // k. Set the running execution context's LexicalEnvironment to oldEnv.
     // l. Corollary: If LoopContinues(result, labelSet) is true, then
     // jump to repeat_jump.
-    let own_continues = ctx.current_continue.take().unwrap();
-    ctx.current_continue = previous_continue;
+    let jump_target = ctx.take_current_jump_target(label_set);
     if entered_declarative_environment {
         // Note: If we've entered a declarative environment then we have to
         // exit it before we continue back to repeat_jump.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i -= 1;
-        }
-        for continue_entry in own_continues {
+        ctx.current_lexical_depth -= 1;
+
+        for continue_entry in jump_target.continues {
             ctx.set_jump_target_here(continue_entry);
         }
     } else {
-        for continue_entry in own_continues {
+        for continue_entry in jump_target.continues {
             ctx.set_jump_target(continue_entry, repeat_jump.clone());
         }
     }
@@ -340,12 +335,10 @@ fn for_in_of_body_evaluation(
     ctx.add_jump_instruction_to_index(Instruction::Jump, repeat_jump);
 
     // l. If LoopContinues(result, labelSet) is false, then
-    let own_breaks = ctx.current_break.take().unwrap();
-    ctx.current_break = previous_break;
-    for break_entry in own_breaks {
+    for break_entry in jump_target.breaks {
         ctx.set_jump_target_here(break_entry);
     }
-    ctx.current_depth_of_loop_scope = previous_depth_of_loop;
+    ctx.return_jump_target(previous_jump_target);
     // i. If iterationKind is ENUMERATE, then
     if iteration_kind == IterationKind::Enumerate {
         // 1. Return ? UpdateEmpty(result, V).
@@ -371,8 +364,12 @@ fn for_in_of_body_evaluation(
     }
 }
 
-impl CompileEvaluation for ast::ForInStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
+    fn compile_labelled(
+        &'s self,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+    ) {
         let mut uninitialized_bound_names = vec![];
 
         let lhs_kind = match &self.left {
@@ -415,16 +412,18 @@ impl CompileEvaluation for ast::ForInStatement<'_> {
             key_result,
             IterationKind::Enumerate,
             lhs_kind,
-            // label_set,
+            label_set,
         );
     }
 }
 
-impl CompileEvaluation for ast::ForOfStatement<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
-        let previous_continue = ctx.current_continue.replace(vec![]);
-        let previous_break = ctx.current_break.replace(vec![]);
+impl<'s> CompileLabelledEvaluation<'s> for ast::ForOfStatement<'s> {
+    fn compile_labelled(
+        &'s self,
+        mut label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+    ) {
+        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
 
         let mut uninitialized_bound_names = vec![];
 
@@ -473,11 +472,9 @@ impl CompileEvaluation for ast::ForOfStatement<'_> {
             None,
             iteration_kind,
             lhs_kind,
-            // label_set,
+            label_set,
         );
 
-        ctx.current_break = previous_break;
-        ctx.current_continue = previous_continue;
-        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
+        ctx.return_jump_target(previous_jump_target);
     }
 }
