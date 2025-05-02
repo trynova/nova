@@ -170,8 +170,12 @@ pub struct SourceCodeHeapData<'a> {
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
     source: HeapString<'a>,
+    /// Semantic analysis results obtained when parsing a source file.
+    /// 
+    /// This only exists until this source code gets compiled. Since it's only
+    /// needed then, the compiler takes this semantic out of the source file,
+    /// obtaining ownership over it.
     semantic: Option<Box<Semantic<'a>>>,
-    // semantic: Option<NonNull<Semantic<'a>>>,
     /// The arena that contains the parsed data of the eval source.
     allocator: NonNull<Allocator>,
 }
@@ -181,7 +185,6 @@ impl<'a> SourceCodeHeapData<'a> {
             source,
             allocator,
             semantic: Some(Box::new(semantic)),
-            // semantic: Some(NonNull::from(Box::leak(Box::new(semantic)))),
         }
     }
 
