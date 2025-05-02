@@ -36,7 +36,9 @@ jobs:
           shared-key: warm
           save-if: ${{ github.ref == 'main' }}
       - name: Install Dylint
-        run: cargo install cargo-dylint dylint-link
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-dylint dylint-link
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
