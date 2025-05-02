@@ -81,12 +81,6 @@ unsafe impl Bindable for Proxy<'_> {
     }
 }
 
-impl<'a> IntoValue<'a> for Proxy<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> IntoObject<'a> for Proxy<'a> {
     fn into_object(self) -> Object<'a> {
         self.into()

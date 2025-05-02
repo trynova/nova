@@ -6,7 +6,7 @@ mod data;
 mod operators;
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, String, Value,
+    IntoPrimitive, Primitive, String, Value,
     into_numeric::IntoNumeric,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
@@ -29,15 +29,6 @@ pub use data::BigIntHeapData;
 use num_bigint::{Sign, ToBigInt};
 use operators::{left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64};
 use std::ops::{BitAnd, BitOr, BitXor};
-
-impl<'a> IntoValue<'a> for BigInt<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            BigInt::BigInt(data) => Value::BigInt(data.unbind()),
-            BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
-        }
-    }
-}
 
 impl<'a> IntoPrimitive<'a> for BigInt<'a> {
     fn into_primitive(self) -> Primitive<'a> {
@@ -117,12 +108,6 @@ unsafe impl Bindable for HeapBigInt<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoValue<'a> for HeapBigInt<'a> {
-    fn into_value(self) -> Value<'a> {
-        Value::BigInt(self.unbind())
     }
 }
 

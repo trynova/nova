@@ -13,9 +13,7 @@ use crate::{
             Agent, ExecutionContext, JsResult, ProtoIntrinsics,
             agent::{ExceptionType, JsError},
         },
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-        },
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
         Executable, ExecutionResult, SuspendedVm, Vm,
@@ -292,12 +290,6 @@ unsafe impl Bindable for Generator<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoValue<'a> for Generator<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 

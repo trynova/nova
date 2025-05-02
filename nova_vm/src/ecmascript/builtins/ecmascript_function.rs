@@ -76,12 +76,6 @@ impl<'a> From<ECMAScriptFunctionIndex<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for ECMAScriptFunction<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> IntoObject<'a> for ECMAScriptFunction<'a> {
     fn into_object(self) -> Object<'a> {
         self.into()

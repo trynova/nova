@@ -95,16 +95,6 @@ impl<'a> IntoPrimitive<'a> for HeapNumber<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for Number<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            Number::Number(idx) => Value::Number(idx.unbind()),
-            Number::Integer(data) => Value::Integer(data),
-            Number::SmallF64(data) => Value::SmallF64(data),
-        }
-    }
-}
-
 impl<'a> IntoNumeric<'a> for HeapNumber<'a> {
     fn into_numeric(self) -> Numeric<'a> {
         Numeric::Number(self)

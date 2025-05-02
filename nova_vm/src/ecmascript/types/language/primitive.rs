@@ -134,24 +134,6 @@ impl<'a> TryFrom<Value<'a>> for HeapPrimitive<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for Primitive<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            Primitive::Undefined => Value::Undefined,
-            Primitive::Null => Value::Null,
-            Primitive::Boolean(data) => Value::Boolean(data),
-            Primitive::String(data) => Value::String(data.unbind()),
-            Primitive::SmallString(data) => Value::SmallString(data),
-            Primitive::Symbol(data) => Value::Symbol(data.unbind()),
-            Primitive::Number(data) => Value::Number(data.unbind()),
-            Primitive::Integer(data) => Value::Integer(data),
-            Primitive::SmallF64(data) => Value::SmallF64(data),
-            Primitive::BigInt(data) => Value::BigInt(data.unbind()),
-            Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
-        }
-    }
-}
-
 impl Primitive<'_> {
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
@@ -197,8 +179,20 @@ unsafe impl Bindable for Primitive<'_> {
 }
 
 impl<'a> From<Primitive<'a>> for Value<'a> {
-    fn from(value: Primitive<'a>) -> Self {
-        value.into_value()
+    fn from(primitive: Primitive<'a>) -> Self {
+        match primitive {
+            Primitive::Undefined => Value::Undefined,
+            Primitive::Null => Value::Null,
+            Primitive::Boolean(data) => Value::Boolean(data),
+            Primitive::String(data) => Value::String(data.unbind()),
+            Primitive::SmallString(data) => Value::SmallString(data),
+            Primitive::Symbol(data) => Value::Symbol(data.unbind()),
+            Primitive::Number(data) => Value::Number(data.unbind()),
+            Primitive::Integer(data) => Value::Integer(data),
+            Primitive::SmallF64(data) => Value::SmallF64(data),
+            Primitive::BigInt(data) => Value::BigInt(data.unbind()),
+            Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
+        }
     }
 }
 

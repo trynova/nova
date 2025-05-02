@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
             ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
@@ -93,12 +93,6 @@ impl<'a> TryFrom<Value<'a>> for RegExp<'a> {
             Value::RegExp(regexp) => Ok(regexp),
             _ => Err(()),
         }
-    }
-}
-
-impl<'a> IntoValue<'a> for RegExp<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 
