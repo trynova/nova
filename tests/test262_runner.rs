@@ -842,6 +842,7 @@ fn main() {
         if cfg!(windows) {
             path.set_extension("exe");
         }
+        assert!(path.exists(), "nova_cli binary is missing. Please run `cargo build -p nova_cli`");
         assert!(path.is_file());
         path
     };

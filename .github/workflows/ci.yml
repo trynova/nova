@@ -34,7 +34,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: warm
-          save-if: ${{ github.ref == 'main' }}
       - name: Install Dylint
         uses: taiki-e/install-action@v2
         with:
@@ -52,7 +51,25 @@ jobs:
         run: cargo dylint --all
 
   build:
-    name: Build
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oxc-project/setup-rust@cd82e1efec7fef815e2c23d296756f31c7cdc03d # v1.0.0
+        with:
+          cache-key: warm
+          save-cache: ${{ github.ref_name == 'main' }}
+      - name: Check
+        run: cargo check --all-targets
+      - name: Build
+        run: cargo build --tests --bins --examples
+      - name: Test
+        run: cargo test 
+        env:
+          RUST_BACKTRACE: 1
+
+  test262:
+    name: Test262
     # TODO: Run CI on all three platforms.
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -65,15 +82,10 @@ jobs:
         with:
           shared-key: test262
           save-if: ${{ github.ref == 'main' }}
-      - name: Build
-        run: cargo build --tests --profile dev-fast
-      - name: Test
-        run: cargo test --profile dev-fast
-        timeout-minutes: 20
       - name: Checkout test262 submodule
         run: git submodule update --init
-      - name: Test262
+      - name: Build nova-cli
+        run: cargo build -p nova-cli --profile dev-fast
+      - name: Run Test262
         run: cargo run --bin test262 --profile dev-fast -- --noprogress
         timeout-minutes: 15
-      - name: Build binaries and examples
-        run: cargo build --bins --examples --profile dev-fast
