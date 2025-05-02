@@ -38,7 +38,7 @@ jobs:
       - name: Install Dylint
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-dylint dylint-link
+          tool: cargo-dylint,dylint-link
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
