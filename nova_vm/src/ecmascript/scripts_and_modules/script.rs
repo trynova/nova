@@ -1394,7 +1394,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Value::Undefined);
+        assert_eq!(result, 3.into());
 
         let realm = agent.current_realm(gc.nogc());
         let a_key = String::from_static_str(&mut agent, "a", gc.nogc());
