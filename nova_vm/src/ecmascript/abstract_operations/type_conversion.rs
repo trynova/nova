@@ -486,10 +486,12 @@ impl PartialOrd<IntegerOrInfinity> for i64 {
 unsafe impl Bindable for IntegerOrInfinity {
     type Of<'a> = IntegerOrInfinity;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         self
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         self
     }

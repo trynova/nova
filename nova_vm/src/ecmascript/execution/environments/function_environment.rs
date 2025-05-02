@@ -329,7 +329,7 @@ impl FunctionEnvironment<'_> {
             return Ok(());
         };
 
-        let binding = dcl_rec.get_binding_mut(agent, name.unbind()).unwrap();
+        let binding = dcl_rec.get_binding_mut(agent, name).unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {

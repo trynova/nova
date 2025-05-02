@@ -747,16 +747,11 @@ pub(crate) fn get_active_script_or_module<'a>(
 pub(crate) fn try_resolve_binding<'a>(
     agent: &mut Agent,
     name: String<'a>,
-    env: Option<Environment>,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
-    let env = env
-        .unwrap_or_else(|| {
-            // 1. If env is not present or env is undefined, then
-            //    a. Set env to the running execution context's LexicalEnvironment.
-            agent.current_lexical_environment(gc)
-        })
-        .bind(gc);
+    // 1. If env is not present or env is undefined, then
+    // a. Set env to the running execution context's LexicalEnvironment.
+    let env = agent.current_lexical_environment(gc);
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
@@ -769,7 +764,7 @@ pub(crate) fn try_resolve_binding<'a>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    try_get_identifier_reference(agent, Some(env), name, strict, gc)
+    try_get_identifier_reference(agent, env, name, strict, gc)
 }
 
 /// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)

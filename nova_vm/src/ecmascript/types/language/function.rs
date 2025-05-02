@@ -208,10 +208,12 @@ impl Function<'_> {
 unsafe impl Bindable for Function<'_> {
     type Of<'a> = Function<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }

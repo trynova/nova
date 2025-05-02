@@ -851,7 +851,7 @@ impl Default for Environments {
 /// completion.
 pub(crate) fn try_get_identifier_reference<'a>(
     agent: &mut Agent,
-    env: Option<Environment>,
+    env: Environment,
     name: String,
     strict: bool,
     gc: NoGcScope<'a, '_>,
@@ -859,21 +859,6 @@ pub(crate) fn try_get_identifier_reference<'a>(
     let env = env.bind(gc);
     let name = name.bind(gc);
     // 1. If env is null, then
-    let Some(env) = env else {
-        // a. Return the Reference Record {
-        return TryResult::Continue(Reference {
-            // [[Base]]: UNRESOLVABLE,
-            base: Base::Unresolvable,
-            // [[ReferencedName]]: name,
-            referenced_name: name.into(),
-            // [[Strict]]: strict,
-            strict,
-            // [[ThisValue]]: EMPTY
-            this_value: None,
-        });
-        // }.
-    };
-
     // 2. Let exists be ? env.HasBinding(name).
     let exists = env.try_has_binding(agent, name, gc)?;
 
@@ -896,6 +881,21 @@ pub(crate) fn try_get_identifier_reference<'a>(
     else {
         // a. Let outer be env.[[OuterEnv]].
         let outer = env.get_outer_env(agent, gc);
+
+        let Some(outer) = outer else {
+            // a. Return the Reference Record {
+            return TryResult::Continue(Reference {
+                // [[Base]]: UNRESOLVABLE,
+                base: Base::Unresolvable,
+                // [[ReferencedName]]: name,
+                referenced_name: name.into(),
+                // [[Strict]]: strict,
+                strict,
+                // [[ThisValue]]: EMPTY
+                this_value: None,
+            });
+            // }.
+        };
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
         try_get_identifier_reference(agent, outer, name, strict, gc)

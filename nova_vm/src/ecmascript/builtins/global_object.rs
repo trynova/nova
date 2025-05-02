@@ -1091,7 +1091,7 @@ impl GlobalObject {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("decode_uri", gc.into_nogc()))
+        Err(agent.todo("decodeURI", gc.into_nogc()))
     }
     fn decode_uri_component<'gc>(
         agent: &mut Agent,
@@ -1099,7 +1099,7 @@ impl GlobalObject {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("decode_uri_component", gc.into_nogc()))
+        Err(agent.todo("decodeURIComponent", gc.into_nogc()))
     }
     fn encode_uri<'gc>(
         agent: &mut Agent,
@@ -1107,7 +1107,7 @@ impl GlobalObject {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("encode_uri", gc.into_nogc()))
+        Err(agent.todo("encodeURI", gc.into_nogc()))
     }
     fn encode_uri_component<'gc>(
         agent: &mut Agent,
@@ -1115,7 +1115,7 @@ impl GlobalObject {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("encode_uri_component", gc.into_nogc()))
+        Err(agent.todo("encodeURIComponent", gc.into_nogc()))
     }
     fn escape<'gc>(
         agent: &mut Agent,

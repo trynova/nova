@@ -1663,3 +1663,88 @@ impl HeapMarkAndSweep for OrdinaryObject<'static> {
         compactions.objects.shift_index(&mut self.0);
     }
 }
+
+/// Fast path try-function for getting a Value from an OrdinaryObject.
+///
+/// Returns Ok(Some(Value)) if the property was found in the object or its
+/// prototype chain, Ok(None) if the property did not exist. Returns Err if the
+/// property was found but was a getter or setter, or a non-ordinary prototype
+/// object was encountered.
+pub(crate) fn try_get_ordinary_object_value<'a>(
+    agent: &Agent,
+    binding_object: OrdinaryObject<'a>,
+    name: PropertyKey<'a>,
+) -> Result<Option<Value<'a>>, ()> {
+    let ObjectHeapData { keys, values, .. } = agent[binding_object];
+    let keys = &agent[keys];
+    let index = keys
+        .iter()
+        .enumerate()
+        .find(|(_, k)|
+            // SAFETY: Keys storage contains only PropertyKeys turned into Values.
+            unsafe { PropertyKey::from_value_unchecked(k.unwrap()) == name })
+        .map(|(i, _)| i);
+    if let Some(index) = index {
+        // If value is None, it means that the slot is a getter or setter
+        // and we cannot handle those on the fast path.
+        let Some(value) = agent[values][index] else {
+            // Getter or setter, break the fast path.
+            return Err(());
+        };
+        // Otherwise, we got a real Value for this property and can return
+        // it.
+        return Ok(Some(value));
+    }
+    let proto = binding_object.internal_prototype(agent);
+    if let Some(Object::Object(proto)) = proto {
+        // Prototype is also an ordinary object, we can take a look there
+        // as well.
+        try_get_ordinary_object_value(agent, proto, name)
+    } else if proto.is_none() {
+        // We never did find the property in the object or its prototype
+        // chain.
+        Ok(None)
+    } else {
+        // Interesting kind of prototype: we cannot handle it on the fast
+        // path.
+        Err(())
+    }
+}
+
+/// Fast path try-function for setting a Value on an OrdinaryObject.
+///
+/// Returns Ok(bool) if the Value was attempted to be set, the boolean telling
+/// if the Value was set or not. Returns Err if the Value could not be set
+/// because the property was not found or a non-ordinary prototype object was
+/// encountered.
+pub(crate) fn try_set_ordinary_object_value(
+    agent: &mut Agent,
+    binding_object: OrdinaryObject,
+    name: PropertyKey,
+    value: Value,
+) -> Option<bool> {
+    let ObjectHeapData { keys, values, .. } = agent[binding_object];
+    let found = agent[keys]
+        .iter()
+        .enumerate()
+        .find(|(_, k)|
+            // SAFETY: Keys storage contains only PropertyKeys turned into Values.
+            unsafe { PropertyKey::from_value_unchecked(k.unwrap()) == name })
+        .map(|(i, _)| i);
+    if let Some(index) = found {
+        let (descriptors, slice) = agent.heap.elements.get_descriptors_and_slice_mut(values);
+        let slot = &mut slice[index];
+        if let Some(slot) = slot {
+            if descriptors.is_some_and(|descriptors| {
+                descriptors
+                    .get(&(index as u32))
+                    .is_some_and(|d| !d.is_writable().unwrap())
+            }) {
+                return Some(false);
+            }
+            *slot = value.unbind();
+            return Some(true);
+        }
+    }
+    None
+}

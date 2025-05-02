@@ -99,6 +99,7 @@ impl<'a> PropertyKey<'a> {
     /// If the resulting PropertyKey is mixed with normal JavaScript values or
     /// passed to user code, the resulting JavaScript will not necessarily
     /// correctly match the ECMAScript specification or user's expectations.
+    #[inline(always)]
     pub(crate) unsafe fn into_value_unchecked(self) -> Value<'a> {
         match self {
             PropertyKey::Integer(small_integer) => Value::Integer(small_integer),
@@ -116,6 +117,8 @@ impl<'a> PropertyKey<'a> {
     ///
     /// ## Safety
     ///
+    /// Caller must ensure this is value is a valid PropertyKey.
+    ///
     /// If the source Value is an integer key string, then using the resulting
     /// PropertyKey may not match the ECMAScript specification or user's
     /// expectations.
@@ -124,6 +127,7 @@ impl<'a> PropertyKey<'a> {
     ///
     /// If the passed-in Value is not a string, integer, or symbol, the method
     /// will panic.
+    #[inline(always)]
     pub(crate) unsafe fn from_value_unchecked(value: Value<'a>) -> Self {
         match value {
             Value::Integer(small_integer) => PropertyKey::Integer(small_integer),

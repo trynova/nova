@@ -45,6 +45,7 @@ pub struct IteratorRecord<'a> {
 unsafe impl Bindable for IteratorRecord<'_> {
     type Of<'a> = IteratorRecord<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         Self::Of {
             iterator: self.iterator.unbind(),
@@ -53,6 +54,7 @@ unsafe impl Bindable for IteratorRecord<'_> {
         }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         Self::Of {
             iterator: self.iterator.bind(gc),

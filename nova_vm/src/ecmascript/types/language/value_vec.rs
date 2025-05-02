@@ -94,10 +94,12 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
 unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<Value<'static>>> {
     type Of<'a> = ScopedCollection<'scope, Vec<Value<'static>>>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         self
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
         self
     }

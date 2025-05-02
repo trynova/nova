@@ -231,14 +231,22 @@ pub(crate) fn set<'a>(
     let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
-        return Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            format!("Could not set property '{}'.", p.as_display(agent)),
-            gc.into_nogc(),
-        ));
+        return throw_set_error(agent, p.unbind(), gc.into_nogc());
     }
     // 3. Return UNUSED.
     Ok(())
+}
+
+pub(crate) fn throw_set_error<'a>(
+    agent: &mut Agent,
+    p: PropertyKey,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    Err(agent.throw_exception(
+        ExceptionType::TypeError,
+        format!("Could not set property '{}'.", p.as_display(agent)),
+        gc,
+    ))
 }
 
 /// ### Try [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
@@ -260,11 +268,7 @@ pub(crate) fn try_set<'a>(
     let success = o.try_set(agent, p, v, o.into_value(), gc)?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
-        return TryResult::Continue(Err(agent.throw_exception(
-            ExceptionType::TypeError,
-            format!("Could not set property '{}'.", p.as_display(agent)),
-            gc,
-        )));
+        return TryResult::Continue(throw_set_error(agent, p, gc));
     }
     // 3. Return UNUSED.
     TryResult::Continue(Ok(()))
