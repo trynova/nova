@@ -81,7 +81,8 @@ pub(crate) fn instantiation<'s>(
         && (has_parameter_expressions
             || (!functions.contains_key("arguments")
                 && !function_body_lexically_declared_names(body)
-                    .contains(&Atom::from("arguments"))));
+                    .contains(&Atom::from("arguments"))))
+        && !ctx.has_unresolved_decl_in("arguments", body.span);
 
     // 19. If strict is true or hasParameterExpressions is false, then
     //   a. NOTE: Only a single Environment Record is needed for the parameters, since calls to eval in strict mode code cannot create new bindings which are visible outside of the eval.
