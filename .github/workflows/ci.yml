@@ -8,10 +8,22 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  typos:
+    name: Spellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spell check
+        uses: crate-ci/typos@master
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -22,10 +34,14 @@ jobs:
         with:
           toolchain: nightly-2024-11-28
           components: rustfmt, clippy, llvm-tools-preview, rustc-dev
+      - name: Cache on ${{ github.ref_name }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: warm
       - name: Install Dylint
-        run: cargo install cargo-dylint dylint-link
-      - name: Spell check
-        uses: crate-ci/typos@master
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-dylint,dylint-link
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
@@ -39,7 +55,25 @@ jobs:
         run: cargo dylint --all
 
   build:
-    name: Build
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oxc-project/setup-rust@cd82e1efec7fef815e2c23d296756f31c7cdc03d # v1.0.0
+        with:
+          cache-key: warm
+          save-cache: ${{ github.ref_name == 'main' }}
+      - name: Check
+        run: cargo check --all-targets
+      - name: Build
+        run: cargo build --tests --bins --examples
+      - name: Test
+        run: cargo test 
+        env:
+          RUST_BACKTRACE: 1
+
+  test262:
+    name: Test262
     # TODO: Run CI on all three platforms.
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -47,15 +81,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Build
-        run: cargo build
-      - name: Test
-        run: cargo test
-        timeout-minutes: 20
+      - name: Cache on ${{ github.ref_name }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test262
+          save-if: ${{ github.ref == 'main' }}
       - name: Checkout test262 submodule
         run: git submodule update --init
-      - name: Test262
-        run: cargo run --bin test262 -- --noprogress
+      - name: Build nova cli
+        run: cargo build -p nova_cli --profile dev-fast
+      - name: Run Test262
+        run: cargo run --bin test262 --profile dev-fast -- --noprogress
         timeout-minutes: 15
-      - name: Build binaries and examples
-        run: cargo build --bins --examples
+        env:
+          RUST_BACKTRACE: 1
