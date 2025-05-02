@@ -696,6 +696,7 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         let mut instantiated_var_names = AHashSet::new();
         // c. For each element n of varNames, do
         ctx.add_instruction(Instruction::EnterClassStaticElementEnvironment);
+        ctx.current_lexical_depth += 1;
         for n in class_static_block_var_declared_names(self) {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
