@@ -707,8 +707,8 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.mark_values(queues),
             HeapRootData::MapIterator(map_iterator) => map_iterator.mark_values(queues),
-            HeapRootData::Generator(generator) => generator.mark_values(queues),
             HeapRootData::StringIterator(generator) => generator.mark_values(queues),
+            HeapRootData::Generator(generator) => generator.mark_values(queues),
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
             HeapRootData::Executable(exe) => exe.mark_values(queues),
@@ -823,8 +823,8 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.sweep_values(compactions),
             HeapRootData::MapIterator(map_iterator) => map_iterator.sweep_values(compactions),
-            HeapRootData::Generator(generator) => generator.sweep_values(compactions),
             HeapRootData::StringIterator(generator) => generator.sweep_values(compactions),
+            HeapRootData::Generator(generator) => generator.sweep_values(compactions),
             HeapRootData::Module(module) => module.sweep_values(compactions),
             HeapRootData::EmbedderObject(embedder_object) => {
                 embedder_object.sweep_values(compactions)

@@ -874,11 +874,11 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::Generator(data) => {
+            Value::StringIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::StringIterator(data) => {
+            Value::Generator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -1108,11 +1108,11 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::Generator(data) => {
+            Value::StringIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::StringIterator(data) => {
+            Value::Generator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -1475,8 +1475,8 @@ impl Rootable for Value<'_> {
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => Some(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Some(Self::MapIterator(map_iterator)),
-            HeapRootData::Generator(generator) => Some(Self::Generator(generator)),
             HeapRootData::StringIterator(generator) => Some(Self::StringIterator(generator)),
+            HeapRootData::Generator(generator) => Some(Self::Generator(generator)),
             HeapRootData::Module(module) => Some(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {
                 Some(Self::EmbedderObject(embedder_object))
@@ -1592,8 +1592,8 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "set")]
             Value::SetIterator(data) => data.mark_values(queues),
             Value::MapIterator(data) => data.mark_values(queues),
-            Value::Generator(data) => data.mark_values(queues),
             Value::StringIterator(data) => data.mark_values(queues),
+            Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
         }
@@ -1679,8 +1679,8 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "set")]
             Value::SetIterator(data) => data.sweep_values(compactions),
             Value::MapIterator(data) => data.sweep_values(compactions),
-            Value::Generator(data) => data.sweep_values(compactions),
             Value::StringIterator(data) => data.sweep_values(compactions),
+            Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),
         }
