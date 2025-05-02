@@ -55,6 +55,7 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
@@ -154,6 +155,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             set_iterators,
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
+            string_iterators,
             strings,
             string_lookup_table: _,
             string_hasher: _,
@@ -727,6 +729,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
+        let mut string_generator_marks: Box<[StringIterator]> =
+            queues.string_iterators.drain(..).collect();
+        string_generator_marks.sort();
+        string_generator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.string_iterators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                string_iterators.get(index).mark_values(&mut queues);
+            }
+        });
         let mut string_marks: Box<[HeapString]> = queues.strings.drain(..).collect();
         string_marks.sort();
         string_marks.iter().for_each(|&idx| {
@@ -1051,6 +1067,7 @@ fn sweep(
         set_iterators,
         #[cfg(feature = "shared-array-buffer")]
         shared_array_buffers,
+        string_iterators,
         strings,
         string_lookup_table,
         string_hasher: _,
@@ -1441,6 +1458,11 @@ fn sweep(
         if !source_codes.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(source_codes, &compactions, &bits.source_codes);
+            });
+        }
+        if !string_iterators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(string_iterators, &compactions, &bits.string_iterators);
             });
         }
         if !strings.is_empty() {

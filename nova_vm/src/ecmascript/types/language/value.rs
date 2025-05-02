@@ -48,6 +48,7 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
@@ -212,11 +213,11 @@ pub enum Value<'a> {
     // TODO: Figure out if these are needed at all.
     AsyncFromSyncIterator,
     AsyncGenerator(AsyncGenerator<'a>),
-    Iterator,
     ArrayIterator(ArrayIterator<'a>),
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>),
     MapIterator(MapIterator<'a>),
+    StringIterator(StringIterator<'a>),
     Generator(Generator<'a>),
 
     // ECMAScript Module
@@ -351,7 +352,6 @@ pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncFromSyncIterator);
 pub(crate) const ASYNC_GENERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncGenerator(AsyncGenerator::_def()));
-pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
 #[cfg(feature = "set")]
@@ -359,6 +359,8 @@ pub(crate) const SET_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::SetIterator(SetIterator::_def()));
 pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::MapIterator(MapIterator::_def()));
+pub(crate) const STRING_ITERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::StringIterator(StringIterator::_def()));
 pub(crate) const GENERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::Generator(Generator::_def()));
 pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
@@ -859,7 +861,6 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::Iterator => todo!(),
             Value::ArrayIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -870,6 +871,10 @@ impl<'a> Value<'a> {
                 data.get_index().hash(hasher);
             }
             Value::MapIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            Value::StringIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -1090,7 +1095,6 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::Iterator => todo!(),
             Value::ArrayIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1101,6 +1105,10 @@ impl<'a> Value<'a> {
                 data.get_index().hash(hasher);
             }
             Value::MapIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            Value::StringIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -1330,7 +1338,7 @@ impl Rootable for Value<'_> {
             Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index.unbind())),
             Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
             Self::AsyncGenerator(r#gen) => Err(HeapRootData::AsyncGenerator(r#gen.unbind())),
-            Self::Iterator => Err(HeapRootData::Iterator),
+
             Self::ArrayIterator(array_iterator) => {
                 Err(HeapRootData::ArrayIterator(array_iterator.unbind()))
             }
@@ -1342,6 +1350,9 @@ impl Rootable for Value<'_> {
                 Err(HeapRootData::MapIterator(map_iterator.unbind()))
             }
             Self::Generator(generator) => Err(HeapRootData::Generator(generator.unbind())),
+            Self::StringIterator(generator) => {
+                Err(HeapRootData::StringIterator(generator.unbind()))
+            }
             Self::Module(module) => Err(HeapRootData::Module(module.unbind())),
             Self::EmbedderObject(embedder_object) => {
                 Err(HeapRootData::EmbedderObject(embedder_object.unbind()))
@@ -1457,13 +1468,14 @@ impl Rootable for Value<'_> {
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
             HeapRootData::AsyncGenerator(r#gen) => Some(Self::AsyncGenerator(r#gen)),
-            HeapRootData::Iterator => Some(Self::Iterator),
+
             HeapRootData::ArrayIterator(array_iterator) => {
                 Some(Self::ArrayIterator(array_iterator))
             }
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => Some(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Some(Self::MapIterator(map_iterator)),
+            HeapRootData::StringIterator(generator) => Some(Self::StringIterator(generator)),
             HeapRootData::Generator(generator) => Some(Self::Generator(generator)),
             HeapRootData::Module(module) => Some(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {
@@ -1576,11 +1588,11 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncGenerator(data) => data.mark_values(queues),
-            Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
             Value::SetIterator(data) => data.mark_values(queues),
             Value::MapIterator(data) => data.mark_values(queues),
+            Value::StringIterator(data) => data.mark_values(queues),
             Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
@@ -1663,11 +1675,11 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncGenerator(data) => data.sweep_values(compactions),
-            Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
             Value::SetIterator(data) => data.sweep_values(compactions),
             Value::MapIterator(data) => data.sweep_values(compactions),
+            Value::StringIterator(data) => data.sweep_values(compactions),
             Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),

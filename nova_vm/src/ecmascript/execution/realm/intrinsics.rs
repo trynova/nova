@@ -217,6 +217,7 @@ pub enum ProtoIntrinsics {
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer,
     String,
+    StringIterator,
     Symbol,
     SyntaxError,
     TypeError,
@@ -395,6 +396,7 @@ impl Intrinsics {
             ProtoIntrinsics::Object => self.object_prototype().into(),
             ProtoIntrinsics::RangeError => self.range_error_prototype().into(),
             ProtoIntrinsics::ReferenceError => self.reference_error_prototype().into(),
+            ProtoIntrinsics::StringIterator => self.string_iterator_prototype().into(),
             ProtoIntrinsics::String => self.string_prototype().into(),
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),

@@ -2705,9 +2705,9 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::Promise(_) |
         Value::AsyncFromSyncIterator |
         Value::AsyncGenerator(_) |
-        Value::Iterator |
         Value::ArrayIterator(_) |
         Value::MapIterator(_) |
+        Value::StringIterator(_) |
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
