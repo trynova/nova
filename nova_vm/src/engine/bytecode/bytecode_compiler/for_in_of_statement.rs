@@ -397,7 +397,6 @@ impl CompileEvaluation for ast::ForInStatement<'_> {
             | ast::ForStatementLeft::PrivateFieldExpression(_)
             | ast::ForStatementLeft::StaticMemberExpression(_) => LeftHandSideKind::Assignment,
             ast::ForStatementLeft::TSAsExpression(_)
-            | ast::ForStatementLeft::TSInstantiationExpression(_)
             | ast::ForStatementLeft::TSNonNullExpression(_)
             | ast::ForStatementLeft::TSSatisfiesExpression(_)
             | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
@@ -451,7 +450,6 @@ impl CompileEvaluation for ast::ForOfStatement<'_> {
             | ast::ForStatementLeft::PrivateFieldExpression(_)
             | ast::ForStatementLeft::StaticMemberExpression(_) => LeftHandSideKind::Assignment,
             ast::ForStatementLeft::TSAsExpression(_)
-            | ast::ForStatementLeft::TSInstantiationExpression(_)
             | ast::ForStatementLeft::TSNonNullExpression(_)
             | ast::ForStatementLeft::TSSatisfiesExpression(_)
             | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
