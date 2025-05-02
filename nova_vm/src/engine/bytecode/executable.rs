@@ -10,9 +10,9 @@ use std::marker::PhantomData;
 
 use crate::{
     ecmascript::{
+        builtins::ECMAScriptFunction,
         execution::Agent,
         scripts_and_modules::script::Script,
-        syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
     engine::{
@@ -25,7 +25,8 @@ use crate::{
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
-use oxc_ast::ast::{self, Program, Statement};
+use oxc_ast::ast::{self, Program};
+use oxc_semantic::Semantic;
 
 #[derive(Debug)]
 /// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
@@ -148,23 +149,25 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Script ===");
             eprintln!();
         }
-        // SAFETY: Script uniquely owns the Program and the body buffer does
-        // not move under any circumstances during heap operations.
-        let body: &[Statement] =
-            unsafe { core::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
-        let mut ctx = CompileContext::new(agent, gc);
+        let script = script.bind(gc);
+        let source_code = script.get_source_code(agent);
+        let program = source_code.get_program(agent, gc);
+        let semantic = source_code.get_semantic(agent, gc);
+        let mut ctx = CompileContext::new(agent, semantic, gc);
 
-        ctx.compile_statements(body);
+        ctx.compile_statements(&program.body);
         ctx.do_implicit_return();
         ctx.finish()
     }
 
     pub(crate) fn compile_function_body(
         agent: &mut Agent,
-        data: CompileFunctionBodyData<'_>,
+        function: ECMAScriptFunction,
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
-        let mut ctx = CompileContext::new(agent, gc);
+        let function = function.bind(gc);
+        let data = function.get_compile_data(agent, gc);
+        let mut ctx = CompileContext::new(agent, function.get_semantic(agent, gc), gc);
 
         let is_concise = data.is_concise_body;
 
@@ -179,7 +182,8 @@ impl<'gc> Executable<'gc> {
 
     pub(crate) fn compile_eval_body(
         agent: &mut Agent,
-        program: &Program,
+        program: &'gc Program<'static>,
+        semantic: &'gc Semantic<'static>,
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         if agent.options.print_internals {
@@ -187,7 +191,7 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Eval Body ===");
             eprintln!();
         }
-        let mut ctx = CompileContext::new(agent, gc);
+        let mut ctx = CompileContext::new(agent, semantic, gc);
 
         // eval('"asd"') is parsed into an empty body with a single directive.
         // Multiple directives are also possible, but only the last one is

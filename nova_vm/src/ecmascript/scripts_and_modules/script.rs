@@ -28,13 +28,13 @@ use ahash::AHashSet;
 use core::{
     any::Any,
     marker::PhantomData,
-    mem::ManuallyDrop,
     ops::{Index, IndexMut},
 };
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
+use std::ptr::NonNull;
 
 use super::source_code::SourceCode;
 
@@ -53,7 +53,11 @@ impl core::fmt::Debug for Script<'_> {
     }
 }
 
-impl Script<'_> {
+impl<'a> Script<'a> {
+    pub(crate) fn get_source_code(self, agent: &Agent) -> SourceCode<'a> {
+        agent[self].source_code
+    }
+
     /// Creates a script identififer from a usize.
     ///
     /// ## Panics
@@ -147,7 +151,7 @@ pub struct ScriptRecord<'a> {
     /// allocator drops all of the data in a single go. All that needs to be
     /// dropped here is the local Program itself, not any of its referred
     /// parts.
-    pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
+    pub(crate) ecmascript_code: NonNull<Program<'static>>,
 
     /// ### \[\[LoadedModules]]
     ///
@@ -281,9 +285,9 @@ pub fn parse_script<'a>(
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, gc) };
+    let parse_result = SourceCode::parse_source(agent, source_text, source_type, gc);
 
-    let (program, source_code) = match parse_result {
+    let source_code = match parse_result {
         // 2. If script is a List of errors, return script.
         Ok(result) => result,
         Err(errors) => {
@@ -296,7 +300,7 @@ pub fn parse_script<'a>(
         // [[Realm]]: realm,
         realm: realm.unbind(),
         // [[ECMAScriptCode]]: script,
-        ecmascript_code: ManuallyDrop::new(program),
+        ecmascript_code: source_code.get_program_pointer(agent),
         // [[LoadedModules]]: « »,
         loaded_modules: (),
         // [[HostDefined]]: hostDefined,
@@ -321,7 +325,15 @@ pub fn script_evaluation<'a>(
     let script = script.bind(gc.nogc());
     let script_record = &agent[script];
     let realm_id = script_record.realm;
-    let is_strict_mode = script_record.ecmascript_code.source_type.is_strict();
+    // SAFETY: Script is currently alive, meaning that the SourceCode is
+    // currently alive, and thus the Program pointer is still valid.
+    let is_strict_mode = unsafe {
+        script_record
+            .ecmascript_code
+            .as_ref()
+            .source_type
+            .is_strict()
+    };
     let source_code = script_record.source_code;
     let realm = agent.get_realm_record_by_id(realm_id);
 
@@ -442,7 +454,7 @@ pub(crate) fn global_declaration_instantiation<'a>(
         // long as the Script is alive in the heap as they are not reallocated.
         // Thus in effect VarScopedDeclaration<'_> is valid for the duration
         // of the global_declaration_instantiation call.
-        let script = unsafe { core::mem::transmute::<&Program, &'static Program<'static>>(script) };
+        let script = unsafe { script.as_ref() };
         // 1. Let lexNames be the LexicallyDeclaredNames of script.
         let lex_names = script_lexically_declared_names(script);
         // 2. Let varNames be the VarDeclaredNames of script.

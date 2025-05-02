@@ -438,7 +438,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // 28. Set F.[[PrivateMethods]] to instancePrivateMethods.
         // 29. Set F.[[Fields]] to instanceFields.
         if !instance_fields.is_empty() {
-            let mut constructor_ctx = CompileContext::new(ctx.agent, ctx.gc);
+            let mut constructor_ctx = CompileContext::new(ctx.agent, ctx.semantic, ctx.gc);
             for ele in instance_fields {
                 match ele {
                     PropertyInitializerField::Static((property_key, value)) => {

@@ -13,7 +13,7 @@ use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{
-            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
+            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::GeneratorState,
@@ -244,31 +244,11 @@ pub(crate) fn instantiate_ordinary_function_expression<'a>(
 }
 
 pub(crate) struct CompileFunctionBodyData<'a> {
-    pub(crate) params: &'a oxc_ast::ast::FormalParameters<'static>,
-    pub(crate) body: &'a oxc_ast::ast::FunctionBody<'static>,
+    pub(crate) params: &'a oxc_ast::ast::FormalParameters<'a>,
+    pub(crate) body: &'a oxc_ast::ast::FunctionBody<'a>,
     pub(crate) is_strict: bool,
     pub(crate) is_lexical: bool,
     pub(crate) is_concise_body: bool,
-}
-
-impl CompileFunctionBodyData<'static> {
-    fn new(agent: &mut Agent, function: ECMAScriptFunction) -> Self {
-        let ecmascript_function = &agent[function].ecmascript_function;
-        // SAFETY: We're alive so SourceCode must be too.
-        let (params, body) = unsafe {
-            (
-                ecmascript_function.formal_parameters.as_ref(),
-                ecmascript_function.ecmascript_code.as_ref(),
-            )
-        };
-        CompileFunctionBodyData {
-            params,
-            body,
-            is_strict: ecmascript_function.strict,
-            is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
-            is_concise_body: ecmascript_function.is_concise_arrow_function,
-        }
-    }
 }
 
 /// ### [15.2.3 Runtime Semantics: EvaluateFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluatefunctionbody)
@@ -290,8 +270,7 @@ pub(crate) fn evaluate_function_body<'gc>(
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        let exe = Executable::compile_function_body(agent, function_object, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
     };
@@ -326,8 +305,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        let exe = Executable::compile_function_body(agent, function_object, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
     };
@@ -458,8 +436,8 @@ pub(crate) fn evaluate_generator_body<'gc>(
 
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
-    let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
-    let executable = Executable::compile_function_body(agent, data, gc);
+    let executable =
+        Executable::compile_function_body(agent, scoped_function_object.get(agent), gc);
     agent[generator].generator_state = Some(GeneratorState::Suspended(SuspendedGeneratorState {
         vm_or_args: VmOrArguments::Arguments(
             arguments_list
@@ -535,8 +513,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc)
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data, gc);
+        let exe = Executable::compile_function_body(agent, function_object, gc);
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
     };
