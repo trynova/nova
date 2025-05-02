@@ -41,9 +41,10 @@ use super::{
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-        FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
-        MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
+        FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
+        MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+        STRING_ITERATOR_DISCRIMINANT,
     },
 };
 #[cfg(feature = "date")]
@@ -88,6 +89,7 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
@@ -180,12 +182,12 @@ pub enum Object<'a> {
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
-    Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
+    StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
     Module(Module<'a>) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
@@ -261,12 +263,12 @@ impl<'a> IntoValue<'a> for Object<'a> {
             Object::Float64Array(data) => Value::Float64Array(data.unbind()),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => Value::SetIterator(data.unbind()),
             Object::MapIterator(data) => Value::MapIterator(data.unbind()),
             Object::Generator(data) => Value::Generator(data.unbind()),
+            Object::StringIterator(data) => Value::StringIterator(data.unbind()),
             Object::Module(data) => Value::Module(data.unbind()),
             Object::EmbedderObject(data) => Value::EmbedderObject(data.unbind()),
         }
@@ -497,12 +499,12 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::Float64Array(data) => Value::Float64Array(data.unbind()),
             Object::AsyncFromSyncIterator => Value::AsyncFromSyncIterator,
             Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
-            Object::Iterator => Value::Iterator,
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => Value::SetIterator(data.unbind()),
             Object::MapIterator(data) => Value::MapIterator(data.unbind()),
             Object::Generator(data) => Value::Generator(data.unbind()),
+            Object::StringIterator(data) => Value::StringIterator(data.unbind()),
             Object::Module(data) => Value::Module(data.unbind()),
             Object::EmbedderObject(data) => Value::EmbedderObject(data.unbind()),
         }
@@ -587,12 +589,12 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             Value::Float64Array(data) => Ok(Object::Float64Array(data)),
             Value::AsyncFromSyncIterator => Ok(Object::AsyncFromSyncIterator),
             Value::AsyncGenerator(data) => Ok(Object::AsyncGenerator(data)),
-            Value::Iterator => Ok(Object::Iterator),
             Value::ArrayIterator(data) => Ok(Object::ArrayIterator(data)),
             #[cfg(feature = "set")]
             Value::SetIterator(data) => Ok(Object::SetIterator(data)),
             Value::MapIterator(data) => Ok(Object::MapIterator(data)),
             Value::Generator(data) => Ok(Object::Generator(data)),
+            Value::StringIterator(data) => Ok(Object::StringIterator(data)),
             Value::Module(data) => Ok(Object::Module(data)),
             Value::EmbedderObject(data) => Ok(Object::EmbedderObject(data)),
         }
@@ -670,12 +672,12 @@ impl Hash for Object<'_> {
             Object::Float64Array(data) => data.into_index().hash(state),
             Object::AsyncFromSyncIterator => {}
             Object::AsyncGenerator(data) => data.get_index().hash(state),
-            Object::Iterator => {}
             Object::ArrayIterator(data) => data.get_index().hash(state),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.get_index().hash(state),
             Object::MapIterator(data) => data.get_index().hash(state),
             Object::Generator(data) => data.get_index().hash(state),
+            Object::StringIterator(data) => data.get_index().hash(state),
             Object::Module(data) => data.get_index().hash(state),
             Object::EmbedderObject(data) => data.get_index().hash(state),
         }
@@ -764,12 +766,12 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_extensible(agent),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_extensible(agent),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_extensible(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_extensible(agent),
             Object::MapIterator(data) => data.internal_extensible(agent),
             Object::Generator(data) => data.internal_extensible(agent),
+            Object::StringIterator(data) => data.internal_extensible(agent),
             Object::Module(data) => data.internal_extensible(agent),
             Object::EmbedderObject(data) => data.internal_extensible(agent),
         }
@@ -864,12 +866,12 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_set_extensible(agent, value),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_extensible(agent, value),
             Object::MapIterator(data) => data.internal_set_extensible(agent, value),
             Object::Generator(data) => data.internal_set_extensible(agent, value),
+            Object::StringIterator(data) => data.internal_set_extensible(agent, value),
             Object::Module(data) => data.internal_set_extensible(agent, value),
             Object::EmbedderObject(data) => data.internal_set_extensible(agent, value),
         }
@@ -944,12 +946,12 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_prototype(agent),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_prototype(agent),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prototype(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_prototype(agent),
             Object::MapIterator(data) => data.internal_prototype(agent),
             Object::Generator(data) => data.internal_prototype(agent),
+            Object::StringIterator(data) => data.internal_prototype(agent),
             Object::Module(data) => data.internal_prototype(agent),
             Object::EmbedderObject(data) => data.internal_prototype(agent),
         }
@@ -1046,12 +1048,12 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_set_prototype(agent, prototype),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::MapIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::Generator(data) => data.internal_set_prototype(agent, prototype),
+            Object::StringIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::Module(data) => data.internal_set_prototype(agent, prototype),
             Object::EmbedderObject(data) => data.internal_set_prototype(agent, prototype),
         }
@@ -1148,12 +1150,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_get_prototype_of(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_prototype_of(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::MapIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::Generator(data) => data.try_get_prototype_of(agent, gc),
+            Object::StringIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::Module(data) => data.try_get_prototype_of(agent, gc),
             Object::EmbedderObject(data) => data.try_get_prototype_of(agent, gc),
         }
@@ -1252,12 +1254,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_get_prototype_of(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_prototype_of(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::MapIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Generator(data) => data.internal_get_prototype_of(agent, gc),
+            Object::StringIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Module(data) => data.internal_get_prototype_of(agent, gc),
             Object::EmbedderObject(data) => data.internal_get_prototype_of(agent, gc),
         }
@@ -1359,12 +1361,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_set_prototype_of(agent, prototype, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::MapIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Generator(data) => data.try_set_prototype_of(agent, prototype, gc),
+            Object::StringIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Module(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::EmbedderObject(data) => data.try_set_prototype_of(agent, prototype, gc),
         }
@@ -1470,12 +1472,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_set_prototype_of(agent, prototype, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::MapIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Generator(data) => data.internal_set_prototype_of(agent, prototype, gc),
+            Object::StringIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Module(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::EmbedderObject(data) => data.internal_set_prototype_of(agent, prototype, gc),
         }
@@ -1556,12 +1558,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_is_extensible(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_is_extensible(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_is_extensible(agent, gc),
             Object::MapIterator(data) => data.try_is_extensible(agent, gc),
             Object::Generator(data) => data.try_is_extensible(agent, gc),
+            Object::StringIterator(data) => data.try_is_extensible(agent, gc),
             Object::Module(data) => data.try_is_extensible(agent, gc),
             Object::EmbedderObject(data) => data.try_is_extensible(agent, gc),
         }
@@ -1658,12 +1660,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_is_extensible(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_is_extensible(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_is_extensible(agent, gc),
             Object::MapIterator(data) => data.internal_is_extensible(agent, gc),
             Object::Generator(data) => data.internal_is_extensible(agent, gc),
+            Object::StringIterator(data) => data.internal_is_extensible(agent, gc),
             Object::Module(data) => data.internal_is_extensible(agent, gc),
             Object::EmbedderObject(data) => data.internal_is_extensible(agent, gc),
         }
@@ -1756,12 +1758,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_prevent_extensions(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_prevent_extensions(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::MapIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::Generator(data) => data.try_prevent_extensions(agent, gc),
+            Object::StringIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::Module(data) => data.try_prevent_extensions(agent, gc),
             Object::EmbedderObject(data) => data.try_prevent_extensions(agent, gc),
         }
@@ -1860,12 +1862,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_prevent_extensions(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prevent_extensions(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::MapIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Generator(data) => data.internal_prevent_extensions(agent, gc),
+            Object::StringIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Module(data) => data.internal_prevent_extensions(agent, gc),
             Object::EmbedderObject(data) => data.internal_prevent_extensions(agent, gc),
         }
@@ -1969,12 +1971,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_own_property(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::MapIterator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Generator(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::StringIterator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Module(data) => data.try_get_own_property(agent, property_key, gc),
             Object::EmbedderObject(data) => data.try_get_own_property(agent, property_key, gc),
         }
@@ -2085,12 +2087,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_get_own_property(agent, property_key, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Generator(data) => data.internal_get_own_property(agent, property_key, gc),
+            Object::StringIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Module(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::EmbedderObject(data) => data.internal_get_own_property(agent, property_key, gc),
         }
@@ -2265,7 +2267,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncGenerator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -2274,6 +2275,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Object::MapIterator(data) => {
+                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Object::StringIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Object::Generator(data) => {
@@ -2433,7 +2437,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncGenerator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -2442,6 +2445,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Object::MapIterator(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Object::StringIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Object::Generator(data) => {
@@ -2552,12 +2558,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_has_property(agent, property_key, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_has_property(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_has_property(agent, property_key, gc),
             Object::MapIterator(data) => data.try_has_property(agent, property_key, gc),
             Object::Generator(data) => data.try_has_property(agent, property_key, gc),
+            Object::StringIterator(data) => data.try_has_property(agent, property_key, gc),
             Object::Module(data) => data.try_has_property(agent, property_key, gc),
             Object::EmbedderObject(data) => data.try_has_property(agent, property_key, gc),
         }
@@ -2661,12 +2667,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_has_property(agent, property_key, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_has_property(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::Generator(data) => data.internal_has_property(agent, property_key, gc),
+            Object::StringIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::Module(data) => data.internal_has_property(agent, property_key, gc),
             Object::EmbedderObject(data) => data.internal_has_property(agent, property_key, gc),
         }
@@ -2769,12 +2775,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_get(agent, property_key, receiver, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get(agent, property_key, receiver, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::MapIterator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Generator(data) => data.try_get(agent, property_key, receiver, gc),
+            Object::StringIterator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Module(data) => data.try_get(agent, property_key, receiver, gc),
             Object::EmbedderObject(data) => data.try_get(agent, property_key, receiver, gc),
         }
@@ -2881,12 +2887,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_get(agent, property_key, receiver, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::MapIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Generator(data) => data.internal_get(agent, property_key, receiver, gc),
+            Object::StringIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Module(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::EmbedderObject(data) => data.internal_get(agent, property_key, receiver, gc),
         }
@@ -3000,12 +3006,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::MapIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Generator(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::StringIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Module(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::EmbedderObject(data) => data.try_set(agent, property_key, value, receiver, gc),
         }
@@ -3149,7 +3155,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncGenerator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
@@ -3161,6 +3166,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
             Object::Generator(data) => data.internal_set(agent, property_key, value, receiver, gc),
+            Object::StringIterator(data) => {
+                data.internal_set(agent, property_key, value, receiver, gc)
+            }
             Object::Module(data) => data.internal_set(agent, property_key, value, receiver, gc),
             Object::EmbedderObject(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
@@ -3262,12 +3270,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_delete(agent, property_key, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_delete(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_delete(agent, property_key, gc),
             Object::MapIterator(data) => data.try_delete(agent, property_key, gc),
             Object::Generator(data) => data.try_delete(agent, property_key, gc),
+            Object::StringIterator(data) => data.try_delete(agent, property_key, gc),
             Object::Module(data) => data.try_delete(agent, property_key, gc),
             Object::EmbedderObject(data) => data.try_delete(agent, property_key, gc),
         }
@@ -3369,12 +3377,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_delete(agent, property_key, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_delete(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::Generator(data) => data.internal_delete(agent, property_key, gc),
+            Object::StringIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::Module(data) => data.internal_delete(agent, property_key, gc),
             Object::EmbedderObject(data) => data.internal_delete(agent, property_key, gc),
         }
@@ -3469,12 +3477,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_own_property_keys(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_own_property_keys(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_own_property_keys(agent, gc),
             Object::MapIterator(data) => data.try_own_property_keys(agent, gc),
             Object::Generator(data) => data.try_own_property_keys(agent, gc),
+            Object::StringIterator(data) => data.try_own_property_keys(agent, gc),
             Object::Module(data) => data.try_own_property_keys(agent, gc),
             Object::EmbedderObject(data) => data.try_own_property_keys(agent, gc),
         }
@@ -3573,12 +3581,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_own_property_keys(agent, gc),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_own_property_keys(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::MapIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::Generator(data) => data.internal_own_property_keys(agent, gc),
+            Object::StringIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::Module(data) => data.internal_own_property_keys(agent, gc),
             Object::EmbedderObject(data) => data.internal_own_property_keys(agent, gc),
         }
@@ -3688,12 +3696,12 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::Float64Array(data) => data.mark_values(queues),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.mark_values(queues),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.mark_values(queues),
             Object::MapIterator(data) => data.mark_values(queues),
             Object::Generator(data) => data.mark_values(queues),
+            Object::StringIterator(data) => data.mark_values(queues),
             Object::Module(data) => data.mark_values(queues),
             Object::EmbedderObject(data) => data.mark_values(queues),
         }
@@ -3762,12 +3770,12 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::Float64Array(data) => data.sweep_values(compactions),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.sweep_values(compactions),
-            Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.sweep_values(compactions),
             Object::MapIterator(data) => data.sweep_values(compactions),
             Object::Generator(data) => data.sweep_values(compactions),
+            Object::StringIterator(data) => data.sweep_values(compactions),
             Object::Module(data) => data.sweep_values(compactions),
             Object::EmbedderObject(data) => data.sweep_values(compactions),
         }
@@ -3883,11 +3891,11 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Ok(Self::AsyncFromSyncIterator),
             HeapRootData::AsyncGenerator(r#gen) => Ok(Self::AsyncGenerator(r#gen)),
-            HeapRootData::Iterator => Ok(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => Ok(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Ok(Self::MapIterator(map_iterator)),
+            HeapRootData::StringIterator(map_iterator) => Ok(Self::StringIterator(map_iterator)),
             HeapRootData::Generator(generator) => Ok(Self::Generator(generator)),
             HeapRootData::Module(module) => Ok(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {

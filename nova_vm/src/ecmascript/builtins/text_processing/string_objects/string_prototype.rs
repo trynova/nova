@@ -39,6 +39,8 @@ use crate::{
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
+use super::string_iterator_objects::StringIterator;
+
 pub(crate) struct StringPrototype;
 
 struct StringPrototypeGetAt;
@@ -2193,27 +2195,12 @@ impl StringPrototype {
             .unbind()?
             .bind(nogc);
         // 2. Let s be ? ToString(O).
-        let _s = to_string(agent, o.unbind(), gc.reborrow())
+        let s = to_string(agent, o.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        // 3. Let closure be a new Abstract Closure with no parameters that
-        //    captures s and performs the following steps when called:
-        fn closure<'gc>(agent: &mut Agent, s: String, gc: GcScope) -> JsResult<'gc, Value<'gc>> {
-            let s = s.bind(gc.nogc());
-            // a. Let len be the length of s.
-            let _len = s.utf16_len(agent);
-            // b. Let position be 0.
-            // c. Repeat, while position < len,
-            // i. Let cp be CodePointAt(s, position).
-            // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
-            // iii. Let resultString be the substring of s from position to nextIndex.
-            // iv. Set position to nextIndex.
-            // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).
-            todo!()
-        }
         // d. Return undefined.
         // 4. Return CreateIteratorFromClosure(closure, "%StringIteratorPrototype%", %StringIteratorPrototype%).
-        Ok(Value::Iterator)
+        Ok(StringIterator::create(agent, s.unbind(), gc.into_nogc()).into_value())
     }
 
     /// ### [B.2.2.1 String.prototype.substr ( start, length )](https://tc39.es/ecma262/#sec-string.prototype.substr)

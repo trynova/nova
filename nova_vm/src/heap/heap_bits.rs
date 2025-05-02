@@ -50,6 +50,7 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
+        text_processing::string_objects::string_iterator_objects::StringIterator,
     },
     execution::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment, Realm,
@@ -117,6 +118,7 @@ pub struct HeapBits {
     pub set_iterators: Box<[bool]>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Box<[bool]>,
+    pub string_iterators: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
     #[cfg(feature = "array-buffer")]
@@ -184,6 +186,7 @@ pub(crate) struct WorkQueues {
     pub set_iterators: Vec<SetIterator<'static>>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<SharedArrayBuffer<'static>>,
+    pub string_iterators: Vec<StringIterator<'static>>,
     pub strings: Vec<HeapString<'static>>,
     pub symbols: Vec<Symbol<'static>>,
     #[cfg(feature = "array-buffer")]
@@ -251,6 +254,7 @@ impl HeapBits {
         let set_iterators = vec![false; heap.set_iterators.len()];
         #[cfg(feature = "shared-array-buffer")]
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
+        let string_iterators = vec![false; heap.string_iterators.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
         #[cfg(feature = "array-buffer")]
@@ -315,6 +319,7 @@ impl HeapBits {
             set_iterators: set_iterators.into_boxed_slice(),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
+            string_iterators: string_iterators.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
             #[cfg(feature = "array-buffer")]
@@ -387,6 +392,7 @@ impl WorkQueues {
             set_iterators: Vec::with_capacity(heap.set_iterators.len() / 4),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
+            string_iterators: Vec::with_capacity(heap.string_iterators.len() / 4),
             strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
             #[cfg(feature = "array-buffer")]
@@ -455,6 +461,7 @@ impl WorkQueues {
             set_iterators,
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
+            string_iterators,
             strings,
             symbols,
             #[cfg(feature = "array-buffer")]
@@ -535,6 +542,7 @@ impl WorkQueues {
             && sets.is_empty()
             && set_iterators.is_empty()
             && shared_array_buffers.is_empty()
+            && string_iterators.is_empty()
             && strings.is_empty()
             && symbols.is_empty()
             && typed_arrays.is_empty()
@@ -750,6 +758,7 @@ pub(crate) struct CompactionLists {
     pub set_iterators: CompactionList,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: CompactionList,
+    pub string_iterators: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
     #[cfg(feature = "array-buffer")]
@@ -827,6 +836,7 @@ impl CompactionLists {
             sets: CompactionList::from_mark_bits(&bits.sets),
             #[cfg(feature = "set")]
             set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),
+            string_iterators: CompactionList::from_mark_bits(&bits.string_iterators),
             strings: CompactionList::from_mark_bits(&bits.strings),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),

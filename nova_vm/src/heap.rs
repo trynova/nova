@@ -75,6 +75,7 @@ use crate::{
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
+            text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
@@ -172,6 +173,7 @@ pub struct Heap {
     pub weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
     pub modules: Vec<Option<ModuleHeapData<'static>>>,
     pub scripts: Vec<Option<ScriptRecord<'static>>>,
+    pub string_iterators: Vec<Option<StringIteratorHeapData<'static>>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
     pub(crate) source_codes: Vec<Option<SourceCodeHeapData<'static>>>,
@@ -275,6 +277,7 @@ impl Heap {
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
+            string_iterators: Vec::with_capacity(0),
             string_lookup_table: HashTable::with_capacity(1024),
             string_hasher: ahash::RandomState::new(),
             symbols: Vec::with_capacity(1024),

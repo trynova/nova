@@ -51,6 +51,7 @@ use super::{
     keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
     map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectHeapData,
     promise::data::PromiseHeapData,
+    text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
 };
 #[cfg(feature = "set")]
 use super::{
@@ -1278,6 +1279,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
                 String::EMPTY_STRING,
             ))
             .into_object(),
+        ProtoIntrinsics::StringIterator => agent
+            .heap
+            .create(StringIteratorHeapData::new(String::EMPTY_STRING))
+            .into_object(),
         ProtoIntrinsics::Symbol => agent
             .heap
             .create(PrimitiveObjectHeapData::new_symbol_object(Symbol::from(
@@ -1553,6 +1558,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
                 Some(intrinsics.shared_array_buffer().into_function())
             }
             ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
+            ProtoIntrinsics::StringIterator => None,
             ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
             ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
             ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),

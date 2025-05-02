@@ -33,6 +33,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData, proxy::data::ProxyHeapData,
+            text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
         types::{
             BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
@@ -55,6 +56,7 @@ use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 ///
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
+#[repr(transparent)]
 pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
@@ -206,6 +208,7 @@ pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
 pub type ErrorIndex<'a> = BaseIndex<'a, ErrorHeapData<'static>>;
 pub type FinalizationRegistryIndex<'a> = BaseIndex<'a, FinalizationRegistryHeapData<'static>>;
 pub type GeneratorIndex<'a> = BaseIndex<'a, GeneratorHeapData<'static>>;
+pub type StringIteratorIndex<'a> = BaseIndex<'a, StringIteratorHeapData<'static>>;
 pub type MapIndex<'a> = BaseIndex<'a, MapHeapData<'static>>;
 pub type MapIteratorIndex<'a> = BaseIndex<'a, MapIteratorHeapData<'static>>;
 pub type NumberIndex<'a> = BaseIndex<'a, NumberHeapData>;
