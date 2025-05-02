@@ -2461,21 +2461,19 @@ fn apply_string_or_numeric_binary_operator<'gc>(
 ) -> JsResult<'gc, Value<'gc>> {
     let lval = lval.bind(gc.nogc());
     let rval = rval.bind(gc.nogc());
-    let lnum: Numeric<'gc>;
-    let rnum: Numeric<'gc>;
     // 1. If opText is +, then
     let rval = rval.scope(agent, gc.nogc());
     // 3. Let lnum be ? ToNumeric(lval).
-    let scoped_lnum = to_numeric(agent, lval.unbind(), gc.reborrow())
+    let lnum = to_numeric(agent, lval.unbind(), gc.reborrow())
         .unbind()?
         .scope(agent, gc.nogc());
     // 4. Let rnum be ? ToNumeric(rval).
     // SAFETY: not shared.
-    let local_rnum = to_numeric(agent, unsafe { rval.take(agent) }, gc.reborrow()).unbind()?;
+    let rnum = to_numeric(agent, unsafe { rval.take(agent) }, gc.reborrow()).unbind()?;
     let gc = gc.into_nogc();
-    rnum = local_rnum.bind(gc);
+    let rnum = rnum.bind(gc);
     // SAFETY: not shared.
-    lnum = unsafe { scoped_lnum.take(agent) }.bind(gc);
+    let lnum = unsafe { lnum.take(agent) }.bind(gc);
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
@@ -2506,8 +2504,6 @@ fn apply_string_or_numeric_addition<'gc>(
 ) -> JsResult<'gc, Value<'gc>> {
     let lval = lval.bind(gc.nogc());
     let rval = rval.bind(gc.nogc());
-    let lnum: Numeric<'gc>;
-    let rnum: Numeric<'gc>;
     // 1. If opText is +, then
     // a. Let lprim be ? ToPrimitive(lval).
     // b. Let rprim be ? ToPrimitive(rval).
@@ -2576,9 +2572,9 @@ fn apply_string_or_numeric_addition<'gc>(
     // e. Set rval to rprim.
     // 2. NOTE: At this point, it must be a numeric operation.
     // 3. Let lnum be ? ToNumeric(lval).
-    lnum = to_numeric_primitive(agent, lprim, gc)?;
+    let lnum = to_numeric_primitive(agent, lprim, gc)?;
     // 4. Let rnum be ? ToNumeric(rval).
-    rnum = to_numeric_primitive(agent, rprim, gc)?;
+    let rnum = to_numeric_primitive(agent, rprim, gc)?;
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
