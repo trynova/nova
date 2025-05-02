@@ -26,9 +26,9 @@ use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
 use super::IndexType;
 
-impl CompileEvaluation for ast::Class<'_> {
+impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
-    fn compile(&self, ctx: &mut CompileContext) {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let anonymous_class_name = ctx.name_identifier.take();
 
         // 1. Let env be the LexicalEnvironment of the running execution context.
@@ -36,9 +36,7 @@ impl CompileEvaluation for ast::Class<'_> {
         // Note: The specification doesn't enter the declaration here, but
         // no user code is run between here and first enter.
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i += 1;
-        }
+        ctx.current_lexical_depth += 1;
 
         // 3. If classBinding is not undefined, then
         let mut has_class_name_on_stack = false;
@@ -502,9 +500,7 @@ impl CompileEvaluation for ast::Class<'_> {
         }
         // Note: We finally leave classEnv here. See step 26.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i -= 1;
-        }
+        ctx.current_lexical_depth -= 1;
 
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
@@ -532,11 +528,11 @@ enum PropertyInitializerField<'a, 'gc> {
     Computed((String<'gc>, &'a Option<ast::Expression<'a>>)),
 }
 
-fn compile_computed_field_name<'a, 'gc>(
-    ctx: &mut CompileContext<'_, 'gc, '_>,
-    property_fields: &mut Vec<PropertyInitializerField<'a, 'gc>>,
-    key: &ast::PropertyKey<'_>,
-    value: &'a Option<ast::Expression<'a>>,
+fn compile_computed_field_name<'s, 'gc>(
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+    property_fields: &mut Vec<PropertyInitializerField<'s, 'gc>>,
+    key: &'s ast::PropertyKey<'s>,
+    value: &'s Option<ast::Expression<'s>>,
 ) {
     // TODO: Handle lifetime logic.
     let computed_key_id =
@@ -614,7 +610,10 @@ fn define_constructor_method(
 ///
 /// After this call, the method will be in the result slot and its key will be
 /// at the top of the stack. The object is second on the stack.
-fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) -> IndexType {
+fn define_method<'s>(
+    class_element: &'s ast::MethodDefinition<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) -> IndexType {
     // 1. Let propKey be ? Evaluation of ClassElementName.
     if let Some(prop_name) = class_element.prop_name() {
         let prop_name = String::from_str(ctx.agent, prop_name.0, ctx.gc);
@@ -670,8 +669,8 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
     )
 }
 
-impl CompileEvaluation for ast::StaticBlock<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 12. Let functionNames be a new empty List.
         // 13. Let functionsToInitialize be a new empty List.
         // NOTE: the keys of `functions` will be `functionNames`, its values will be
@@ -770,9 +769,8 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             statement.compile(ctx);
         }
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-            *i -= 1;
-        }
+        ctx.current_lexical_depth -= 1;
+
         ctx.add_instruction(Instruction::ExitVariableEnvironment);
     }
 }

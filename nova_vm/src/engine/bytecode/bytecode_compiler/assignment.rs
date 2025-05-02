@@ -12,8 +12,8 @@ use super::{
     is_reference,
 };
 
-impl CompileEvaluation for ast::AssignmentExpression<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         match &self.left {
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
@@ -143,7 +143,10 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             // 2. let lval be ? GetValue(lref).
             ctx.add_instruction(Instruction::GetValueKeepReference);
             ctx.add_instruction(Instruction::Load);
-            ctx.add_instruction(Instruction::PushReference);
+            let do_push_reference = !self.right.is_literal();
+            if do_push_reference {
+                ctx.add_instruction(Instruction::PushReference);
+            }
             // 3. Let rref be ? Evaluation of AssignmentExpression.
             self.right.compile(ctx);
 
@@ -159,7 +162,9 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             ctx.add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(op_text));
             ctx.add_instruction(Instruction::LoadCopy);
             // 8. Perform ? PutValue(lref, r).
-            ctx.add_instruction(Instruction::PopReference);
+            if do_push_reference {
+                ctx.add_instruction(Instruction::PopReference);
+            }
             ctx.add_instruction(Instruction::PutValue);
             // 9. Return r.
             ctx.add_instruction(Instruction::Store);
@@ -167,8 +172,8 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
     }
 }
 
-impl CompileEvaluation for ast::AssignmentTarget<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::AssignmentTarget::ArrayAssignmentTarget(array) => {
                 array.compile(ctx);
@@ -201,8 +206,8 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ArrayAssignmentTarget<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         ctx.add_instruction(Instruction::GetIteratorSync);
         for element in &self.elements {
             ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
@@ -219,8 +224,8 @@ impl CompileEvaluation for ast::ArrayAssignmentTarget<'_> {
     }
 }
 
-impl CompileEvaluation for ast::ObjectAssignmentTarget<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::ObjectAssignmentTarget<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         ctx.add_instruction(Instruction::ToObject);
         if self.properties.len() > 1 || self.rest.is_some() {
             ctx.add_instruction(Instruction::LoadCopy);
@@ -245,8 +250,8 @@ impl CompileEvaluation for ast::ObjectAssignmentTarget<'_> {
     }
 }
 
-impl CompileEvaluation for ast::AssignmentTargetProperty<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetProperty<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(identifier) => {
                 identifier.compile(ctx);
@@ -258,8 +263,8 @@ impl CompileEvaluation for ast::AssignmentTargetProperty<'_> {
     }
 }
 
-impl CompileEvaluation for ast::AssignmentTargetPropertyIdentifier<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let key = String::from_str(ctx.agent, self.binding.name.as_str(), ctx.gc);
         ctx.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
@@ -290,8 +295,8 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyIdentifier<'_> {
     }
 }
 
-impl CompileEvaluation for ast::AssignmentTargetPropertyProperty<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyProperty<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match &self.name {
             ast::PropertyKey::StaticIdentifier(identifier) => {
                 let key = String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
@@ -316,8 +321,8 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyProperty<'_> {
     }
 }
 
-impl CompileEvaluation for ast::AssignmentTargetMaybeDefault<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
+impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
                 ctx.add_instruction(Instruction::LoadCopy);

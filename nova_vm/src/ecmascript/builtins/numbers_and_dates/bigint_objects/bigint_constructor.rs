@@ -219,8 +219,16 @@ impl BigIntConstructor {
             }
             BigInt::SmallBigInt(int) => {
                 let int = int.into_i64();
-                let modulo = int.rem_euclid(2i64.pow(bits));
-                Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
+                if let Some(modulo) = 2i64
+                    .checked_pow(bits)
+                    .and_then(|base| int.checked_rem_euclid(base))
+                {
+                    Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
+                } else {
+                    let modulus = num_bigint::BigInt::from(2).pow(bits);
+                    let result = ((int % modulus.clone()) + modulus.clone()) % modulus;
+                    Ok(BigInt::from_num_bigint(agent, result).into_value())
+                }
             }
         }
     }

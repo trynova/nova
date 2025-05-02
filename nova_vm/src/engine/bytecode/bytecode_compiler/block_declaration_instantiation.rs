@@ -24,9 +24,9 @@ use super::{
 /// > Record is created and bindings for each block scoped variable, constant,
 /// > function, or class declared in the block are instantiated in the
 /// > Environment Record.
-pub(super) fn instantiation<'a>(
-    ctx: &mut CompileContext,
-    code: &'a impl LexicallyScopedDeclarations<'a>,
+pub(super) fn instantiation<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    code: &'s impl LexicallyScopedDeclarations<'s>,
 ) -> bool {
     let mut did_enter_declarative_environment = false;
     // 1. Let declarations be the LexicallyScopedDeclarations of code.
@@ -36,9 +36,7 @@ pub(super) fn instantiation<'a>(
         if !did_enter_declarative_environment {
             did_enter_declarative_environment = true;
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
-                *i += 1;
-            }
+            ctx.current_lexical_depth += 1;
         }
         handle_block_lexically_scoped_declaration(ctx, d);
     });
@@ -47,9 +45,9 @@ pub(super) fn instantiation<'a>(
     did_enter_declarative_environment
 }
 
-pub fn handle_block_lexically_scoped_declaration(
-    ctx: &mut CompileContext,
-    d: LexicallyScopedDeclaration,
+pub fn handle_block_lexically_scoped_declaration<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    d: LexicallyScopedDeclaration<'s>,
 ) {
     match d {
         // a. For each element dn of the BoundNames of d, do
