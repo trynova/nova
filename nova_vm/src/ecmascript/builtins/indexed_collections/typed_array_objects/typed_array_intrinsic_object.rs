@@ -2374,6 +2374,68 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     })
 }
 
+fn viewable_slice<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    ta: TypedArray<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, &'a [T]> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(&[]);
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(&[]);
+        }
+        &byte_slice[byte_offset..end_index]
+    } else {
+        &byte_slice[byte_offset..]
+    };
+    // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+    // combinations of T are valid values. Alignment of T's is
+    // guaranteed by align_to itself.
+    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+    if !head.is_empty() {
+        panic!("TypedArray is not properly aligned");
+    }
+    Ok(slice)
+}
+
+fn viewable_slice_mut<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    ta: TypedArray<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, &'a mut [T]> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(&mut []);
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(&mut []);
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+    // combinations of T are valid values. Alignment of T's is
+    // guaranteed by align_to_mut itself.
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        panic!("TypedArray is not properly aligned");
+    }
+    Ok(slice)
+}
+
 fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
     agent: &mut Agent,
     ta: TypedArray,
@@ -2386,38 +2448,7 @@ fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool
     let Some(search_element) = search_element else {
         return Ok(None);
     };
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.byte_offset(agent);
-    let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(None);
-    }
-    if byte_offset > byte_slice.len() {
-        // Start index is out of bounds.
-        return Ok(None);
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            // End index is out of bounds.
-            return Ok(None);
-        }
-        &byte_slice[byte_offset..end_index]
-    } else {
-        &byte_slice[byte_offset..]
-    };
-    // SAFETY: All bytes in byte_slice are initialized, and all bitwise
-    // combinations of T are valid values. Alignment of T's is
-    // guaranteed by align_to itself.
-    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
-    }
+    let slice = viewable_slice::<T>(agent, ta, gc).unwrap();
     // Length of the TypedArray may have changed between when we measured it
     // and here: We'll never try to access past the boundary of the slice if
     // the backing ArrayBuffer shrank.
@@ -2445,30 +2476,7 @@ fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     len: usize,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.byte_offset(agent);
-    let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
-    }
+    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
     let slice = &mut slice[..len];
     slice.reverse();
     Ok(())
@@ -2494,34 +2502,8 @@ fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
             gc,
         ));
     }
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
-    let byte_offset = ta.byte_offset(agent);
-    let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(());
-    }
-    if byte_offset > byte_slice.len() {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
-    }
+    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
     let slice = &mut slice[..len];
     let start_bound = start_index as usize;
     let target_index = target_index as usize;
@@ -2617,35 +2599,7 @@ fn fill_typed_array<'a, T: Viewable>(
     let k = start_index as usize;
     // 19. Repeat, while k < endIndex,
     let value = T::from_ne_value(agent, value);
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.byte_offset(agent);
-    let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(ta);
-    }
-    if byte_offset > byte_slice.len() {
-        // We shouldn't be out of bounds.
-        unreachable!();
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            // We shouldn't be out of bounds.
-            unreachable!()
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
-    }
+    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
     if k >= end_index {
         return Ok(ta);
     }
@@ -2662,30 +2616,7 @@ fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
 ) -> JsResult<'a, ()> {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.byte_offset(agent);
-    let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
-    }
+    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
     let slice = &mut slice[..len];
     slice.sort();
     Ok(())
@@ -2775,30 +2706,7 @@ fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScrip
 ) -> JsResult<'a, ()> {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
-    let byte_offset = ta.byte_offset(agent);
-    let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc,
-        ));
-    }
+    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
     let slice = &mut slice[..len];
     slice.sort_by(|a, b| a.ecmascript_cmp(b));
     Ok(())
@@ -2814,30 +2722,7 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     let ta_record = ta_record.bind(gc.nogc());
     let local_ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
-    let array_buffer = local_ta.get_viewed_array_buffer(agent, gc.nogc());
-    let byte_offset = local_ta.byte_offset(agent);
-    let byte_length = local_ta.byte_length(agent);
-    let byte_slice = array_buffer.as_slice(agent);
-    if byte_slice.is_empty() || len == 0 {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &byte_slice[byte_offset..end_index]
-    } else {
-        &byte_slice[byte_offset..]
-    };
-    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
-    if !head.is_empty() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray is not properly aligned",
-            gc.into_nogc(),
-        ));
-    }
+    let slice = viewable_slice::<T>(agent, local_ta, gc.nogc()).unwrap();
     let slice = &slice[..len];
     let mut items: Vec<T> = slice.to_vec();
     let mut error: Option<JsError> = None;
@@ -2879,21 +2764,7 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     if let Some(error) = error {
         return Err(error);
     }
-    let array_buffer = ta.get(agent).get_viewed_array_buffer(agent, gc.nogc());
-    let byte_slice = array_buffer.as_mut_slice(agent);
-    if byte_slice.is_empty() {
-        return Ok(());
-    }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return Ok(());
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
-    let (_, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    let slice = viewable_slice_mut::<T>(agent, ta.get(agent), gc.nogc()).unwrap();
     let len = len.min(slice.len());
     let slice = &mut slice[..len];
     let copy_len = items.len().min(len);
@@ -3067,51 +2938,16 @@ fn split_typed_array_views<'a, T: Viewable + std::fmt::Debug>(
     let o_buf = o.get_viewed_array_buffer(agent, gc);
     assert!(
         !std::ptr::eq(
-            a_buf.as_mut_slice(agent).as_mut_ptr(),
+            a_buf.as_slice(agent).as_ptr(),
             o_buf.as_slice(agent).as_ptr()
         ),
         "Must not point to the same buffer"
     );
-    let a_offset = a.byte_offset(agent);
-    let a_len = a.byte_length(agent);
-    let a_bytes = a_buf.as_mut_slice(agent);
-    if a_bytes.is_empty() || a_offset > a_bytes.len() {
-        return Ok((&mut [], &[]));
-    }
-    let a_slice = if let Some(a_len) = a_len {
-        let end_index = a_offset + a_len;
-        if end_index <= a_bytes.len() {
-            &mut a_bytes[a_offset..end_index]
-        } else {
-            &mut []
-        }
-    } else {
-        &mut a_bytes[a_offset..]
-    };
+    let a_slice = viewable_slice_mut::<T>(agent, a, gc).unwrap();
     let a_ptr = a_slice.as_mut_ptr();
     let a_len = a_slice.len();
-    let o_offset = o.byte_offset(agent);
-    let o_len = o.byte_length(agent);
-    let o_bytes = o_buf.as_slice(agent);
-    let o_slice = if let Some(o_len) = o_len {
-        let end_index = o_offset + o_len;
-        if end_index <= o_bytes.len() {
-            &o_bytes[o_offset..end_index]
-        } else {
-            &[]
-        }
-    } else {
-        &o_bytes[o_offset..]
-    };
-    let a_slice = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
-    let (a_head, a_aligned, _) = unsafe { a_slice.align_to_mut::<T>() };
-    if !a_head.is_empty() {
-        panic!("TypedArray is not properly aligned");
-    }
-    let (o_head, o_aligned, _) = unsafe { o_slice.align_to::<T>() };
-    if !o_head.is_empty() {
-        panic!("TypedArray is not properly aligned");
-    }
+    let o_aligned = viewable_slice::<T>(agent, o, gc).unwrap();
+    let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
     Ok((a_aligned, o_aligned))
 }
 
