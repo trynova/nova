@@ -2550,9 +2550,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
 
         self.body.compile(ctx);
 
-        let jump_target = Rc::into_inner(ctx.current_jump_target.take().unwrap())
-            .unwrap()
-            .into_inner();
+        let jump_target = ctx.take_current_jump_target(label_set);
         for continue_entry in jump_target.continues {
             ctx.set_jump_target_here(continue_entry);
         }
