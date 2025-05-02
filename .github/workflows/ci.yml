@@ -48,14 +48,14 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Build
-        run: cargo build
+        run: cargo build --profile dev-fast
       - name: Test
-        run: cargo test
+        run: cargo test --profile dev-fast
         timeout-minutes: 20
       - name: Checkout test262 submodule
         run: git submodule update --init
       - name: Test262
-        run: cargo run --bin test262 -- --noprogress
+        run: cargo run --bin test262 --profile dev-fast -- --noprogress
         timeout-minutes: 15
       - name: Build binaries and examples
-        run: cargo build --bins --examples
+        run: cargo build --bins --examples --profile dev-fast
