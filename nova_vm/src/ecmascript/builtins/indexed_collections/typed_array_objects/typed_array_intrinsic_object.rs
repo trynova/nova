@@ -764,7 +764,7 @@ impl TypedArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let this_value = this_value.bind(gc.nogc());
         let target = arguments.get(0).bind(gc.nogc());
@@ -776,78 +776,22 @@ impl TypedArrayPrototype {
         };
         // 1. Let O be the this value.
         let o = this_value;
-
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
         let o = ta_record.object;
-        let scoped_o = o.scope(agent, gc.nogc());
-        // 3. Let len be TypedArrayLength(taRecord).
-        let len = with_typed_array_viewable!(
-            scoped_o.get(agent),
-            typed_array_length::<T>(agent, &ta_record, gc.nogc())
-        )
-        .to_i64()
-        .unwrap();
-        let end = end.map(|e| e.scope(agent, gc.nogc()));
-        let start = start.scope(agent, gc.nogc());
-        let target = target.scope(agent, gc.nogc());
-
-        // 4. Let relativeTarget be ? ToIntegerOrInfinity(target).
-        // SAFETY: target has not been shared.
-        let relative_target =
-            to_integer_or_infinity(agent, unsafe { target.take(agent) }, gc.reborrow()).unbind()?;
-        // 5. If relativeTarget = -∞, let targetIndex be 0.
-        let target_index = if relative_target.is_neg_infinity() {
-            0
-        } else if relative_target.is_negative() {
-            // 6. Else if relativeTarget < 0, let targetIndex be max(len + relativeTarget, 0).
-            (len + relative_target.into_i64()).max(0)
-        } else {
-            // 7. Else, let targetIndex be min(relativeTarget, len).
-            relative_target.into_i64().min(len)
-        };
-        // 8. Let relativeStart be ? ToIntegerOrInfinity(start).
-        // SAFETY: start has not been shared.
-        let relative_start =
-            to_integer_or_infinity(agent, unsafe { start.take(agent) }, gc.reborrow()).unbind()?;
-        let start_index = if relative_start.is_neg_infinity() {
-            // 9. If relativeStart = -∞, let startIndex be 0
-            0
-        } else if relative_start.is_negative() {
-            // 10. Else if relativeStart < 0, let startIndex be max(len + relativeStart, 0).
-            (len + relative_start.into_i64()).max(0)
-        } else {
-            // 11. Else, let startIndex be min(relativeStart, len).
-            relative_start.into_i64().min(len)
-        };
-        // 12. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
-        let end = end.map(|e| unsafe { e.take(agent) }.bind(gc.nogc()));
-        let end_index = if end.is_none() || end.unwrap().is_undefined() {
-            len
-        } else {
-            let relative_end =
-                to_integer_or_infinity(agent, end.unwrap().unbind(), gc.reborrow()).unbind()?;
-            // 13. If relativeEnd = -∞, let endIndex be 0.
-            if relative_end.is_neg_infinity() {
-                0
-            } else if relative_end.is_negative() {
-                // 14. Else if relativeEnd < 0, let endIndex be max(len + relativeEnd, 0).
-                (len + relative_end.into_i64()).max(0)
-            } else {
-                // 15. Else, let endIndex be min(relativeEnd, len).
-                relative_end.into_i64().min(len)
-            }
-        };
-        let gc = gc.into_nogc();
-        let o = scoped_o.get(agent).bind(gc);
-
-        with_typed_array_viewable!(
+        let o = with_typed_array_viewable!(
             o,
-            copy_within_typed_array::<T>(agent, o, target_index, start_index, end_index, len, gc,)?
+            copy_within_typed_array::<T>(
+                agent,
+                ta_record.unbind(),
+                target.unbind(),
+                start.unbind(),
+                end.unbind(),
+                gc,
+            )?
         );
-
         // 18. Return O.
         Ok(o.into_value())
     }
@@ -2405,16 +2349,74 @@ fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
 
 fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
     agent: &mut Agent,
-    ta: TypedArray,
-    target_index: i64,
-    start_index: i64,
-    end_index: i64,
-    before_len: i64,
-    gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    let end_bound = (end_index - start_index)
-        .max(0)
-        .min(before_len - target_index) as usize;
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    target: Value,
+    start: Value,
+    end: Option<Value>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let ta_record = ta_record.bind(gc.nogc());
+    let o = ta_record.object;
+    let scoped_o = o.scope(agent, gc.nogc());
+    let target = target.bind(gc.nogc());
+    let start = start.bind(gc.nogc());
+    let end = end.bind(gc.nogc());
+    // 3. Let len be TypedArrayLength(taRecord).
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc())
+        .to_i64()
+        .unwrap();
+    let end = end.map(|e| e.scope(agent, gc.nogc()));
+    let start = start.scope(agent, gc.nogc());
+    let target = target.scope(agent, gc.nogc());
+    // 4. Let relativeTarget be ? ToIntegerOrInfinity(target).
+    // SAFETY: target has not been shared.
+    let relative_target =
+        to_integer_or_infinity(agent, unsafe { target.take(agent) }, gc.reborrow()).unbind()?;
+    // 5. If relativeTarget = -∞, let targetIndex be 0.
+    let target_index = if relative_target.is_neg_infinity() {
+        0
+    } else if relative_target.is_negative() {
+        // 6. Else if relativeTarget < 0, let targetIndex be max(len + relativeTarget, 0).
+        (len + relative_target.into_i64()).max(0)
+    } else {
+        // 7. Else, let targetIndex be min(relativeTarget, len).
+        relative_target.into_i64().min(len)
+    };
+    // 8. Let relativeStart be ? ToIntegerOrInfinity(start).
+    // SAFETY: start has not been shared.
+    let relative_start =
+        to_integer_or_infinity(agent, unsafe { start.take(agent) }, gc.reborrow()).unbind()?;
+    let start_index = if relative_start.is_neg_infinity() {
+        // 9. If relativeStart = -∞, let startIndex be 0
+        0
+    } else if relative_start.is_negative() {
+        // 10. Else if relativeStart < 0, let startIndex be max(len + relativeStart, 0).
+        (len + relative_start.into_i64()).max(0)
+    } else {
+        // 11. Else, let startIndex be min(relativeStart, len).
+        relative_start.into_i64().min(len)
+    };
+    // 12. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+    let end = end.map(|e| unsafe { e.take(agent) }.bind(gc.nogc()));
+    let end_index = if end.is_none() || end.unwrap().is_undefined() {
+        len
+    } else {
+        let relative_end =
+            to_integer_or_infinity(agent, end.unwrap().unbind(), gc.reborrow()).unbind()?;
+        // 13. If relativeEnd = -∞, let endIndex be 0.
+        if relative_end.is_neg_infinity() {
+            0
+        } else if relative_end.is_negative() {
+            // 14. Else if relativeEnd < 0, let endIndex be max(len + relativeEnd, 0).
+            (len + relative_end.into_i64()).max(0)
+        } else {
+            // 15. Else, let endIndex be min(relativeEnd, len).
+            relative_end.into_i64().min(len)
+        }
+    };
+    let gc = gc.into_nogc();
+    let ta = scoped_o.get(agent).bind(gc);
+    let end_bound = (end_index - start_index).max(0).min(len - target_index) as usize;
     let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
     if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
         return Err(agent.throw_exception_with_static_message(
@@ -2423,21 +2425,23 @@ fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
             gc,
         ));
     }
-    let len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
+    let after_len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
     let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
-    let slice = &mut slice[..len];
+    let slice = &mut slice[..after_len];
     let start_bound = start_index as usize;
     let target_index = target_index as usize;
-    let before_len = before_len as usize;
+    let before_len = len as usize;
     if before_len != slice.len() {
-        let end_bound = (len - target_index).max(0).min(before_len - target_index);
+        let end_bound = (after_len - target_index)
+            .max(0)
+            .min(before_len - target_index);
         slice.copy_within(start_bound..end_bound, target_index);
-        return Ok(());
+        return Ok(ta);
     }
     if end_bound > 0 {
         slice.copy_within(start_bound..start_bound + end_bound, target_index);
     }
-    Ok(())
+    Ok(ta)
 }
 
 fn fill_typed_array<'a, T: Viewable>(
