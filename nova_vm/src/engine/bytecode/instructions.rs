@@ -10,7 +10,7 @@ use crate::{
     engine::{Scoped, context::NoGcScope},
 };
 
-use super::{Executable, IndexType, vm::INSTRUCTION_COUNTER};
+use super::{Executable, IndexType};
 
 /// ## Notes
 ///
@@ -500,10 +500,6 @@ impl Instr {
         *ip += 1;
         let kind =
             Instruction::try_from(instructions[cur_ip]).expect("Invalid bytecode instruction");
-
-        INSTRUCTION_COUNTER.with_borrow_mut(|map| {
-            map.entry(kind.as_u8()).and_modify(|v| *v += 1).or_insert(1);
-        });
 
         let arg_count = kind.argument_count() as usize;
 
