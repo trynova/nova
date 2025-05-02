@@ -33,12 +33,6 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Module<'a>(u32, PhantomData<&'a ()>);
 
-impl<'a> IntoValue<'a> for Module<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> IntoObject<'a> for Module<'a> {
     fn into_object(self) -> Object<'a> {
         self.into()

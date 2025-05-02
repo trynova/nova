@@ -32,7 +32,7 @@ use super::value::{
 #[cfg(feature = "weak-refs")]
 use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
 use super::{
-    Function, IntoValue, Value,
+    Function, Value,
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
         ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
@@ -195,86 +195,6 @@ pub enum Object<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
 
-impl<'a> IntoValue<'a> for Object<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            Object::Object(data) => Value::Object(data.unbind()),
-            Object::BoundFunction(data) => Value::BoundFunction(data.unbind()),
-            Object::BuiltinFunction(data) => Value::BuiltinFunction(data.unbind()),
-            Object::ECMAScriptFunction(data) => Value::ECMAScriptFunction(data.unbind()),
-            Object::BuiltinGeneratorFunction => todo!(),
-            Object::BuiltinConstructorFunction(data) => {
-                Value::BuiltinConstructorFunction(data.unbind())
-            }
-            Object::BuiltinPromiseResolvingFunction(data) => {
-                Value::BuiltinPromiseResolvingFunction(data.unbind())
-            }
-            Object::BuiltinPromiseCollectorFunction => todo!(),
-            Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(data) => Value::PrimitiveObject(data.unbind()),
-            Object::Arguments(data) => Value::Arguments(data.unbind()),
-            Object::Array(data) => Value::Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(data) => Value::ArrayBuffer(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(data) => Value::DataView(data.unbind()),
-            #[cfg(feature = "date")]
-            Object::Date(data) => Value::Date(data.unbind()),
-            Object::Error(data) => Value::Error(data.unbind()),
-            Object::FinalizationRegistry(data) => Value::FinalizationRegistry(data.unbind()),
-            Object::Map(data) => Value::Map(data.unbind()),
-            Object::Promise(data) => Value::Promise(data.unbind()),
-            Object::Proxy(data) => Value::Proxy(data.unbind()),
-            #[cfg(feature = "regexp")]
-            Object::RegExp(data) => Value::RegExp(data.unbind()),
-            #[cfg(feature = "set")]
-            Object::Set(data) => Value::Set(data.unbind()),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(data) => Value::SharedArrayBuffer(data.unbind()),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakMap(data) => Value::WeakMap(data.unbind()),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakRef(data) => Value::WeakRef(data.unbind()),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakSet(data) => Value::WeakSet(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Int8Array(data) => Value::Int8Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(data) => Value::Uint8Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(data) => Value::Uint8ClampedArray(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Int16Array(data) => Value::Int16Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(data) => Value::Uint16Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Int32Array(data) => Value::Int32Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(data) => Value::Uint32Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(data) => Value::BigInt64Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(data) => Value::BigUint64Array(data.unbind()),
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(data) => Value::Float16Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Float32Array(data) => Value::Float32Array(data.unbind()),
-            #[cfg(feature = "array-buffer")]
-            Object::Float64Array(data) => Value::Float64Array(data.unbind()),
-            Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
-            Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
-            #[cfg(feature = "set")]
-            Object::SetIterator(data) => Value::SetIterator(data.unbind()),
-            Object::MapIterator(data) => Value::MapIterator(data.unbind()),
-            Object::StringIterator(data) => Value::StringIterator(data.unbind()),
-            Object::Generator(data) => Value::Generator(data.unbind()),
-            Object::Module(data) => Value::Module(data.unbind()),
-            Object::EmbedderObject(data) => Value::EmbedderObject(data.unbind()),
-        }
-    }
-}
-
 // SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for Object<'_> {
     type Of<'a> = Object<'a>;
@@ -314,12 +234,6 @@ impl<'a> IntoObject<'a> for Object<'a> {
 
 impl<'a> IntoObject<'a> for OrdinaryObject<'a> {
     fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
-impl<'a> IntoValue<'a> for OrdinaryObject<'a> {
-    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }

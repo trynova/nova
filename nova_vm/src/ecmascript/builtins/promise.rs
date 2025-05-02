@@ -11,9 +11,7 @@ use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-        },
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     heap::{
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -80,12 +78,6 @@ unsafe impl Bindable for Promise<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoValue<'a> for Promise<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 

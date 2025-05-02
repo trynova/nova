@@ -1179,7 +1179,11 @@ impl TryFrom<f64> for Value<'static> {
 
 impl<'a> From<Number<'a>> for Value<'a> {
     fn from(value: Number<'a>) -> Self {
-        value.into_value()
+        match value {
+            Number::Number(idx) => Value::Number(idx.unbind()),
+            Number::Integer(data) => Value::Integer(data),
+            Number::SmallF64(data) => Value::SmallF64(data),
+        }
     }
 }
 
@@ -1223,13 +1227,6 @@ impl_value_from_n!(u16);
 impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
-
-impl<'a> IntoValue<'a> for Value<'a> {
-    #[inline(always)]
-    fn into_value(self) -> Value<'a> {
-        self
-    }
-}
 
 impl Rootable for Value<'_> {
     type RootRepr = ValueRootRepr;

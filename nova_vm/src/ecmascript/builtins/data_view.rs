@@ -7,9 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-        },
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
         Scoped,
@@ -105,12 +103,6 @@ impl<'a> From<DataViewIndex<'a>> for DataView<'a> {
 impl<'a> IntoBaseIndex<'a, DataViewHeapData<'a>> for DataView<'a> {
     fn into_base_index(self) -> DataViewIndex<'a> {
         self.0
-    }
-}
-
-impl<'a> IntoValue<'a> for DataView<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 

@@ -240,12 +240,6 @@ impl<'a> From<TypedArray<'a>> for TypedArrayIndex<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for TypedArray<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> IntoObject<'a> for TypedArray<'a> {
     fn into_object(self) -> Object<'a> {
         self.into()
