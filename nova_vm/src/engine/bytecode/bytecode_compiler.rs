@@ -2450,6 +2450,8 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             if is_reference(test) {
                 ctx.add_instruction(Instruction::GetValue);
             }
+        } else {
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Boolean(true));
         }
         // jump over consequent if test fails
         let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
