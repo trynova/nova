@@ -537,10 +537,12 @@ pub(crate) struct AsyncGeneratorRequest<'a> {
 unsafe impl Bindable for AsyncGeneratorRequest<'_> {
     type Of<'a> = AsyncGeneratorRequest<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }

@@ -227,12 +227,14 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
 unsafe impl<'slice> Bindable for ArgumentsList<'slice, '_> {
     type Of<'a> = ArgumentsList<'slice, 'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe {
             core::mem::transmute::<ArgumentsList<'slice, '_>, ArgumentsList<'slice, 'static>>(self)
         }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe {
             core::mem::transmute::<ArgumentsList<'slice, '_>, ArgumentsList<'slice, 'a>>(self)

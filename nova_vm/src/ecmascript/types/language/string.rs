@@ -58,10 +58,12 @@ impl HeapString<'_> {
 unsafe impl Bindable for HeapString<'_> {
     type Of<'a> = HeapString<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
@@ -578,10 +580,12 @@ impl<'gc> String<'gc> {
 unsafe impl Bindable for String<'_> {
     type Of<'a> = String<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }

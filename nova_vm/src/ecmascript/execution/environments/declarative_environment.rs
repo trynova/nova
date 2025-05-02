@@ -133,12 +133,12 @@ impl DeclarativeEnvironmentRecord {
         Some(value)
     }
 
-    fn get_binding(&self, name: String<'static>) -> Option<&Binding> {
-        self.bindings.get(&name)
+    fn get_binding(&self, name: String) -> Option<&Binding> {
+        self.bindings.get(&name.unbind())
     }
 
-    fn get_binding_mut(&mut self, name: String<'static>) -> Option<&mut Binding> {
-        self.bindings.get_mut(&name)
+    fn get_binding_mut(&mut self, name: String) -> Option<&mut Binding> {
+        self.bindings.get_mut(&name.unbind())
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
@@ -375,18 +375,14 @@ impl DeclarativeEnvironment<'_> {
         }
     }
 
-    pub(crate) fn get_binding<'a>(
-        self,
-        agent: &'a Agent,
-        name: String<'static>,
-    ) -> Option<&'a Binding> {
+    pub(crate) fn get_binding<'a>(self, agent: &'a Agent, name: String) -> Option<&'a Binding> {
         agent[self].get_binding(name)
     }
 
     pub(crate) fn get_binding_mut<'a>(
         self,
         agent: &'a mut Agent,
-        name: String<'static>,
+        name: String,
     ) -> Option<&'a mut Binding> {
         agent[self].get_binding_mut(name)
     }

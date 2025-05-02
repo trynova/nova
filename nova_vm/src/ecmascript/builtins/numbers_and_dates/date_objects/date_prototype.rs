@@ -1113,12 +1113,12 @@ impl DatePrototype {
     /// the ECMA-402 specification; implementations that do not include
     /// ECMA-402 support must not use those parameter positions for anything else.
     fn to_locale_date_string<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("Date.prototype.toLocaleDateString", gc.into_nogc()))
     }
 
     /// ### [21.4.4.39 Date.prototype.toLocaleString ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-date.prototype.tolocalestring)
@@ -1137,12 +1137,12 @@ impl DatePrototype {
     /// the ECMA-402 specification; implementations that do not include
     /// ECMA-402 support must not use those parameter positions for anything else.
     fn to_locale_string<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("Date.prototype.toLocaleString", gc.into_nogc()))
     }
 
     /// ### [21.4.4.40 Date.prototype.toLocaleTimeString ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-date.prototype.tolocaletimestring)
@@ -1162,12 +1162,12 @@ impl DatePrototype {
     /// the ECMA-402 specification; implementations that do not include
     /// ECMA-402 support must not use those parameter positions for anything else.
     fn to_locale_time_string<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        Err(agent.todo("Date.prototype.toLocaleTimeString", gc.into_nogc()))
     }
 
     /// ### [21.4.4.41 Date.prototype.toString ( )](https://tc39.es/ecma262/#sec-date.prototype.tostring)

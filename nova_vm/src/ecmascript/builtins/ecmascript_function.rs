@@ -1030,11 +1030,11 @@ pub(crate) fn make_constructor<'a>(
             // 2. Else,
             // a. Set F.[[Construct]] to the definition specified in 10.3.2.
         }
-        Function::BuiltinGeneratorFunction => todo!(),
-        Function::BuiltinConstructorFunction(_) => unreachable!(),
-        Function::BuiltinPromiseResolvingFunction(_) => todo!(),
-        Function::BuiltinPromiseCollectorFunction => todo!(),
-        Function::BuiltinProxyRevokerFunction => todo!(),
+        Function::BuiltinGeneratorFunction
+        | Function::BuiltinConstructorFunction(_)
+        | Function::BuiltinPromiseResolvingFunction(_)
+        | Function::BuiltinPromiseCollectorFunction
+        | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
     // 5. If prototype is not present, then
     let prototype = prototype.unwrap_or_else(|| {
@@ -1150,11 +1150,11 @@ pub(crate) fn set_function_name<'a>(
             function.name = Some(name.unbind());
             // 7. Return UNUSED.
         }
-        Function::BuiltinGeneratorFunction => todo!(),
-        Function::BuiltinConstructorFunction(_) => unreachable!(),
-        Function::BuiltinPromiseResolvingFunction(_) => todo!(),
-        Function::BuiltinPromiseCollectorFunction => todo!(),
-        Function::BuiltinProxyRevokerFunction => todo!(),
+        Function::BuiltinGeneratorFunction
+        | Function::BuiltinConstructorFunction(_)
+        | Function::BuiltinPromiseResolvingFunction(_)
+        | Function::BuiltinPromiseCollectorFunction
+        | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
 }
 

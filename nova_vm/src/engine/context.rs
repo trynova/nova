@@ -470,6 +470,7 @@ unsafe impl<T: Bindable> Bindable for Box<T> {
 unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
     type Of<'a> = Result<T::Of<'a>, E::Of<'a>>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
@@ -478,6 +479,7 @@ unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
         self.map(T::unbind).map_err(E::unbind)
     }
 
+    #[inline(always)]
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
@@ -491,6 +493,7 @@ unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
 unsafe impl<T: Bindable> Bindable for Vec<T> {
     type Of<'a> = Vec<T::Of<'a>>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         const {
             // Note: These checks do not guarantee that the Vec transmute is
@@ -504,6 +507,7 @@ unsafe impl<T: Bindable> Bindable for Vec<T> {
         unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'static>>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         const {
             // Note: These checks do not guarantee that the Vec transmute is
@@ -535,6 +539,7 @@ where
         unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'static>]>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());

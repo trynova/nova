@@ -45,13 +45,13 @@ impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
     fn constructor<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Err(agent.todo("RegExp", gc.into_nogc()))
     }
 
     fn get_species<'gc>(

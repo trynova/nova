@@ -138,73 +138,14 @@ pub(crate) fn get_value<'gc>(
             // creation of the object.
             if let Ok(object) = Object::try_from(value) {
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                Ok(object.internal_get(
+                object.internal_get(
                     agent,
                     referenced_name.unbind(),
-                    get_this_value(reference),
+                    reference.this_value.unwrap_or(object.into_value()),
                     gc,
-                )?)
+                )
             } else {
-                // Primitive value. annoying stuff.
-                match value {
-                    Value::Undefined => {
-                        let error_message = format!(
-                            "Cannot read property '{}' of undefined.",
-                            referenced_name.as_display(agent)
-                        );
-                        Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc.into_nogc(),
-                        ))
-                    }
-                    Value::Null => {
-                        let error_message = format!(
-                            "Cannot read property '{}' of null.",
-                            referenced_name.as_display(agent)
-                        );
-                        Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc.into_nogc(),
-                        ))
-                    }
-                    Value::Boolean(_) => agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .boolean_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc),
-                    Value::String(_) | Value::SmallString(_) => {
-                        let string = String::try_from(value).unwrap();
-                        if let Some(prop_desc) =
-                            string.get_property_descriptor(agent, referenced_name)
-                        {
-                            Ok(prop_desc.value.unwrap())
-                        } else {
-                            agent
-                                .current_realm_record()
-                                .intrinsics()
-                                .string_prototype()
-                                .internal_get(agent, referenced_name.unbind(), value, gc)
-                        }
-                    }
-                    Value::Symbol(_) => agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .symbol_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc),
-                    Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .number_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc),
-                    Value::BigInt(_) | Value::SmallBigInt(_) => agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .big_int_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc),
-                    _ => unreachable!(),
-                }
+                handle_primitive_get_value(agent, referenced_name.unbind(), value, gc)
             }
         }
         Base::Environment(env) => {
@@ -227,6 +168,64 @@ pub(crate) fn get_value<'gc>(
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.into_nogc()))
         }
+    }
+}
+
+fn handle_primitive_get_value<'a>(
+    agent: &mut Agent,
+    referenced_name: PropertyKey,
+    value: Value,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
+    // Primitive value. annoying stuff.
+    match value {
+        Value::Undefined => {
+            let error_message = format!(
+                "Cannot read property '{}' of undefined.",
+                referenced_name.as_display(agent)
+            );
+            Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()))
+        }
+        Value::Null => {
+            let error_message = format!(
+                "Cannot read property '{}' of null.",
+                referenced_name.as_display(agent)
+            );
+            Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()))
+        }
+        Value::Boolean(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .boolean_prototype()
+            .internal_get(agent, referenced_name.unbind(), value, gc),
+        Value::String(_) | Value::SmallString(_) => {
+            let string = String::try_from(value).unwrap();
+            if let Some(prop_desc) = string.get_property_descriptor(agent, referenced_name) {
+                Ok(prop_desc.value.unwrap())
+            } else {
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .string_prototype()
+                    .internal_get(agent, referenced_name.unbind(), value, gc)
+            }
+        }
+        Value::Symbol(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .symbol_prototype()
+            .internal_get(agent, referenced_name.unbind(), value, gc),
+        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .number_prototype()
+            .internal_get(agent, referenced_name.unbind(), value, gc),
+        Value::BigInt(_) | Value::SmallBigInt(_) => agent
+            .current_realm_record()
+            .intrinsics()
+            .big_int_prototype()
+            .internal_get(agent, referenced_name.unbind(), value, gc),
+        _ => unreachable!(),
     }
 }
 

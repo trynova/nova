@@ -67,15 +67,16 @@ impl<'a> PropertyStorage<'a> {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
-                // SAFETY: Key is only used to compare with other keys.
-                let key = unsafe { key.into_value_unchecked() };
                 let result = agent
                     .heap
                     .elements
                     .get(keys)
                     .iter()
                     .enumerate()
-                    .find(|(_, element_key)| element_key.unwrap() == key)
+                    .find(|(_, element_key)| {
+                        // SAFETY: Keys storage contains only PropertyKeys turned into Values.
+                        unsafe { PropertyKey::from_value_unchecked(element_key.unwrap()) == key }
+                    })
                     .map(|res| res.0);
                 result.map(|index| {
                     let value = agent.heap.elements.get(values).get(index).unwrap().unbind();

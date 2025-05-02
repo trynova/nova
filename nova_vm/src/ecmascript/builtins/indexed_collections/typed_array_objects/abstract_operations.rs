@@ -85,10 +85,12 @@ pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
 unsafe impl Bindable for TypedArrayWithBufferWitnessRecords<'_> {
     type Of<'a> = TypedArrayWithBufferWitnessRecords<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }

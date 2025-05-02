@@ -41,7 +41,7 @@ use crate::{
         },
         execution::{
             Agent, Environment, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, JsError, resolve_binding},
+            agent::{ExceptionType, JsError, resolve_binding, try_resolve_binding},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment,
         },
@@ -50,7 +50,7 @@ use crate::{
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, try_initialize_referenced_binding,
+            is_super_reference, put_value, try_get_value, try_initialize_referenced_binding,
         },
     },
     engine::{
@@ -486,7 +486,19 @@ impl Vm {
                 let identifier =
                     executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
 
-                let reference = resolve_binding(agent, identifier.unbind(), None, gc)?;
+                let reference = if let TryResult::Continue(reference) =
+                    try_resolve_binding(agent, identifier, gc.nogc())
+                {
+                    reference
+                } else {
+                    let identifier = identifier.unbind();
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| resolve_binding(agent, identifier, None, gc),
+                        gc,
+                    )?
+                };
 
                 vm.reference = Some(reference.unbind());
             }
@@ -580,7 +592,11 @@ impl Vm {
                     agent,
                     vm,
                     |agent, gc| {
-                        apply_string_or_numeric_binary_operator(agent, lval, op_text, rval, gc)
+                        if op_text == BinaryOperator::Addition {
+                            apply_string_or_numeric_addition(agent, lval, rval, gc)
+                        } else {
+                            apply_string_or_numeric_binary_operator(agent, lval, op_text, rval, gc)
+                        }
                     },
                     gc,
                 )?;
@@ -925,8 +941,13 @@ impl Vm {
                 // 1. If V is not a Reference Record, return V.
                 let reference = vm.reference.take().unwrap();
 
-                let result =
-                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?;
+                let result = if let TryResult::Continue(result) =
+                    try_get_value(agent, &reference, gc.nogc())
+                {
+                    result.unbind()?.bind(gc.into_nogc())
+                } else {
+                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
+                };
 
                 vm.result = Some(result.unbind());
             }
@@ -934,8 +955,13 @@ impl Vm {
                 // 1. If V is not a Reference Record, return V.
                 let reference = vm.reference.as_ref().unwrap().clone();
 
-                let result =
-                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?;
+                let result = if let TryResult::Continue(result) =
+                    try_get_value(agent, &reference, gc.nogc())
+                {
+                    result.unbind()?.bind(gc.into_nogc())
+                } else {
+                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
+                };
 
                 vm.result = Some(result.unbind());
             }
@@ -947,14 +973,20 @@ impl Vm {
                         Value::Undefined
                     } else {
                         // 3. Set val to ? GetValue(val).
-                        with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| get_value(agent, &reference, gc),
-                            gc.reborrow(),
-                        )
-                        .unbind()?
-                        .bind(gc.nogc())
+                        if let TryResult::Continue(result) =
+                            try_get_value(agent, &reference, gc.nogc())
+                        {
+                            result.unbind()?.bind(gc.nogc())
+                        } else {
+                            with_vm_gc(
+                                agent,
+                                vm,
+                                |agent, gc| get_value(agent, &reference, gc),
+                                gc.reborrow(),
+                            )
+                            .unbind()?
+                            .bind(gc.nogc())
+                        }
                     }
                 } else {
                     vm.result.unwrap().bind(gc.nogc())
@@ -2416,11 +2448,10 @@ fn concat_string_from_slice<'gc>(
 /// ### [13.15.3 ApplyStringOrNumericBinaryOperator ( lval, opText, rval )](https://tc39.es/ecma262/#sec-applystringornumericbinaryoperator)
 ///
 /// The abstract operation ApplyStringOrNumericBinaryOperator takes
-/// arguments lval (an ECMAScript language value), opText (**, *, /, %, +,
+/// arguments lval (an ECMAScript language value), opText (**, *, /, %,
 /// -, <<, >>, >>>, &, ^, or |), and rval (an ECMAScript language value) and
 /// returns either a normal completion containing either a String, a BigInt,
 /// or a Number, or a throw completion.
-#[inline]
 fn apply_string_or_numeric_binary_operator<'gc>(
     agent: &mut Agent,
     lval: Value,
@@ -2430,174 +2461,25 @@ fn apply_string_or_numeric_binary_operator<'gc>(
 ) -> JsResult<'gc, Value<'gc>> {
     let lval = lval.bind(gc.nogc());
     let rval = rval.bind(gc.nogc());
-    let lnum: Numeric<'gc>;
-    let rnum: Numeric<'gc>;
     // 1. If opText is +, then
-    let gc = if op_text == BinaryOperator::Addition {
-        // a. Let lprim be ? ToPrimitive(lval).
-        // b. Let rprim be ? ToPrimitive(rval).
-        let (lprim, rprim, gc) = match (Primitive::try_from(lval), Primitive::try_from(rval)) {
-            (Ok(lprim), Ok(rprim)) => {
-                let lprim = lprim.unbind();
-                let rprim = rprim.unbind();
-                let gc = gc.into_nogc();
-                (lprim.bind(gc), rprim.bind(gc), gc)
-            }
-            (Ok(lprim), Err(_)) => {
-                let lprim = lprim.scope(agent, gc.nogc());
-                let rprim = to_primitive(agent, rval.unbind(), None, gc.reborrow()).unbind()?;
-                let gc = gc.into_nogc();
-                // SAFETY: not shared.
-                let lprim = unsafe { lprim.take(agent) };
-                (lprim.bind(gc), rprim.bind(gc), gc)
-            }
-            (Err(_), Ok(rprim)) => {
-                let rprim = rprim.scope(agent, gc.nogc());
-                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow()).unbind()?;
-                let gc = gc.into_nogc();
-                // SAFETY: not shared.
-                let rprim = unsafe { rprim.take(agent) };
-                (lprim.bind(gc), rprim.bind(gc), gc)
-            }
-            (Err(_), Err(_)) => {
-                let rval = rval.scope(agent, gc.nogc());
-                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())
-                    .unbind()?
-                    .scope(agent, gc.nogc());
-                // SAFETY: not shared.
-                let rprim = to_primitive(agent, unsafe { rval.take(agent) }, None, gc.reborrow())
-                    .unbind()?;
-                let gc = gc.into_nogc();
-                // SAFETY: not shared.
-                let lprim = unsafe { lprim.take(agent) };
-                (lprim.bind(gc), rprim.bind(gc), gc)
-            }
-        };
-
-        // c. If lprim is a String or rprim is a String, then
-        match (String::try_from(lprim), String::try_from(rprim)) {
-            (Ok(lstr), Ok(rstr)) => {
-                // iii. Return the string-concatenation of lstr and rstr.
-                return Ok(String::concat(agent, [lstr, rstr], gc).into_value());
-            }
-            (Ok(lstr), Err(_)) => {
-                let lstr = lstr.scope(agent, gc);
-                // ii. Let rstr be ? ToString(rprim).
-                let rstr = to_string_primitive(agent, rprim, gc)?;
-                // iii. Return the string-concatenation of lstr and rstr.
-                return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into_value());
-            }
-            (Err(_), Ok(rstr)) => {
-                let rstr = rstr.scope(agent, gc);
-                // i. Let lstr be ? ToString(lprim).
-                let lstr = to_string_primitive(agent, lprim, gc)?;
-                // iii. Return the string-concatenation of lstr and rstr.
-                return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into_value());
-            }
-            (Err(_), Err(_)) => {}
-        }
-
-        // d. Set lval to lprim.
-        // e. Set rval to rprim.
-        // 2. NOTE: At this point, it must be a numeric operation.
-        // 3. Let lnum be ? ToNumeric(lval).
-        lnum = to_numeric_primitive(agent, lprim, gc)?;
-        // 4. Let rnum be ? ToNumeric(rval).
-        rnum = to_numeric_primitive(agent, rprim, gc)?;
-        gc
-    } else {
-        let rval = rval.scope(agent, gc.nogc());
-        // 3. Let lnum be ? ToNumeric(lval).
-        let scoped_lnum = to_numeric(agent, lval.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
-        // 4. Let rnum be ? ToNumeric(rval).
-        // SAFETY: not shared.
-        let local_rnum = to_numeric(agent, unsafe { rval.take(agent) }, gc.reborrow()).unbind()?;
-        let gc = gc.into_nogc();
-        rnum = local_rnum.bind(gc);
-        // SAFETY: not shared.
-        lnum = unsafe { scoped_lnum.take(agent) }.bind(gc);
-        gc
-    };
+    let rval = rval.scope(agent, gc.nogc());
+    // 3. Let lnum be ? ToNumeric(lval).
+    let lnum = to_numeric(agent, lval.unbind(), gc.reborrow())
+        .unbind()?
+        .scope(agent, gc.nogc());
+    // 4. Let rnum be ? ToNumeric(rval).
+    // SAFETY: not shared.
+    let rnum = to_numeric(agent, unsafe { rval.take(agent) }, gc.reborrow()).unbind()?;
+    let gc = gc.into_nogc();
+    let rnum = rnum.bind(gc);
+    // SAFETY: not shared.
+    let lnum = unsafe { lnum.take(agent) }.bind(gc);
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        Ok(match op_text {
-            // a. If opText is **, return ? BigInt::exponentiate(lnum, rnum).
-            BinaryOperator::Exponential => {
-                BigInt::exponentiate(agent, lnum, rnum, gc).map(|bigint| bigint.into_value())?
-            }
-            // b. If opText is /, return ? BigInt::divide(lnum, rnum).
-            BinaryOperator::Division => {
-                BigInt::divide(agent, lnum, rnum, gc).map(|bigint| bigint.into_value())?
-            }
-            // c. If opText is %, return ? BigInt::remainder(lnum, rnum).
-            BinaryOperator::Remainder => {
-                BigInt::remainder(agent, lnum, rnum, gc).map(|bigint| bigint.into_value())?
-            }
-            // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
-            BinaryOperator::ShiftRightZeroFill => {
-                BigInt::unsigned_right_shift(agent, lnum, rnum, gc)?
-            }
-            // <<	BigInt	BigInt::leftShift
-            BinaryOperator::ShiftLeft => {
-                BigInt::left_shift(agent, lnum, rnum, gc).map(|bigint| bigint.into_value())?
-            }
-            // >>	BigInt	BigInt::signedRightShift
-            BinaryOperator::ShiftRight => BigInt::signed_right_shift(agent, lnum, rnum, gc)
-                .map(|bigint| bigint.into_value())?,
-            // +	BigInt	BigInt::add
-            BinaryOperator::Addition => BigInt::add(agent, lnum, rnum).into_value(),
-            // -	BigInt	BigInt::subtract
-            BinaryOperator::Subtraction => BigInt::subtract(agent, lnum, rnum).into_value(),
-            // *	BigInt	BigInt::multiply
-            BinaryOperator::Multiplication => BigInt::multiply(agent, lnum, rnum).into_value(),
-            // |	BigInt	BigInt::bitwiseOR
-            BinaryOperator::BitwiseOR => BigInt::bitwise_or(agent, lnum, rnum).into_value(),
-            // ^	BigInt	BigInt::bitwiseXOR
-            BinaryOperator::BitwiseXOR => BigInt::bitwise_xor(agent, lnum, rnum).into_value(),
-            // &	BigInt	BigInt::bitwiseAND
-            BinaryOperator::BitwiseAnd => BigInt::bitwise_and(agent, lnum, rnum).into_value(),
-            _ => unreachable!(),
-        })
+        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        // 7. Let operation be the abstract operation associated with opText and
-        // Type(lnum) in the following table:
-        // 8. Return operation(lnum, rnum).
-        // NOTE: We do step 8. explicitly in branch.
-        Ok(match op_text {
-            // opText	Type(lnum)	operation
-            // **	Number	Number::exponentiate
-            BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum).into_value(),
-            // *	Number	Number::multiply
-            BinaryOperator::Multiplication => Number::multiply(agent, lnum, rnum, gc).into_value(),
-            // /	Number	Number::divide
-            BinaryOperator::Division => Number::divide(agent, lnum, rnum, gc).into_value(),
-            // %	Number	Number::remainder
-            BinaryOperator::Remainder => Number::remainder(agent, lnum, rnum, gc).into_value(),
-            // +	Number	Number::add
-            BinaryOperator::Addition => Number::add(agent, lnum, rnum).into_value(),
-            // -	Number	Number::subtract
-            BinaryOperator::Subtraction => Number::subtract(agent, lnum, rnum).into_value(),
-            // <<	Number	Number::leftShift
-            BinaryOperator::ShiftLeft => Number::left_shift(agent, lnum, rnum).into_value(),
-            // >>	Number	Number::signedRightShift
-            BinaryOperator::ShiftRight => {
-                Number::signed_right_shift(agent, lnum, rnum).into_value()
-            }
-            // >>>	Number	Number::unsignedRightShift
-            BinaryOperator::ShiftRightZeroFill => {
-                Number::unsigned_right_shift(agent, lnum, rnum).into_value()
-            }
-            // |	Number	Number::bitwiseOR
-            BinaryOperator::BitwiseOR => Number::bitwise_or(agent, lnum, rnum).into(),
-            // ^	Number	Number::bitwiseXOR
-            BinaryOperator::BitwiseXOR => Number::bitwise_xor(agent, lnum, rnum).into(),
-            // &	Number	Number::bitwiseAND
-            BinaryOperator::BitwiseAnd => Number::bitwise_and(agent, lnum, rnum).into(),
-            _ => unreachable!(),
-        })
+        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -2606,6 +2488,186 @@ fn apply_string_or_numeric_binary_operator<'gc>(
             gc,
         ))
     }
+}
+
+/// ### [13.15.3 ApplyStringOrNumericBinaryOperator ( lval, opText, rval )](https://tc39.es/ecma262/#sec-applystringornumericbinaryoperator)
+///
+/// The abstract operation ApplyStringOrNumericBinaryOperator takes
+/// arguments lval (an ECMAScript language value), opText (+), and rval (an
+/// ECMAScript language value) and returns either a normal completion
+/// containing either a String, a BigInt, or a Number, or a throw completion.
+fn apply_string_or_numeric_addition<'gc>(
+    agent: &mut Agent,
+    lval: Value,
+    rval: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    let lval = lval.bind(gc.nogc());
+    let rval = rval.bind(gc.nogc());
+    // 1. If opText is +, then
+    // a. Let lprim be ? ToPrimitive(lval).
+    // b. Let rprim be ? ToPrimitive(rval).
+    let (lprim, rprim, gc) = match (Primitive::try_from(lval), Primitive::try_from(rval)) {
+        (Ok(lprim), Ok(rprim)) => {
+            let lprim = lprim.unbind();
+            let rprim = rprim.unbind();
+            let gc = gc.into_nogc();
+            (lprim.bind(gc), rprim.bind(gc), gc)
+        }
+        (Ok(lprim), Err(_)) => {
+            let lprim = lprim.scope(agent, gc.nogc());
+            let rprim = to_primitive(agent, rval.unbind(), None, gc.reborrow()).unbind()?;
+            let gc = gc.into_nogc();
+            // SAFETY: not shared.
+            let lprim = unsafe { lprim.take(agent) };
+            (lprim.bind(gc), rprim.bind(gc), gc)
+        }
+        (Err(_), Ok(rprim)) => {
+            let rprim = rprim.scope(agent, gc.nogc());
+            let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow()).unbind()?;
+            let gc = gc.into_nogc();
+            // SAFETY: not shared.
+            let rprim = unsafe { rprim.take(agent) };
+            (lprim.bind(gc), rprim.bind(gc), gc)
+        }
+        (Err(_), Err(_)) => {
+            let rval = rval.scope(agent, gc.nogc());
+            let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())
+                .unbind()?
+                .scope(agent, gc.nogc());
+            // SAFETY: not shared.
+            let rprim =
+                to_primitive(agent, unsafe { rval.take(agent) }, None, gc.reborrow()).unbind()?;
+            let gc = gc.into_nogc();
+            // SAFETY: not shared.
+            let lprim = unsafe { lprim.take(agent) };
+            (lprim.bind(gc), rprim.bind(gc), gc)
+        }
+    };
+
+    // c. If lprim is a String or rprim is a String, then
+    match (String::try_from(lprim), String::try_from(rprim)) {
+        (Ok(lstr), Ok(rstr)) => {
+            // iii. Return the string-concatenation of lstr and rstr.
+            return Ok(String::concat(agent, [lstr, rstr], gc).into_value());
+        }
+        (Ok(lstr), Err(_)) => {
+            let lstr = lstr.scope(agent, gc);
+            // ii. Let rstr be ? ToString(rprim).
+            let rstr = to_string_primitive(agent, rprim, gc)?;
+            // iii. Return the string-concatenation of lstr and rstr.
+            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into_value());
+        }
+        (Err(_), Ok(rstr)) => {
+            let rstr = rstr.scope(agent, gc);
+            // i. Let lstr be ? ToString(lprim).
+            let lstr = to_string_primitive(agent, lprim, gc)?;
+            // iii. Return the string-concatenation of lstr and rstr.
+            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into_value());
+        }
+        (Err(_), Err(_)) => {}
+    }
+
+    // d. Set lval to lprim.
+    // e. Set rval to rprim.
+    // 2. NOTE: At this point, it must be a numeric operation.
+    // 3. Let lnum be ? ToNumeric(lval).
+    let lnum = to_numeric_primitive(agent, lprim, gc)?;
+    // 4. Let rnum be ? ToNumeric(rval).
+    let rnum = to_numeric_primitive(agent, rprim, gc)?;
+
+    // 6. If lnum is a BigInt, then
+    if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
+        bigint_binary_operator(agent, BinaryOperator::Addition, lnum, rnum, gc)
+            .map(|v| v.into_value())
+    } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
+        number_binary_operator(agent, BinaryOperator::Addition, lnum, rnum, gc)
+            .map(|v| v.into_value())
+    } else {
+        // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "The left and right-hand sides do not have the same type.",
+            gc,
+        ))
+    }
+}
+
+fn bigint_binary_operator<'a>(
+    agent: &mut Agent,
+    op_text: BinaryOperator,
+    lnum: BigInt<'a>,
+    rnum: BigInt<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, BigInt<'a>> {
+    match op_text {
+        // a. If opText is **, return ? BigInt::exponentiate(lnum, rnum).
+        BinaryOperator::Exponential => BigInt::exponentiate(agent, lnum, rnum, gc),
+        // b. If opText is /, return ? BigInt::divide(lnum, rnum).
+        BinaryOperator::Division => BigInt::divide(agent, lnum, rnum, gc),
+        // c. If opText is %, return ? BigInt::remainder(lnum, rnum).
+        BinaryOperator::Remainder => BigInt::remainder(agent, lnum, rnum, gc),
+        // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
+        BinaryOperator::ShiftRightZeroFill => BigInt::unsigned_right_shift(agent, lnum, rnum, gc),
+        // <<	BigInt	BigInt::leftShift
+        BinaryOperator::ShiftLeft => BigInt::left_shift(agent, lnum, rnum, gc),
+        // >>	BigInt	BigInt::signedRightShift
+        BinaryOperator::ShiftRight => BigInt::signed_right_shift(agent, lnum, rnum, gc),
+        // +	BigInt	BigInt::add
+        BinaryOperator::Addition => Ok(BigInt::add(agent, lnum, rnum)),
+        // -	BigInt	BigInt::subtract
+        BinaryOperator::Subtraction => Ok(BigInt::subtract(agent, lnum, rnum)),
+        // *	BigInt	BigInt::multiply
+        BinaryOperator::Multiplication => Ok(BigInt::multiply(agent, lnum, rnum)),
+        // |	BigInt	BigInt::bitwiseOR
+        BinaryOperator::BitwiseOR => Ok(BigInt::bitwise_or(agent, lnum, rnum)),
+        // ^	BigInt	BigInt::bitwiseXOR
+        BinaryOperator::BitwiseXOR => Ok(BigInt::bitwise_xor(agent, lnum, rnum)),
+        // &	BigInt	BigInt::bitwiseAND
+        BinaryOperator::BitwiseAnd => Ok(BigInt::bitwise_and(agent, lnum, rnum)),
+        _ => unreachable!(),
+    }
+}
+
+fn number_binary_operator<'a>(
+    agent: &mut Agent,
+    op_text: BinaryOperator,
+    lnum: Number<'a>,
+    rnum: Number<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, Number<'a>> {
+    // 7. Let operation be the abstract operation associated with opText and
+    // Type(lnum) in the following table:
+    // 8. Return operation(lnum, rnum).
+    // NOTE: We do step 8. explicitly in branch.
+    Ok(match op_text {
+        // opText	Type(lnum)	operation
+        // **	Number	Number::exponentiate
+        BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum),
+        // *	Number	Number::multiply
+        BinaryOperator::Multiplication => Number::multiply(agent, lnum, rnum, gc),
+        // /	Number	Number::divide
+        BinaryOperator::Division => Number::divide(agent, lnum, rnum, gc),
+        // %	Number	Number::remainder
+        BinaryOperator::Remainder => Number::remainder(agent, lnum, rnum, gc),
+        // +	Number	Number::add
+        BinaryOperator::Addition => Number::add(agent, lnum, rnum),
+        // -	Number	Number::subtract
+        BinaryOperator::Subtraction => Number::subtract(agent, lnum, rnum),
+        // <<	Number	Number::leftShift
+        BinaryOperator::ShiftLeft => Number::left_shift(agent, lnum, rnum),
+        // >>	Number	Number::signedRightShift
+        BinaryOperator::ShiftRight => Number::signed_right_shift(agent, lnum, rnum),
+        // >>>	Number	Number::unsignedRightShift
+        BinaryOperator::ShiftRightZeroFill => Number::unsigned_right_shift(agent, lnum, rnum),
+        // |	Number	Number::bitwiseOR
+        BinaryOperator::BitwiseOR => Number::bitwise_or(agent, lnum, rnum).into(),
+        // ^	Number	Number::bitwiseXOR
+        BinaryOperator::BitwiseXOR => Number::bitwise_xor(agent, lnum, rnum).into(),
+        // &	Number	Number::bitwiseAND
+        BinaryOperator::BitwiseAnd => Number::bitwise_and(agent, lnum, rnum).into(),
+        _ => unreachable!(),
+    })
 }
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)

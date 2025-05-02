@@ -598,12 +598,12 @@ impl<'a> BigInt<'a> {
     ///
     /// > NOTE: Semantics here should be equivalent to a bitwise shift, treating
     /// > the BigInt as an infinite length string of binary two's complement digits.
-    pub(crate) fn left_shift<'gc>(
+    pub(crate) fn left_shift(
         agent: &mut Agent,
         x: Self,
         y: Self,
-        gc: NoGcScope<'gc, '_>,
-    ) -> JsResult<'gc, Self> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         if let Some(r) = match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 left_shift_i64(agent, x.into_i64(), y.into_i64())
@@ -636,12 +636,12 @@ impl<'a> BigInt<'a> {
     ///
     /// The abstract operation BigInt::signedRightShift takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
-    pub(crate) fn signed_right_shift<'gc>(
+    pub(crate) fn signed_right_shift(
         agent: &mut Agent,
         x: Self,
         y: Self,
-        gc: NoGcScope<'gc, '_>,
-    ) -> JsResult<'gc, Self> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         if let Some(r) = match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 right_shift_i64(agent, x.into_i64(), y.into_i64())
@@ -674,12 +674,12 @@ impl<'a> BigInt<'a> {
     ///
     /// The abstract operation BigInt::unsignedRightShift takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a throw completion.
-    pub(crate) fn unsigned_right_shift<'gc>(
+    pub(crate) fn unsigned_right_shift(
         agent: &mut Agent,
         _x: Self,
         _y: Self,
-        gc: NoGcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "BigInts have no unsigned right shift, use >> instead",
