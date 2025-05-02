@@ -84,8 +84,8 @@ jobs:
           save-if: ${{ github.ref == 'main' }}
       - name: Checkout test262 submodule
         run: git submodule update --init
-      - name: Build nova-cli
-        run: cargo build -p nova-cli --profile dev-fast
+      - name: Build nova cli
+        run: cargo build -p nova_cli --profile dev-fast
       - name: Run Test262
         run: cargo run --bin test262 --profile dev-fast -- --noprogress
         timeout-minutes: 15
