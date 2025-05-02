@@ -164,15 +164,6 @@ impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for String<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            String::String(idx) => Value::String(idx),
-            String::SmallString(data) => Value::SmallString(data),
-        }
-    }
-}
-
 impl<'a> IntoPrimitive<'a> for String<'a> {
     fn into_primitive(self) -> Primitive<'a> {
         match self {
@@ -241,12 +232,6 @@ impl From<SmallString> for Value<'static> {
 impl From<SmallString> for String<'static> {
     fn from(value: SmallString) -> Self {
         Self::SmallString(value)
-    }
-}
-
-impl IntoValue<'static> for SmallString {
-    fn into_value(self) -> Value<'static> {
-        self.into()
     }
 }
 

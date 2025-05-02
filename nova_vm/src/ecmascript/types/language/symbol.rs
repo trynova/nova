@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, IntoValue, Primitive, Value};
+use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, Primitive, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -80,12 +80,6 @@ unsafe impl Bindable for Symbol<'_> {
     }
 }
 
-impl<'a> IntoValue<'a> for Symbol<'a> {
-    fn into_value(self) -> Value<'a> {
-        Value::Symbol(self.unbind())
-    }
-}
-
 impl<'a> IntoPrimitive<'a> for Symbol<'a> {
     fn into_primitive(self) -> Primitive<'a> {
         Primitive::Symbol(self.unbind())
@@ -93,8 +87,8 @@ impl<'a> IntoPrimitive<'a> for Symbol<'a> {
 }
 
 impl<'a> From<Symbol<'a>> for Value<'a> {
-    fn from(value: Symbol<'a>) -> Self {
-        value.into_value()
+    fn from(symbol: Symbol<'a>) -> Self {
+        Value::Symbol(symbol.unbind())
     }
 }
 

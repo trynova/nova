@@ -9,9 +9,7 @@ mod data;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-        },
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
         Scoped,
@@ -180,12 +178,6 @@ unsafe impl Bindable for ArrayBuffer<'_> {
 
 impl<'a> IntoObject<'a> for ArrayBuffer<'a> {
     fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
-impl<'a> IntoValue<'a> for ArrayBuffer<'a> {
-    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }

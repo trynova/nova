@@ -8,9 +8,7 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-        },
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
         context::{Bindable, NoGcScope},
@@ -52,12 +50,6 @@ unsafe impl Bindable for WeakSet<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoValue<'a> for WeakSet<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 

@@ -66,12 +66,6 @@ impl<'a> IntoObject<'a> for PrimitiveObject<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for PrimitiveObject<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> TryFrom<Object<'a>> for PrimitiveObject<'a> {
     type Error = ();
 
@@ -594,15 +588,9 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Symbol<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for PrimitiveObjectData<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into_primitive().into_value()
-    }
-}
-
 impl<'a> From<PrimitiveObjectData<'a>> for Value<'a> {
     fn from(value: PrimitiveObjectData<'a>) -> Self {
-        value.into_value()
+        value.into_primitive().into_value()
     }
 }
 

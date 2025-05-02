@@ -21,9 +21,7 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-        },
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
         Executable, ExecutionResult, Scoped, SuspendedVm,
@@ -331,12 +329,6 @@ unsafe impl Bindable for AsyncGenerator<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoValue<'a> for AsyncGenerator<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 

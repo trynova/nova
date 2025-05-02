@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    IntoPrimitive, IntoValue, Number, Primitive, Value,
+    IntoPrimitive, Number, Primitive, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     value::{
@@ -96,18 +96,6 @@ unsafe impl Bindable for Numeric<'_> {
     }
 }
 
-impl<'a> IntoValue<'a> for Numeric<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            Numeric::Number(data) => Value::Number(data.unbind()),
-            Numeric::Integer(data) => Value::Integer(data),
-            Numeric::SmallF64(data) => Value::SmallF64(data),
-            Numeric::BigInt(data) => Value::BigInt(data.unbind()),
-            Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
-        }
-    }
-}
-
 impl<'a> IntoPrimitive<'a> for Numeric<'a> {
     fn into_primitive(self) -> Primitive<'a> {
         match self {
@@ -121,8 +109,14 @@ impl<'a> IntoPrimitive<'a> for Numeric<'a> {
 }
 
 impl<'a> From<Numeric<'a>> for Value<'a> {
-    fn from(value: Numeric<'a>) -> Self {
-        value.into_value()
+    fn from(num: Numeric<'a>) -> Self {
+        match num {
+            Numeric::Number(data) => Value::Number(data.unbind()),
+            Numeric::Integer(data) => Value::Integer(data),
+            Numeric::SmallF64(data) => Value::SmallF64(data),
+            Numeric::BigInt(data) => Value::BigInt(data.unbind()),
+            Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
+        }
     }
 }
 

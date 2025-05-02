@@ -23,7 +23,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
@@ -185,12 +185,6 @@ unsafe impl Bindable for Array<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoValue<'a> for Array<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
     }
 }
 

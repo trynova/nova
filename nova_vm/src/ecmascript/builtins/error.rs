@@ -54,12 +54,6 @@ unsafe impl Bindable for Error<'_> {
     }
 }
 
-impl<'a> IntoValue<'a> for Error<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> From<Error<'a>> for Value<'a> {
     fn from(value: Error<'a>) -> Self {
         Value::Error(value)

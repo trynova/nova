@@ -85,12 +85,6 @@ impl<'a> From<BuiltinConstructorIndex<'a>> for BuiltinConstructorFunction<'a> {
     }
 }
 
-impl<'a> IntoValue<'a> for BuiltinConstructorFunction<'a> {
-    fn into_value(self) -> Value<'a> {
-        self.into()
-    }
-}
-
 impl<'a> IntoObject<'a> for BuiltinConstructorFunction<'a> {
     fn into_object(self) -> Object<'a> {
         self.into()
