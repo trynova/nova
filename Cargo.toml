@@ -58,3 +58,11 @@ libraries = [{ path = "nova_lint" }]
 
 [profile.release]
 lto = true
+
+# This profile has all the same safety checks as dev builds. It trades slightly
+# longer compile times for faster runs, which is worth it when running test262.
+[profile.dev-fast]
+inherits = "dev"
+opt-level = 2
+lto = "thin"
+debug = "limited"
