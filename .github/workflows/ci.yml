@@ -12,6 +12,14 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  typos:
+    name: Spellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spell check
+        uses: crate-ci/typos@master
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -22,10 +30,13 @@ jobs:
         with:
           toolchain: nightly-2024-11-28
           components: rustfmt, clippy, llvm-tools-preview, rustc-dev
+      - name: Cache on ${{ github.ref_name }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: warm
+          save-if: ${{ github.ref == 'main' }}
       - name: Install Dylint
         run: cargo install cargo-dylint dylint-link
-      - name: Spell check
-        uses: crate-ci/typos@master
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
@@ -47,8 +58,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Cache on ${{ github.ref_name }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test262
+          save-if: ${{ github.ref == 'main' }}
       - name: Build
-        run: cargo build --profile dev-fast
+        run: cargo build --tests --profile dev-fast
       - name: Test
         run: cargo test --profile dev-fast
         timeout-minutes: 20
