@@ -55,6 +55,10 @@ pub(crate) enum NamedEvaluationParameter {
 
 pub(crate) struct JumpTarget {
     /// Depth of the lexical of the jump target.
+    ///
+    /// This is used to determine how many ExitDeclarativeEnvironment
+    /// instructions are needed before jumping to this target from a continue
+    /// or break statement.
     depth: u32,
     /// `continue;` statements that target this jump target.
     pub(crate) continues: Vec<JumpIndex>,
@@ -72,6 +76,15 @@ impl JumpTarget {
     }
 }
 
+/// Context for bytecode compilation.
+///
+/// The lifetimes on this context are:
+/// - `'agent`: The lifetime of the Agent, which owns the heap.
+/// - `'script`: The lifetime of the oxc Program struct which contains the AST.
+/// - `'gc`: The garbage collector marker lifetime, needed for tracking garbage
+///   collected data lifetime.
+/// - `'scope`: The Javascript scope marker lifetime, only here because `gc`
+///   tracks it.
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
