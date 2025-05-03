@@ -10,3 +10,13 @@ where
 {
     fn into_primitive(self) -> Primitive<'a>;
 }
+
+impl<'a, T> IntoPrimitive<'a> for T
+where
+    T: Into<Primitive<'a>> + 'a + Sized + Copy,
+{
+    #[inline]
+    fn into_primitive(self) -> Primitive<'a> {
+        self.into()
+    }
+}

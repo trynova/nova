@@ -196,13 +196,6 @@ impl<'a> From<Primitive<'a>> for Value<'a> {
     }
 }
 
-impl<'a> IntoPrimitive<'a> for Primitive<'a> {
-    #[inline(always)]
-    fn into_primitive(self) -> Self {
-        self
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for Primitive<'a> {
     type Error = ();
 

@@ -80,12 +80,6 @@ unsafe impl Bindable for Symbol<'_> {
     }
 }
 
-impl<'a> IntoPrimitive<'a> for Symbol<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        Primitive::Symbol(self.unbind())
-    }
-}
-
 impl<'a> From<Symbol<'a>> for Value<'a> {
     fn from(symbol: Symbol<'a>) -> Self {
         Value::Symbol(symbol.unbind())

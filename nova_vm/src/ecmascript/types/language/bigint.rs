@@ -6,8 +6,7 @@ mod data;
 mod operators;
 
 use super::{
-    IntoPrimitive, Primitive, String, Value,
-    into_numeric::IntoNumeric,
+    Primitive, String, Value,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
 };
@@ -29,18 +28,6 @@ pub use data::BigIntHeapData;
 use num_bigint::{Sign, ToBigInt};
 use operators::{left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64};
 use std::ops::{BitAnd, BitOr, BitXor};
-
-impl<'a> IntoPrimitive<'a> for BigInt<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        self.into()
-    }
-}
-
-impl<'a> IntoNumeric<'a> for BigInt<'a> {
-    fn into_numeric(self) -> Numeric<'a> {
-        self.into()
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]

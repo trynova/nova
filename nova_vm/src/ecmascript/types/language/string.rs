@@ -241,12 +241,6 @@ impl From<SmallString> for Primitive<'static> {
     }
 }
 
-impl IntoPrimitive<'static> for SmallString {
-    fn into_primitive(self) -> Primitive<'static> {
-        self.into()
-    }
-}
-
 impl<'a> String<'a> {
     pub const EMPTY_STRING: String<'static> = String::from_small_string("");
 
