@@ -13,7 +13,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::{
     Executable, ExecutableHeapData, FunctionExpression, Instruction, SendableRef,
-    executable::ArrowFunctionExpression,
+    executable::ArrowFunctionExpression, instructions::Instr,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::regexp::reg_exp_create_literal;
@@ -88,6 +88,7 @@ impl JumpTarget {
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
+    current_instruction: Option</* position */ usize>,
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
@@ -122,6 +123,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         CompileContext {
             agent,
             gc,
+            current_instruction: None,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),
@@ -329,18 +331,17 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         }
     }
 
-    fn peek_last_instruction(&self) -> Option<u8> {
-        for ele in self.instructions.iter().rev() {
-            if *ele == Instruction::ExitDeclarativeEnvironment.as_u8() {
-                // Not a "real" instruction
-                continue;
-            }
-            return Some(*ele);
-        }
-        None
+    #[inline]
+    fn peek_last_instruction(&self) -> Option<Instruction> {
+        self.current_instruction
+            // SAFETY: current_instruction is only set by _push_instruction
+            .map(|pos| unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[pos]) })
     }
 
     fn _push_instruction(&mut self, instruction: Instruction) {
+        if instruction != Instruction::ExitDeclarativeEnvironment {
+            self.current_instruction.replace(self.instructions.len());
+        }
         self.instructions
             .push(unsafe { core::mem::transmute::<Instruction, u8>(instruction) });
     }
@@ -1769,7 +1770,7 @@ impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
             // Optimisation: If the an else branch exists, the consequent
             // branch needs to end in a jump over it. But if the consequent
             // branch ends in a return statement that jump becomes unnecessary.
-            if ctx.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
+            if ctx.peek_last_instruction() != Some(Instruction::Return) {
                 jump_over_else = Some(ctx.add_instruction_with_jump_slot(Instruction::Jump));
             }
 
@@ -2382,7 +2383,7 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
         for ele in &self.body {
             ele.compile(ctx);
         }
-        if ctx.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
+        if ctx.peek_last_instruction() != Some(Instruction::Return) {
             // Block did not end in a return so we overwrite the result with undefined.
             // TODO: This should be removed; block doesn't reset the value.
             // ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
