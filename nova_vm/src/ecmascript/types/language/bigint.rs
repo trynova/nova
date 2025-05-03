@@ -6,7 +6,7 @@ mod data;
 mod operators;
 
 use super::{
-    Primitive, String, Value,
+    IntoPrimitive, Primitive, String, Value,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
 };

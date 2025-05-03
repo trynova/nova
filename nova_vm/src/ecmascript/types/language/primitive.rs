@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    IntoPrimitive, IntoValue, Symbol, Value,
+    IntoValue, Symbol, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
