@@ -1459,7 +1459,7 @@ impl TypedArrayPrototype {
                 if is_invalid {
                     None
                 } else {
-                    Some(typed_array_length::<i8>(agent, &ta_record, gc))
+                    Some(typed_array_length::<T>(agent, &ta_record, gc))
                 }
             })
         } else {
