@@ -84,12 +84,6 @@ impl<'a> IntoValue<'a> for BoundFunction<'a> {
     }
 }
 
-impl<'a> IntoFunction<'a> for BoundFunction<'a> {
-    fn into_function(self) -> Function<'a> {
-        Function::BoundFunction(self.unbind())
-    }
-}
-
 /// ### [10.4.1.3 BoundFunctionCreate ( targetFunction, boundThis, boundArgs )](https://tc39.es/ecma262/#sec-boundfunctioncreate)
 ///
 /// The abstract operation BoundFunctionCreate takes arguments targetFunction

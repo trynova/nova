@@ -13,7 +13,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            function_create_backing_object, function_internal_define_own_property, function_internal_delete, function_internal_get, function_internal_get_own_property, function_internal_has_property, function_internal_own_property_keys, function_internal_set, Function, FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value
+            function_create_backing_object, function_internal_define_own_property, function_internal_delete, function_internal_get, function_internal_get_own_property, function_internal_has_property, function_internal_own_property_keys, function_internal_set, Function, FunctionInternalProperties, InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value
         },
     },
     heap::{
@@ -82,12 +82,6 @@ unsafe impl Bindable for BuiltinPromiseResolvingFunction<'_> {
 impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Function<'a> {
     fn from(value: BuiltinPromiseResolvingFunction<'a>) -> Self {
         Self::BuiltinPromiseResolvingFunction(value)
-    }
-}
-
-impl<'a> IntoFunction<'a> for BuiltinPromiseResolvingFunction<'a> {
-    fn into_function(self) -> Function<'a> {
-        self.into()
     }
 }
 

@@ -29,6 +29,16 @@ where
     fn into_function(self) -> Function<'a>;
 }
 
+impl<'a, T> IntoFunction<'a> for T
+where
+    T: Into<Function<'a>> + 'a + Sized + Copy + IntoObject<'a>,
+{
+    #[inline]
+    fn into_function(self) -> Function<'a> {
+        self.into()
+    }
+}
+
 /// Implements getters for the properties normally present on most objects.
 /// These are used when the function hasn't had a backing object created.
 pub(crate) trait FunctionInternalProperties<'a>

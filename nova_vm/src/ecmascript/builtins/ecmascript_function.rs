@@ -76,12 +76,6 @@ impl<'a> From<ECMAScriptFunctionIndex<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl<'a> IntoFunction<'a> for ECMAScriptFunction<'a> {
-    fn into_function(self) -> Function<'a> {
-        self.into()
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
 

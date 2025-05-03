@@ -70,13 +70,6 @@ impl core::fmt::Debug for Function<'_> {
     }
 }
 
-impl<'a> IntoFunction<'a> for Function<'a> {
-    #[inline(always)]
-    fn into_function(self) -> Function<'a> {
-        self
-    }
-}
-
 impl<'a> From<BoundFunction<'a>> for Function<'a> {
     fn from(value: BoundFunction<'a>) -> Self {
         Function::BoundFunction(value)
