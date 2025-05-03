@@ -8,7 +8,7 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
         context::{Bindable, NoGcScope},
@@ -50,12 +50,6 @@ unsafe impl Bindable for WeakMap<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoObject<'a> for WeakMap<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
     }
 }
 

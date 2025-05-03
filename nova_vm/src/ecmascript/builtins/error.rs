@@ -15,7 +15,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
             ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
@@ -57,12 +57,6 @@ unsafe impl Bindable for Error<'_> {
 impl<'a> From<Error<'a>> for Value<'a> {
     fn from(value: Error<'a>) -> Self {
         Value::Error(value)
-    }
-}
-
-impl<'a> IntoObject<'a> for Error<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
     }
 }
 

@@ -11,7 +11,7 @@ use data::DateValue;
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
         Scoped,
@@ -77,12 +77,6 @@ unsafe impl Bindable for Date<'_> {
 impl<'a> From<Date<'a>> for Value<'a> {
     fn from(value: Date<'a>) -> Self {
         Value::Date(value)
-    }
-}
-
-impl<'a> IntoObject<'a> for Date<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
     }
 }
 

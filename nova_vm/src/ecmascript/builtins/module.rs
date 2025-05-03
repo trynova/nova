@@ -14,8 +14,8 @@ use crate::{
         builtins::ordinary::ordinary_get_own_property,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value,
+            InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -32,12 +32,6 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Module<'a>(u32, PhantomData<&'a ()>);
-
-impl<'a> IntoObject<'a> for Module<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
 
 impl<'a> From<Module<'a>> for Value<'a> {
     fn from(value: Module<'a>) -> Self {

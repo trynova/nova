@@ -473,12 +473,6 @@ impl<'a> From<BuiltinFunctionIndex<'a>> for BuiltinFunction<'a> {
     }
 }
 
-impl<'a> IntoObject<'a> for BuiltinFunction<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
 impl<'a> IntoFunction<'a> for BuiltinFunction<'a> {
     fn into_function(self) -> Function<'a> {
         self.into()

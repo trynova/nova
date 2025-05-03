@@ -60,12 +60,6 @@ impl<'a> From<PrimitiveObject<'a>> for Value<'a> {
     }
 }
 
-impl<'a> IntoObject<'a> for PrimitiveObject<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
 impl<'a> TryFrom<Object<'a>> for PrimitiveObject<'a> {
     type Error = ();
 

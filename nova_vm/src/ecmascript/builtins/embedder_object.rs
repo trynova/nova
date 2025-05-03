@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
         context::{Bindable, NoGcScope},
@@ -49,12 +49,6 @@ unsafe impl Bindable for EmbedderObject<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> IntoObject<'a> for EmbedderObject<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
     }
 }
 
