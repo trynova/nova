@@ -13,7 +13,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::{
     Executable, ExecutableHeapData, FunctionExpression, Instruction, SendableRef,
-    executable::ArrowFunctionExpression, instructions::Instr,
+    executable::ArrowFunctionExpression,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::regexp::reg_exp_create_literal;

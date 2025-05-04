@@ -1,4 +1,7 @@
 {
+  "built-ins/Array/S15.4.5.2_A1_T1.js": "TIMEOUT",
+  "built-ins/Array/S15.4.5.2_A3_T3.js": "TIMEOUT",
+  "built-ins/Array/S15.4_A1.1_T10.js": "TIMEOUT",
   "built-ins/Array/from/proto-from-ctor-realm.js": "FAIL",
   "built-ins/Array/fromAsync/async-iterable-async-mapped-awaits-once.js": "CRASH",
   "built-ins/Array/fromAsync/async-iterable-input-does-not-await-input.js": "FAIL",
@@ -155,6 +158,7 @@
   "built-ins/Array/prototype/indexOf/15.4.4.14-5-12.js": "TIMEOUT",
   "built-ins/Array/prototype/indexOf/15.4.4.14-5-16.js": "TIMEOUT",
   "built-ins/Array/prototype/indexOf/15.4.4.14-6-1.js": "CRASH",
+  "built-ins/Array/prototype/indexOf/15.4.4.14-9-9.js": "TIMEOUT",
   "built-ins/Array/prototype/indexOf/15.4.4.14-9-a-19.js": "FAIL",
   "built-ins/Array/prototype/indexOf/15.4.4.14-9-b-i-19.js": "FAIL",
   "built-ins/Array/prototype/join/S15.4.4.5_A3.1_T2.js": "FAIL",
@@ -1393,7 +1397,6 @@
   "built-ins/Object/defineProperties/15.2.3.7-6-a-105.js": "FAIL",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-112.js": "FAIL",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-113.js": "FAIL",
-  "built-ins/Object/defineProperties/15.2.3.7-6-a-150.js": "TIMEOUT",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-151.js": "TIMEOUT",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-159.js": "FAIL",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-161.js": "FAIL",
