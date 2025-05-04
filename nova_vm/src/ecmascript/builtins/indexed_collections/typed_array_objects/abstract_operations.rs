@@ -50,52 +50,52 @@ macro_rules! with_typed_array_viewable {
     };
     ($value:expr, $expr:expr, $as:ident) => {
         match $value {
-            TypedArray::Int8Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Int8Array(_) => {
                 type $as = i8;
                 $expr
             }
-            TypedArray::Uint8Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Uint8Array(_) => {
                 type $as = u8;
                 $expr
             }
-            TypedArray::Uint8ClampedArray(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Uint8ClampedArray(_) => {
                 type $as = $crate::ecmascript::types::U8Clamped;
                 $expr
             }
-            TypedArray::Int16Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Int16Array(_) => {
                 type $as = i16;
                 $expr
             }
-            TypedArray::Uint16Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Uint16Array(_) => {
                 type $as = u16;
                 $expr
             }
-            TypedArray::Int32Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Int32Array(_) => {
                 type $as = i32;
                 $expr
             }
-            TypedArray::Uint32Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Uint32Array(_) => {
                 type $as = u32;
                 $expr
             }
-            TypedArray::BigInt64Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::BigInt64Array(_) => {
                 type $as = i64;
                 $expr
             }
-            TypedArray::BigUint64Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::BigUint64Array(_) => {
                 type $as = u64;
                 $expr
             }
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Float16Array(_) => {
                 type $as = f16;
                 $expr
             }
-            TypedArray::Float32Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Float32Array(_) => {
                 type $as = f32;
                 $expr
             }
-            TypedArray::Float64Array(_) => {
+            $crate::ecmascript::builtins::typed_array::TypedArray::Float64Array(_) => {
                 type $as = f64;
                 $expr
             }

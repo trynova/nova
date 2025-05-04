@@ -46,6 +46,12 @@ use crate::{
     heap::{Heap, ObjectEntry, WellKnownSymbolIndexes},
 };
 
+#[cfg(feature = "array-buffer")]
+use crate::{
+    ecmascript::{builtins::typed_array::TypedArray, types::Viewable},
+    with_typed_array_viewable,
+};
+
 /// ### [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
 ///
 /// The abstract operation Get takes arguments O (an Object) and P (a property
@@ -1140,7 +1146,48 @@ pub(crate) fn create_list_from_array_like<'gc>(
                 .map(|el| el.unwrap_or(Value::Undefined).bind(gc))
                 .collect())
         }
-        // TODO: TypedArrays
+        #[cfg(feature = "array-buffer")]
+        Value::Int8Array(array)
+        | Value::Uint8Array(array)
+        | Value::Uint8ClampedArray(array)
+        | Value::Int16Array(array)
+        | Value::Uint16Array(array)
+        | Value::Int32Array(array)
+        | Value::Uint32Array(array)
+        | Value::BigInt64Array(array)
+        | Value::BigUint64Array(array)
+        | Value::Float32Array(array)
+        | Value::Float64Array(array) => {
+            let gc = gc.into_nogc();
+            let array = TypedArray::from(array);
+            Ok(with_typed_array_viewable!(array, {
+                let buffer = array.get_viewed_array_buffer(agent, gc);
+                let slice = &agent[buffer]
+                    .get_data_block()
+                    .as_slice::<T>()
+                    .unwrap()
+                    .to_vec();
+                slice
+                    .iter()
+                    .map(|el| el.into_ne_value(agent, gc).into_value())
+                    .collect()
+            }))
+        }
+        #[cfg(feature = "proposal-float16array")]
+        Value::Float16Array(array) => {
+            let gc = gc.into_nogc();
+            let array = TypedArray::from(array);
+            let buffer = array.get_viewed_array_buffer(agent, gc);
+            let slice = &agent[buffer]
+                .get_data_block()
+                .as_slice::<f16>()
+                .unwrap()
+                .to_vec();
+            slice
+                .iter()
+                .map(|el| el.into_ne_value(agent, gc).into_value())
+                .collect()
+        }
         _ if obj.is_object() => {
             let object = Object::try_from(obj).unwrap();
             // 3. Let len be ? LengthOfArrayLike(obj).

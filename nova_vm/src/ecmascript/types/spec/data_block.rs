@@ -988,6 +988,30 @@ impl DataBlock {
         }
     }
 
+    pub fn as_slice<T: Viewable>(&self) -> Option<&[T]> {
+        self.as_ptr(0).map(|ptr| {
+            // SAFETY: Buffer is valid for reads of T for the whole length.
+            unsafe {
+                core::slice::from_raw_parts(
+                    ptr as *const T,
+                    self.byte_length / core::mem::size_of::<T>(),
+                )
+            }
+        })
+    }
+
+    pub fn as_mut_slice<T: Viewable>(&mut self) -> Option<&mut [T]> {
+        self.as_mut_ptr(0).map(|ptr| {
+            // SAFETY: Buffer is valid for reads and writes of T for the whole length.
+            unsafe {
+                core::slice::from_raw_parts_mut(
+                    ptr as *mut T,
+                    self.byte_length / core::mem::size_of::<T>(),
+                )
+            }
+        })
+    }
+
     pub fn get<T: Viewable>(&self, offset: usize) -> Option<T> {
         let size = core::mem::size_of::<T>();
         let byte_offset = offset * size;
