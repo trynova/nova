@@ -1728,7 +1728,11 @@ impl ElementArrays {
             k2pow24,
             k2pow32,
         } = self;
-        type KVD<'a, 'b> = (
+        /// Helper type for rustc to understand what Deref calls we expect to
+        /// happen in the below match arms.
+        ///
+        /// "Keys-values-decorators"
+        type Kvd<'a, 'b> = (
             &'a [PropertyKey<'b>],
             (
                 Option<&'a AHashMap<u32, ElementDescriptor<'static>>>,
@@ -1741,7 +1745,7 @@ impl ElementArrays {
                 unreachable!();
             }
             ElementArrayKey::E4 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     // Note: Only Empty is smaller than E4.
                     ElementArrayKey::E4
@@ -1756,7 +1760,7 @@ impl ElementArrays {
                 (k2pow4.push(keys), e2pow4.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E6 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1772,7 +1776,7 @@ impl ElementArrays {
                 (k2pow6.push(keys), e2pow6.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E8 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1790,7 +1794,7 @@ impl ElementArrays {
                 (k2pow8.push(keys), e2pow8.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E10 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1813,7 +1817,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E12 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1839,7 +1843,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E16 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1868,7 +1872,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E24 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1899,7 +1903,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E32 => {
-                let (keys, (descriptors, source)): KVD = match props.cap {
+                let (keys, (descriptors, source)): Kvd = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
