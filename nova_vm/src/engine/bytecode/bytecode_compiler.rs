@@ -88,7 +88,7 @@ impl JumpTarget {
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
-    current_instruction: Option</* position */ usize>,
+    current_instruction: u32,
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
@@ -123,7 +123,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         CompileContext {
             agent,
             gc,
-            current_instruction: None,
+            current_instruction: 0,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),
@@ -333,17 +333,20 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
 
     #[inline]
     fn peek_last_instruction(&self) -> Option<Instruction> {
-        self.current_instruction
-            // SAFETY: current_instruction is only set by _push_instruction
-            .map(|pos| unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[pos]) })
+        let Some(current_instruction) = self.instructions.get(self.current_instruction as usize)
+        else {
+            return None;
+        };
+        // SAFETY: current_instruction is only set by _push_instruction
+        Some(unsafe { std::mem::transmute::<u8, Instruction>(*current_instruction) })
     }
 
     fn _push_instruction(&mut self, instruction: Instruction) {
         if instruction != Instruction::ExitDeclarativeEnvironment {
-            self.current_instruction.replace(self.instructions.len());
+            self.current_instruction = u32::try_from(self.instructions.len())
+                .expect("Bytecodes over 4 GiB are not supported");
         }
-        self.instructions
-            .push(unsafe { core::mem::transmute::<Instruction, u8>(instruction) });
+        self.instructions.push(instruction.as_u8());
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {

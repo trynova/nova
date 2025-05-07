@@ -467,6 +467,11 @@ impl Instruction {
     }
 
     pub fn as_u8(self) -> u8 {
+        const {
+            // Check statically that Instruction hasn't overflowed u8.
+            assert!(std::mem::size_of::<Self>() == std::mem::size_of::<u8>());
+            assert!(std::mem::align_of::<Self>() == std::mem::align_of::<u8>());
+        }
         unsafe { core::mem::transmute::<Self, u8>(self) }
     }
 }
