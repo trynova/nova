@@ -13,7 +13,6 @@ use super::{
 use crate::{
     SmallInteger,
     ecmascript::{
-        builtins::SealableElementsVector,
         execution::Agent,
         types::{Function, HeapString, PropertyDescriptor, PropertyKey, Symbol, Value},
     },
@@ -135,24 +134,6 @@ impl ElementsIndexable for ElementsVector<'_> {
     }
 }
 
-impl ElementsIndexable for SealableElementsVector<'_> {
-    fn elements_index(&self) -> ElementIndex<'static> {
-        self.elements_index.unbind()
-    }
-
-    fn index(&self) -> usize {
-        self.elements_index.into_index()
-    }
-
-    fn cap(&self) -> ElementArrayKey {
-        self.cap
-    }
-
-    fn len(&self) -> u32 {
-        self.len
-    }
-}
-
 impl ElementsIndexable for PropertyStorageVector<'_> {
     fn elements_index(&self) -> ElementIndex<'static> {
         self.values_index.unbind()
@@ -171,11 +152,24 @@ impl ElementsIndexable for PropertyStorageVector<'_> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct ElementsVector<'a> {
     pub(crate) elements_index: ElementIndex<'a>,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
+    /// Array length property can be set to unwritable
+    pub(crate) len_writable: bool,
+}
+
+impl Default for ElementsVector<'static> {
+    fn default() -> Self {
+        Self {
+            elements_index: ElementIndex::from_u32_index(0),
+            cap: ElementArrayKey::Empty,
+            len: 0,
+            len_writable: true,
+        }
+    }
 }
 
 impl ElementsVector<'_> {
@@ -193,6 +187,10 @@ impl ElementsVector<'_> {
 
     pub(crate) fn is_full(&self) -> bool {
         self.len == self.cap()
+    }
+
+    pub(crate) fn writable(&self) -> bool {
+        self.len_writable
     }
 
     /// An elements vector is simple if it contains no accessor descriptors.
@@ -362,6 +360,7 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
             elements_index,
             cap,
             len,
+            len_writable: _,
         } = self;
         match cap {
             ElementArrayKey::Empty => {}
@@ -381,6 +380,7 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
             elements_index,
             cap,
             len: _,
+            len_writable: _,
         } = self;
         match cap {
             ElementArrayKey::Empty => {}
@@ -1600,34 +1600,6 @@ impl IndexMut<&ElementsVector<'_>> for Agent {
     }
 }
 
-impl Index<&SealableElementsVector<'_>> for ElementArrays {
-    type Output = [Option<Value<'static>>];
-
-    fn index(&self, index: &SealableElementsVector) -> &Self::Output {
-        self.get_values(index)
-    }
-}
-
-impl IndexMut<&SealableElementsVector<'_>> for ElementArrays {
-    fn index_mut(&mut self, index: &SealableElementsVector) -> &mut Self::Output {
-        self.get_values_mut(index)
-    }
-}
-
-impl Index<&SealableElementsVector<'_>> for Agent {
-    type Output = [Option<Value<'static>>];
-
-    fn index(&self, index: &SealableElementsVector) -> &Self::Output {
-        &self.heap.elements[index]
-    }
-}
-
-impl IndexMut<&SealableElementsVector<'_>> for Agent {
-    fn index_mut(&mut self, index: &SealableElementsVector) -> &mut Self::Output {
-        &mut self.heap.elements[index]
-    }
-}
-
 impl ElementArrays {
     fn push_values(
         &mut self,
@@ -2197,6 +2169,7 @@ impl ElementArrays {
             elements_index: self.push_values(cap, &[], None),
             cap,
             len: 0,
+            len_writable: true,
         }
     }
 
@@ -2454,7 +2427,7 @@ impl ElementArrays {
     pub(crate) fn shallow_clone<'a>(
         &mut self,
         elements_vector: ElementsVector<'a>,
-    ) -> SealableElementsVector<'a> {
+    ) -> ElementsVector<'a> {
         let index = elements_vector.elements_index.into_index();
         let ElementArrays {
             e2pow4,
@@ -2511,7 +2484,7 @@ impl ElementArrays {
             }
         };
 
-        SealableElementsVector {
+        ElementsVector {
             cap: elements_vector.cap,
             elements_index: new_index,
             len: elements_vector.len(),

@@ -2,26 +2,27 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::CreateHeapData;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{construct, get, get_function_realm},
             testing_and_comparison::{is_array, is_constructor, same_value},
-            type_conversion::{to_number, to_uint32},
+            type_conversion::{to_number, to_uint32, to_uint32_number},
         },
-        builtins::ArgumentsList,
+        builtins::{
+            ArgumentsList,
+            array::{Array, ArrayHeapData},
+        },
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoObject, Number, Object, PropertyDescriptor, Value},
     },
-    heap::{Heap, WellKnownSymbolIndexes},
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
+    heap::{CreateHeapData, Heap, WellKnownSymbolIndexes},
 };
-
-use super::{Array, ArrayHeapData, data::SealableElementsVector};
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
 ///
@@ -70,7 +71,7 @@ pub(crate) fn array_create<'a>(
     let data = ArrayHeapData {
         // 4. Set A.[[Prototype]] to proto.
         object_index,
-        elements: SealableElementsVector::from_elements_vector(elements).bind(gc),
+        elements: elements.bind(gc),
     };
 
     // 7. Return A.

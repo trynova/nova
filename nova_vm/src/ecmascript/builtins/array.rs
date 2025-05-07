@@ -35,12 +35,12 @@ use crate::{
     },
     heap::{
         CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        element_array::{ElementArrays, ElementDescriptor},
+        element_array::{ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ArrayIndex,
     },
 };
 
-pub use data::{ArrayHeapData, SealableElementsVector};
+pub use data::ArrayHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array<'a>(ArrayIndex<'a>);
@@ -764,7 +764,7 @@ impl HeapMarkAndSweep for Array<'static> {
 
 fn ordinary_define_own_property_for_array(
     agent: &mut Agent,
-    elements: SealableElementsVector,
+    elements: ElementsVector,
     index: u32,
     descriptor: PropertyDescriptor,
     gc: NoGcScope,
@@ -963,7 +963,7 @@ fn ordinary_define_own_property_for_array(
 
 fn mutate_data_descriptor(
     agent: &mut Agent,
-    elements: &SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     elem_descriptor: Option<ElementDescriptor>,
@@ -981,7 +981,7 @@ fn mutate_data_descriptor(
 
 fn mutate_element_descriptor(
     agent: &mut Agent,
-    elements: &SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     elem_descriptor: Option<ElementDescriptor>,
@@ -997,7 +997,7 @@ fn mutate_element_descriptor(
 
 fn insert_data_descriptor(
     agent: &mut Agent,
-    elements: &SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     elem_descriptor: Option<ElementDescriptor>,
@@ -1013,7 +1013,7 @@ fn insert_data_descriptor(
 
 fn insert_element_descriptor(
     agent: &mut Agent,
-    elements: &SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     descriptor: ElementDescriptor,

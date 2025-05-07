@@ -56,8 +56,8 @@ pub(crate) mod weak_set;
 
 pub(crate) use arguments::*;
 pub use array::Array;
+pub(crate) use array::ArrayHeapData;
 pub(crate) use array::abstract_operations::*;
-pub(crate) use array::{ArrayHeapData, SealableElementsVector};
 #[cfg(feature = "array-buffer")]
 pub use array_buffer::ArrayBuffer;
 #[cfg(feature = "array-buffer")]
