@@ -27,13 +27,30 @@ pub mod data;
 #[repr(transparent)]
 pub struct WeakRef<'a>(pub(crate) WeakRefIndex<'a>);
 
-impl WeakRef<'_> {
+impl<'a> WeakRef<'a> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub(crate) fn set_target(self, agent: &mut Agent, target: Value) {
+        agent[self].weak_ref_target = Some(target.unbind());
+        // Note: WeakRefTarget is set only from the constructor, and it also
+        // adds the WeakRef into the [[KeptAlive]] list; hence we set the
+        // boolean here.
+        agent[self].kept_alive = true;
+    }
+
+    pub(crate) fn get_target(self, agent: &mut Agent) -> Option<Value<'a>> {
+        let target = agent[self].weak_ref_target;
+        if target.is_some() {
+            // When observed, WeakRef gets added to [[KeptAlive]] list.
+            agent[self].kept_alive = true;
+        }
+        target
     }
 }
 
