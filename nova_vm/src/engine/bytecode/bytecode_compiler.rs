@@ -333,10 +333,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
 
     #[inline]
     fn peek_last_instruction(&self) -> Option<Instruction> {
-        let Some(current_instruction) = self.instructions.get(self.current_instruction as usize)
-        else {
-            return None;
-        };
+        let current_instruction = self.instructions.get(self.current_instruction as usize)?;
         // SAFETY: current_instruction is only set by _push_instruction
         Some(unsafe { std::mem::transmute::<u8, Instruction>(*current_instruction) })
     }
