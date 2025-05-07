@@ -11,7 +11,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm, add_to_kept_objects, agent::ExceptionType,
-            can_be_held_weakly,
+            can_be_held_weakly, throw_not_weak_key_error,
         },
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
@@ -55,13 +55,12 @@ impl WeakRefConstructor {
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. If CanBeHeldWeakly(target) is false, throw a TypeError exception.
-        let Some(target) = can_be_held_weakly(agent, target) else {
-            let string_repr = target.unbind().string_repr(agent, gc.reborrow());
-            let message = format!(
-                "{} is not a non-null object or unique symbol",
-                string_repr.as_str(agent)
-            );
-            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc.into_nogc()));
+        let Some(target) = can_be_held_weakly(target) else {
+            return Err(throw_not_weak_key_error(
+                agent,
+                target.unbind(),
+                gc.into_nogc(),
+            ));
         };
         let target = target.scope(agent, gc.nogc());
         // 3. Let weakRef be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakRef.prototype%", « [[WeakRefTarget]] »).

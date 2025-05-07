@@ -6,17 +6,13 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::IteratorRecord;
-use crate::ecmascript::abstract_operations::operations_on_objects::throw_not_callable;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                get_iterator, if_abrupt_close_iterator, iterator_step_value,
+                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_step_value,
             },
-            operations_on_objects::{call_function, get, get_method},
+            operations_on_objects::{call_function, get, throw_not_callable},
             testing_and_comparison::is_callable,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -28,9 +24,13 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            Value,
         },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
@@ -125,24 +125,7 @@ impl SetConstructor {
         let adder = adder.scope(agent, gc.nogc());
         if let Value::Array(iterable) = scoped_iterable.get(agent) {
             let iterable = iterable.bind(gc.nogc());
-            if iterable.is_trivial(agent)
-                && iterable.is_dense(agent)
-                && get_method(
-                    agent,
-                    iterable.unbind().into_value(),
-                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc())
-                    == Some(
-                        agent
-                            .current_realm_record()
-                            .intrinsics()
-                            .array_prototype_values()
-                            .into_function(),
-                    )
-            {
+            if iterable.is_trivial(agent) && iterable.is_trivially_iterable(agent, gc.nogc()) {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
                 let set = scoped_set.get(agent).bind(gc.nogc());

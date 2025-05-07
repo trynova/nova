@@ -4,10 +4,15 @@
 
 //! [9.9 Processing Model of WeakRef and FinalizationRegistry Targets](https://tc39.es/ecma262/#sec-weakref-processing-model)
 
-use crate::ecmascript::{
-    execution::{Agent, weak_key::WeakKey},
-    types::{Object, Value},
+use crate::{
+    ecmascript::{
+        execution::{Agent, weak_key::WeakKey},
+        types::{Object, Value},
+    },
+    engine::context::NoGcScope,
 };
+
+use super::agent::{ExceptionType, JsError};
 
 /// ### [9.10 ClearKeptObjects ( )](https://tc39.es/ecma262/#sec-clear-kept-objects)
 ///
@@ -63,7 +68,7 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
 /// > resources in implementations.
 ///
 /// > NOTE: We return an option of a WeakKey enum instead of a boolean.
-pub(crate) fn can_be_held_weakly<'a>(_agent: &Agent, v: Value<'a>) -> Option<WeakKey<'a>> {
+pub(crate) fn can_be_held_weakly<'a>(v: Value<'a>) -> Option<WeakKey<'a>> {
     // 1. If v is an Object, return true.
     if let Ok(v) = Object::try_from(v) {
         Some(v.into())
@@ -75,4 +80,17 @@ pub(crate) fn can_be_held_weakly<'a>(_agent: &Agent, v: Value<'a>) -> Option<Wea
         // 3. Return false.
         None
     }
+}
+
+pub(crate) fn throw_not_weak_key_error<'a>(
+    agent: &mut Agent,
+    target: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    let string_repr = target.try_string_repr(agent, gc);
+    let message = format!(
+        "{} is not a non-null object or unique symbol",
+        string_repr.as_str(agent)
+    );
+    return agent.throw_exception(ExceptionType::TypeError, message, gc);
 }

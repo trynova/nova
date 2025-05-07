@@ -18,11 +18,13 @@ pub struct WeakSetHeapData<'a> {
 }
 
 impl WeakSetHeapData<'_> {
-    pub(super) fn add(&mut self, value: WeakKey) {
+    /// Add a weakly holdable to the WeakSet.
+    pub(crate) fn add(&mut self, value: WeakKey) {
         self.weak_set_data.insert(value.unbind());
     }
 
-    pub(super) fn delete(&mut self, value: WeakKey) {
+    /// Remove a weakly holdable from the WeakSet.
+    pub(crate) fn delete(&mut self, value: WeakKey) {
         self.weak_set_data.remove(&value.unbind());
     }
 }

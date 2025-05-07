@@ -36,7 +36,7 @@ impl Builtin for WeakSetPrototypeHas {
 }
 
 impl WeakSetPrototype {
-    fn add<'gc>(
+    pub(crate) fn add<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
