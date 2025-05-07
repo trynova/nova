@@ -148,11 +148,12 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Script ===");
             eprintln!();
         }
+        let semantic = agent[script.bind(gc)].source_code.take_semantic(agent, gc);
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
             unsafe { core::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
-        let mut ctx = CompileContext::new(agent, gc);
+        let mut ctx = CompileContext::new(agent, gc).with_semantic(semantic);
 
         ctx.compile_statements(body);
         ctx.do_implicit_return();

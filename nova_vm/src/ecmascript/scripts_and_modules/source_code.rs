@@ -8,12 +8,13 @@
 //! SourceCode for their function source text.
 
 use core::{fmt::Debug, ops::Index, ptr::NonNull};
+use std::ops::IndexMut;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::Program;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::{Parser, ParserReturn};
-use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
+use oxc_semantic::{Semantic, SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
@@ -109,12 +110,14 @@ impl<'a> SourceCode<'a> {
             return Err(errors);
         }
 
-        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new()
+        let SemanticBuilderReturn { errors, semantic } = SemanticBuilder::new()
             .with_check_syntax_error(true)
             .build(&program);
 
         if !errors.is_empty() {
-            // Drop program before dropping allocator.
+            // Drop semantic & program before dropping allocator.
+            #[allow(clippy::drop_non_drop)]
+            drop(semantic);
             #[allow(clippy::drop_non_drop)]
             drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
@@ -123,19 +126,36 @@ impl<'a> SourceCode<'a> {
             // TODO: Include error messages in the exception.
             return Err(errors);
         }
+        let semantic = unsafe { core::mem::transmute::<Semantic, Semantic<'static>>(semantic) };
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
         let program = unsafe { core::mem::transmute::<Program, Program<'static>>(program) };
-        let source_code = agent.heap.create(SourceCodeHeapData {
-            source: source.unbind(),
+        let source_code = agent.heap.create(SourceCodeHeapData::new(
             allocator,
-        });
+            source.unbind(),
+            semantic,
+        ));
 
         Ok((program, source_code))
     }
 
     pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
         agent[agent[self].source].as_str()
+    }
+
+    pub(crate) fn take_semantic(
+        self,
+        agent: &mut Agent,
+        _gc: NoGcScope<'a, '_>, // used as proof
+    ) -> Box<Semantic<'a>> {
+        let sc = &mut agent[self];
+        let sema = sc.take_semantic();
+        // SAFETY:
+        // 1. taking Semantic out of the agent makes the SourceCode no longer responsible for it
+        // 2. Semantic references data within the SourceCode, which lives at least as long as 'gc
+        // 3. because of ^, Semantic must be dropped before the next garbage
+        //    collection, less it reference now-invalid memory
+        unsafe { std::mem::transmute::<Box<Semantic<'static>>, Box<Semantic<'a>>>(sema) }
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -150,8 +170,32 @@ pub struct SourceCodeHeapData<'a> {
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
     source: HeapString<'a>,
+    /// Semantic analysis results obtained when parsing a source file.
+    ///
+    /// This only exists until this source code gets compiled. Since it's only
+    /// needed then, the compiler takes this semantic out of the source file,
+    /// obtaining ownership over it.
+    semantic: Option<Box<Semantic<'a>>>,
     /// The arena that contains the parsed data of the eval source.
     allocator: NonNull<Allocator>,
+}
+impl<'a> SourceCodeHeapData<'a> {
+    fn new(allocator: NonNull<Allocator>, source: HeapString<'a>, semantic: Semantic<'a>) -> Self {
+        Self {
+            source,
+            allocator,
+            semantic: Some(Box::new(semantic)),
+        }
+    }
+
+    /// Take semantic analysis info from this source. This may only be called
+    /// once.
+    ///
+    /// ## Panics
+    /// If [`take_scoping`] has already been called.
+    pub fn take_semantic(&mut self) -> Box<Semantic<'a>> {
+        self.semantic.take().unwrap()
+    }
 }
 
 unsafe impl Send for SourceCodeHeapData<'_> {}
@@ -170,6 +214,10 @@ impl Drop for SourceCodeHeapData<'_> {
         // SAFETY: All references to this SourceCode should have been dropped
         // before we drop this.
         drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
+        // drop(
+        //     self.semantic
+        //         .map(|mut sema| unsafe { Box::from_raw(sema.as_mut()) }),
+        // )
     }
 }
 
@@ -182,6 +230,16 @@ impl Index<SourceCode<'_>> for Agent {
             .get(index.get_index())
             .expect("SourceCode out of bounds")
             .as_ref()
+            .expect("SourceCode slot empty")
+    }
+}
+impl IndexMut<SourceCode<'_>> for Agent {
+    fn index_mut(&mut self, index: SourceCode<'_>) -> &mut Self::Output {
+        self.heap
+            .source_codes
+            .get_mut(index.get_index())
+            .expect("SourceCode out of bounds")
+            .as_mut()
             .expect("SourceCode slot empty")
     }
 }
@@ -249,18 +307,12 @@ unsafe impl Bindable for SourceCodeHeapData<'_> {
 
 impl HeapMarkAndSweep for SourceCodeHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            source,
-            allocator: _,
-        } = self;
+        let Self { source, .. } = self;
         source.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            source,
-            allocator: _,
-        } = self;
+        let Self { source, .. } = self;
         source.sweep_values(compactions);
     }
 }

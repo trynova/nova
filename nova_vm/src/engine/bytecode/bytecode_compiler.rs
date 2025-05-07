@@ -36,7 +36,8 @@ use oxc_ast::ast::{
     Statement,
 };
 use oxc_ecmascript::BoundNames;
-use oxc_span::Atom;
+use oxc_semantic::Semantic;
+use oxc_span::{Atom, GetSpan, Span};
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 pub type IndexType = u16;
@@ -88,6 +89,7 @@ impl JumpTarget {
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
+    semantic: Option<Box<Semantic<'gc>>>,
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
@@ -122,6 +124,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         CompileContext {
             agent,
             gc,
+            semantic: None,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),
@@ -180,6 +183,11 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         Rc::into_inner(self.current_jump_target.take().unwrap())
             .unwrap()
             .into_inner()
+    }
+
+    pub(super) fn with_semantic(mut self, semantic: Box<Semantic<'gc>>) -> Self {
+        self.semantic = Some(semantic);
+        self
     }
 
     /// Compile a class static field with an optional initializer into the
@@ -543,6 +551,36 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
                 index: self.instructions.len(),
             },
         );
+    }
+
+    /// Check if there is a global/unresolved reference in some part of a source
+    /// file.  Always returns `false` when context doesn't have  semantic
+    /// analysis info.
+    fn has_unresolved_decl_in(&self, name: &str, container: Span) -> bool {
+        debug_assert!(!name.is_empty());
+        debug_assert!(!container.is_empty());
+
+        let Some(sema) = self.semantic.as_ref() else {
+            return false;
+        };
+        let scoping = sema.scoping();
+        let nodes = sema.nodes();
+
+        for (identifier, reference_ids) in scoping.root_unresolved_references().iter() {
+            let references = reference_ids
+                .into_iter()
+                .map(|ref_id| scoping.get_reference(*ref_id))
+                .filter(|reference| reference.is_value());
+
+            for reference in references {
+                let span = nodes.get_node(reference.node_id()).span();
+                if container.contains_inclusive(span) && name == *identifier {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }
 
