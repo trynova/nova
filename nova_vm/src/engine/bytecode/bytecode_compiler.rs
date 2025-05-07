@@ -2383,11 +2383,6 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
         for ele in &self.body {
             ele.compile(ctx);
         }
-        if ctx.peek_last_instruction() != Some(Instruction::Return) {
-            // Block did not end in a return so we overwrite the result with undefined.
-            // TODO: This should be removed; block doesn't reset the value.
-            // ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        }
         if did_enter_declarative_environment {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
             ctx.current_lexical_depth -= 1;
