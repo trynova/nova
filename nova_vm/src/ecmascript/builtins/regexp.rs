@@ -11,7 +11,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{

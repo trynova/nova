@@ -10,8 +10,8 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
         },
     },
     engine::{

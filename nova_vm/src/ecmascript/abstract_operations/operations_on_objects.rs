@@ -32,8 +32,8 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
-            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            PropertyKeySet, String, Value,
+            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, PropertyKeySet,
+            String, Value,
         },
     },
     engine::{
