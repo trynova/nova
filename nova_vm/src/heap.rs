@@ -23,9 +23,8 @@ pub(crate) use self::heap_constants::{
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     element_array::{
-        ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArray2Pow10,
-        ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24, ElementArray2Pow32,
-        ElementArrays,
+        ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
+        ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
     },
     indexes::NumberIndex,
 };
@@ -97,7 +96,11 @@ use crate::{
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
-use element_array::{ElementDescriptor, ElementsVector};
+use element_array::{
+    ElementArray2Pow4, ElementArray2Pow6, ElementDescriptor, PropertyKeyArray2Pow4,
+    PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
+    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32, PropertyStorageVector,
+};
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 use indexes::TypedArrayIndex;
@@ -126,7 +129,7 @@ pub struct Heap {
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData<'static>>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
-    /// ElementsArrays is where all element arrays live;
+    /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
     pub elements: ElementArrays,
@@ -247,6 +250,14 @@ impl Heap {
                 e2pow16: ElementArray2Pow16::default(),
                 e2pow24: ElementArray2Pow24::default(),
                 e2pow32: ElementArray2Pow32::default(),
+                k2pow4: PropertyKeyArray2Pow4::with_capacity(1024),
+                k2pow6: PropertyKeyArray2Pow6::with_capacity(1024),
+                k2pow8: PropertyKeyArray2Pow8::default(),
+                k2pow10: PropertyKeyArray2Pow10::default(),
+                k2pow12: PropertyKeyArray2Pow12::default(),
+                k2pow16: PropertyKeyArray2Pow16::default(),
+                k2pow24: PropertyKeyArray2Pow24::default(),
+                k2pow32: PropertyKeyArray2Pow32::default(),
             },
             embedder_objects: Vec::with_capacity(0),
             environments: Default::default(),
@@ -434,7 +445,7 @@ impl Heap {
     pub(crate) fn create_elements_with_object_entries<'gc>(
         &mut self,
         entries: &[ObjectEntry<'gc>],
-    ) -> (ElementsVector<'gc>, ElementsVector<'gc>) {
+    ) -> PropertyStorageVector<'gc> {
         self.alloc_counter += entries.iter().fold(0, |acc, entry| {
             acc + core::mem::size_of::<Option<Value>>() * 2
                 + if entry.is_trivial() {
@@ -443,7 +454,8 @@ impl Heap {
                     core::mem::size_of::<(u32, ElementDescriptor)>()
                 }
         });
-        self.elements.create_with_object_entries(entries)
+        self.elements
+            .allocate_object_property_storage_from_entries_slice(entries)
     }
 
     pub(crate) fn create_elements_with_key_value_descriptor_entries<'gc>(
@@ -453,7 +465,7 @@ impl Heap {
             Option<ElementDescriptor>,
             Option<Value<'gc>>,
         )>,
-    ) -> (ElementsVector<'gc>, ElementsVector<'gc>) {
+    ) -> PropertyStorageVector<'gc> {
         self.alloc_counter += entries.iter().fold(0, |acc, entry| {
             acc + core::mem::size_of::<Option<Value>>() * 2
                 + if entry.1.is_none() {
@@ -463,34 +475,30 @@ impl Heap {
                 }
         });
         self.elements
-            .create_with_key_value_descriptor_entries(entries)
+            .allocate_object_property_storage_from_entries_vec(entries)
     }
 
-    pub(crate) fn create_null_object(
+    pub(crate) fn create_null_object<'gc>(
         &mut self,
-        entries: &[ObjectEntry],
-    ) -> OrdinaryObject<'static> {
-        let (keys, values) = self.create_elements_with_object_entries(entries);
+        entries: &[ObjectEntry<'gc>],
+    ) -> OrdinaryObject<'gc> {
+        let property_storage = self.create_elements_with_object_entries(entries);
         let object_data = ObjectHeapData {
-            extensible: true,
-            keys: keys.unbind(),
-            values: values.unbind(),
             prototype: None,
+            property_storage,
         };
         self.create(object_data)
     }
 
-    pub(crate) fn create_object_with_prototype(
+    pub(crate) fn create_object_with_prototype<'gc>(
         &mut self,
-        prototype: Object,
-        entries: &[ObjectEntry],
-    ) -> OrdinaryObject<'static> {
-        let (keys, values) = self.create_elements_with_object_entries(entries);
+        prototype: Object<'gc>,
+        entries: &[ObjectEntry<'gc>],
+    ) -> OrdinaryObject<'gc> {
+        let property_storage = self.create_elements_with_object_entries(entries);
         let object_data = ObjectHeapData {
-            extensible: true,
-            keys: keys.unbind(),
-            values: values.unbind(),
             prototype: Some(prototype.unbind()),
+            property_storage,
         };
         self.create(object_data)
     }

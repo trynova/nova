@@ -17,8 +17,8 @@ use crate::{
             agent::{ExceptionType, JsError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoValue, Object, PropertyDescriptor, PropertyKey,
-            Value,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     engine::{
@@ -591,8 +591,11 @@ pub(crate) fn create_iter_result_object<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> Object<'a> {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
-    let obj =
-        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc);
+    let Object::Object(obj) =
+        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
+    else {
+        unreachable!()
+    };
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
     obj.property_storage().set(
         agent,
@@ -606,7 +609,7 @@ pub(crate) fn create_iter_result_object<'a>(
         PropertyDescriptor::new_data_descriptor(done.into()),
     );
     // 4. Return obj.
-    obj
+    obj.into_object()
 }
 
 /// ### [7.4.15 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)

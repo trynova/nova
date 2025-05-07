@@ -10,8 +10,8 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
         },
     },
     engine::{
@@ -19,7 +19,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         unwrap_try,
     },
-    heap::{CreateHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
+    heap::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 
 pub trait IntoFunction<'a>
@@ -57,7 +57,7 @@ pub(crate) fn function_create_backing_object<'a>(
     agent: &mut Agent,
 ) -> OrdinaryObject<'static> {
     assert!(func.get_backing_object(agent).is_none());
-    let prototype = func.internal_prototype(agent);
+    let prototype = func.internal_prototype(agent).unwrap();
     let length_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
         value: ObjectEntryPropertyDescriptor::Data {
@@ -76,15 +76,9 @@ pub(crate) fn function_create_backing_object<'a>(
             configurable: true,
         },
     };
-    let (keys, values) = agent
+    let backing_object = agent
         .heap
-        .create_elements_with_object_entries(&[length_entry, name_entry]);
-    let backing_object = agent.heap.create(ObjectHeapData {
-        extensible: true,
-        prototype,
-        keys,
-        values,
-    });
+        .create_object_with_prototype(prototype, &[length_entry, name_entry]);
     func.set_backing_object(agent, backing_object);
     backing_object
 }

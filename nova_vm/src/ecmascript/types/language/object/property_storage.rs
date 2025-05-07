@@ -8,174 +8,94 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, RealmRecord},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, PropertyDescriptor, Value},
+        types::{IntoValue, PropertyDescriptor, Value},
     },
     engine::context::Bindable,
     heap::element_array::ElementDescriptor,
 };
 
-use super::{Object, ObjectHeapData, PropertyKey};
+use super::{IntoObject, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
-pub struct PropertyStorage<'a>(Object<'a>);
+pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
 
 impl<'a> PropertyStorage<'a> {
-    pub fn new(object: Object<'a>) -> Self {
+    pub fn new(object: OrdinaryObject<'a>) -> Self {
         Self(object)
     }
 
     fn into_object(self) -> Object<'a> {
-        self.0
+        self.0.into_object()
     }
 
     fn into_value(self) -> Value<'a> {
         self.0.into_value()
     }
 
-    pub fn has(self, agent: &Agent, key: PropertyKey) -> bool {
-        let object = self.into_value();
-
-        // SAFETY: Key is only used to compare with other keys.
-        let key = unsafe { key.into_value_unchecked() };
-        match object {
-            Value::Object(object) => agent.heap.elements.has(agent[object].keys, key),
-            Value::Array(array) => {
-                if key == BUILTIN_STRING_MEMORY.length.into_value() {
-                    return true;
-                }
-
-                let array = &agent[array];
-
-                if key.is_integer() {
-                    return agent.heap.elements.has(array.elements.into(), key);
-                }
-
-                if let Some(object) = array.object_index {
-                    agent.heap.elements.has(agent[object].keys, key)
-                } else {
-                    false
-                }
-            }
-            Value::BoundFunction(_) => todo!(),
-            Value::BuiltinFunction(_) => todo!(),
-            Value::ECMAScriptFunction(_) => todo!(),
-            _ => unreachable!(),
-        }
-    }
-
     pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<PropertyDescriptor<'a>> {
-        match self.0 {
-            Object::Object(object) => {
-                let ObjectHeapData { keys, values, .. } = agent[object];
-                let result = agent
-                    .heap
-                    .elements
-                    .get(keys)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, element_key)| {
-                        // SAFETY: Keys storage contains only PropertyKeys turned into Values.
-                        unsafe { PropertyKey::from_value_unchecked(element_key.unwrap()) == key }
-                    })
-                    .map(|res| res.0);
-                result.map(|index| {
-                    let value = agent.heap.elements.get(values).get(index).unwrap().unbind();
-                    let descriptor = agent.heap.elements.get_descriptor(values, index).unbind();
-                    ElementDescriptor::to_property_descriptor(descriptor, value)
-                })
-            }
-            _ => todo!(),
-        }
+        let object = self.0;
+        let props = &agent[object].property_storage;
+        let result = props
+            .keys(agent)
+            .iter()
+            .enumerate()
+            .find(|(_, k)| **k == key)
+            .map(|res| res.0);
+        result.map(|index| {
+            let value = props.values(agent).get(index).unwrap().unbind();
+            let descriptor = agent.heap.elements.get_descriptor(props, index).unbind();
+            ElementDescriptor::to_property_descriptor(descriptor, value)
+        })
     }
 
-    pub fn set(self, agent: &mut Agent, property_key: PropertyKey, descriptor: PropertyDescriptor) {
-        match self.0 {
-            Object::Object(object) => {
-                let ObjectHeapData { keys, values, .. } = agent[object];
-                // SAFETY: Key is only used to compare with other keys.
-                let property_key = unsafe { property_key.into_value_unchecked() };
+    pub fn set(self, agent: &mut Agent, key: PropertyKey, descriptor: PropertyDescriptor) {
+        let object = self.0;
+        let Heap {
+            elements,
+            objects,
+            alloc_counter,
+            ..
+        } = &mut agent.heap;
+        let props = &mut objects[object].property_storage;
 
-                let value = descriptor.value;
-                let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
+        let value = descriptor.value;
+        let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
 
-                let result = agent
-                    .heap
-                    .elements
-                    .get(keys)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, element_key)| element_key.unwrap() == property_key)
-                    .map(|res| res.0);
-                if let Some(index) = result {
-                    let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
-                    *key_entry = Some(property_key.unbind());
-                    let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
-                    *value_entry = value.unbind();
-                    agent
-                        .heap
-                        .elements
-                        .set_descriptor(values, index, element_descriptor);
-                } else {
-                    let Heap {
-                        elements,
-                        objects,
-                        alloc_counter,
-                        ..
-                    } = &mut agent.heap;
-                    let object_heap_data = objects
-                        .get_mut(object.get_index())
-                        .expect("Invalid ObjectIndex")
-                        .as_mut()
-                        .expect("Invalid ObjectIndex");
-                    *alloc_counter += core::mem::size_of::<Option<Value>>() * 2;
-                    object_heap_data
-                        .keys
-                        .push(elements, Some(property_key), None);
-                    if element_descriptor.is_some() {
-                        *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
-                    }
-                    object_heap_data
-                        .values
-                        .push(elements, value, element_descriptor);
-                };
-            }
-            _ => todo!(),
-        }
+        let result = props
+            .keys(elements)
+            .iter()
+            .enumerate()
+            .find(|(_, k)| **k == key)
+            .map(|res| res.0);
+        if let Some(index) = result {
+            let key_entry = props.keys_mut(elements).get_mut(index).unwrap();
+            *key_entry = Some(key.unbind());
+            let value_entry = props.values_mut(elements).get_mut(index).unwrap();
+            *value_entry = value.unbind();
+            elements.set_descriptor(props, index, element_descriptor);
+        } else {
+            *alloc_counter += core::mem::size_of::<Option<Value>>() * 2;
+            props.push(elements, key, value, element_descriptor);
+        };
     }
 
-    pub fn remove(self, agent: &mut Agent, property_key: PropertyKey) {
-        match self.0 {
-            Object::Object(object) => {
-                // SAFETY: Key is only used to compare with other keys.
-                let property_key = unsafe { property_key.into_value_unchecked() };
+    pub fn remove(self, agent: &mut Agent, key: PropertyKey) {
+        let object = self.0;
 
-                let result = agent
-                    .heap
-                    .elements
-                    .get(agent[object].keys)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, element_key)| element_key.unwrap() == property_key)
-                    .map(|res| res.0);
-                if let Some(index) = result {
-                    let Heap {
-                        elements, objects, ..
-                    } = &mut agent.heap;
-                    let object_heap_data = objects
-                        .get_mut(object.get_index())
-                        .expect("Invalid ObjectIndex")
-                        .as_mut()
-                        .expect("Invalid ObjectIndex");
-                    object_heap_data.keys.remove(elements, index);
-                    object_heap_data.values.remove(elements, index);
-                }
-            }
-            _ => todo!(),
+        let Heap {
+            elements, objects, ..
+        } = &mut agent.heap;
+        let props = &mut objects[object].property_storage;
+
+        let result = props
+            .keys(elements)
+            .iter()
+            .enumerate()
+            .find(|(_, k)| **k == key)
+            .map(|res| res.0);
+        if let Some(index) = result {
+            props.remove(elements, index);
         }
-    }
-
-    pub fn entries(self, _agent: &Agent) -> Entries {
-        todo!()
     }
 }
 

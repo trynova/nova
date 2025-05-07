@@ -196,10 +196,7 @@ pub(crate) fn ordinary_get_own_property<'a>(
 ) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let x = object
-        .into_object()
-        .property_storage()
-        .get(agent, property_key)?;
+    let x = object.property_storage().get(agent, property_key)?;
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();
@@ -308,7 +305,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -326,7 +323,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -440,7 +437,7 @@ fn validate_and_apply_property_descriptor(
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -477,7 +474,7 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -493,7 +490,7 @@ fn validate_and_apply_property_descriptor(
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -1114,10 +1111,7 @@ pub(crate) fn ordinary_delete(
     // 3. If desc.[[Configurable]] is true, then
     if let Some(true) = descriptor.configurable {
         // a. Remove the own property with name P from O.
-        object
-            .into_object()
-            .property_storage()
-            .remove(agent, property_key);
+        object.property_storage().remove(agent, property_key);
 
         // b. Return true.
         return true;
@@ -1131,20 +1125,19 @@ pub(crate) fn ordinary_delete(
 pub(crate) fn ordinary_own_property_keys<'a>(
     agent: &Agent,
     object: OrdinaryObject<'a>,
-    _: NoGcScope<'a, '_>,
+    gc: NoGcScope<'a, '_>,
 ) -> Vec<PropertyKey<'a>> {
-    let object_keys = agent[object].keys;
+    let props = &agent[object].property_storage;
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
-    let mut keys = Vec::with_capacity(object_keys.len() as usize);
+    let mut keys = Vec::with_capacity(props.len() as usize);
     let mut symbol_keys = vec![];
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
-    for key in agent[object_keys].iter() {
+    for key in props.keys(agent).iter() {
         // SAFETY: Keys are all PropertyKeys reinterpreted as Values without
         // conversion.
-        let key = unsafe { PropertyKey::from_value_unchecked(key.unwrap()) };
         match key {
             PropertyKey::Integer(integer_key) => {
                 let key_value = integer_key.into_i64();
@@ -1152,12 +1145,12 @@ pub(crate) fn ordinary_own_property_keys<'a>(
                     // Integer property key! This requires sorting
                     integer_keys.push(key_value as u32);
                 } else {
-                    keys.push(key);
+                    keys.push(key.bind(gc));
                 }
             }
-            PropertyKey::Symbol(symbol) => symbol_keys.push(symbol),
+            PropertyKey::Symbol(symbol) => symbol_keys.push(symbol.bind(gc)),
             // a. Append P to keys.
-            _ => keys.push(key),
+            _ => keys.push(key.bind(gc)),
         }
     }
 
@@ -1176,7 +1169,7 @@ pub(crate) fn ordinary_own_property_keys<'a>(
         keys.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
     }
 
-    debug_assert_eq!(keys.len() as u32, object_keys.len());
+    debug_assert_eq!(keys.len() as u32, props.len());
 
     // 5. Return keys.
     keys
@@ -1681,19 +1674,17 @@ pub(crate) fn try_get_ordinary_object_value<'a>(
     binding_object: OrdinaryObject<'a>,
     name: PropertyKey<'a>,
 ) -> Result<Option<Value<'a>>, ()> {
-    let ObjectHeapData { keys, values, .. } = agent[binding_object];
-    let keys = &agent[keys];
-    let index = keys
+    let props = &agent[binding_object].property_storage;
+    let index = props
+        .keys(agent)
         .iter()
         .enumerate()
-        .find(|(_, k)|
-            // SAFETY: Keys storage contains only PropertyKeys turned into Values.
-            unsafe { PropertyKey::from_value_unchecked(k.unwrap()) == name })
+        .find(|(_, k)| **k == name)
         .map(|(i, _)| i);
     if let Some(index) = index {
         // If value is None, it means that the slot is a getter or setter
         // and we cannot handle those on the fast path.
-        let Some(value) = agent[values][index] else {
+        let Some(value) = props.values(agent)[index] else {
             // Getter or setter, break the fast path.
             return Err(());
         };
@@ -1729,16 +1720,15 @@ pub(crate) fn try_set_ordinary_object_value(
     name: PropertyKey,
     value: Value,
 ) -> Option<bool> {
-    let ObjectHeapData { keys, values, .. } = agent[binding_object];
-    let found = agent[keys]
+    let props = agent[binding_object].property_storage;
+    let found = props
+        .keys(agent)
         .iter()
         .enumerate()
-        .find(|(_, k)|
-            // SAFETY: Keys storage contains only PropertyKeys turned into Values.
-            unsafe { PropertyKey::from_value_unchecked(k.unwrap()) == name })
+        .find(|(_, k)| **k == name)
         .map(|(i, _)| i);
     if let Some(index) = found {
-        let (descriptors, slice) = agent.heap.elements.get_descriptors_and_slice_mut(values);
+        let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(&props);
         let slot = &mut slice[index];
         if let Some(slot) = slot {
             if descriptors.is_some_and(|descriptors| {

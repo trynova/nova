@@ -35,12 +35,12 @@ use crate::{
     },
     heap::{
         CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        element_array::{ElementArrays, ElementDescriptor},
+        element_array::{ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ArrayIndex,
     },
 };
 
-pub use data::{ArrayHeapData, SealableElementsVector};
+pub use data::ArrayHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array<'a>(ArrayIndex<'a>);
@@ -107,8 +107,10 @@ impl<'a> Array<'a> {
     // This method creates a "shallow clone" of the elements of a simple array (no descriptors).
     // If array is not simple, this cloned array will do some odd things (e.g. getter/setter indexes become holes)
     pub(crate) fn to_cloned(self, agent: &mut Agent) -> Self {
-        let elements = agent[self].elements;
-        let cloned_elements = agent.heap.elements.shallow_clone(elements.into());
+        let Heap {
+            arrays, elements, ..
+        } = &mut agent.heap;
+        let cloned_elements = elements.shallow_clone(&arrays[self].elements);
         let data = ArrayHeapData {
             object_index: None,
             elements: cloned_elements,
@@ -162,14 +164,13 @@ impl<'a> Array<'a> {
 
     #[inline]
     pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value<'a>>] {
-        let elements = arena[self].elements;
-        &arena.as_ref()[elements]
+        &arena.as_ref()[&arena[self].elements]
     }
 
     #[inline]
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
         let elements = agent[self].elements;
-        &mut agent[elements]
+        &mut agent[&elements]
     }
 }
 
@@ -293,19 +294,18 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             }
             // ARRAY_INDEX_RANGE guarantees were in u32 area.
             let index = index as u32;
-            let elements = agent[self].elements;
+            let elements = &agent[self].elements;
             let length = elements.len();
             if index >= length {
                 // Out of bounds
                 return TryResult::Continue(None);
             }
-            let elements = elements.into();
             let index = index as usize;
             // We checked that we're within the vector bounds.
             let value = agent
                 .heap
                 .elements
-                .get(elements)
+                .get_values(elements)
                 .get(index)
                 .unwrap()
                 .bind(gc);
@@ -533,14 +533,11 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 };
             }
             // Index has been checked to be between 0 <= idx < len; indexing should never fail.
-            let element = agent[elements][index as usize];
+            let element = agent[&elements][index as usize];
             if let Some(element) = element {
                 TryResult::Continue(element)
             } else {
-                let (descriptors, _) = agent
-                    .heap
-                    .elements
-                    .get_descriptors_and_slice(elements.into());
+                let (descriptors, _) = agent.heap.elements.get_descriptors_and_values(&elements);
                 if let Some(descriptors) = descriptors {
                     if let Some(descriptor) = descriptors.get(&index) {
                         if let Some(_getter) = descriptor.getter_function(gc) {
@@ -590,14 +587,11 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 };
             }
             // Index has been checked to be between 0 <= idx < len; indexing should never fail.
-            let element = agent[elements][index as usize];
+            let element = agent[&elements][index as usize];
             if let Some(element) = element {
                 Ok(element)
             } else {
-                let (descriptors, _) = agent
-                    .heap
-                    .elements
-                    .get_descriptors_and_slice(elements.into());
+                let (descriptors, _) = agent.heap.elements.get_descriptors_and_values(&elements);
                 if let Some(descriptors) = descriptors {
                     if let Some(descriptor) = descriptors.get(&index) {
                         if let Some(getter) = descriptor.getter_function(gc.nogc()) {
@@ -644,7 +638,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let (descriptors, slice) = agent
                 .heap
                 .elements
-                .get_descriptors_and_slice_mut(elements.into());
+                .get_descriptors_and_values_mut(&elements);
             if let Some(descriptors) = descriptors {
                 if let Some(descriptor) = descriptors.get(&index) {
                     if !descriptor.is_configurable() {
@@ -678,7 +672,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         } else {
             Default::default()
         };
-        let elements = agent[self].elements;
+        let elements = &agent[self].elements;
         let mut keys = Vec::with_capacity(elements.len() as usize + backing_keys.len());
 
         let elements_data = &agent[elements];
@@ -772,17 +766,14 @@ impl HeapMarkAndSweep for Array<'static> {
 
 fn ordinary_define_own_property_for_array(
     agent: &mut Agent,
-    elements: SealableElementsVector,
+    elements: ElementsVector,
     index: u32,
     descriptor: PropertyDescriptor,
     gc: NoGcScope,
 ) -> bool {
     let descriptor_value = descriptor.value;
 
-    let (descriptors, slice) = agent
-        .heap
-        .elements
-        .get_descriptors_and_slice(elements.into());
+    let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values(&elements);
     let current_value = slice[index as usize];
     let current_descriptor = {
         let descriptor = descriptors.and_then(|descriptors| descriptors.get(&index).copied());
@@ -809,7 +800,7 @@ fn ordinary_define_own_property_for_array(
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
             let elem_descriptor = ElementDescriptor::from_accessor_descriptor(descriptor);
-            insert_element_descriptor(agent, elements, index, None, elem_descriptor);
+            insert_element_descriptor(agent, &elements, index, None, elem_descriptor);
         }
         // d. Else,
         else {
@@ -819,7 +810,7 @@ fn ordinary_define_own_property_for_array(
             //    value otherwise.
             insert_data_descriptor(
                 agent,
-                elements,
+                &elements,
                 index,
                 Some(descriptor_value.unwrap_or(Value::Undefined)),
                 ElementDescriptor::from_data_descriptor(descriptor),
@@ -925,7 +916,7 @@ fn ordinary_define_own_property_for_array(
             enumerable,
             configurable,
         );
-        insert_element_descriptor(agent, elements, index, None, elem_descriptor);
+        insert_element_descriptor(agent, &elements, index, None, elem_descriptor);
     }
     // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
     else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {
@@ -944,7 +935,7 @@ fn ordinary_define_own_property_for_array(
         //      to the attribute's default value otherwise.
         mutate_element_descriptor(
             agent,
-            elements,
+            &elements,
             index,
             Some(descriptor.value.unwrap_or(Value::Undefined)),
             ElementDescriptor::new_with_wec(
@@ -966,7 +957,7 @@ fn ordinary_define_own_property_for_array(
         descriptor.enumerable = Some(descriptor.enumerable.unwrap_or(current_enumerable));
         descriptor.configurable = Some(descriptor.configurable.unwrap_or(current_configurable));
         let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
-        mutate_data_descriptor(agent, elements, index, result_value, elem_descriptor);
+        mutate_data_descriptor(agent, &elements, index, result_value, elem_descriptor);
     }
 
     true
@@ -974,7 +965,7 @@ fn ordinary_define_own_property_for_array(
 
 fn mutate_data_descriptor(
     agent: &mut Agent,
-    elements: SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     elem_descriptor: Option<ElementDescriptor>,
@@ -982,10 +973,7 @@ fn mutate_data_descriptor(
     if let Some(descriptor) = elem_descriptor {
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
     } else {
-        let (descriptors, slice) = agent
-            .heap
-            .elements
-            .get_descriptors_and_slice_mut(elements.into());
+        let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(elements);
         slice[index as usize] = descriptor_value.unbind();
         if let Some(descriptors) = descriptors {
             descriptors.remove(&index);
@@ -995,17 +983,15 @@ fn mutate_data_descriptor(
 
 fn mutate_element_descriptor(
     agent: &mut Agent,
-    elements: SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     elem_descriptor: Option<ElementDescriptor>,
 ) {
     if let Some(descriptor) = elem_descriptor {
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
-    } else if let (Some(descriptors), _) = agent
-        .heap
-        .elements
-        .get_descriptors_and_slice_mut(elements.into())
+    } else if let (Some(descriptors), _) =
+        agent.heap.elements.get_descriptors_and_values_mut(elements)
     {
         descriptors.remove(&index);
     }
@@ -1013,7 +999,7 @@ fn mutate_element_descriptor(
 
 fn insert_data_descriptor(
     agent: &mut Agent,
-    elements: SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     elem_descriptor: Option<ElementDescriptor>,
@@ -1029,15 +1015,12 @@ fn insert_data_descriptor(
 
 fn insert_element_descriptor(
     agent: &mut Agent,
-    elements: SealableElementsVector,
+    elements: &ElementsVector,
     index: u32,
     descriptor_value: Option<Value>,
     descriptor: ElementDescriptor,
 ) {
-    let (descriptors, slice) = agent
-        .heap
-        .elements
-        .get_descriptors_and_slice_mut(elements.into());
+    let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(elements);
     slice[index as usize] = descriptor_value.unbind();
     if let Some(descriptors) = descriptors {
         let inserted = descriptors.insert(index, descriptor.unbind()).is_none();
@@ -1049,7 +1032,7 @@ fn insert_element_descriptor(
         agent
             .heap
             .elements
-            .set_descriptor(elements.into(), index as usize, Some(descriptor))
+            .set_descriptor(elements, index as usize, Some(descriptor))
     }
 }
 

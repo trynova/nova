@@ -28,8 +28,22 @@ impl SmallInteger {
     pub const MAX_NUMBER: i64 = 2i64.pow(53) - 1;
 
     #[inline]
-    pub fn into_i64(self) -> i64 {
-        self.into()
+    pub const fn into_i64(self) -> i64 {
+        let SmallInteger { data } = self;
+
+        #[repr(u8)]
+        enum Repr {
+            Data([u8; 7]),
+        }
+
+        // SAFETY: This matches the format on the endian platform.
+        let number: i64 = unsafe { core::mem::transmute(Repr::Data(data)) };
+
+        if cfg!(target_endian = "little") {
+            number >> 8
+        } else {
+            number << 8 >> 8
+        }
     }
 
     pub const fn zero() -> SmallInteger {
@@ -165,21 +179,7 @@ from_numeric_type!(i32);
 
 impl From<SmallInteger> for i64 {
     fn from(value: SmallInteger) -> Self {
-        let SmallInteger { data } = value;
-
-        #[repr(u8)]
-        enum Repr {
-            Data([u8; 7]),
-        }
-
-        // SAFETY: This matches the format on the endian platform.
-        let number: i64 = unsafe { core::mem::transmute(Repr::Data(data)) };
-
-        if cfg!(target_endian = "little") {
-            number >> 8
-        } else {
-            number << 8 >> 8
-        }
+        value.into_i64()
     }
 }
 

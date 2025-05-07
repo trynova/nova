@@ -32,8 +32,8 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
-            Number, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            PropertyKeySet, String, Value,
+            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, PropertyKeySet,
+            String, Value,
         },
     },
     engine::{
@@ -1028,7 +1028,7 @@ pub(crate) fn create_array_from_list<'a>(
     // 1. Let array be ! ArrayCreate(0).
     let array = array_create(agent, len, len, None, gc).unwrap();
     let array_elements = agent[array].elements;
-    agent[array_elements]
+    agent[&array_elements]
         .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(elements) });
     // 2. Let n be 0.
     // 3. For each element e of elements, do
@@ -1834,23 +1834,20 @@ fn ordinary_enumerable_own_keys<'gc>(
     o: OrdinaryObject,
     gc: NoGcScope<'gc, '_>,
 ) -> Vec<PropertyKey<'gc>> {
-    let ObjectHeapData { keys, values, .. } = agent[o];
+    let props = &agent[o].property_storage;
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
-    let mut result_keys = Vec::with_capacity(keys.len() as usize);
+    let mut result_keys = Vec::with_capacity(props.len() as usize);
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
-    for (index, key) in agent[keys].iter().enumerate() {
-        // SAFETY: Keys are all PropertyKeys reinterpreted as Values without
-        // conversion.
-        let key = unsafe { PropertyKey::from_value_unchecked(key.unwrap()) };
+    for (index, key) in agent.heap.elements.get_keys(props).iter().enumerate() {
         match key {
             PropertyKey::Integer(integer_key) => {
                 let enumerable = agent
                     .heap
                     .elements
-                    .get_descriptor(values, index)
+                    .get_descriptor(props, index)
                     .is_none_or(|desc| desc.is_enumerable());
                 if !enumerable {
                     continue;
@@ -1872,7 +1869,7 @@ fn ordinary_enumerable_own_keys<'gc>(
                 let enumerable = agent
                     .heap
                     .elements
-                    .get_descriptor(values, index)
+                    .get_descriptor(props, index)
                     .is_none_or(|desc| desc.is_enumerable());
                 if !enumerable {
                     continue;
@@ -2048,16 +2045,15 @@ pub(crate) fn copy_data_properties<'a>(
     };
     // Reserve space in the target's vectors.
     {
-        let new_size = agent[target]
-            .keys
-            .len()
-            .checked_add(u32::try_from(keys.len()).unwrap())
-            .unwrap();
         let Heap {
             elements, objects, ..
         } = &mut agent.heap;
-        objects[target].keys.reserve(elements, new_size);
-        objects[target].values.reserve(elements, new_size);
+        let props = &mut objects[target].property_storage;
+        let new_size = props
+            .len()
+            .checked_add(u32::try_from(keys.len()).unwrap())
+            .unwrap();
+        props.reserve(elements, new_size);
     }
 
     // 4. For each element nextKey of keys, do

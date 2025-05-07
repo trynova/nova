@@ -357,12 +357,13 @@ impl PromiseConstructor {
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Expected the this value to be a constructor.",
-                gc.into_nogc(),
+                gc,
             ));
         }
         // We currently don't support Promise subclassing.
@@ -377,7 +378,7 @@ impl PromiseConstructor {
 
         // 1. Let C be the this value.
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
-        let promise_capability = PromiseCapability::new(agent, gc.nogc());
+        let promise_capability = PromiseCapability::new(agent, gc);
         let resolve_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {

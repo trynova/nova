@@ -624,7 +624,7 @@ impl ObjectConstructor {
                 && entries_array.is_simple(agent)
                 && entries_array.is_dense(agent)
             {
-                let entries_elements = &agent[agent[entries_array].elements];
+                let entries_elements = &agent[&agent[entries_array].elements];
                 // Note: Separate vector for keys to detect duplicates.
                 // This is optimal until ~20 keys, after which a HashMap would
                 // be better.
@@ -659,7 +659,7 @@ impl ObjectConstructor {
                             valid = false;
                             break;
                         };
-                    let key_value_elements = &agent[agent[entry_element_array].elements];
+                    let key_value_elements = &agent[&agent[entry_element_array].elements];
                     let key = key_value_elements.first().unwrap().unwrap();
                     let key = to_property_key_simple(agent, key, gc.nogc());
                     let TryResult::Continue(key) = key else {
@@ -688,7 +688,7 @@ impl ObjectConstructor {
                             .into_object(),
                         &object_entries,
                     );
-                    return Ok(object.into_value());
+                    return Ok(object.into_value().unbind());
                 }
             }
         }
@@ -703,7 +703,7 @@ impl ObjectConstructor {
         );
         // 3. Assert: obj is an extensible ordinary object with no own properties.
         let obj = OrdinaryObject::try_from(obj).unwrap();
-        debug_assert!(agent[obj].keys.is_empty());
+        debug_assert!(agent[obj].is_empty());
         // 4. Let closure be a new Abstract Closure with parameters (key,
         //    value) that captures obj and performs the following steps when
         //    called:

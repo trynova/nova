@@ -595,10 +595,10 @@ impl
             }
         }
 
-        let (keys, values) = agent
+        let property_storage = agent
             .heap
             .elements
-            .create_with_key_value_descriptor_entries(properties);
+            .allocate_object_property_storage_from_entries_vec(properties);
 
         let prototype = Some(
             agent
@@ -614,10 +614,8 @@ impl
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
-            extensible: true,
             prototype,
-            keys,
-            values,
+            property_storage,
         });
 
         let data = BuiltinFunctionHeapData {
@@ -675,10 +673,10 @@ impl
             }
         }
 
-        let (keys, values) = agent
+        let property_storage = agent
             .heap
             .elements
-            .create_with_key_value_descriptor_entries(properties);
+            .allocate_object_property_storage_from_entries_vec(properties);
 
         let slot = agent
             .heap
@@ -687,10 +685,8 @@ impl
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
-            extensible: true,
             prototype: prototype.0,
-            keys,
-            values,
+            property_storage,
         });
 
         let data = BuiltinFunctionHeapData {

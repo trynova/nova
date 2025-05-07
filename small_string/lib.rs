@@ -21,11 +21,22 @@ impl SmallString {
         bytes: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
     };
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         // Find the first 0xFF byte. Small strings must be valid UTF-8, and
         // UTF-8 can never contain 0xFF, so that must mark the end of the
         // string.
-        self.bytes.iter().position(|&x| x == 0xFF).unwrap_or(7)
+        let mut position: u8 = 0;
+        loop {
+            let is_end_byte = self.bytes[position as usize] == 0xFF;
+            if is_end_byte {
+                break;
+            }
+            position += 1;
+            if position == 7 {
+                break;
+            }
+        }
+        position as usize
     }
 
     pub fn utf16_len(&self) -> usize {
@@ -76,23 +87,23 @@ impl SmallString {
     }
 
     #[inline]
-    pub fn as_str(&self) -> &str {
+    pub const fn as_str(&self) -> &str {
         // SAFETY: Guaranteed to be UTF-8.
         unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub const fn as_bytes(&self) -> &[u8] {
         self.bytes.as_slice().split_at(self.len()).0
     }
 
     #[inline]
-    pub fn data(&self) -> &[u8; 7] {
+    pub const fn data(&self) -> &[u8; 7] {
         &self.bytes
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         matches!(self.bytes, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
     }
 
