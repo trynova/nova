@@ -49,6 +49,7 @@ use crate::{
         unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    with_typed_array_viewable,
 };
 
 use super::abstract_operations::{
@@ -640,29 +641,12 @@ impl TypedArrayPrototype {
             .unbind()?
             .bind(gc.nogc());
         let mut o = ta_record.object;
+
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
+
         // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
         let relative_index = if let Value::Integer(index) = index {
             index.into_i64()
@@ -737,26 +721,8 @@ impl TypedArrayPrototype {
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
 
         // 5. Let size be TypedArrayByteLength(taRecord).
-        let size = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_byte_length::<u8>(agent, &ta_record, gc)
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_byte_length::<u16>(agent, &ta_record, gc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_byte_length::<f16>(agent, &ta_record, gc),
-            TypedArray::Float32Array(_)
-            | TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_) => typed_array_byte_length::<u32>(agent, &ta_record, gc),
-            TypedArray::Float64Array(_)
-            | TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_) => {
-                typed_array_byte_length::<u64>(agent, &ta_record, gc)
-            }
-        };
+        let size =
+            with_typed_array_viewable!(o, typed_array_byte_length::<T>(agent, &ta_record, gc));
 
         // 6. Return 𝔽(size).
         Ok(Value::try_from(size as i64).unwrap())
@@ -782,37 +748,7 @@ impl TypedArrayPrototype {
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
 
         // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
-        if match o {
-            TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
-            TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
-            TypedArray::Uint8ClampedArray(_) => {
-                is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
-            }
-            TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
-            TypedArray::Uint16Array(_) => {
-                is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc)
-            }
-            TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
-            TypedArray::Uint32Array(_) => {
-                is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc)
-            }
-            TypedArray::BigInt64Array(_) => {
-                is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc)
-            }
-            TypedArray::BigUint64Array(_) => {
-                is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
-                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
-            }
-            TypedArray::Float32Array(_) => {
-                is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
-            }
-            TypedArray::Float64Array(_) => {
-                is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
-            }
-        } {
+        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc)) {
             return Ok(Value::pos_zero());
         }
 
@@ -848,28 +784,10 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         let scoped_o = o.scope(agent, gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match scoped_o.get(agent) {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        }
+        let len = with_typed_array_viewable!(
+            scoped_o.get(agent),
+            typed_array_length::<T>(agent, &ta_record, gc.nogc())
+        )
         .to_i64()
         .unwrap();
         let end = end.map(|e| e.scope(agent, gc.nogc()));
@@ -924,141 +842,12 @@ impl TypedArrayPrototype {
         };
         let gc = gc.into_nogc();
         let o = scoped_o.get(agent).bind(gc);
-        match o {
-            TypedArray::Int8Array(_) => {
-                copy_within_typed_array::<i8>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Uint8Array(_) => {
-                copy_within_typed_array::<u8>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Uint8ClampedArray(_) => {
-                copy_within_typed_array::<U8Clamped>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Int16Array(_) => {
-                copy_within_typed_array::<i16>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Uint16Array(_) => {
-                copy_within_typed_array::<u16>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
-                copy_within_typed_array::<f16>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Int32Array(_) => {
-                copy_within_typed_array::<i32>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Uint32Array(_) => {
-                copy_within_typed_array::<u32>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Float32Array(_) => {
-                copy_within_typed_array::<f32>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::BigInt64Array(_) => {
-                copy_within_typed_array::<i64>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::BigUint64Array(_) => {
-                copy_within_typed_array::<u64>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-            TypedArray::Float64Array(_) => {
-                copy_within_typed_array::<f64>(
-                    agent,
-                    o,
-                    target_index,
-                    start_index,
-                    end_index,
-                    len,
-                    gc,
-                )?;
-            }
-        }
+
+        with_typed_array_viewable!(
+            o,
+            copy_within_typed_array::<T>(agent, o, target_index, start_index, end_index, len, gc,)?
+        );
+
         // 18. Return O.
         Ok(o.into_value())
     }
@@ -1100,22 +889,7 @@ impl TypedArrayPrototype {
             .bind(nogc);
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, nogc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
-        };
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, nogc));
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1184,105 +958,17 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
 
-        let o = match ta_record.object {
-            TypedArray::Int8Array(_) => fill_typed_array::<i8>(
+        let o = with_typed_array_viewable!(
+            ta_record.object,
+            fill_typed_array::<T>(
                 agent,
                 ta_record.unbind(),
                 value.unbind(),
                 start.unbind(),
                 end.unbind(),
                 gc,
-            ),
-            TypedArray::Uint8Array(_) => fill_typed_array::<u8>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Uint8ClampedArray(_) => fill_typed_array::<U8Clamped>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Int16Array(_) => fill_typed_array::<i16>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Uint16Array(_) => fill_typed_array::<u16>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Int32Array(_) => fill_typed_array::<i32>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Uint32Array(_) => fill_typed_array::<u32>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::BigInt64Array(_) => fill_typed_array::<i64>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::BigUint64Array(_) => fill_typed_array::<u64>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => fill_typed_array::<f16>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Float32Array(_) => fill_typed_array::<f32>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-            TypedArray::Float64Array(_) => fill_typed_array::<f64>(
-                agent,
-                ta_record.unbind(),
-                value.unbind(),
-                start.unbind(),
-                end.unbind(),
-                gc,
-            ),
-        };
+            )
+        );
 
         o.map(|o| o.into_value())
     }
@@ -1316,93 +1002,17 @@ impl TypedArrayPrototype {
             ));
         };
         // 3. Let len be TypedArrayLength(taRecord).
-        let a = match o {
-            TypedArray::Int8Array(_) => filter_typed_array::<i8>(
+        let a = with_typed_array_viewable!(
+            o,
+            filter_typed_array::<T>(
                 agent,
                 callback.unbind(),
                 this_arg.unbind(),
                 ta_record.unbind(),
                 gc,
-            )?,
-            TypedArray::Uint8Array(_) => filter_typed_array::<u8>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Uint8ClampedArray(_) => filter_typed_array::<U8Clamped>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Int16Array(_) => filter_typed_array::<i16>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Uint16Array(_) => filter_typed_array::<u16>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Int32Array(_) => filter_typed_array::<i32>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Uint32Array(_) => filter_typed_array::<u32>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::BigInt64Array(_) => filter_typed_array::<i64>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::BigUint64Array(_) => filter_typed_array::<u64>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => filter_typed_array::<f16>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Float32Array(_) => filter_typed_array::<f32>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-            TypedArray::Float64Array(_) => filter_typed_array::<f64>(
-                agent,
-                callback.unbind(),
-                this_arg.unbind(),
-                ta_record.unbind(),
-                gc,
-            )?,
-        };
+            )?
+        );
+
         Ok(a.into_value())
     }
 
@@ -1425,28 +1035,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
@@ -1474,28 +1065,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         let o = o.into_object().scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
@@ -1519,28 +1091,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
@@ -1567,28 +1120,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         let o = o.into_object().scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
@@ -1617,22 +1151,9 @@ impl TypedArrayPrototype {
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
         let scoped_o = o.scope(agent, nogc);
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, nogc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
-        };
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1695,22 +1216,9 @@ impl TypedArrayPrototype {
             .bind(nogc);
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, nogc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         // 4. If len = 0, return false.
         if len == 0 {
             return Ok(false.into());
@@ -1800,28 +1308,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         // 4. If len = 0, return -1𝔽.
         if len == 0 {
             return Ok((-1).into());
@@ -1869,105 +1358,18 @@ impl TypedArrayPrototype {
         let len = len as usize;
 
         // 11. Repeat, while k < len,
-        let result = match o {
-            TypedArray::Int8Array(_) => search_typed_element::<i8, true>(
+        let result = with_typed_array_viewable!(
+            o,
+            search_typed_element::<T, true>(
                 agent,
                 o.unbind(),
                 search_element.unbind(),
                 k,
                 len,
                 gc.into_nogc(),
-            ),
-            TypedArray::Uint8Array(_) => search_typed_element::<u8, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Uint8ClampedArray(_) => search_typed_element::<U8Clamped, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Int16Array(_) => search_typed_element::<i16, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Uint16Array(_) => search_typed_element::<u16, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Int32Array(_) => search_typed_element::<i32, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Uint32Array(_) => search_typed_element::<u32, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::BigInt64Array(_) => search_typed_element::<i64, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::BigUint64Array(_) => search_typed_element::<u64, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => search_typed_element::<f16, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Float32Array(_) => search_typed_element::<f32, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-            TypedArray::Float64Array(_) => search_typed_element::<f64, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            ),
-        };
+            )
+        );
+
         Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
@@ -1995,57 +1397,14 @@ impl TypedArrayPrototype {
             .bind(nogc);
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let (len, element_size) = match o {
-            TypedArray::Int8Array(_) => (
-                typed_array_length::<i8>(agent, &ta_record, nogc),
-                core::mem::size_of::<i8>(),
-            ),
-            TypedArray::Uint8Array(_) => (
-                typed_array_length::<u8>(agent, &ta_record, nogc),
-                core::mem::size_of::<u8>(),
-            ),
-            TypedArray::Uint8ClampedArray(_) => (
-                typed_array_length::<U8Clamped>(agent, &ta_record, nogc),
-                core::mem::size_of::<U8Clamped>(),
-            ),
-            TypedArray::Int16Array(_) => (
-                typed_array_length::<i16>(agent, &ta_record, nogc),
-                core::mem::size_of::<i16>(),
-            ),
-            TypedArray::Uint16Array(_) => (
-                typed_array_length::<u16>(agent, &ta_record, nogc),
-                core::mem::size_of::<u16>(),
-            ),
-            TypedArray::Int32Array(_) => (
-                typed_array_length::<i32>(agent, &ta_record, nogc),
-                core::mem::size_of::<i32>(),
-            ),
-            TypedArray::Uint32Array(_) => (
-                typed_array_length::<u32>(agent, &ta_record, nogc),
-                core::mem::size_of::<u32>(),
-            ),
-            TypedArray::BigInt64Array(_) => (
-                typed_array_length::<i64>(agent, &ta_record, nogc),
-                core::mem::size_of::<i64>(),
-            ),
-            TypedArray::BigUint64Array(_) => (
-                typed_array_length::<u64>(agent, &ta_record, nogc),
-                core::mem::size_of::<u64>(),
-            ),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => (
-                typed_array_length::<f16>(agent, &ta_record, nogc),
-                core::mem::size_of::<f16>(),
-            ),
-            TypedArray::Float32Array(_) => (
-                typed_array_length::<f32>(agent, &ta_record, nogc),
-                core::mem::size_of::<f32>(),
-            ),
-            TypedArray::Float64Array(_) => (
-                typed_array_length::<f64>(agent, &ta_record, nogc),
-                core::mem::size_of::<f64>(),
-            ),
-        };
+        let (len, element_size) = with_typed_array_viewable!(
+            o,
+            (
+                typed_array_length::<T>(agent, &ta_record, nogc),
+                core::mem::size_of::<T>(),
+            )
+        );
+
         // 4. If separator is undefined, let sep be ",".
         let (sep_string, recheck_buffer) = if separator.is_undefined() {
             (String::from_small_string(","), false)
@@ -2093,117 +1452,16 @@ impl TypedArrayPrototype {
             let is_detached = is_detached_buffer(agent, viewed_array_buffer);
             let ta_record =
                 make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered, gc);
-            match o {
-                TypedArray::Int8Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<i8>(agent, &ta_record, gc))
-                    }
+
+            with_typed_array_viewable!(o, {
+                let is_invalid =
+                    is_detached || is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc);
+                if is_invalid {
+                    None
+                } else {
+                    Some(typed_array_length::<T>(agent, &ta_record, gc))
                 }
-                TypedArray::Uint8Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<u8>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Uint8ClampedArray(_) => {
-                    let is_invalid = is_detached
-                        || is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<U8Clamped>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Int16Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<i16>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Uint16Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<u16>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Int32Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<i32>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Uint32Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<u32>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::BigInt64Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<i64>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::BigUint64Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<u64>(agent, &ta_record, gc))
-                    }
-                }
-                #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<f16>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Float32Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<f32>(agent, &ta_record, gc))
-                    }
-                }
-                TypedArray::Float64Array(_) => {
-                    let is_invalid =
-                        is_detached || is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc);
-                    if is_invalid {
-                        None
-                    } else {
-                        Some(typed_array_length::<f64>(agent, &ta_record, gc))
-                    }
-                }
-            }
+            })
         } else {
             // Note: Growable SharedArrayBuffers are a thing, and can change the
             // length at any point in time but they can never shrink the buffer.
@@ -2228,8 +1486,9 @@ impl TypedArrayPrototype {
             }
             let byte_index_in_buffer = k * element_size + offset;
             // b. Let element be ! Get(O, ! ToString(𝔽(k))).
-            let element = match o {
-                TypedArray::Int8Array(_) => get_value_from_buffer::<i8>(
+            let element = with_typed_array_viewable!(
+                o,
+                get_value_from_buffer::<T>(
                     agent,
                     viewed_array_buffer,
                     byte_index_in_buffer,
@@ -2237,108 +1496,8 @@ impl TypedArrayPrototype {
                     Ordering::Unordered,
                     None,
                     gc,
-                ),
-                TypedArray::Uint8Array(_) => get_value_from_buffer::<u8>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Uint8ClampedArray(_) => get_value_from_buffer::<U8Clamped>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Int16Array(_) => get_value_from_buffer::<i16>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Uint16Array(_) => get_value_from_buffer::<u16>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Int32Array(_) => get_value_from_buffer::<i32>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Uint32Array(_) => get_value_from_buffer::<u32>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::BigInt64Array(_) => get_value_from_buffer::<i64>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::BigUint64Array(_) => get_value_from_buffer::<u64>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => get_value_from_buffer::<f16>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Float32Array(_) => get_value_from_buffer::<f32>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-                TypedArray::Float64Array(_) => get_value_from_buffer::<f64>(
-                    agent,
-                    viewed_array_buffer,
-                    byte_index_in_buffer,
-                    true,
-                    Ordering::Unordered,
-                    None,
-                    gc,
-                ),
-            };
+                )
+            );
             // i. Let S be ! ToString(element).
             let s = unwrap_try(try_to_string(agent, element, gc)).unwrap();
             // ii. Set R to the string-concatenation of R and S.
@@ -2390,28 +1549,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
         let o = ta_record.object;
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         // 4. If len = 0, return -1𝔽.
         if len == 0 {
             return Ok((-1).into());
@@ -2445,105 +1585,18 @@ impl TypedArrayPrototype {
 
         // 9. Repeat, while k ≥ 0,
         let o = o.get(agent);
-        let result = match o {
-            TypedArray::Int8Array(_) => search_typed_element::<i8, false>(
+        let result = with_typed_array_viewable!(
+            o,
+            search_typed_element::<T, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
                 gc.nogc(),
-            ),
-            TypedArray::Uint8Array(_) => search_typed_element::<u8, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Uint8ClampedArray(_) => search_typed_element::<U8Clamped, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Int16Array(_) => search_typed_element::<i16, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Uint16Array(_) => search_typed_element::<u16, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Int32Array(_) => search_typed_element::<i32, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Uint32Array(_) => search_typed_element::<u32, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::BigInt64Array(_) => search_typed_element::<i64, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::BigUint64Array(_) => search_typed_element::<u64, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => search_typed_element::<f16, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Float32Array(_) => search_typed_element::<f32, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-            TypedArray::Float64Array(_) => search_typed_element::<f64, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            ),
-        };
+            )
+        );
+
         Ok(result
             .unbind()?
             .map_or(-1, |v| v as i64)
@@ -2566,57 +1619,12 @@ impl TypedArrayPrototype {
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
         // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
-        if match o {
-            TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
-            TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
-            TypedArray::Uint8ClampedArray(_) => {
-                is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
-            }
-            TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
-            TypedArray::Uint16Array(_) => {
-                is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc)
-            }
-            TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
-            TypedArray::Uint32Array(_) => {
-                is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc)
-            }
-            TypedArray::BigInt64Array(_) => {
-                is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc)
-            }
-            TypedArray::BigUint64Array(_) => {
-                is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
-                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
-            }
-            TypedArray::Float32Array(_) => {
-                is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
-            }
-            TypedArray::Float64Array(_) => {
-                is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
-            }
-        } {
+        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc)) {
             return Ok(Value::pos_zero());
         }
         // 6. Let length be TypedArrayLength(taRecord).
-        let length = match o {
-            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc),
-            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc),
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<U8Clamped>(agent, &ta_record, gc)
-            }
-            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc),
-            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc),
-            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc),
-            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
-            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc),
-            TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
-            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc),
-            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc),
-        } as i64;
+        let length =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc)) as i64;
         // 7. Return 𝔽(length).
         Ok(Value::try_from(length).unwrap())
     }
@@ -2653,25 +1661,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
-            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
-            TypedArray::BigUint64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
-            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -2762,25 +1754,9 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
-            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
-            TypedArray::BigUint64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
-            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -2864,22 +1840,8 @@ impl TypedArrayPrototype {
             .bind(gc);
         // 3. Let len be TypedArrayLength(taRecord).
         let o = ta_record.object;
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, gc),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc)
-            }
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc)) as i64;
         // 4. Let middle be floor(len / 2).
         // 5. Let lower be 0.
         let len = len as usize;
@@ -2892,23 +1854,7 @@ impl TypedArrayPrototype {
         //    f. Perform ! Set(O, lowerP, upperValue, true).
         //    g. Perform ! Set(O, upperP, lowerValue, true).
         //    h. Set lower to lower + 1.
-        match o {
-            TypedArray::Int8Array(_) => reverse_typed_array::<i8>(agent, o, len, gc)?,
-            TypedArray::Uint8Array(_) => reverse_typed_array::<u8>(agent, o, len, gc)?,
-            TypedArray::Uint8ClampedArray(_) => {
-                reverse_typed_array::<U8Clamped>(agent, o, len, gc)?
-            }
-            TypedArray::Int16Array(_) => reverse_typed_array::<i16>(agent, o, len, gc)?,
-            TypedArray::Uint16Array(_) => reverse_typed_array::<u16>(agent, o, len, gc)?,
-            TypedArray::Int32Array(_) => reverse_typed_array::<i32>(agent, o, len, gc)?,
-            TypedArray::Uint32Array(_) => reverse_typed_array::<u32>(agent, o, len, gc)?,
-            TypedArray::BigInt64Array(_) => reverse_typed_array::<i64>(agent, o, len, gc)?,
-            TypedArray::BigUint64Array(_) => reverse_typed_array::<u64>(agent, o, len, gc)?,
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => reverse_typed_array::<f16>(agent, o, len, gc)?,
-            TypedArray::Float32Array(_) => reverse_typed_array::<f32>(agent, o, len, gc)?,
-            TypedArray::Float64Array(_) => reverse_typed_array::<f64>(agent, o, len, gc)?,
-        };
+        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, o, len, gc)?);
         // 7. Return O.
         Ok(o.into_value())
     }
@@ -2950,22 +1896,7 @@ impl TypedArrayPrototype {
             .bind(nogc);
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, nogc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
-        };
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, nogc));
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -3053,93 +1984,18 @@ impl TypedArrayPrototype {
         if let Some(comparator) = comparator {
             let obj = ta_record.object;
             let scoped_obj = ta_record.object.scope(agent, nogc);
-            match obj {
-                TypedArray::Int8Array(_) => sort_comparator_typed_array::<i8>(
+
+            with_typed_array_viewable!(
+                obj,
+                sort_comparator_typed_array::<T>(
                     agent,
                     ta_record.unbind(),
                     scoped_obj.clone(),
                     comparator,
                     gc,
-                )?,
-                TypedArray::Uint8Array(_) => sort_comparator_typed_array::<u8>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Uint8ClampedArray(_) => sort_comparator_typed_array::<U8Clamped>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Int16Array(_) => sort_comparator_typed_array::<i16>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Uint16Array(_) => sort_comparator_typed_array::<u16>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Int32Array(_) => sort_comparator_typed_array::<i32>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Uint32Array(_) => sort_comparator_typed_array::<u32>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::BigInt64Array(_) => sort_comparator_typed_array::<i64>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::BigUint64Array(_) => sort_comparator_typed_array::<u64>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => sort_comparator_typed_array::<f16>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Float32Array(_) => sort_comparator_typed_array::<f32>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-                TypedArray::Float64Array(_) => sort_comparator_typed_array::<f64>(
-                    agent,
-                    ta_record.unbind(),
-                    scoped_obj.clone(),
-                    comparator,
-                    gc,
-                )?,
-            };
+                )?
+            );
+
             // 10. Return obj.
             Ok(scoped_obj.get(agent).into_value())
         } else {
@@ -3223,28 +2079,10 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let length be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_)
-            | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_)
-            | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
-            TypedArray::BigInt64Array(_)
-            | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
+                as i64;
+
         let scoped_o = o.scope(agent, gc.nogc());
         // 4. Let A be ? TypedArrayCreateSameType(O, « 𝔽(length) »).
         let a = typed_array_create_same_type(agent, scoped_o.get(agent), len, gc.reborrow())
@@ -4070,93 +2908,18 @@ fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
     } else {
         &mut byte_slice[byte_offset..]
     };
-    match a {
-        TypedArray::Int8Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+    with_typed_array_viewable!(
+        a,
+        {
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
                 copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
             } else {
-                copy_between_different_type_typed_arrays::<T, i8>(&kept, byte_slice);
+                copy_between_different_type_typed_arrays::<T, V>(&kept, byte_slice);
             }
-        }
-        TypedArray::Uint8Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, u8>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Uint8ClampedArray(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, U8Clamped>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Int16Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, i16>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Uint16Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, u16>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Int32Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, i32>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Uint32Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, u32>(&kept, byte_slice);
-            }
-        }
-        TypedArray::BigInt64Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, i64>(&kept, byte_slice);
-            }
-        }
-        TypedArray::BigUint64Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, u64>(&kept, byte_slice);
-            }
-        }
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, f16>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Float32Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, f32>(&kept, byte_slice);
-            }
-        }
-        TypedArray::Float64Array(_) => {
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-                copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
-            } else {
-                copy_between_different_type_typed_arrays::<T, f64>(&kept, byte_slice);
-            }
-        }
-    }
+        },
+        V
+    );
+
     // 12. Return A.
     Ok(a.unbind())
 }

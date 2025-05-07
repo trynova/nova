@@ -41,6 +41,68 @@ use crate::{
     heap::CreateHeapData,
 };
 
+/// Matches a TypedArray and defines a type T in the expression which
+/// is the generic type of the viewable.
+#[macro_export]
+macro_rules! with_typed_array_viewable {
+    ($value:expr, $expr:expr) => {
+        with_typed_array_viewable!($value, $expr, T)
+    };
+    ($value:expr, $expr:expr, $as:ident) => {
+        match $value {
+            TypedArray::Int8Array(_) => {
+                type $as = i8;
+                $expr
+            }
+            TypedArray::Uint8Array(_) => {
+                type $as = u8;
+                $expr
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                type $as = $crate::ecmascript::types::U8Clamped;
+                $expr
+            }
+            TypedArray::Int16Array(_) => {
+                type $as = i16;
+                $expr
+            }
+            TypedArray::Uint16Array(_) => {
+                type $as = u16;
+                $expr
+            }
+            TypedArray::Int32Array(_) => {
+                type $as = i32;
+                $expr
+            }
+            TypedArray::Uint32Array(_) => {
+                type $as = u32;
+                $expr
+            }
+            TypedArray::BigInt64Array(_) => {
+                type $as = i64;
+                $expr
+            }
+            TypedArray::BigUint64Array(_) => {
+                type $as = u64;
+                $expr
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                type $as = f16;
+                $expr
+            }
+            TypedArray::Float32Array(_) => {
+                type $as = f32;
+                $expr
+            }
+            TypedArray::Float64Array(_) => {
+                type $as = f64;
+                $expr
+            }
+        }
+    };
+}
+
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CachedBufferByteLength(pub usize);
@@ -334,22 +396,7 @@ pub(crate) fn is_valid_integer_index_generic(
     index: i64,
     gc: NoGcScope,
 ) -> Option<usize> {
-    match o {
-        TypedArray::Int8Array(_) | TypedArray::Uint8Array(_) | TypedArray::Uint8ClampedArray(_) => {
-            is_valid_integer_index::<u8>(agent, o, index, gc)
-        }
-        TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-            is_valid_integer_index::<u16>(agent, o, index, gc)
-        }
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => is_valid_integer_index::<f16>(agent, o, index, gc),
-        TypedArray::Int32Array(_) | TypedArray::Uint32Array(_) | TypedArray::Float32Array(_) => {
-            is_valid_integer_index::<u32>(agent, o, index, gc)
-        }
-        TypedArray::BigInt64Array(_)
-        | TypedArray::BigUint64Array(_)
-        | TypedArray::Float64Array(_) => is_valid_integer_index::<u64>(agent, o, index, gc),
-    }
+    with_typed_array_viewable!(o, is_valid_integer_index::<T>(agent, o, index, gc))
 }
 
 /// ### [10.4.5.16 IsValidIntegerIndex ( O, index )](https://tc39.es/ecma262/#sec-isvalidintegerindex)
@@ -402,23 +449,7 @@ pub(crate) fn typed_array_get_element_generic<'a>(
     index: i64,
     gc: NoGcScope<'a, '_>,
 ) -> Option<Numeric<'a>> {
-    match o {
-        TypedArray::Int8Array(_) => typed_array_get_element::<i8>(agent, o, index, gc),
-        TypedArray::Uint8Array(_) => typed_array_get_element::<u8>(agent, o, index, gc),
-        TypedArray::Uint8ClampedArray(_) => {
-            typed_array_get_element::<U8Clamped>(agent, o, index, gc)
-        }
-        TypedArray::Int16Array(_) => typed_array_get_element::<i16>(agent, o, index, gc),
-        TypedArray::Uint16Array(_) => typed_array_get_element::<u16>(agent, o, index, gc),
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => typed_array_get_element::<f16>(agent, o, index, gc),
-        TypedArray::Int32Array(_) => typed_array_get_element::<i32>(agent, o, index, gc),
-        TypedArray::Uint32Array(_) => typed_array_get_element::<u32>(agent, o, index, gc),
-        TypedArray::BigInt64Array(_) => typed_array_get_element::<i64>(agent, o, index, gc),
-        TypedArray::BigUint64Array(_) => typed_array_get_element::<u64>(agent, o, index, gc),
-        TypedArray::Float32Array(_) => typed_array_get_element::<f32>(agent, o, index, gc),
-        TypedArray::Float64Array(_) => typed_array_get_element::<f64>(agent, o, index, gc),
-    }
+    with_typed_array_viewable!(o, typed_array_get_element::<T>(agent, o, index, gc))
 }
 
 /// ### [10.4.5.17 TypedArrayGetElement ( O, index )](https://tc39.es/ecma262/#sec-typedarraygetelement)
@@ -471,23 +502,7 @@ pub(crate) fn typed_array_set_element_generic<'a>(
     value: Value,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    match o {
-        TypedArray::Int8Array(_) => typed_array_set_element::<i8>(agent, o, index, value, gc),
-        TypedArray::Uint8Array(_) => typed_array_set_element::<u8>(agent, o, index, value, gc),
-        TypedArray::Uint8ClampedArray(_) => {
-            typed_array_set_element::<U8Clamped>(agent, o, index, value, gc)
-        }
-        TypedArray::Int16Array(_) => typed_array_set_element::<i16>(agent, o, index, value, gc),
-        TypedArray::Uint16Array(_) => typed_array_set_element::<u16>(agent, o, index, value, gc),
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => typed_array_set_element::<f16>(agent, o, index, value, gc),
-        TypedArray::Int32Array(_) => typed_array_set_element::<i32>(agent, o, index, value, gc),
-        TypedArray::Uint32Array(_) => typed_array_set_element::<u32>(agent, o, index, value, gc),
-        TypedArray::BigInt64Array(_) => typed_array_set_element::<i64>(agent, o, index, value, gc),
-        TypedArray::BigUint64Array(_) => typed_array_set_element::<u64>(agent, o, index, value, gc),
-        TypedArray::Float32Array(_) => typed_array_set_element::<f32>(agent, o, index, value, gc),
-        TypedArray::Float64Array(_) => typed_array_set_element::<f64>(agent, o, index, value, gc),
-    }
+    with_typed_array_viewable!(o, typed_array_set_element::<T>(agent, o, index, value, gc))
 }
 
 /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
@@ -565,37 +580,10 @@ pub(crate) fn try_typed_array_set_element_generic(
     value: Value,
     gc: NoGcScope,
 ) -> TryResult<()> {
-    match o {
-        TypedArray::Int8Array(_) => try_typed_array_set_element::<i8>(agent, o, index, value, gc),
-        TypedArray::Uint8Array(_) => try_typed_array_set_element::<u8>(agent, o, index, value, gc),
-        TypedArray::Uint8ClampedArray(_) => {
-            try_typed_array_set_element::<U8Clamped>(agent, o, index, value, gc)
-        }
-        TypedArray::Int16Array(_) => try_typed_array_set_element::<i16>(agent, o, index, value, gc),
-        TypedArray::Uint16Array(_) => {
-            try_typed_array_set_element::<u16>(agent, o, index, value, gc)
-        }
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => {
-            try_typed_array_set_element::<f16>(agent, o, index, value, gc)
-        }
-        TypedArray::Int32Array(_) => try_typed_array_set_element::<i32>(agent, o, index, value, gc),
-        TypedArray::Uint32Array(_) => {
-            try_typed_array_set_element::<u32>(agent, o, index, value, gc)
-        }
-        TypedArray::BigInt64Array(_) => {
-            try_typed_array_set_element::<i64>(agent, o, index, value, gc)
-        }
-        TypedArray::BigUint64Array(_) => {
-            try_typed_array_set_element::<u64>(agent, o, index, value, gc)
-        }
-        TypedArray::Float32Array(_) => {
-            try_typed_array_set_element::<f32>(agent, o, index, value, gc)
-        }
-        TypedArray::Float64Array(_) => {
-            try_typed_array_set_element::<f64>(agent, o, index, value, gc)
-        }
-    }
+    with_typed_array_viewable!(
+        o,
+        try_typed_array_set_element::<T>(agent, o, index, value, gc)
+    )
 }
 
 /// ### [10.4.5.18 Infallible TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
@@ -683,23 +671,7 @@ pub(crate) fn validate_typed_array<'a>(
     // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
     let ta_record = make_typed_array_with_buffer_witness_record(agent, o, order, gc);
     // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-    if match o {
-        TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
-        TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
-        TypedArray::Uint8ClampedArray(_) => {
-            is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
-        }
-        TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
-        TypedArray::Uint16Array(_) => is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc),
-        TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
-        TypedArray::Uint32Array(_) => is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc),
-        TypedArray::BigInt64Array(_) => is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc),
-        TypedArray::BigUint64Array(_) => is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc),
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc),
-        TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc),
-        TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc),
-    } {
+    if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc)) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray out of bounds",
@@ -1222,37 +1194,7 @@ fn typed_array_create_from_constructor_internal<'a>(
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
     if let Some(first_arg) = length {
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-        if match o {
-            TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
-            TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
-            TypedArray::Uint8ClampedArray(_) => {
-                is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
-            }
-            TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
-            TypedArray::Uint16Array(_) => {
-                is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc)
-            }
-            TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
-            TypedArray::Uint32Array(_) => {
-                is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc)
-            }
-            TypedArray::BigInt64Array(_) => {
-                is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc)
-            }
-            TypedArray::BigUint64Array(_) => {
-                is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
-                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
-            }
-            TypedArray::Float32Array(_) => {
-                is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
-            }
-            TypedArray::Float64Array(_) => {
-                is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
-            }
-        } {
+        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc)) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "TypedArray out of bounds",
@@ -1260,23 +1202,8 @@ fn typed_array_create_from_constructor_internal<'a>(
             ));
         }
         // b. Let length be TypedArrayLength(taRecord).
-        let len = match o {
-            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc),
-            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc),
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<U8Clamped>(agent, &ta_record, gc)
-            }
-            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc),
-            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc),
-            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc),
-            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
-            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc),
-            TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
-            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc),
-            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc),
-        } as i64;
+        let len =
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc)) as i64;
         // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
         if len < first_arg {
             return Err(agent.throw_exception_with_static_message(
