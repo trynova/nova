@@ -2,8 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::weak_ref::WeakRef;
+use crate::ecmascript::execution::add_to_kept_objects;
+use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -24,13 +27,25 @@ impl Builtin for WeakRefPrototypeDeref {
 }
 
 impl WeakRefPrototype {
+    /// ### [26.1.3.2 WeakRef.prototype.deref ( )]()
     fn deref<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("WeakRef.prototype.deref", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        // 1. Let weakRef be the this value.
+        // 2. Perform ? RequireInternalSlot(weakRef, [[WeakRefTarget]]).
+        let Value::WeakRef(weak_ref) = this_value.bind(gc) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Receiver of WeakRef.deref call is not a WeakRef",
+                gc,
+            ));
+        };
+        // 3. Return WeakRefDeref(weakRef).
+        Ok(weak_ref_deref(agent, weak_ref))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -53,5 +68,29 @@ impl WeakRefPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+/// ### [26.1.4.1 WeakRefDeref ( weakRef )](https://tc39.es/ecma262/#sec-weakrefderef)
+///
+/// The abstract operation WeakRefDeref takes argument weakRef (a WeakRef) and
+/// returns an ECMAScript language value.
+///
+/// > Note: This abstract operation is defined separately from
+/// > WeakRef.prototype.deref strictly to make it possible to succinctly define
+/// > liveness.
+#[inline(always)]
+fn weak_ref_deref<'a>(agent: &mut Agent, weak_ref: WeakRef<'a>) -> Value<'a> {
+    // 1. Let target be weakRef.[[WeakRefTarget]].
+    let target = weak_ref.get_target(agent);
+    // 2. If target is not empty, then
+    if let Some(target) = target {
+        // a. Perform AddToKeptObjects(target).
+        add_to_kept_objects(agent, target);
+        // b. Return target.
+        target
+    } else {
+        // 3. Return undefined.
+        Value::Undefined
     }
 }

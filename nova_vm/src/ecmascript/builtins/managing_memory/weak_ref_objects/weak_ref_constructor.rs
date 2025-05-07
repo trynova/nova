@@ -2,13 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
+        },
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm, add_to_kept_objects, agent::ExceptionType,
+            can_be_held_weakly,
+        },
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -26,14 +35,56 @@ impl BuiltinIntrinsicConstructor for WeakRefConstructor {
 }
 
 impl WeakRefConstructor {
+    /// ### [26.1.1.1 WeakRef ( target )](https://tc39.es/ecma262/#sec-weak-ref-constructor)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("WeakRef", gc.into_nogc()))
+        let target = arguments.get(0).bind(gc.nogc());
+        let new_target = new_target.bind(gc.nogc());
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "calling a builtin WeakRef constructor without new is forbidden",
+                gc.into_nogc(),
+            ));
+        };
+        let new_target = Function::try_from(new_target).unwrap();
+        // 2. If CanBeHeldWeakly(target) is false, throw a TypeError exception.
+        if !can_be_held_weakly(agent, target) {
+            let string_repr = target.unbind().string_repr(agent, gc.reborrow());
+            let message = format!(
+                "{} is not a non-null object or unique symbol",
+                string_repr.as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc.into_nogc()));
+        }
+        let target = target.scope(agent, gc.nogc());
+        // 3. Let weakRef be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakRef.prototype%", « [[WeakRefTarget]] »).
+        let Object::WeakRef(weak_ref) = ordinary_create_from_constructor(
+            agent,
+            new_target.unbind(),
+            ProtoIntrinsics::WeakRef,
+            gc.reborrow(),
+        )
+        .unbind()?
+        else {
+            unreachable!()
+        };
+        let gc = gc.into_nogc();
+        let weak_ref = weak_ref.bind(gc);
+        // SAFETY: target not shared.
+        let target = unsafe { target.take(agent) }.bind(gc);
+        // 4. Perform AddToKeptObjects(target).
+        add_to_kept_objects(agent, target);
+        // 5. Set weakRef.[[WeakRefTarget]] to target.
+        weak_ref.set_target(agent, target);
+        // 6. Return weakRef.
+        Ok(weak_ref.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

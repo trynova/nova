@@ -8,20 +8,22 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct WeakRefHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    pub(crate) value: Value<'a>,
-    pub(crate) is_strong: bool,
+    pub(super) object_index: Option<OrdinaryObject<'a>>,
+    /// ### \[\[WeakRefTarget]]
+    pub(super) weak_ref_target: Option<Value<'a>>,
+    /// ### \[\[KeptAlive]]
+    ///
+    /// Instead of storing a list of kept-alive targets in Agents, we keep only
+    /// a boolean there and clear all kept_alive booleans at the end of a job
+    /// run.
+    pub(super) kept_alive: bool,
 }
 
-impl Default for WeakRefHeapData<'_> {
-    fn default() -> Self {
-        Self {
-            object_index: None,
-            value: Value::Undefined,
-            is_strong: false,
-        }
+impl WeakRefHeapData<'_> {
+    pub(crate) fn clear_kept_objects(&mut self) {
+        self.kept_alive = false;
     }
 }
 
@@ -44,8 +46,8 @@ impl HeapMarkAndSweep for WeakRefHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,
-            value,
-            is_strong,
+            weak_ref_target: value,
+            kept_alive: is_strong,
         } = self;
         object_index.mark_values(queues);
         if *is_strong {
@@ -56,11 +58,10 @@ impl HeapMarkAndSweep for WeakRefHeapData<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
-            value,
-            is_strong,
+            weak_ref_target: value,
+            kept_alive: _,
         } = self;
         object_index.sweep_values(compactions);
         value.sweep_values(compactions);
-        *is_strong = false;
     }
 }

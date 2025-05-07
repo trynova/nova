@@ -7,6 +7,7 @@ mod default_host_hooks;
 mod environments;
 mod execution_context;
 mod realm;
+mod weak_ref_and_finalization_registry;
 
 pub use agent::{Agent, JsResult};
 pub use default_host_hooks::DefaultHostHooks;
@@ -21,3 +22,4 @@ pub(crate) use execution_context::*;
 pub(crate) use realm::{
     ProtoIntrinsics, Realm, RealmRecord, initialize_default_realm, initialize_host_defined_realm,
 };
+pub(crate) use weak_ref_and_finalization_registry::*;

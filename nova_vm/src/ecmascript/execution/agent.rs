@@ -14,10 +14,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
-        builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
-        scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule},
-        types::{Function, IntoValue, Object, Reference, String, Symbol, Value, ValueRootRepr},
+        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, Reference, String, Symbol, Value, ValueRootRepr}
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
@@ -291,6 +288,7 @@ impl GcAgent {
             .expect(error_message);
         assert!(self.agent.execution_context_stack.is_empty());
         let result = self.agent.run_in_realm(realm, func);
+        clear_kept_objects(&mut self.agent);
         assert!(self.agent.execution_context_stack.is_empty());
         assert!(self.agent.vm_stack.is_empty());
         self.agent.stack_refs.borrow_mut().clear();
@@ -329,6 +327,11 @@ pub struct Agent {
     pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollectionData>>,
     /// Temporary storage for on-stack VMs.
     pub(crate) vm_stack: Vec<NonNull<Vm>>,
+    /// ### \[\[KeptAlive]]
+    ///
+    /// > Note: instead of storing objects in a list here, we only store a
+    /// > boolean to clear weak references as needed.
+    pub(super) kept_alive: bool,
 }
 
 impl Agent {
@@ -343,6 +346,7 @@ impl Agent {
             stack_refs: RefCell::new(Vec::with_capacity(64)),
             stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
             vm_stack: Vec::with_capacity(16),
+            kept_alive: false,
         }
     }
 
@@ -848,6 +852,7 @@ impl HeapMarkAndSweep for Agent {
             symbol_id: _,
             global_symbol_registry: _,
             host_hooks: _,
+            kept_alive: _,
         } = self;
 
         execution_context_stack.iter().for_each(|ctx| {
@@ -894,6 +899,7 @@ impl HeapMarkAndSweep for Agent {
             symbol_id: _,
             global_symbol_registry: _,
             host_hooks: _,
+            kept_alive: _,
         } = self;
 
         execution_context_stack
