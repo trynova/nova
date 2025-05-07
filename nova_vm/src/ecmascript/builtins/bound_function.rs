@@ -128,7 +128,7 @@ pub(crate) fn bound_function_create<'a>(
     elements.len = u32::try_from(bound_args.len()).unwrap();
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
-    agent[elements]
+    agent[&elements]
         .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
     let data = BoundFunctionHeapData {
         object_index: None,
@@ -308,7 +308,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         // 2. Let boundThis be F.[[BoundThis]].
         let bound_this = agent[f].bound_this;
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = agent[f].bound_arguments;
+        let bound_args = &agent[f].bound_arguments;
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
@@ -358,7 +358,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         // 2. Assert: IsConstructor(target) is true.
         assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = agent[self].bound_arguments;
+        let bound_args = &agent[self].bound_arguments;
         // 5. If SameValue(F, newTarget) is true, set newTarget to target.
         let new_target = if self.into_function() == new_target {
             target

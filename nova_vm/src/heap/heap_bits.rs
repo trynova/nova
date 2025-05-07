@@ -11,7 +11,7 @@ use super::indexes::TypedArrayIndex;
 use super::{
     Heap,
     element_array::ElementDescriptor,
-    indexes::{BaseIndex, ElementIndex, GetBaseIndexMut, IntoBaseIndex},
+    indexes::{BaseIndex, ElementIndex, GetBaseIndexMut, IntoBaseIndex, PropertyKeyIndex},
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -57,7 +57,7 @@ use crate::ecmascript::{
     },
     scripts_and_modules::{script::Script, source_code::SourceCode},
     types::{
-        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
+        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, PropertyKey, Symbol, Value,
         bigint::HeapBigInt,
     },
 };
@@ -88,6 +88,14 @@ pub struct HeapBits {
     pub e_2_4: Box<[(bool, u8)]>,
     pub e_2_6: Box<[(bool, u8)]>,
     pub e_2_8: Box<[(bool, u8)]>,
+    pub k_2_10: Box<[(bool, u16)]>,
+    pub k_2_12: Box<[(bool, u16)]>,
+    pub k_2_16: Box<[(bool, u16)]>,
+    pub k_2_24: Box<[(bool, u32)]>,
+    pub k_2_32: Box<[(bool, u32)]>,
+    pub k_2_4: Box<[(bool, u8)]>,
+    pub k_2_6: Box<[(bool, u8)]>,
+    pub k_2_8: Box<[(bool, u8)]>,
     pub ecmascript_functions: Box<[bool]>,
     pub embedder_objects: Box<[bool]>,
     pub errors: Box<[bool]>,
@@ -156,6 +164,14 @@ pub(crate) struct WorkQueues {
     pub e_2_4: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_6: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_8: Vec<(ElementIndex<'static>, u32)>,
+    pub k_2_10: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_12: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_16: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_24: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_32: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_4: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_6: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_8: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
     pub embedder_objects: Vec<EmbedderObject<'static>>,
     pub source_codes: Vec<SourceCode<'static>>,
@@ -224,6 +240,14 @@ impl HeapBits {
         let e_2_4 = vec![(false, 0u8); heap.elements.e2pow4.values.len()];
         let e_2_6 = vec![(false, 0u8); heap.elements.e2pow6.values.len()];
         let e_2_8 = vec![(false, 0u8); heap.elements.e2pow8.values.len()];
+        let k_2_10 = vec![(false, 0u16); heap.elements.k2pow10.keys.len()];
+        let k_2_12 = vec![(false, 0u16); heap.elements.k2pow12.keys.len()];
+        let k_2_16 = vec![(false, 0u16); heap.elements.k2pow16.keys.len()];
+        let k_2_24 = vec![(false, 0u32); heap.elements.k2pow24.keys.len()];
+        let k_2_32 = vec![(false, 0u32); heap.elements.k2pow32.keys.len()];
+        let k_2_4 = vec![(false, 0u8); heap.elements.k2pow4.keys.len()];
+        let k_2_6 = vec![(false, 0u8); heap.elements.k2pow6.keys.len()];
+        let k_2_8 = vec![(false, 0u8); heap.elements.k2pow8.keys.len()];
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let embedder_objects = vec![false; heap.embedder_objects.len()];
         let errors = vec![false; heap.errors.len()];
@@ -289,6 +313,14 @@ impl HeapBits {
             e_2_4: e_2_4.into_boxed_slice(),
             e_2_6: e_2_6.into_boxed_slice(),
             e_2_8: e_2_8.into_boxed_slice(),
+            k_2_10: k_2_10.into_boxed_slice(),
+            k_2_12: k_2_12.into_boxed_slice(),
+            k_2_16: k_2_16.into_boxed_slice(),
+            k_2_24: k_2_24.into_boxed_slice(),
+            k_2_32: k_2_32.into_boxed_slice(),
+            k_2_4: k_2_4.into_boxed_slice(),
+            k_2_6: k_2_6.into_boxed_slice(),
+            k_2_8: k_2_8.into_boxed_slice(),
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
             embedder_objects: embedder_objects.into_boxed_slice(),
             errors: errors.into_boxed_slice(),
@@ -360,6 +392,14 @@ impl WorkQueues {
             e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
             e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
             e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len() / 4),
+            k_2_10: Vec::with_capacity(heap.elements.k2pow10.keys.len() / 4),
+            k_2_12: Vec::with_capacity(heap.elements.k2pow12.keys.len() / 4),
+            k_2_16: Vec::with_capacity(heap.elements.k2pow16.keys.len() / 4),
+            k_2_24: Vec::with_capacity(heap.elements.k2pow24.keys.len() / 4),
+            k_2_32: Vec::with_capacity(heap.elements.k2pow32.keys.len() / 4),
+            k_2_4: Vec::with_capacity(heap.elements.k2pow4.keys.len() / 4),
+            k_2_6: Vec::with_capacity(heap.elements.k2pow6.keys.len() / 4),
+            k_2_8: Vec::with_capacity(heap.elements.k2pow8.keys.len() / 4),
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
@@ -431,6 +471,14 @@ impl WorkQueues {
             e_2_4,
             e_2_6,
             e_2_8,
+            k_2_10,
+            k_2_12,
+            k_2_16,
+            k_2_24,
+            k_2_32,
+            k_2_4,
+            k_2_6,
+            k_2_8,
             ecmascript_functions,
             embedder_objects,
             source_codes,
@@ -516,6 +564,14 @@ impl WorkQueues {
             && e_2_4.is_empty()
             && e_2_6.is_empty()
             && e_2_8.is_empty()
+            && k_2_10.is_empty()
+            && k_2_12.is_empty()
+            && k_2_16.is_empty()
+            && k_2_24.is_empty()
+            && k_2_32.is_empty()
+            && k_2_4.is_empty()
+            && k_2_6.is_empty()
+            && k_2_8.is_empty()
             && ecmascript_functions.is_empty()
             && embedder_objects.is_empty()
             && errors.is_empty()
@@ -728,6 +784,14 @@ pub(crate) struct CompactionLists {
     pub e_2_4: CompactionList,
     pub e_2_6: CompactionList,
     pub e_2_8: CompactionList,
+    pub k_2_10: CompactionList,
+    pub k_2_12: CompactionList,
+    pub k_2_16: CompactionList,
+    pub k_2_24: CompactionList,
+    pub k_2_32: CompactionList,
+    pub k_2_4: CompactionList,
+    pub k_2_6: CompactionList,
+    pub k_2_8: CompactionList,
     pub ecmascript_functions: CompactionList,
     pub embedder_objects: CompactionList,
     pub source_codes: CompactionList,
@@ -800,6 +864,14 @@ impl CompactionLists {
             e_2_16: CompactionList::from_mark_u16s(&bits.e_2_16),
             e_2_24: CompactionList::from_mark_u32s(&bits.e_2_24),
             e_2_32: CompactionList::from_mark_u32s(&bits.e_2_32),
+            k_2_4: CompactionList::from_mark_u8s(&bits.k_2_4),
+            k_2_6: CompactionList::from_mark_u8s(&bits.k_2_6),
+            k_2_8: CompactionList::from_mark_u8s(&bits.k_2_8),
+            k_2_10: CompactionList::from_mark_u16s(&bits.k_2_10),
+            k_2_12: CompactionList::from_mark_u16s(&bits.k_2_12),
+            k_2_16: CompactionList::from_mark_u16s(&bits.k_2_16),
+            k_2_24: CompactionList::from_mark_u32s(&bits.k_2_24),
+            k_2_32: CompactionList::from_mark_u32s(&bits.k_2_32),
             arrays: CompactionList::from_mark_bits(&bits.arrays),
             #[cfg(feature = "array-buffer")]
             array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
@@ -962,6 +1034,16 @@ where
 }
 
 pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+    array: &[T; N],
+    queues: &mut WorkQueues,
+    length: u32,
+) {
+    array.as_ref()[..length as usize].iter().for_each(|value| {
+        value.mark_values(queues);
+    });
+}
+
+pub(crate) fn mark_optional_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     array: &Option<[T; N]>,
     queues: &mut WorkQueues,
     length: u32,
@@ -982,7 +1064,7 @@ pub(crate) fn mark_descriptors(
     }
 }
 
-fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+fn sweep_optional_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     array: &mut Option<[T; N]>,
     compactions: &CompactionLists,
     length: u32,
@@ -991,6 +1073,21 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         return;
     }
     array.as_mut().unwrap()[..length as usize]
+        .iter_mut()
+        .for_each(|value| {
+            value.sweep_values(compactions);
+        });
+}
+
+fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+    array: &mut [T; N],
+    compactions: &CompactionLists,
+    length: u32,
+) {
+    if length == 0 {
+        return;
+    }
+    array.as_mut()[..length as usize]
         .iter_mut()
         .for_each(|value| {
             value.sweep_values(compactions);
@@ -1015,6 +1112,60 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + core::fmt::Debug>(
     });
 }
 
+pub(crate) fn sweep_heap_u8_property_key_vector<const N: usize>(
+    vec: &mut Vec<[Option<PropertyKey<'static>>; N]>,
+    compactions: &CompactionLists,
+    u8s: &[(bool, u8)],
+) {
+    assert_eq!(vec.len(), u8s.len());
+    let mut iter = u8s.iter();
+    vec.retain_mut(|item| {
+        let (mark, length) = iter.next().unwrap();
+        if *mark {
+            sweep_array_with_u32_length(item, compactions, *length as u32);
+            true
+        } else {
+            false
+        }
+    });
+}
+
+pub(crate) fn sweep_heap_u16_property_key_vector<const N: usize>(
+    vec: &mut Vec<[Option<PropertyKey<'static>>; N]>,
+    compactions: &CompactionLists,
+    u16s: &[(bool, u16)],
+) {
+    assert_eq!(vec.len(), u16s.len());
+    let mut iter = u16s.iter();
+    vec.retain_mut(|item| {
+        let (mark, length) = iter.next().unwrap();
+        if *mark {
+            sweep_array_with_u32_length(item, compactions, *length as u32);
+            true
+        } else {
+            false
+        }
+    });
+}
+
+pub(crate) fn sweep_heap_u32_property_key_vector<const N: usize>(
+    vec: &mut Vec<[Option<PropertyKey<'static>>; N]>,
+    compactions: &CompactionLists,
+    u32s: &[(bool, u32)],
+) {
+    assert_eq!(vec.len(), u32s.len());
+    let mut iter = u32s.iter();
+    vec.retain_mut(|item| {
+        let (mark, length) = iter.next().unwrap();
+        if *mark {
+            sweep_array_with_u32_length(item, compactions, *length);
+            true
+        } else {
+            false
+        }
+    });
+}
+
 pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
     vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
@@ -1025,7 +1176,7 @@ pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
     vec.retain_mut(|item| {
         let (mark, length) = iter.next().unwrap();
         if *mark {
-            sweep_array_with_u32_length(item, compactions, *length as u32);
+            sweep_optional_array_with_u32_length(item, compactions, *length as u32);
             true
         } else {
             false
@@ -1043,7 +1194,7 @@ pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
     vec.retain_mut(|item| {
         let (mark, length) = iter.next().unwrap();
         if *mark {
-            sweep_array_with_u32_length(item, compactions, *length as u32);
+            sweep_optional_array_with_u32_length(item, compactions, *length as u32);
             true
         } else {
             false
@@ -1061,7 +1212,7 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
     vec.retain_mut(|item| {
         let (mark, length) = iter.next().unwrap();
         if *mark {
-            sweep_array_with_u32_length(item, compactions, *length);
+            sweep_optional_array_with_u32_length(item, compactions, *length);
             true
         } else {
             false

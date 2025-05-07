@@ -55,7 +55,7 @@ pub(crate) fn array_create<'a>(
         {
             None
         } else {
-            Some(agent.heap.create_object_with_prototype(proto, &[]))
+            Some(agent.heap.create_object_with_prototype(proto, &[]).bind(gc))
         }
     } else {
         None
@@ -70,7 +70,7 @@ pub(crate) fn array_create<'a>(
     let data = ArrayHeapData {
         // 4. Set A.[[Prototype]] to proto.
         object_index,
-        elements: SealableElementsVector::from_elements_vector(elements),
+        elements: SealableElementsVector::from_elements_vector(elements).bind(gc),
     };
 
     // 7. Return A.
@@ -279,7 +279,7 @@ pub(crate) fn array_set_length<'a>(
     debug_assert!(old_len > new_len);
     for i in new_len + 1..old_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
-        let elements = &mut elements[old_elements];
+        let elements = &mut elements[&old_elements];
         // TODO: Handle unwritable properties and property descriptors.
         *elements.get_mut(i as usize).unwrap() = None;
         let delete_succeeded = true;
@@ -383,7 +383,7 @@ pub(crate) fn array_try_set_length(
     debug_assert!(old_len > new_len);
     for i in new_len + 1..old_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
-        let elements = &mut elements[old_elements];
+        let elements = &mut elements[&old_elements];
         // TODO: Handle unwritable properties and property descriptors.
         *elements.get_mut(i as usize).unwrap() = None;
         let delete_succeeded = true;

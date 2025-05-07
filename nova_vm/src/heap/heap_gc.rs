@@ -9,11 +9,13 @@ use super::{
     element_array::ElementArrays,
     heap_bits::{
         CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_array_with_u32_length,
-        mark_descriptors, sweep_heap_elements_vector_descriptors,
-        sweep_heap_u8_elements_vector_values, sweep_heap_u16_elements_vector_values,
-        sweep_heap_u32_elements_vector_values, sweep_heap_vector_values, sweep_lookup_table,
+        mark_descriptors, mark_optional_array_with_u32_length,
+        sweep_heap_elements_vector_descriptors, sweep_heap_u8_elements_vector_values,
+        sweep_heap_u8_property_key_vector, sweep_heap_u16_elements_vector_values,
+        sweep_heap_u16_property_key_vector, sweep_heap_u32_elements_vector_values,
+        sweep_heap_u32_property_key_vector, sweep_heap_vector_values, sweep_lookup_table,
     },
-    indexes::{ElementIndex, StringIndex},
+    indexes::{ElementIndex, PropertyKeyIndex, StringIndex},
 };
 #[cfg(feature = "array-buffer")]
 use super::{heap_bits::sweep_side_table_values, indexes::TypedArrayIndex};
@@ -192,6 +194,14 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             e2pow16,
             e2pow24,
             e2pow32,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
         } = elements;
         let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
         module_marks.sort();
@@ -846,7 +856,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow4.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -867,7 +877,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow6.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -888,7 +898,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow8.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -909,7 +919,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow10.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -930,7 +940,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow12.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -951,7 +961,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow16.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -972,7 +982,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow24.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -993,6 +1003,151 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow32.values.get(index) {
+                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+
+        let mut k_2_4_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_4.drain(..).collect();
+        k_2_4_marks.sort();
+        k_2_4_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_4.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len as u8;
+                if let Some(array) = k2pow4.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_6_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_6.drain(..).collect();
+        k_2_6_marks.sort();
+        k_2_6_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_6.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len as u8;
+                if let Some(array) = k2pow6.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_8_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_8.drain(..).collect();
+        k_2_8_marks.sort();
+        k_2_8_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_8.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len as u8;
+                if let Some(array) = k2pow8.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_10_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_10.drain(..).collect();
+        k_2_10_marks.sort();
+        k_2_10_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_10.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len as u16;
+                if let Some(array) = k2pow10.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_12_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_12.drain(..).collect();
+        k_2_12_marks.sort();
+        k_2_12_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_12.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len as u16;
+                if let Some(array) = k2pow12.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_16_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_16.drain(..).collect();
+        k_2_16_marks.sort();
+        k_2_16_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_16.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len as u16;
+                if let Some(array) = k2pow16.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_24_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_24.drain(..).collect();
+        k_2_24_marks.sort();
+        k_2_24_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_24.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len;
+                if let Some(array) = k2pow24.keys.get(index) {
+                    mark_array_with_u32_length(array, &mut queues, len);
+                }
+            }
+        });
+        let mut k_2_32_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_32.drain(..).collect();
+        k_2_32_marks.sort();
+        k_2_32_marks.iter().for_each(|&(idx, len)| {
+            let index = idx.into_index();
+            if let Some((marked, length)) = bits.k_2_32.get_mut(index) {
+                if *marked {
+                    // Already marked, panic: Elements are uniquely owned
+                    // and any other reference existing to this entry is a sign of
+                    // a GC algorithm bug.
+                    panic!("ElementsVector was not unique");
+                }
+                *marked = true;
+                *length = len;
+                if let Some(array) = k2pow32.keys.get(index) {
                     mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
@@ -1106,6 +1261,14 @@ fn sweep(
         e2pow16,
         e2pow24,
         e2pow32,
+        k2pow4,
+        k2pow6,
+        k2pow8,
+        k2pow10,
+        k2pow12,
+        k2pow16,
+        k2pow24,
+        k2pow32,
     } = elements;
 
     let mut globals = globals.borrow_mut();
@@ -1222,6 +1385,46 @@ fn sweep(
                     &bits.e_2_8,
                 );
                 sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
+            });
+        }
+        if !k2pow10.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u16_property_key_vector(&mut k2pow10.keys, &compactions, &bits.k_2_10);
+            });
+        }
+        if !k2pow12.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u16_property_key_vector(&mut k2pow12.keys, &compactions, &bits.k_2_12);
+            });
+        }
+        if !k2pow16.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u16_property_key_vector(&mut k2pow16.keys, &compactions, &bits.k_2_16);
+            });
+        }
+        if !k2pow24.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u32_property_key_vector(&mut k2pow24.keys, &compactions, &bits.k_2_24);
+            });
+        }
+        if !k2pow32.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u32_property_key_vector(&mut k2pow32.keys, &compactions, &bits.k_2_32);
+            });
+        }
+        if !k2pow4.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u8_property_key_vector(&mut k2pow4.keys, &compactions, &bits.k_2_4);
+            });
+        }
+        if !k2pow6.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u8_property_key_vector(&mut k2pow6.keys, &compactions, &bits.k_2_6);
+            });
+        }
+        if !k2pow8.keys.is_empty() {
+            s.spawn(|| {
+                sweep_heap_u8_property_key_vector(&mut k2pow8.keys, &compactions, &bits.k_2_8);
             });
         }
         #[cfg(feature = "array-buffer")]

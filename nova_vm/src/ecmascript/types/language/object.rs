@@ -281,11 +281,11 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 
     fn internal_extensible(self, agent: &Agent) -> bool {
-        agent[self.unbind()].extensible
+        agent[self.unbind()].property_storage.extensible
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        agent[self.unbind()].extensible = value;
+        agent[self.unbind()].property_storage.extensible = value;
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {

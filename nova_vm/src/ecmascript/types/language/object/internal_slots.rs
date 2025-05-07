@@ -2,11 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IntoObject, Object, ObjectHeapData, OrdinaryObject};
-use crate::{
-    ecmascript::execution::{Agent, ProtoIntrinsics},
-    heap::CreateHeapData,
-};
+use super::{IntoObject, Object, OrdinaryObject};
+use crate::ecmascript::execution::{Agent, ProtoIntrinsics};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>
@@ -40,12 +37,11 @@ where
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype,
-            keys: Default::default(),
-            values: Default::default(),
-        });
+        let backing_object = if let Some(prototype) = prototype {
+            agent.heap.create_object_with_prototype(prototype, &[])
+        } else {
+            agent.heap.create_null_object(&[])
+        };
         self.set_backing_object(agent, backing_object);
         backing_object
     }

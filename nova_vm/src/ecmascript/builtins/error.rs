@@ -15,8 +15,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
-            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     heap::{
@@ -125,28 +124,22 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                 configurable: true,
             },
         });
-        let (keys, values) =
+        let backing_object =
             if let (Some(message_entry), Some(cause_entry)) = (message_entry, cause_entry) {
                 agent
                     .heap
-                    .create_elements_with_object_entries(&[message_entry, cause_entry])
+                    .create_object_with_prototype(prototype, &[message_entry, cause_entry])
             } else if let Some(message_entry) = message_entry {
                 agent
                     .heap
-                    .create_elements_with_object_entries(&[message_entry])
+                    .create_object_with_prototype(prototype, &[message_entry])
             } else if let Some(cause_entry) = cause_entry {
                 agent
                     .heap
-                    .create_elements_with_object_entries(&[cause_entry])
+                    .create_object_with_prototype(prototype, &[cause_entry])
             } else {
-                agent.heap.create_elements_with_object_entries(&[])
+                agent.heap.create_object_with_prototype(prototype, &[])
             };
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype: Some(prototype),
-            keys,
-            values,
-        });
         self.set_backing_object(agent, backing_object);
         backing_object
     }

@@ -26,11 +26,11 @@ use crate::{
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
-            Number, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
+            Number, OrdinaryObject, PropertyKey, String, Value,
         },
     },
     heap::{
-        CreateHeapData, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
+        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
     },
 };
@@ -529,15 +529,10 @@ fn create_throw_type_error_backing_object(
             configurable: false,
         },
     };
-    let (keys, values) = agent
+    let object = agent
         .heap
-        .create_elements_with_object_entries(&[length_entry, name_entry]);
-
-    agent.heap.create(ObjectHeapData {
-        // The value of the [[Extensible]] internal slot of this function is false.
-        extensible: false,
-        prototype: Some(prototype),
-        keys,
-        values,
-    })
+        .create_object_with_prototype(prototype, &[length_entry, name_entry]);
+    // The value of the [[Extensible]] internal slot of this function is false.
+    object.internal_set_extensible(agent, false);
+    object
 }

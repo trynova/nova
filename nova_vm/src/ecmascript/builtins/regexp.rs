@@ -11,8 +11,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
-            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
@@ -101,11 +100,11 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         assert!(self.get_backing_object(agent).is_none());
-        let prototype = self.internal_prototype(agent);
+        let prototype = self.internal_prototype(agent).unwrap();
         let last_index = agent[self].last_index;
-        let (keys, values) = agent
-            .heap
-            .create_elements_with_object_entries(&[ObjectEntry {
+        let backing_object = agent.heap.create_object_with_prototype(
+            prototype,
+            &[ObjectEntry {
                 key: BUILTIN_STRING_MEMORY.lastIndex.into(),
                 value: ObjectEntryPropertyDescriptor::Data {
                     value: last_index
@@ -115,13 +114,8 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
                     enumerable: false,
                     configurable: false,
                 },
-            }]);
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype,
-            keys,
-            values,
-        });
+            }],
+        );
         self.set_backing_object(agent, backing_object);
         backing_object
     }

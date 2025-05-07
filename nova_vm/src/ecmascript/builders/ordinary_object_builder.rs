@@ -262,11 +262,12 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
 
 impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        let (keys, values) = self
+        let mut property_storage = self
             .agent
             .heap
             .elements
-            .create_with_key_value_descriptor_entries(vec![]);
+            .allocate_object_property_storage_from_entries_vec(vec![]);
+        property_storage.extensible = self.extensible;
         let slot = self
             .agent
             .heap
@@ -275,10 +276,8 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
-            extensible: self.extensible,
             prototype: None,
-            keys,
-            values,
+            property_storage,
         });
         self.this
     }
@@ -286,11 +285,12 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
 
 impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        let (keys, values) = self
+        let mut property_storage = self
             .agent
             .heap
             .elements
-            .create_with_key_value_descriptor_entries(vec![]);
+            .allocate_object_property_storage_from_entries_vec(vec![]);
+        property_storage.extensible = self.extensible;
         let slot = self
             .agent
             .heap
@@ -299,10 +299,8 @@ impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoPr
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
-            extensible: self.extensible,
             prototype: Some(self.prototype.0.into_object()),
-            keys,
-            values,
+            property_storage,
         });
         self.this
     }
@@ -322,11 +320,12 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
                 panic!("Duplicate key found: {:?}", slice[index].0);
             }
         }
-        let (keys, values) = self
+        let mut property_storage = self
             .agent
             .heap
             .elements
-            .create_with_key_value_descriptor_entries(self.properties.0);
+            .allocate_object_property_storage_from_entries_vec(self.properties.0);
+        property_storage.extensible = self.extensible;
         let slot = self
             .agent
             .heap
@@ -335,10 +334,8 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
-            extensible: self.extensible,
             prototype: None,
-            keys,
-            values,
+            property_storage,
         });
         self.this
     }
@@ -358,11 +355,12 @@ impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, Crea
                 panic!("Duplicate key found: {:?}", slice[index].0);
             }
         }
-        let (keys, values) = self
+        let mut property_storage = self
             .agent
             .heap
             .elements
-            .create_with_key_value_descriptor_entries(self.properties.0);
+            .allocate_object_property_storage_from_entries_vec(self.properties.0);
+        property_storage.extensible = self.extensible;
         let slot = self
             .agent
             .heap
@@ -371,10 +369,8 @@ impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, Crea
             .unwrap();
         assert!(slot.is_none());
         *slot = Some(ObjectHeapData {
-            extensible: self.extensible,
             prototype: Some(self.prototype.0.into_object()),
-            keys,
-            values,
+            property_storage,
         });
         self.this
     }

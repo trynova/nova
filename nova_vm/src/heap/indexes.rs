@@ -38,7 +38,7 @@ use crate::{
         types::{
             BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
             BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, NumberHeapData, ObjectHeapData,
-            StringHeapData, SymbolHeapData, Value,
+            PropertyKey, StringHeapData, SymbolHeapData, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -204,6 +204,7 @@ pub type DataViewIndex<'a> = BaseIndex<'a, DataViewHeapData<'static>>;
 pub type DateIndex<'a> = BaseIndex<'a, DateHeapData<'static>>;
 pub type ECMAScriptFunctionIndex<'a> = BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>;
 pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
+pub type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
 pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
 pub type ErrorIndex<'a> = BaseIndex<'a, ErrorHeapData<'static>>;
 pub type FinalizationRegistryIndex<'a> = BaseIndex<'a, FinalizationRegistryHeapData<'static>>;
@@ -301,5 +302,37 @@ impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<Option<[Option<Value<'st
             .expect("Invalid ElementsVector: No item at index")
             .as_mut()
             .expect("Invalid ElementsVector: Found None at index")
+    }
+}
+
+impl Default for PropertyKeyIndex<'static> {
+    fn default() -> Self {
+        Self(
+            unsafe { NonZeroU32::new_unchecked(1) },
+            PhantomData,
+            PhantomData,
+        )
+    }
+}
+
+impl PropertyKeyIndex<'_> {
+    pub fn last_property_key_index<const N: usize>(vec: &[[Option<PropertyKey>; N]]) -> Self {
+        assert!(!vec.is_empty());
+        Self::from_usize(vec.len())
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PropertyKeyIndex<'_> {
+    type Of<'a> = PropertyKeyIndex<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }

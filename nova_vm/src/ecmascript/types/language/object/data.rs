@@ -2,28 +2,31 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::Object;
+use super::{Object, PropertyKey};
 use crate::{
     ecmascript::{execution::Agent, types::Value},
     engine::context::{Bindable, NoGcScope},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::PropertyStorageVector},
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectHeapData<'a> {
-    pub extensible: bool,
+    // TODO: move prototype, key index, cap, extensible, and length into
+    // shapes (#647). What remains here would be just shape and values indexes?
+    // That would bring object side down to just 8 bytes, which is pretty
+    // acceptable.
+    // Possible variations on the theme:
+    // - Shape index u32 gives 1 bit to extensible boolean; shape itself
+    //   doesn't know if it is extensible or not.
+    // - Shape index u32 gives 5-6 bits to cap: capacity of the keys & values
+    //   is kept in the index value, saving memory in shape and helping
+    //   indexing at the cost of a lower maximum shape count.
     pub prototype: Option<Object<'a>>,
-    pub keys: ElementsVector<'a>,
-    pub values: ElementsVector<'a>,
+    pub property_storage: PropertyStorageVector<'a>,
 }
 
 impl<'a> ObjectHeapData<'a> {
-    pub fn new(
-        extensible: bool,
-        prototype: Value,
-        keys: ElementsVector<'a>,
-        values: ElementsVector<'a>,
-    ) -> Self {
+    pub fn new(prototype: Value, property_storage: PropertyStorageVector<'a>) -> Self {
         let prototype = if prototype.is_null() {
             None
         } else {
@@ -31,17 +34,17 @@ impl<'a> ObjectHeapData<'a> {
             Some(Object::try_from(prototype.unbind()).unwrap())
         };
         Self {
-            extensible,
-            // TODO: Move prototype and key vector into shapes
             prototype,
-            keys,
-            values,
+            property_storage,
         }
     }
 
-    pub fn has(&self, agent: &Agent, key: Value) -> bool {
-        debug_assert!(key.is_string() || key.is_number() || key.is_symbol());
-        agent.heap.elements.has(self.keys, key)
+    pub fn has(&self, agent: &Agent, key: PropertyKey) -> bool {
+        agent.heap.elements.has(&self.property_storage, key)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.property_storage.len() == 0
     }
 }
 
@@ -63,26 +66,19 @@ unsafe impl Bindable for ObjectHeapData<'_> {
 impl HeapMarkAndSweep for ObjectHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
-            extensible: _,
             prototype,
-            keys,
-            values,
+            property_storage,
         } = self;
-
-        keys.mark_values(queues);
-        values.mark_values(queues);
         prototype.mark_values(queues);
+        property_storage.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
-            extensible: _,
             prototype,
-            keys,
-            values,
+            property_storage,
         } = self;
-        keys.sweep_values(compactions);
-        values.sweep_values(compactions);
         prototype.sweep_values(compactions);
+        property_storage.sweep_values(compactions);
     }
 }
