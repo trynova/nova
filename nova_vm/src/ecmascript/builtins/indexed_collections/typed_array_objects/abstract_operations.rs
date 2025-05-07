@@ -1344,7 +1344,7 @@ pub(crate) fn typed_array_create_same_type<'a>(
 }
 
 fn intrinsic_default_constructor<T: Viewable + 'static>(agent: &Agent) -> BuiltinFunction<'static> {
-    let default_constructor = {
+    {
         if TypeId::of::<T>() == TypeId::of::<i8>() {
             agent.current_realm_record().intrinsics().int8_array()
         } else if TypeId::of::<T>() == TypeId::of::<u8>() {
@@ -1377,8 +1377,7 @@ fn intrinsic_default_constructor<T: Viewable + 'static>(agent: &Agent) -> Builti
             }
             unreachable!()
         }
-    };
-    default_constructor
+    }
 }
 
 fn has_matching_content_type<T: Viewable + 'static>(result: TypedArray) -> bool {

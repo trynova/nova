@@ -8,7 +8,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct WeakRefHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
     /// ### \[\[WeakRefTarget]]
@@ -24,16 +24,6 @@ pub struct WeakRefHeapData<'a> {
 impl WeakRefHeapData<'_> {
     pub(crate) fn clear_kept_objects(&mut self) {
         self.kept_alive = false;
-    }
-}
-
-impl Default for WeakRefHeapData<'_> {
-    fn default() -> Self {
-        Self {
-            object_index: None,
-            weak_ref_target: None,
-            kept_alive: false,
-        }
     }
 }
 
