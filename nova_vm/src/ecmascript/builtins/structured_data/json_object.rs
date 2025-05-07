@@ -392,12 +392,14 @@ impl JSONObject {
         });
 
         // 10. Let wrapper be OrdinaryObjectCreate(%Object.prototype%).
-        let wrapper = ordinary_object_create_with_intrinsics(
+        let Object::Object(wrapper) = ordinary_object_create_with_intrinsics(
             agent,
             Some(ProtoIntrinsics::Object),
             None,
             gc.nogc(),
-        );
+        ) else {
+            unreachable!()
+        };
         // SAFETY: value is not shared.
         let value = unsafe { value.take(agent) }.bind(gc.nogc());
         // 11. Perform ! CreateDataPropertyOrThrow(wrapper, the empty String, value).
@@ -424,7 +426,7 @@ impl JSONObject {
             agent,
             state.replacer_function.clone(),
             key,
-            wrapper.unbind(),
+            wrapper.into_object().unbind(),
             gc.reborrow(),
         )
         .unbind()?

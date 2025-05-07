@@ -1030,7 +1030,7 @@ pub(crate) fn make_constructor<'a>(
         .unwrap();
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
-        prototype.into_object().property_storage().set(
+        prototype.property_storage().set(
             agent,
             key,
             PropertyDescriptor {
@@ -1047,8 +1047,7 @@ pub(crate) fn make_constructor<'a>(
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
     let backing_object = function
         .get_backing_object(agent)
-        .unwrap_or_else(|| function.create_backing_object(agent))
-        .into_object();
+        .unwrap_or_else(|| function.create_backing_object(agent));
     backing_object.property_storage().set(
         agent,
         key,

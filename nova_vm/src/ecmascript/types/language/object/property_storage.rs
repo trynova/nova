@@ -14,18 +14,18 @@ use crate::{
     heap::element_array::ElementDescriptor,
 };
 
-use super::{Object, ObjectHeapData, PropertyKey};
+use super::{IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
-pub struct PropertyStorage<'a>(Object<'a>);
+pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
 
 impl<'a> PropertyStorage<'a> {
-    pub fn new(object: Object<'a>) -> Self {
+    pub fn new(object: OrdinaryObject<'a>) -> Self {
         Self(object)
     }
 
     fn into_object(self) -> Object<'a> {
-        self.0
+        self.0.into_object()
     }
 
     fn into_value(self) -> Value<'a> {
@@ -64,118 +64,102 @@ impl<'a> PropertyStorage<'a> {
     }
 
     pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<PropertyDescriptor<'a>> {
-        match self.0 {
-            Object::Object(object) => {
-                let ObjectHeapData { keys, values, .. } = agent[object];
-                let result = agent
-                    .heap
-                    .elements
-                    .get(keys)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, element_key)| {
-                        // SAFETY: Keys storage contains only PropertyKeys turned into Values.
-                        unsafe { PropertyKey::from_value_unchecked(element_key.unwrap()) == key }
-                    })
-                    .map(|res| res.0);
-                result.map(|index| {
-                    let value = agent.heap.elements.get(values).get(index).unwrap().unbind();
-                    let descriptor = agent.heap.elements.get_descriptor(values, index).unbind();
-                    ElementDescriptor::to_property_descriptor(descriptor, value)
-                })
-            }
-            _ => todo!(),
-        }
+        let object = self.0;
+        let ObjectHeapData { keys, values, .. } = agent[object];
+        let result = agent
+            .heap
+            .elements
+            .get(keys)
+            .iter()
+            .enumerate()
+            .find(|(_, element_key)| {
+                // SAFETY: Keys storage contains only PropertyKeys turned into Values.
+                unsafe { PropertyKey::from_value_unchecked(element_key.unwrap()) == key }
+            })
+            .map(|res| res.0);
+        result.map(|index| {
+            let value = agent.heap.elements.get(values).get(index).unwrap().unbind();
+            let descriptor = agent.heap.elements.get_descriptor(values, index).unbind();
+            ElementDescriptor::to_property_descriptor(descriptor, value)
+        })
     }
 
     pub fn set(self, agent: &mut Agent, property_key: PropertyKey, descriptor: PropertyDescriptor) {
-        match self.0 {
-            Object::Object(object) => {
-                let ObjectHeapData { keys, values, .. } = agent[object];
-                // SAFETY: Key is only used to compare with other keys.
-                let property_key = unsafe { property_key.into_value_unchecked() };
+        let object = self.0;
+        let ObjectHeapData { keys, values, .. } = agent[object];
+        // SAFETY: Key is only used to compare with other keys.
+        let property_key = unsafe { property_key.into_value_unchecked() };
 
-                let value = descriptor.value;
-                let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
+        let value = descriptor.value;
+        let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
 
-                let result = agent
-                    .heap
-                    .elements
-                    .get(keys)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, element_key)| element_key.unwrap() == property_key)
-                    .map(|res| res.0);
-                if let Some(index) = result {
-                    let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
-                    *key_entry = Some(property_key.unbind());
-                    let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
-                    *value_entry = value.unbind();
-                    agent
-                        .heap
-                        .elements
-                        .set_descriptor(values, index, element_descriptor);
-                } else {
-                    let Heap {
-                        elements,
-                        objects,
-                        alloc_counter,
-                        ..
-                    } = &mut agent.heap;
-                    let object_heap_data = objects
-                        .get_mut(object.get_index())
-                        .expect("Invalid ObjectIndex")
-                        .as_mut()
-                        .expect("Invalid ObjectIndex");
-                    *alloc_counter += core::mem::size_of::<Option<Value>>() * 2;
-                    object_heap_data
-                        .keys
-                        .push(elements, Some(property_key), None);
-                    if element_descriptor.is_some() {
-                        *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
-                    }
-                    object_heap_data
-                        .values
-                        .push(elements, value, element_descriptor);
-                };
+        let result = agent
+            .heap
+            .elements
+            .get(keys)
+            .iter()
+            .enumerate()
+            .find(|(_, element_key)| element_key.unwrap() == property_key)
+            .map(|res| res.0);
+        if let Some(index) = result {
+            let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
+            *key_entry = Some(property_key.unbind());
+            let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
+            *value_entry = value.unbind();
+            agent
+                .heap
+                .elements
+                .set_descriptor(values, index, element_descriptor);
+        } else {
+            let Heap {
+                elements,
+                objects,
+                alloc_counter,
+                ..
+            } = &mut agent.heap;
+            let object_heap_data = objects
+                .get_mut(object.get_index())
+                .expect("Invalid ObjectIndex")
+                .as_mut()
+                .expect("Invalid ObjectIndex");
+            *alloc_counter += core::mem::size_of::<Option<Value>>() * 2;
+            object_heap_data
+                .keys
+                .push(elements, Some(property_key), None);
+            if element_descriptor.is_some() {
+                *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
             }
-            _ => todo!(),
-        }
+            object_heap_data
+                .values
+                .push(elements, value, element_descriptor);
+        };
     }
 
     pub fn remove(self, agent: &mut Agent, property_key: PropertyKey) {
-        match self.0 {
-            Object::Object(object) => {
-                // SAFETY: Key is only used to compare with other keys.
-                let property_key = unsafe { property_key.into_value_unchecked() };
+        let object = self.0;
+        // SAFETY: Key is only used to compare with other keys.
+        let property_key = unsafe { property_key.into_value_unchecked() };
 
-                let result = agent
-                    .heap
-                    .elements
-                    .get(agent[object].keys)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, element_key)| element_key.unwrap() == property_key)
-                    .map(|res| res.0);
-                if let Some(index) = result {
-                    let Heap {
-                        elements, objects, ..
-                    } = &mut agent.heap;
-                    let object_heap_data = objects
-                        .get_mut(object.get_index())
-                        .expect("Invalid ObjectIndex")
-                        .as_mut()
-                        .expect("Invalid ObjectIndex");
-                    object_heap_data.keys.remove(elements, index);
-                    object_heap_data.values.remove(elements, index);
-                }
-            }
-            _ => todo!(),
+        let result = agent
+            .heap
+            .elements
+            .get(agent[object].keys)
+            .iter()
+            .enumerate()
+            .find(|(_, element_key)| element_key.unwrap() == property_key)
+            .map(|res| res.0);
+        if let Some(index) = result {
+            let Heap {
+                elements, objects, ..
+            } = &mut agent.heap;
+            let object_heap_data = objects
+                .get_mut(object.get_index())
+                .expect("Invalid ObjectIndex")
+                .as_mut()
+                .expect("Invalid ObjectIndex");
+            object_heap_data.keys.remove(elements, index);
+            object_heap_data.values.remove(elements, index);
         }
-    }
-
-    pub fn entries(self, _agent: &Agent) -> Entries {
-        todo!()
     }
 }
 

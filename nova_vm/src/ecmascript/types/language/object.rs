@@ -502,7 +502,7 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
     }
 }
 
-impl<'a> Object<'a> {
+impl<'a> OrdinaryObject<'a> {
     pub fn property_storage(self) -> PropertyStorage<'a> {
         PropertyStorage::new(self)
     }

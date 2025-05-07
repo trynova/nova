@@ -196,10 +196,7 @@ pub(crate) fn ordinary_get_own_property<'a>(
 ) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let x = object
-        .into_object()
-        .property_storage()
-        .get(agent, property_key)?;
+    let x = object.property_storage().get(agent, property_key)?;
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();
@@ -308,7 +305,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -326,7 +323,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -440,7 +437,7 @@ fn validate_and_apply_property_descriptor(
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -477,7 +474,7 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -493,7 +490,7 @@ fn validate_and_apply_property_descriptor(
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.into_object().property_storage().set(
+            object.property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -1114,10 +1111,7 @@ pub(crate) fn ordinary_delete(
     // 3. If desc.[[Configurable]] is true, then
     if let Some(true) = descriptor.configurable {
         // a. Remove the own property with name P from O.
-        object
-            .into_object()
-            .property_storage()
-            .remove(agent, property_key);
+        object.property_storage().remove(agent, property_key);
 
         // b. Return true.
         return true;
