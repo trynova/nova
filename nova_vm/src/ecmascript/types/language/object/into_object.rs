@@ -12,3 +12,13 @@ where
 {
     fn into_object(self) -> Object<'a>;
 }
+
+impl<'a, T> IntoObject<'a> for T
+where
+    T: Into<Object<'a>> + 'a + Sized + Copy + IntoValue<'a>,
+{
+    #[inline]
+    fn into_object(self) -> Object<'a> {
+        self.into()
+    }
+}

@@ -75,12 +75,6 @@ impl<'a> StringIterator<'a> {
     }
 }
 
-impl<'a> IntoObject<'a> for StringIterator<'a> {
-    fn into_object(self) -> Object<'a> {
-        Object::StringIterator(self)
-    }
-}
-
 impl<'a> From<StringIterator<'a>> for Object<'a> {
     fn from(iter: StringIterator<'a>) -> Self {
         iter.into_object()

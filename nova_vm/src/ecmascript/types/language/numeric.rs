@@ -96,18 +96,6 @@ unsafe impl Bindable for Numeric<'_> {
     }
 }
 
-impl<'a> IntoPrimitive<'a> for Numeric<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        match self {
-            Numeric::Number(data) => Primitive::Number(data.unbind()),
-            Numeric::Integer(data) => Primitive::Integer(data),
-            Numeric::SmallF64(data) => Primitive::SmallF64(data),
-            Numeric::BigInt(data) => Primitive::BigInt(data.unbind()),
-            Numeric::SmallBigInt(data) => Primitive::SmallBigInt(data),
-        }
-    }
-}
-
 impl<'a> From<Numeric<'a>> for Value<'a> {
     fn from(num: Numeric<'a>) -> Self {
         match num {

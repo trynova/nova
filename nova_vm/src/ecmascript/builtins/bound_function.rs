@@ -13,8 +13,8 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
-            InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, function_create_backing_object,
+            InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, String, Value, function_create_backing_object,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
             function_internal_own_property_keys, function_internal_set, function_try_get,
@@ -81,18 +81,6 @@ unsafe impl Bindable for BoundFunction<'_> {
 impl<'a> IntoValue<'a> for BoundFunction<'a> {
     fn into_value(self) -> Value<'a> {
         Value::BoundFunction(self.unbind())
-    }
-}
-
-impl<'a> IntoObject<'a> for BoundFunction<'a> {
-    fn into_object(self) -> Object<'a> {
-        Object::BoundFunction(self.unbind())
-    }
-}
-
-impl<'a> IntoFunction<'a> for BoundFunction<'a> {
-    fn into_function(self) -> Function<'a> {
-        Function::BoundFunction(self.unbind())
     }
 }
 

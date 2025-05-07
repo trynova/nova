@@ -96,12 +96,6 @@ impl<'a> TryFrom<Value<'a>> for RegExp<'a> {
     }
 }
 
-impl<'a> IntoObject<'a> for RegExp<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
 impl<'a> InternalSlots<'a> for RegExp<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::RegExp;
 

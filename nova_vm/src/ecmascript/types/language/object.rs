@@ -225,19 +225,6 @@ unsafe impl Bindable for OrdinaryObject<'_> {
     }
 }
 
-impl<'a> IntoObject<'a> for Object<'a> {
-    #[inline(always)]
-    fn into_object(self) -> Object<'a> {
-        self
-    }
-}
-
-impl<'a> IntoObject<'a> for OrdinaryObject<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
 impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
     fn from(value: OrdinaryObject<'a>) -> Self {
         Self::Object(value)

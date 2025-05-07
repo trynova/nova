@@ -10,3 +10,13 @@ where
 {
     fn into_numeric(self) -> Numeric<'a>;
 }
+
+impl<'a, T> IntoNumeric<'a> for T
+where
+    T: Into<Numeric<'a>> + 'a + Sized + Copy,
+{
+    #[inline]
+    fn into_numeric(self) -> Numeric<'a> {
+        self.into()
+    }
+}

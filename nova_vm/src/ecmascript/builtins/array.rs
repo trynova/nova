@@ -188,12 +188,6 @@ unsafe impl Bindable for Array<'_> {
     }
 }
 
-impl<'a> IntoObject<'a> for Array<'a> {
-    fn into_object(self) -> Object<'a> {
-        self.into()
-    }
-}
-
 impl<'a> From<ArrayIndex<'a>> for Array<'a> {
     fn from(value: ArrayIndex<'a>) -> Self {
         Array(value)

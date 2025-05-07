@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    IntoPrimitive, IntoValue, Symbol, Value,
+    IntoValue, Symbol, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
@@ -193,13 +193,6 @@ impl<'a> From<Primitive<'a>> for Value<'a> {
             Primitive::BigInt(data) => Value::BigInt(data.unbind()),
             Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
         }
-    }
-}
-
-impl<'a> IntoPrimitive<'a> for Primitive<'a> {
-    #[inline(always)]
-    fn into_primitive(self) -> Self {
-        self
     }
 }
 
