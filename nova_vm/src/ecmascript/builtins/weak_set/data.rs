@@ -2,15 +2,29 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ahash::AHashSet;
+
 use crate::{
-    ecmascript::types::OrdinaryObject,
+    ecmascript::{execution::WeakKey, types::OrdinaryObject},
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct WeakSetHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    /// ### \[\[WeakSetData]]
+    weak_set_data: AHashSet<WeakKey<'a>>,
+}
+
+impl WeakSetHeapData<'_> {
+    pub(super) fn add(&mut self, value: WeakKey) {
+        self.weak_set_data.insert(value.unbind());
+    }
+
+    pub(super) fn delete(&mut self, value: WeakKey) {
+        self.weak_set_data.remove(&value.unbind());
+    }
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

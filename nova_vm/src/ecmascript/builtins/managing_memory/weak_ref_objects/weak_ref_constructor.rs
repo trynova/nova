@@ -55,14 +55,14 @@ impl WeakRefConstructor {
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. If CanBeHeldWeakly(target) is false, throw a TypeError exception.
-        if !can_be_held_weakly(agent, target) {
+        let Some(target) = can_be_held_weakly(agent, target) else {
             let string_repr = target.unbind().string_repr(agent, gc.reborrow());
             let message = format!(
                 "{} is not a non-null object or unique symbol",
                 string_repr.as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, message, gc.into_nogc()));
-        }
+        };
         let target = target.scope(agent, gc.nogc());
         // 3. Let weakRef be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakRef.prototype%", « [[WeakRefTarget]] »).
         let Object::WeakRef(weak_ref) = ordinary_create_from_constructor(

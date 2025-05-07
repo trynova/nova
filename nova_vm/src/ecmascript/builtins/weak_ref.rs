@@ -6,7 +6,7 @@ use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
+        execution::{Agent, ProtoIntrinsics, WeakKey},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
@@ -36,7 +36,7 @@ impl<'a> WeakRef<'a> {
         self.0.into_index()
     }
 
-    pub(crate) fn set_target(self, agent: &mut Agent, target: Value) {
+    pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
         agent[self].weak_ref_target = Some(target.unbind());
         // Note: WeakRefTarget is set only from the constructor, and it also
         // adds the WeakRef into the [[KeptAlive]] list; hence we set the
@@ -44,7 +44,7 @@ impl<'a> WeakRef<'a> {
         agent[self].kept_alive = true;
     }
 
-    pub(crate) fn get_target(self, agent: &mut Agent) -> Option<Value<'a>> {
+    pub(crate) fn get_target(self, agent: &mut Agent) -> Option<WeakKey<'a>> {
         let target = agent[self].weak_ref_target;
         if target.is_some() {
             // When observed, WeakRef gets added to [[KeptAlive]] list.

@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{OrdinaryObject, Value},
+    ecmascript::{execution::WeakKey, types::OrdinaryObject},
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -12,7 +12,7 @@ use crate::{
 pub struct WeakRefHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
     /// ### \[\[WeakRefTarget]]
-    pub(super) weak_ref_target: Option<Value<'a>>,
+    pub(super) weak_ref_target: Option<WeakKey<'a>>,
     /// ### \[\[KeptAlive]]
     ///
     /// Instead of storing a list of kept-alive targets in Agents, we keep only

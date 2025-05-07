@@ -88,7 +88,7 @@ fn weak_ref_deref<'a>(agent: &mut Agent, weak_ref: WeakRef<'a>) -> Value<'a> {
         // a. Perform AddToKeptObjects(target).
         add_to_kept_objects(agent, target);
         // b. Return target.
-        target
+        target.into_value()
     } else {
         // 3. Return undefined.
         Value::Undefined
