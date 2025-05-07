@@ -1428,8 +1428,8 @@ impl<const N: usize> ElementArray<N> {
             let mut keys_to_move = descriptor_map
                 .keys()
                 .filter(|k| *k > &index)
-                .map(|k| *k)
-                .collect::<Vec<u32>>();
+                .copied()
+                .collect::<Vec<_>>();
             // Note: keys must be sorted before moving them in the hash map as
             // otherwise it's possible to overwrite a not-yet-moved key.
             keys_to_move.sort();
@@ -1728,19 +1728,20 @@ impl ElementArrays {
             k2pow24,
             k2pow32,
         } = self;
+        type KVD<'a, 'b> = (
+            &'a [PropertyKey<'b>],
+            (
+                Option<&'a AHashMap<u32, ElementDescriptor<'static>>>,
+                &'a [Option<Value<'static>>],
+            ),
+        );
         let (new_keys_index, new_values_index) = match new_key {
             ElementArrayKey::Empty => {
                 // 0 <= elements_vector.cap() for all possible values.
                 unreachable!();
             }
             ElementArrayKey::E4 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     // Note: Only Empty is smaller than E4.
                     ElementArrayKey::E4
@@ -1755,13 +1756,7 @@ impl ElementArrays {
                 (k2pow4.push(keys), e2pow4.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E6 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1777,13 +1772,7 @@ impl ElementArrays {
                 (k2pow6.push(keys), e2pow6.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E8 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1801,13 +1790,7 @@ impl ElementArrays {
                 (k2pow8.push(keys), e2pow8.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E10 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1830,13 +1813,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E12 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1862,13 +1839,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E16 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1897,13 +1868,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E24 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -1934,13 +1899,7 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E32 => {
-                let (keys, (descriptors, source)): (
-                    &[PropertyKey],
-                    (
-                        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                        &[Option<Value<'static>>],
-                    ),
-                ) = match props.cap {
+                let (keys, (descriptors, source)): KVD = match props.cap {
                     ElementArrayKey::Empty => (&[], (None, &[])),
                     ElementArrayKey::E4 => {
                         (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
@@ -2426,7 +2385,7 @@ impl ElementArrays {
     /// It does not do anything with descriptors and assumes there is a previous validation in place.
     pub(crate) fn shallow_clone<'a>(
         &mut self,
-        elements_vector: ElementsVector<'a>,
+        elements_vector: &ElementsVector<'a>,
     ) -> ElementsVector<'a> {
         let index = elements_vector.elements_index.into_index();
         let ElementArrays {
