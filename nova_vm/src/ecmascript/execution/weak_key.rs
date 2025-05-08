@@ -78,7 +78,7 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, IntoValue,
             MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
             Object, OrdinaryObject, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, Symbol, Value,
+            PROXY_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value,
         },
     },
     engine::{
@@ -92,7 +92,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub(crate) enum WeakKey<'a> {
-    Symbol(Symbol<'a>),
+    Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
     Object(OrdinaryObject<'a>) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
