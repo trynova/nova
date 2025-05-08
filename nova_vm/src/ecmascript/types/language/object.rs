@@ -3769,7 +3769,9 @@ impl HeapSweepWeakReference for Object<'static> {
                 .sweep_weak_reference(compactions)
                 .map(Self::BigUint64Array),
             #[cfg(feature = "proposal-float16array")]
-            Self::Float16Array(data) => data.sweep_weak_values(compactions).map(Self::Float16Array),
+            Self::Float16Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Float16Array),
             #[cfg(feature = "array-buffer")]
             Self::Float32Array(data) => data
                 .sweep_weak_reference(compactions)

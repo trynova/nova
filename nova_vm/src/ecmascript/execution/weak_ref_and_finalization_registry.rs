@@ -92,5 +92,5 @@ pub(crate) fn throw_not_weak_key_error<'a>(
         "{} is not a non-null object or unique symbol",
         string_repr.as_str(agent)
     );
-    return agent.throw_exception(ExceptionType::TypeError, message, gc);
+    agent.throw_exception(ExceptionType::TypeError, message, gc)
 }

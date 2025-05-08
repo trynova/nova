@@ -1367,7 +1367,7 @@ pub(crate) trait HeapSweepWeakReference: Sized + Copy {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self>;
 }
 
-pub(crate) fn sweep_side_table_values<'a, K, V>(
+pub(crate) fn sweep_side_table_values<K, V>(
     side_table: &mut AHashMap<K, V>,
     compactions: &CompactionLists,
 ) where
@@ -1379,7 +1379,7 @@ pub(crate) fn sweep_side_table_values<'a, K, V>(
         .collect();
 }
 
-pub(crate) fn sweep_side_set<'a, K>(side_table: &mut AHashSet<K>, compactions: &CompactionLists)
+pub(crate) fn sweep_side_set<K>(side_table: &mut AHashSet<K>, compactions: &CompactionLists)
 where
     K: HeapSweepWeakReference + Hash + Eq,
 {
@@ -1389,10 +1389,8 @@ where
         .collect();
 }
 
-pub(crate) fn sweep_lookup_table<'a, T>(
-    lookup_table: &mut HashTable<T>,
-    compactions: &CompactionLists,
-) where
+pub(crate) fn sweep_lookup_table<T>(lookup_table: &mut HashTable<T>, compactions: &CompactionLists)
+where
     T: HeapSweepWeakReference,
 {
     lookup_table.retain(|entry| {
