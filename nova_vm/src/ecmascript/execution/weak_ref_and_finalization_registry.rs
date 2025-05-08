@@ -68,7 +68,7 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
 /// > resources in implementations.
 ///
 /// > NOTE: We return an option of a WeakKey enum instead of a boolean.
-pub(crate) fn can_be_held_weakly<'a>(v: Value<'a>) -> Option<WeakKey<'a>> {
+pub(crate) fn can_be_held_weakly(v: Value) -> Option<WeakKey> {
     // 1. If v is an Object, return true.
     if let Ok(v) = Object::try_from(v) {
         Some(v.into())
