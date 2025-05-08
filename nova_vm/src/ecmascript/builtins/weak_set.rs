@@ -47,9 +47,19 @@ impl WeakSet<'_> {
         let Behaviour::Regular(behaviour) = agent[function].behaviour else {
             return false;
         };
-        #[allow(unpredictable_function_pointer_comparisons)]
+        // We allow a function address comparison here against best advice: it
+        // is exceedingly unlikely that the `add` function wouldn't be unique
+        // and even if it isn't, we don't care since we only care about its
+        // inner workings.
+        #[allow(unknown_lints)]
         {
-            behaviour == WeakSetPrototype::add
+            #[allow(
+                clippy::fn_address_comparisons,
+                unpredictable_function_pointer_comparisons
+            )]
+            {
+                behaviour == WeakSetPrototype::add
+            }
         }
     }
 }
