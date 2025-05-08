@@ -346,7 +346,6 @@ fn for_in_of_body_evaluation<'s>(
     } else {
         // ii. Else,
         // 1. Assert: iterationKind is ITERATE.
-        assert_eq!(iteration_kind, IterationKind::Iterate);
         // 2. Set status to Completion(UpdateEmpty(result, V)).
         // TODO: This is probably a no-op.
         // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).

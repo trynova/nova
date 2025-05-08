@@ -23,8 +23,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
@@ -111,13 +111,31 @@ impl<'a> Array<'a> {
         agent[self].elements.is_trivial(agent)
     }
 
+    /// Returns the `value` as an Array if it is one `method` is
+    /// `%Array.prototype.values%`.
+    pub(crate) fn is_iterable_array(
+        agent: &mut Agent,
+        value: Value<'a>,
+        method: Function<'a>,
+    ) -> Option<Self> {
+        match value {
+            Value::Array(array)
+                if method
+                    == agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .array_prototype_values()
+                        .into_function() =>
+            {
+                Some(array)
+            }
+            _ => None,
+        }
+    }
+
     /// Returns true if it is trivially iterable, ie. it contains no element
     /// accessor descriptors and uses the Array intrinsic itrator method.
-    pub(crate) fn is_trivially_iterable<'b>(
-        self,
-        agent: &'b mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> bool {
+    pub(crate) fn is_trivially_iterable(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> bool {
         if !self.is_dense(agent) {
             // Contains holes or getters, so cannot be iterated without looking
             // into the prototype chain or calling getters.

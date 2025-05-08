@@ -2262,7 +2262,14 @@ impl Vm {
                 vm.iterator_stack.push(result);
             }
             Instruction::GetIteratorAsync => {
-                todo!();
+                let expr_value = vm.result.take().unwrap();
+                let result = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| VmIteratorRecord::async_from_value(agent, expr_value, gc),
+                    gc,
+                )?;
+                vm.iterator_stack.push(result);
             }
             Instruction::IteratorStepValue => {
                 let result = with_vm_gc(
