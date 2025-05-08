@@ -506,12 +506,8 @@ impl HeapMarkAndSweep for FunctionEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32_index();
-        *self = Self::from_u32_index(
-            self_index
-                - compactions
-                    .function_environments
-                    .get_shift_for_index(self_index),
-        );
+        compactions
+            .function_environments
+            .shift_non_zero_u32_index(&mut self.0);
     }
 }

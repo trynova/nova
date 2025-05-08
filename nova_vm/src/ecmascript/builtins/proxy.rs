@@ -32,7 +32,8 @@ use crate::{
         rootable::{HeapRootData, Scopable},
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
         indexes::{BaseIndex, ProxyIndex},
     },
 };
@@ -1891,11 +1892,17 @@ impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
 }
 
 impl HeapMarkAndSweep for Proxy<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.proxys.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.proxys.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Proxy<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.proxys.shift_weak_index(self.0).map(Self)
     }
 }

@@ -11,6 +11,7 @@ pub(crate) use data::ErrorHeapData;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{TryResult, unwrap_try};
+use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
@@ -445,6 +446,12 @@ impl HeapMarkAndSweep for Error<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.errors.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Error<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.errors.shift_weak_index(self.0).map(Self)
     }
 }
 

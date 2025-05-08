@@ -22,8 +22,8 @@ use crate::{
         unwrap_try,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
         indexes::{BaseIndex, RegExpIndex},
     },
 };
@@ -362,6 +362,12 @@ impl HeapMarkAndSweep for RegExp<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.regexps.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for RegExp<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.regexps.shift_weak_index(self.0).map(Self)
     }
 }
 

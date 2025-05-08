@@ -10,6 +10,7 @@ use crate::ecmascript::types::{function_try_get, function_try_has_property, func
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{Scoped, TryResult};
+use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         execution::{
@@ -548,6 +549,15 @@ impl HeapMarkAndSweep for BuiltinConstructorFunction<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.builtin_constructors.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for BuiltinConstructorFunction<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .builtin_constructors
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

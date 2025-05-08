@@ -1,6 +1,6 @@
 use core::{hash::Hash, num::NonZeroU32};
 
-use ahash::AHashMap;
+use ahash::{AHashMap, AHashSet};
 use hashbrown::HashTable;
 
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -11,7 +11,7 @@ use super::indexes::TypedArrayIndex;
 use super::{
     Heap,
     element_array::ElementDescriptor,
-    indexes::{BaseIndex, ElementIndex, GetBaseIndexMut, IntoBaseIndex, PropertyKeyIndex},
+    indexes::{BaseIndex, ElementIndex, PropertyKeyIndex},
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -615,33 +615,115 @@ pub(crate) struct CompactionList {
 }
 
 impl CompactionList {
-    pub fn get_shift_for_index(&self, index: u32) -> u32 {
-        self.indexes
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, candidate)| **candidate <= index)
-            .map(|(index, _)| *self.shifts.get(index).unwrap())
-            .unwrap_or(0)
+    /// Perform a shift on a strongly held reference index. Returns a shifted
+    /// index.
+    fn shift_strong_u32_index(&self, index: u32) -> u32 {
+        assert!(self.indexes.len() == self.shifts.len());
+        if self.indexes.is_empty() {
+            // If there are no shifts, then all items stay where they are.
+            return index;
+        }
+        match self.indexes.binary_search(&index) {
+            Ok(exact_index) => {
+                // An exact match means we have the exact correct index to get
+                // our shift from.
+                index - self.shifts[exact_index]
+            }
+            Err(upper_bound_index) => {
+                // Otherwise we find an upper-bound index; it can be zero.
+                let own_location = upper_bound_index.checked_sub(1);
+                // If the upper-bound index is zero, then our shift amount is
+                // zero as well.
+                index - own_location.map(|i| self.shifts[i]).unwrap_or(0)
+            }
+        }
     }
 
+    /// Shift a weakly held bare u32 reference index. Returns a new index if
+    /// the reference target is live, otherwise returns None.
+    pub(crate) fn shift_weak_u32_index(&self, index: u32) -> Option<u32> {
+        assert!(self.indexes.len() == self.shifts.len());
+        // If there are no shift indexes, then all values are live.
+        if self.indexes.is_empty() {
+            return Some(index);
+        }
+        // Find the place in the indexes list where our index is or should be
+        // placed to maintain order.
+        let found_index = self.indexes.binary_search(&index);
+        let insertion_index = match found_index {
+            Ok(exact_index) => {
+                // If we found an exact index then it means that our index is
+                // necessarily live and we just need to shift it down by the
+                // appropriate amount.
+                let shift_amount = self.shifts[exact_index];
+                return Some(index - shift_amount);
+            }
+            Err(i) => i,
+        };
+        // It's possible that our index is at the "top shift" position.
+        // In that case our index is necessarily alive.
+        if insertion_index == self.indexes.len() {
+            let own_shift_amount = *self.shifts.last().unwrap();
+            return Some(index - own_shift_amount);
+        }
+        // This is the lowest index that could overwrite our index...
+        let upper_bound = self.indexes[insertion_index];
+        // ... and this is how much it shifts down.
+        let upper_bound_shift_amount = self.shifts[insertion_index];
+        // After the shift, it ends up at this index.
+        let post_shift_upper_bound = upper_bound - upper_bound_shift_amount;
+        // Our own shift amount is found in the next slot below the insertion
+        // index; the insertion index can be zero so we do a checked sub here.
+        let own_location = insertion_index.checked_sub(1);
+        // If insertion index is zero then our index does not shift but can
+        // still be overwritten.
+        let own_shift_amount = own_location.map(|i| self.shifts[i]).unwrap_or(0);
+        let post_shift_index = index - own_shift_amount;
+
+        // If the post-shift upper bound shifts to be less or equal than our
+        // post-shift index, then it means that we're being overwritten and are
+        // no longer live.
+        if post_shift_upper_bound <= post_shift_index {
+            None
+        } else {
+            // Otherwise, we're still live with the post-shift index value.
+            Some(post_shift_index)
+        }
+    }
+
+    /// Shift a strongly held bare u32 reference index.
+    ///
+    /// Where possible, prefer using the `shift_index` function.
+    pub(crate) fn shift_u32_index(&self, base_index: &mut u32) {
+        *base_index = self.shift_strong_u32_index(*base_index);
+    }
+
+    /// Shift a strongly held reference index.
     pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
-        let base_index = index.into_u32_index();
-        *index = BaseIndex::from_u32_index(base_index - self.get_shift_for_index(base_index));
+        *index = BaseIndex::from_u32_index(self.shift_strong_u32_index(index.into_u32_index()));
     }
 
-    pub(crate) fn shift_u32_index(&self, index: &mut u32) {
-        *index -= self.get_shift_for_index(*index);
-    }
-
+    /// Shift a strongly held bare NonZeroU32 reference index.
+    ///
+    /// Where possible, prefer using `shift_index` function.
     pub(crate) fn shift_non_zero_u32_index(&self, index: &mut NonZeroU32) {
         // 1-indexed value
         let base_index: u32 = (*index).into();
         // 0-indexed value
         let base_index = base_index - 1;
-        let shifted_base_index = base_index - self.get_shift_for_index(base_index);
         // SAFETY: Shifted base index can be 0, adding 1 makes it non-zero.
-        *index = unsafe { NonZeroU32::new_unchecked(shifted_base_index + 1) };
+        *index = unsafe { NonZeroU32::new_unchecked(self.shift_strong_u32_index(base_index) + 1) };
+    }
+
+    /// Shift a weakly held reference index. Returns a new index if the
+    /// reference target is live, otherwise returns None.
+    pub(crate) fn shift_weak_index<'a, T: ?Sized>(
+        &self,
+        index: BaseIndex<'a, T>,
+    ) -> Option<BaseIndex<'a, T>> {
+        let base_index = index.into_u32_index();
+        let base_index = self.shift_weak_u32_index(base_index)?;
+        Some(BaseIndex::from_u32_index(base_index))
     }
 
     fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
@@ -703,16 +785,34 @@ impl CompactionList {
 
 #[derive(Debug)]
 pub(crate) struct CompactionListBuilder {
+    // TODO: Use a combined Box<[MaybeUninit<u32>]> and separate `len: u32`.
     indexes: Vec<u32>,
     shifts: Vec<u32>,
     current_index: u32,
     current_shift: u32,
     current_used: bool,
-    current_unused_start_index: u32,
 }
 
 impl CompactionListBuilder {
-    fn push_index_with_shift(&mut self, index: u32, shift: u32) {
+    fn with_bits_length(bits_length: usize) -> Self {
+        // Note: the maximum possible size of the indexes and shifts vectors is
+        // half the bits length; this happens if every other bit is 1.
+        // It's unlikely that we find this case, so we halve that for a fairly
+        // conservative guess.
+        let capacity = bits_length / 4;
+        Self {
+            indexes: Vec::with_capacity(capacity),
+            shifts: Vec::with_capacity(capacity),
+            current_index: 0,
+            current_shift: 0,
+            current_used: true,
+        }
+    }
+
+    /// Add current index to indexes with the current shift.
+    fn add_current_index(&mut self) {
+        let index = self.current_index;
+        let shift = self.current_shift;
         assert_eq!(self.shifts.len(), self.indexes.len());
         assert!(self.indexes.is_empty() || *self.indexes.last().unwrap() < index);
         assert!(self.shifts.is_empty() || *self.shifts.last().unwrap() < shift);
@@ -720,29 +820,31 @@ impl CompactionListBuilder {
         self.indexes.push(index);
     }
 
-    pub fn mark_used(&mut self) {
+    fn mark_used(&mut self) {
         if !self.current_used {
-            let shift_start_index = if self.current_unused_start_index == 0 {
-                self.current_index
-            } else {
-                self.current_unused_start_index
-            };
-            self.push_index_with_shift(shift_start_index, self.current_shift);
+            self.add_current_index();
             self.current_used = true;
         }
         self.current_index += 1;
     }
 
-    pub fn mark_unused(&mut self) {
+    fn mark_unused(&mut self) {
         if self.current_used {
-            self.current_unused_start_index = self.current_index;
             self.current_used = false;
         }
         self.current_shift += 1;
         self.current_index += 1;
     }
 
-    pub fn done(self) -> CompactionList {
+    fn done(mut self) -> CompactionList {
+        // When building compactions is done, it's possible that the end of the
+        // data contains dropped values; we must add an "end-cap" where the
+        // start index is equal to the length of the data vector (and thus
+        // unreachable; no reference can point to the end of the vector) and
+        // where the shift value is such that it overwrites the dropped values.
+        if !self.current_used {
+            self.add_current_index();
+        }
         CompactionList::build(self.indexes, self.shifts)
     }
 }
@@ -755,7 +857,6 @@ impl Default for CompactionListBuilder {
             current_index: 0,
             current_shift: 0,
             current_used: true,
-            current_unused_start_index: 0,
         }
     }
 }
@@ -929,6 +1030,7 @@ impl CompactionLists {
     }
 }
 
+/// Trait for sweeping live heap data and references.
 pub(crate) trait HeapMarkAndSweep {
     /// Mark all Heap references contained in self
     ///
@@ -1257,56 +1359,45 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
     }
 }
 
-pub(crate) fn sweep_side_table_values<'a, T, K, V>(
-    side_table: &mut AHashMap<K, V>,
-    compactions: &CompactionList,
-    marks: &[bool],
-) where
-    T: 'a + ?Sized,
-    K: IntoBaseIndex<'a, T> + From<BaseIndex<'a, T>> + Copy + Ord + Hash,
-{
-    let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
-    let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
-    for (key, _) in side_table.iter_mut() {
-        let old_key = *key;
-        if !marks.get(key.into_base_index().into_index()).unwrap() {
-            keys_to_remove.push(old_key);
-        } else {
-            let mut new_key = old_key.into_base_index();
-            compactions.shift_index(&mut new_key);
-            let new_key = K::from(new_key);
-            if new_key != old_key {
-                keys_to_reassign.push((old_key, new_key));
-            }
-        }
-    }
-    keys_to_remove.sort();
-    keys_to_reassign.sort();
-    for old_key in keys_to_remove.iter() {
-        side_table.remove(old_key);
-    }
-    for (old_key, new_key) in keys_to_reassign {
-        // SAFETY: The old key came from iterating the side table, and the same
-        // key cannot appear in both keys to remove and keys to reassign. Thus
-        // the key must necessarily exist in the side table hash map.
-        let value = unsafe { side_table.remove(&old_key).unwrap_unchecked() };
-        side_table.insert(new_key, value);
-    }
+/// Trait for sweeping weak references.
+pub(crate) trait HeapSweepWeakReference: Sized + Copy {
+    /// Perform sweep on a weakly held reference; if the reference target is
+    /// still alive then the value is mutated and true is returned, otherwise
+    /// false is returned.
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self>;
 }
 
-pub(crate) fn sweep_lookup_table<'a, T, U>(
+pub(crate) fn sweep_side_table_values<'a, K, V>(
+    side_table: &mut AHashMap<K, V>,
+    compactions: &CompactionLists,
+) where
+    K: HeapSweepWeakReference + Hash + Eq,
+{
+    *side_table = side_table
+        .drain()
+        .filter_map(|(k, v)| k.sweep_weak_reference(compactions).map(|k| (k, v)))
+        .collect();
+}
+
+pub(crate) fn sweep_side_set<'a, K>(side_table: &mut AHashSet<K>, compactions: &CompactionLists)
+where
+    K: HeapSweepWeakReference + Hash + Eq,
+{
+    *side_table = side_table
+        .drain()
+        .filter_map(|k| k.sweep_weak_reference(compactions))
+        .collect();
+}
+
+pub(crate) fn sweep_lookup_table<'a, T>(
     lookup_table: &mut HashTable<T>,
     compactions: &CompactionLists,
-    bits: &[bool],
 ) where
-    T: GetBaseIndexMut<'a, U>,
+    T: HeapSweepWeakReference,
 {
-    assert_eq!(lookup_table.len(), bits.len());
     lookup_table.retain(|entry| {
-        let base_index = entry.get_base_index_mut();
-        let do_retain = bits[base_index.into_index()];
-        if do_retain {
-            compactions.strings.shift_index(base_index);
+        if let Some(updated_value) = entry.sweep_weak_reference(compactions) {
+            *entry = updated_value;
             true
         } else {
             false

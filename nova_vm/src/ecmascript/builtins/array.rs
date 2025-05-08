@@ -34,7 +34,8 @@ use crate::{
         unwrap_try,
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WellKnownSymbolIndexes, WorkQueues,
         element_array::{ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ArrayIndex,
     },
@@ -801,8 +802,14 @@ impl HeapMarkAndSweep for Array<'static> {
         queues.arrays.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.arrays.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Array<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.arrays.shift_weak_index(self.0).map(Self)
     }
 }
 

@@ -15,6 +15,7 @@ use crate::{
         rootable::Scopable,
         unwrap_try,
     },
+    heap::HeapSweepWeakReference,
 };
 use crate::{
     ecmascript::{
@@ -1660,6 +1661,12 @@ impl HeapMarkAndSweep for OrdinaryObject<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.objects.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for OrdinaryObject<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.objects.shift_weak_index(self.0).map(Self)
     }
 }
 

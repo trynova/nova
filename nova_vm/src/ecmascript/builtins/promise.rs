@@ -8,6 +8,7 @@ use data::PromiseState;
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
+use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -194,11 +195,17 @@ impl Rootable for Promise<'_> {
 }
 
 impl HeapMarkAndSweep for Promise<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.promises.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.promises.shift_index(&mut self.0)
+    }
+}
+
+impl HeapSweepWeakReference for Promise<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.promises.shift_weak_index(self.0).map(Self)
     }
 }

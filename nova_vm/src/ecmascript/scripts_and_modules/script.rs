@@ -122,8 +122,7 @@ impl HeapMarkAndSweep for Script<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32();
-        *self = Self::from_u32(self_index - compactions.scripts.get_shift_for_index(self_index));
+        compactions.scripts.shift_u32_index(&mut self.0);
     }
 }
 

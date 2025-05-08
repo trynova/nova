@@ -19,7 +19,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::DateIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::DateIndex,
     },
 };
 
@@ -187,6 +188,12 @@ impl HeapMarkAndSweep for Date<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.dates.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Date<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.dates.shift_weak_index(self.0).map(Self)
     }
 }
 

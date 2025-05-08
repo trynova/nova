@@ -85,7 +85,7 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
@@ -394,105 +394,226 @@ impl Rootable for WeakKey<'_> {
 impl HeapMarkAndSweep for WeakKey<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            WeakKey::Symbol(d) => d.mark_values(queues),
-            WeakKey::Object(d) => d.mark_values(queues),
-            WeakKey::BoundFunction(d) => d.mark_values(queues),
-            WeakKey::BuiltinFunction(d) => d.mark_values(queues),
-            WeakKey::ECMAScriptFunction(d) => d.mark_values(queues),
-            WeakKey::BuiltinGeneratorFunction => {}
-            WeakKey::BuiltinConstructorFunction(d) => d.mark_values(queues),
-            WeakKey::BuiltinPromiseResolvingFunction(d) => d.mark_values(queues),
-            WeakKey::BuiltinPromiseCollectorFunction => {}
-            WeakKey::BuiltinProxyRevokerFunction => {}
-            WeakKey::PrimitiveObject(d) => d.mark_values(queues),
-            WeakKey::Arguments(d) => d.mark_values(queues),
-            WeakKey::Array(d) => d.mark_values(queues),
-            WeakKey::ArrayBuffer(d) => d.mark_values(queues),
-            WeakKey::DataView(d) => d.mark_values(queues),
-            WeakKey::Date(d) => d.mark_values(queues),
-            WeakKey::Error(d) => d.mark_values(queues),
-            WeakKey::FinalizationRegistry(d) => d.mark_values(queues),
-            WeakKey::Map(d) => d.mark_values(queues),
-            WeakKey::Promise(d) => d.mark_values(queues),
-            WeakKey::Proxy(d) => d.mark_values(queues),
-            WeakKey::RegExp(d) => d.mark_values(queues),
-            WeakKey::Set(d) => d.mark_values(queues),
-            WeakKey::SharedArrayBuffer(d) => d.mark_values(queues),
-            WeakKey::WeakMap(d) => d.mark_values(queues),
-            WeakKey::WeakRef(d) => d.mark_values(queues),
-            WeakKey::WeakSet(d) => d.mark_values(queues),
-            WeakKey::Int8Array(d) => d.mark_values(queues),
-            WeakKey::Uint8Array(d) => d.mark_values(queues),
-            WeakKey::Uint8ClampedArray(d) => d.mark_values(queues),
-            WeakKey::Int16Array(d) => d.mark_values(queues),
-            WeakKey::Uint16Array(d) => d.mark_values(queues),
-            WeakKey::Int32Array(d) => d.mark_values(queues),
-            WeakKey::Uint32Array(d) => d.mark_values(queues),
-            WeakKey::BigInt64Array(d) => d.mark_values(queues),
-            WeakKey::BigUint64Array(d) => d.mark_values(queues),
-            WeakKey::Float32Array(d) => d.mark_values(queues),
-            WeakKey::Float64Array(d) => d.mark_values(queues),
-            WeakKey::AsyncFromSyncIterator => {}
-            WeakKey::AsyncGenerator(d) => d.mark_values(queues),
-            WeakKey::ArrayIterator(d) => d.mark_values(queues),
-            WeakKey::SetIterator(d) => d.mark_values(queues),
-            WeakKey::MapIterator(d) => d.mark_values(queues),
-            WeakKey::StringIterator(d) => d.mark_values(queues),
-            WeakKey::Generator(d) => d.mark_values(queues),
-            WeakKey::Module(d) => d.mark_values(queues),
-            WeakKey::EmbedderObject(d) => d.mark_values(queues),
+            Self::Symbol(d) => d.mark_values(queues),
+            Self::Object(d) => d.mark_values(queues),
+            Self::BoundFunction(d) => d.mark_values(queues),
+            Self::BuiltinFunction(d) => d.mark_values(queues),
+            Self::ECMAScriptFunction(d) => d.mark_values(queues),
+            Self::BuiltinGeneratorFunction => {}
+            Self::BuiltinConstructorFunction(d) => d.mark_values(queues),
+            Self::BuiltinPromiseResolvingFunction(d) => d.mark_values(queues),
+            Self::BuiltinPromiseCollectorFunction => {}
+            Self::BuiltinProxyRevokerFunction => {}
+            Self::PrimitiveObject(d) => d.mark_values(queues),
+            Self::Arguments(d) => d.mark_values(queues),
+            Self::Array(d) => d.mark_values(queues),
+            Self::ArrayBuffer(d) => d.mark_values(queues),
+            Self::DataView(d) => d.mark_values(queues),
+            Self::Date(d) => d.mark_values(queues),
+            Self::Error(d) => d.mark_values(queues),
+            Self::FinalizationRegistry(d) => d.mark_values(queues),
+            Self::Map(d) => d.mark_values(queues),
+            Self::Promise(d) => d.mark_values(queues),
+            Self::Proxy(d) => d.mark_values(queues),
+            Self::RegExp(d) => d.mark_values(queues),
+            Self::Set(d) => d.mark_values(queues),
+            Self::SharedArrayBuffer(d) => d.mark_values(queues),
+            Self::WeakMap(d) => d.mark_values(queues),
+            Self::WeakRef(d) => d.mark_values(queues),
+            Self::WeakSet(d) => d.mark_values(queues),
+            Self::Int8Array(d) => d.mark_values(queues),
+            Self::Uint8Array(d) => d.mark_values(queues),
+            Self::Uint8ClampedArray(d) => d.mark_values(queues),
+            Self::Int16Array(d) => d.mark_values(queues),
+            Self::Uint16Array(d) => d.mark_values(queues),
+            Self::Int32Array(d) => d.mark_values(queues),
+            Self::Uint32Array(d) => d.mark_values(queues),
+            Self::BigInt64Array(d) => d.mark_values(queues),
+            Self::BigUint64Array(d) => d.mark_values(queues),
+            Self::Float32Array(d) => d.mark_values(queues),
+            Self::Float64Array(d) => d.mark_values(queues),
+            Self::AsyncFromSyncIterator => {}
+            Self::AsyncGenerator(d) => d.mark_values(queues),
+            Self::ArrayIterator(d) => d.mark_values(queues),
+            Self::SetIterator(d) => d.mark_values(queues),
+            Self::MapIterator(d) => d.mark_values(queues),
+            Self::StringIterator(d) => d.mark_values(queues),
+            Self::Generator(d) => d.mark_values(queues),
+            Self::Module(d) => d.mark_values(queues),
+            Self::EmbedderObject(d) => d.mark_values(queues),
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            WeakKey::Symbol(d) => d.sweep_values(compactions),
-            WeakKey::Object(d) => d.sweep_values(compactions),
-            WeakKey::BoundFunction(d) => d.sweep_values(compactions),
-            WeakKey::BuiltinFunction(d) => d.sweep_values(compactions),
-            WeakKey::ECMAScriptFunction(d) => d.sweep_values(compactions),
-            WeakKey::BuiltinGeneratorFunction => {}
-            WeakKey::BuiltinConstructorFunction(d) => d.sweep_values(compactions),
-            WeakKey::BuiltinPromiseResolvingFunction(d) => d.sweep_values(compactions),
-            WeakKey::BuiltinPromiseCollectorFunction => {}
-            WeakKey::BuiltinProxyRevokerFunction => {}
-            WeakKey::PrimitiveObject(d) => d.sweep_values(compactions),
-            WeakKey::Arguments(d) => d.sweep_values(compactions),
-            WeakKey::Array(d) => d.sweep_values(compactions),
-            WeakKey::ArrayBuffer(d) => d.sweep_values(compactions),
-            WeakKey::DataView(d) => d.sweep_values(compactions),
-            WeakKey::Date(d) => d.sweep_values(compactions),
-            WeakKey::Error(d) => d.sweep_values(compactions),
-            WeakKey::FinalizationRegistry(d) => d.sweep_values(compactions),
-            WeakKey::Map(d) => d.sweep_values(compactions),
-            WeakKey::Promise(d) => d.sweep_values(compactions),
-            WeakKey::Proxy(d) => d.sweep_values(compactions),
-            WeakKey::RegExp(d) => d.sweep_values(compactions),
-            WeakKey::Set(d) => d.sweep_values(compactions),
-            WeakKey::SharedArrayBuffer(d) => d.sweep_values(compactions),
-            WeakKey::WeakMap(d) => d.sweep_values(compactions),
-            WeakKey::WeakRef(d) => d.sweep_values(compactions),
-            WeakKey::WeakSet(d) => d.sweep_values(compactions),
-            WeakKey::Int8Array(d) => d.sweep_values(compactions),
-            WeakKey::Uint8Array(d) => d.sweep_values(compactions),
-            WeakKey::Uint8ClampedArray(d) => d.sweep_values(compactions),
-            WeakKey::Int16Array(d) => d.sweep_values(compactions),
-            WeakKey::Uint16Array(d) => d.sweep_values(compactions),
-            WeakKey::Int32Array(d) => d.sweep_values(compactions),
-            WeakKey::Uint32Array(d) => d.sweep_values(compactions),
-            WeakKey::BigInt64Array(d) => d.sweep_values(compactions),
-            WeakKey::BigUint64Array(d) => d.sweep_values(compactions),
-            WeakKey::Float32Array(d) => d.sweep_values(compactions),
-            WeakKey::Float64Array(d) => d.sweep_values(compactions),
-            WeakKey::AsyncFromSyncIterator => {}
-            WeakKey::AsyncGenerator(d) => d.sweep_values(compactions),
-            WeakKey::ArrayIterator(d) => d.sweep_values(compactions),
-            WeakKey::SetIterator(d) => d.sweep_values(compactions),
-            WeakKey::MapIterator(d) => d.sweep_values(compactions),
-            WeakKey::StringIterator(d) => d.sweep_values(compactions),
-            WeakKey::Generator(d) => d.sweep_values(compactions),
-            WeakKey::Module(d) => d.sweep_values(compactions),
-            WeakKey::EmbedderObject(d) => d.sweep_values(compactions),
+            Self::Symbol(d) => d.sweep_values(compactions),
+            Self::Object(d) => d.sweep_values(compactions),
+            Self::BoundFunction(d) => d.sweep_values(compactions),
+            Self::BuiltinFunction(d) => d.sweep_values(compactions),
+            Self::ECMAScriptFunction(d) => d.sweep_values(compactions),
+            Self::BuiltinGeneratorFunction => {}
+            Self::BuiltinConstructorFunction(d) => d.sweep_values(compactions),
+            Self::BuiltinPromiseResolvingFunction(d) => d.sweep_values(compactions),
+            Self::BuiltinPromiseCollectorFunction => {}
+            Self::BuiltinProxyRevokerFunction => {}
+            Self::PrimitiveObject(d) => d.sweep_values(compactions),
+            Self::Arguments(d) => d.sweep_values(compactions),
+            Self::Array(d) => d.sweep_values(compactions),
+            Self::ArrayBuffer(d) => d.sweep_values(compactions),
+            Self::DataView(d) => d.sweep_values(compactions),
+            Self::Date(d) => d.sweep_values(compactions),
+            Self::Error(d) => d.sweep_values(compactions),
+            Self::FinalizationRegistry(d) => d.sweep_values(compactions),
+            Self::Map(d) => d.sweep_values(compactions),
+            Self::Promise(d) => d.sweep_values(compactions),
+            Self::Proxy(d) => d.sweep_values(compactions),
+            Self::RegExp(d) => d.sweep_values(compactions),
+            Self::Set(d) => d.sweep_values(compactions),
+            Self::SharedArrayBuffer(d) => d.sweep_values(compactions),
+            Self::WeakMap(d) => d.sweep_values(compactions),
+            Self::WeakRef(d) => d.sweep_values(compactions),
+            Self::WeakSet(d) => d.sweep_values(compactions),
+            Self::Int8Array(d) => d.sweep_values(compactions),
+            Self::Uint8Array(d) => d.sweep_values(compactions),
+            Self::Uint8ClampedArray(d) => d.sweep_values(compactions),
+            Self::Int16Array(d) => d.sweep_values(compactions),
+            Self::Uint16Array(d) => d.sweep_values(compactions),
+            Self::Int32Array(d) => d.sweep_values(compactions),
+            Self::Uint32Array(d) => d.sweep_values(compactions),
+            Self::BigInt64Array(d) => d.sweep_values(compactions),
+            Self::BigUint64Array(d) => d.sweep_values(compactions),
+            Self::Float32Array(d) => d.sweep_values(compactions),
+            Self::Float64Array(d) => d.sweep_values(compactions),
+            Self::AsyncFromSyncIterator => {}
+            Self::AsyncGenerator(d) => d.sweep_values(compactions),
+            Self::ArrayIterator(d) => d.sweep_values(compactions),
+            Self::SetIterator(d) => d.sweep_values(compactions),
+            Self::MapIterator(d) => d.sweep_values(compactions),
+            Self::StringIterator(d) => d.sweep_values(compactions),
+            Self::Generator(d) => d.sweep_values(compactions),
+            Self::Module(d) => d.sweep_values(compactions),
+            Self::EmbedderObject(d) => d.sweep_values(compactions),
+        }
+    }
+}
+
+impl HeapSweepWeakReference for WeakKey<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        match self {
+            Self::Symbol(data) => data.sweep_weak_reference(compactions).map(Self::Symbol),
+            Self::Object(data) => data.sweep_weak_reference(compactions).map(Self::Object),
+            Self::BoundFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BoundFunction),
+            Self::BuiltinFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinFunction),
+            Self::ECMAScriptFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::ECMAScriptFunction),
+            Self::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
+            Self::BuiltinConstructorFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinConstructorFunction),
+            Self::BuiltinPromiseResolvingFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinPromiseResolvingFunction),
+            Self::BuiltinPromiseCollectorFunction => Some(Self::BuiltinPromiseCollectorFunction),
+            Self::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
+            Self::PrimitiveObject(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::PrimitiveObject),
+            Self::Arguments(data) => data.sweep_weak_reference(compactions).map(Self::Arguments),
+            Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
+            #[cfg(feature = "array-buffer")]
+            Self::ArrayBuffer(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::ArrayBuffer),
+            #[cfg(feature = "array-buffer")]
+            Self::DataView(data) => data.sweep_weak_reference(compactions).map(Self::DataView),
+            #[cfg(feature = "date")]
+            Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
+            Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
+            Self::FinalizationRegistry(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::FinalizationRegistry),
+            Self::Map(data) => data.sweep_weak_reference(compactions).map(Self::Map),
+            Self::Promise(data) => data.sweep_weak_reference(compactions).map(Self::Promise),
+            Self::Proxy(data) => data.sweep_weak_reference(compactions).map(Self::Proxy),
+            #[cfg(feature = "regexp")]
+            Self::RegExp(data) => data.sweep_weak_reference(compactions).map(Self::RegExp),
+            #[cfg(feature = "set")]
+            Self::Set(data) => data.sweep_weak_reference(compactions).map(Self::Set),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedArrayBuffer),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakMap(data) => data.sweep_weak_reference(compactions).map(Self::WeakMap),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakRef(data) => data.sweep_weak_reference(compactions).map(Self::WeakRef),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakSet(data) => data.sweep_weak_reference(compactions).map(Self::WeakSet),
+            #[cfg(feature = "array-buffer")]
+            Self::Int8Array(data) => data.sweep_weak_reference(compactions).map(Self::Int8Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(data) => data.sweep_weak_reference(compactions).map(Self::Uint8Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Uint8ClampedArray),
+            #[cfg(feature = "array-buffer")]
+            Self::Int16Array(data) => data.sweep_weak_reference(compactions).map(Self::Int16Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint16Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Uint16Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Int32Array(data) => data.sweep_weak_reference(compactions).map(Self::Int32Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint32Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Uint32Array),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BigInt64Array),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BigUint64Array),
+            #[cfg(feature = "proposal-float16array")]
+            Self::Float16Array(data) => data.sweep_weak_values(compactions).map(Self::Float16Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Float32Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Float32Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Float64Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Float64Array),
+            Self::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
+            Self::AsyncGenerator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::AsyncGenerator),
+            Self::ArrayIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::ArrayIterator),
+            #[cfg(feature = "set")]
+            Self::SetIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::SetIterator),
+            Self::MapIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::MapIterator),
+            Self::StringIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::StringIterator),
+            Self::Generator(data) => data.sweep_weak_reference(compactions).map(Self::Generator),
+            Self::Module(data) => data.sweep_weak_reference(compactions).map(Self::Module),
+            Self::EmbedderObject(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::EmbedderObject),
         }
     }
 }

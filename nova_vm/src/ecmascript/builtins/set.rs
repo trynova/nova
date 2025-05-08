@@ -15,7 +15,7 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, SetIndex},
     },
 };
@@ -116,6 +116,12 @@ impl HeapMarkAndSweep for Set<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.sets.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Set<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.sets.shift_weak_index(self.0).map(Self)
     }
 }
 

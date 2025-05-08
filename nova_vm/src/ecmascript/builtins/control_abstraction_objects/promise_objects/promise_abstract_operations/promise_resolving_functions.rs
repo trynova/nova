@@ -8,6 +8,7 @@ use crate::ecmascript::types::{function_try_get, function_try_has_property, func
 use crate::engine::context::{ Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{Scoped, TryResult};
+use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
 use crate::{
     ecmascript::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
@@ -332,14 +333,23 @@ impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseReso
 }
 
 impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.promise_resolving_functions.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions
             .promise_resolving_functions
             .shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for BuiltinPromiseResolvingFunction<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .promise_resolving_functions
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

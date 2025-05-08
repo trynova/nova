@@ -15,7 +15,7 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CreateHeapData, HeapMarkAndSweep,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, WeakSetIndex},
     },
 };
@@ -157,11 +157,17 @@ impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
 }
 
 impl HeapMarkAndSweep for WeakSet<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.weak_sets.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.weak_sets.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for WeakSet<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.weak_sets.shift_weak_index(self.0).map(Self)
     }
 }

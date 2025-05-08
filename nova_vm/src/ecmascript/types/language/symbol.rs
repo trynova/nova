@@ -15,8 +15,9 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, LAST_WELL_KNOWN_SYMBOL_INDEX,
-        PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues, indexes::SymbolIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        LAST_WELL_KNOWN_SYMBOL_INDEX, PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues,
+        indexes::SymbolIndex,
     },
 };
 
@@ -163,6 +164,12 @@ impl HeapMarkAndSweep for Symbol<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.symbols.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Symbol<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.symbols.shift_weak_index(self.0).map(Self)
     }
 }
 

@@ -28,8 +28,8 @@ use crate::{
         unwrap_try,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        indexes::BoundFunctionIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::BoundFunctionIndex,
     },
 };
 
@@ -458,6 +458,15 @@ impl HeapMarkAndSweep for BoundFunction<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.bound_functions.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for BoundFunction<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .bound_functions
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

@@ -26,8 +26,8 @@ use crate::{
         unwrap_try,
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep,
-        indexes::{IntoBaseIndex, TypedArrayIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::TypedArrayIndex,
     },
 };
 
@@ -211,12 +211,6 @@ unsafe impl Bindable for TypedArray<'_> {
 impl<'a> From<TypedArrayIndex<'a>> for TypedArray<'a> {
     fn from(value: TypedArrayIndex<'a>) -> Self {
         TypedArray::Uint8Array(value)
-    }
-}
-
-impl<'a> IntoBaseIndex<'a, TypedArrayHeapData<'static>> for TypedArrayIndex<'a> {
-    fn into_base_index(self) -> TypedArrayIndex<'a> {
-        self
     }
 }
 
@@ -904,17 +898,23 @@ impl<'a> CreateHeapData<TypedArrayHeapData<'a>, TypedArrayIndex<'a>> for Heap {
 }
 
 impl HeapMarkAndSweep for TypedArrayIndex<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.typed_arrays.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.typed_arrays.shift_index(self);
     }
 }
 
+impl HeapSweepWeakReference for TypedArrayIndex<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.typed_arrays.shift_weak_index(self)
+    }
+}
+
 impl HeapMarkAndSweep for TypedArray<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             TypedArray::Int8Array(data)
             | TypedArray::Uint8Array(data)
@@ -932,7 +932,7 @@ impl HeapMarkAndSweep for TypedArray<'static> {
         }
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
             TypedArray::Int8Array(data)
             | TypedArray::Uint8Array(data)

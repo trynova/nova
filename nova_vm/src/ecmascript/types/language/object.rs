@@ -100,7 +100,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::ObjectIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::ObjectIndex,
     },
 };
 
@@ -3536,149 +3537,269 @@ impl<'a> InternalMethods<'a> for Object<'a> {
 impl HeapMarkAndSweep for Object<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            Object::Object(data) => data.mark_values(queues),
-            Object::Array(data) => data.mark_values(queues),
+            Self::Object(data) => data.mark_values(queues),
+            Self::Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(data) => data.mark_values(queues),
+            Self::ArrayBuffer(data) => data.mark_values(queues),
             #[cfg(feature = "date")]
-            Object::Date(data) => data.mark_values(queues),
-            Object::Error(data) => data.mark_values(queues),
-            Object::BoundFunction(data) => data.mark_values(queues),
-            Object::BuiltinFunction(data) => data.mark_values(queues),
-            Object::ECMAScriptFunction(data) => data.mark_values(queues),
-            Object::BuiltinGeneratorFunction => todo!(),
-            Object::BuiltinConstructorFunction(data) => data.mark_values(queues),
-            Object::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
-            Object::BuiltinPromiseCollectorFunction => todo!(),
-            Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(data) => data.mark_values(queues),
-            Object::Arguments(data) => data.mark_values(queues),
+            Self::Date(data) => data.mark_values(queues),
+            Self::Error(data) => data.mark_values(queues),
+            Self::BoundFunction(data) => data.mark_values(queues),
+            Self::BuiltinFunction(data) => data.mark_values(queues),
+            Self::ECMAScriptFunction(data) => data.mark_values(queues),
+            Self::BuiltinGeneratorFunction => todo!(),
+            Self::BuiltinConstructorFunction(data) => data.mark_values(queues),
+            Self::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
+            Self::BuiltinPromiseCollectorFunction => todo!(),
+            Self::BuiltinProxyRevokerFunction => todo!(),
+            Self::PrimitiveObject(data) => data.mark_values(queues),
+            Self::Arguments(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::DataView(data) => data.mark_values(queues),
-            Object::FinalizationRegistry(data) => data.mark_values(queues),
-            Object::Map(data) => data.mark_values(queues),
-            Object::Promise(data) => data.mark_values(queues),
-            Object::Proxy(data) => data.mark_values(queues),
+            Self::DataView(data) => data.mark_values(queues),
+            Self::FinalizationRegistry(data) => data.mark_values(queues),
+            Self::Map(data) => data.mark_values(queues),
+            Self::Promise(data) => data.mark_values(queues),
+            Self::Proxy(data) => data.mark_values(queues),
             #[cfg(feature = "regexp")]
-            Object::RegExp(data) => data.mark_values(queues),
+            Self::RegExp(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
-            Object::Set(data) => data.mark_values(queues),
+            Self::Set(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(data) => data.mark_values(queues),
+            Self::SharedArrayBuffer(data) => data.mark_values(queues),
             #[cfg(feature = "weak-refs")]
-            Object::WeakMap(data) => data.mark_values(queues),
+            Self::WeakMap(data) => data.mark_values(queues),
             #[cfg(feature = "weak-refs")]
-            Object::WeakRef(data) => data.mark_values(queues),
+            Self::WeakRef(data) => data.mark_values(queues),
             #[cfg(feature = "weak-refs")]
-            Object::WeakSet(data) => data.mark_values(queues),
+            Self::WeakSet(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(data) => data.mark_values(queues),
+            Self::Int8Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(data) => data.mark_values(queues),
+            Self::Uint8Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(data) => data.mark_values(queues),
+            Self::Uint8ClampedArray(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Int16Array(data) => data.mark_values(queues),
+            Self::Int16Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(data) => data.mark_values(queues),
+            Self::Uint16Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Int32Array(data) => data.mark_values(queues),
+            Self::Int32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(data) => data.mark_values(queues),
+            Self::Uint32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(data) => data.mark_values(queues),
+            Self::BigInt64Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(data) => data.mark_values(queues),
+            Self::BigUint64Array(data) => data.mark_values(queues),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(data) => data.mark_values(queues),
+            Self::Float16Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Float32Array(data) => data.mark_values(queues),
+            Self::Float32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Object::Float64Array(data) => data.mark_values(queues),
-            Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncGenerator(data) => data.mark_values(queues),
-            Object::ArrayIterator(data) => data.mark_values(queues),
+            Self::Float64Array(data) => data.mark_values(queues),
+            Self::AsyncFromSyncIterator => todo!(),
+            Self::AsyncGenerator(data) => data.mark_values(queues),
+            Self::ArrayIterator(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
-            Object::SetIterator(data) => data.mark_values(queues),
-            Object::MapIterator(data) => data.mark_values(queues),
-            Object::StringIterator(data) => data.mark_values(queues),
-            Object::Generator(data) => data.mark_values(queues),
-            Object::Module(data) => data.mark_values(queues),
-            Object::EmbedderObject(data) => data.mark_values(queues),
+            Self::SetIterator(data) => data.mark_values(queues),
+            Self::MapIterator(data) => data.mark_values(queues),
+            Self::StringIterator(data) => data.mark_values(queues),
+            Self::Generator(data) => data.mark_values(queues),
+            Self::Module(data) => data.mark_values(queues),
+            Self::EmbedderObject(data) => data.mark_values(queues),
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            Object::Object(data) => data.sweep_values(compactions),
-            Object::BoundFunction(data) => data.sweep_values(compactions),
-            Object::BuiltinFunction(data) => data.sweep_values(compactions),
-            Object::ECMAScriptFunction(data) => data.sweep_values(compactions),
-            Object::BuiltinGeneratorFunction => todo!(),
-            Object::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
-            Object::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
-            Object::BuiltinPromiseCollectorFunction => todo!(),
-            Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(data) => data.sweep_values(compactions),
-            Object::Arguments(data) => data.sweep_values(compactions),
-            Object::Array(data) => data.sweep_values(compactions),
+            Self::Object(data) => data.sweep_values(compactions),
+            Self::BoundFunction(data) => data.sweep_values(compactions),
+            Self::BuiltinFunction(data) => data.sweep_values(compactions),
+            Self::ECMAScriptFunction(data) => data.sweep_values(compactions),
+            Self::BuiltinGeneratorFunction => todo!(),
+            Self::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
+            Self::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
+            Self::BuiltinPromiseCollectorFunction => todo!(),
+            Self::BuiltinProxyRevokerFunction => todo!(),
+            Self::PrimitiveObject(data) => data.sweep_values(compactions),
+            Self::Arguments(data) => data.sweep_values(compactions),
+            Self::Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(data) => data.sweep_values(compactions),
+            Self::ArrayBuffer(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::DataView(data) => data.sweep_values(compactions),
+            Self::DataView(data) => data.sweep_values(compactions),
             #[cfg(feature = "date")]
-            Object::Date(data) => data.sweep_values(compactions),
-            Object::Error(data) => data.sweep_values(compactions),
-            Object::FinalizationRegistry(data) => data.sweep_values(compactions),
-            Object::Map(data) => data.sweep_values(compactions),
-            Object::Promise(data) => data.sweep_values(compactions),
-            Object::Proxy(data) => data.sweep_values(compactions),
+            Self::Date(data) => data.sweep_values(compactions),
+            Self::Error(data) => data.sweep_values(compactions),
+            Self::FinalizationRegistry(data) => data.sweep_values(compactions),
+            Self::Map(data) => data.sweep_values(compactions),
+            Self::Promise(data) => data.sweep_values(compactions),
+            Self::Proxy(data) => data.sweep_values(compactions),
             #[cfg(feature = "regexp")]
-            Object::RegExp(data) => data.sweep_values(compactions),
+            Self::RegExp(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
-            Object::Set(data) => data.sweep_values(compactions),
+            Self::Set(data) => data.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(data) => data.sweep_values(compactions),
+            Self::SharedArrayBuffer(data) => data.sweep_values(compactions),
             #[cfg(feature = "weak-refs")]
-            Object::WeakMap(data) => data.sweep_values(compactions),
+            Self::WeakMap(data) => data.sweep_values(compactions),
             #[cfg(feature = "weak-refs")]
-            Object::WeakRef(data) => data.sweep_values(compactions),
+            Self::WeakRef(data) => data.sweep_values(compactions),
             #[cfg(feature = "weak-refs")]
-            Object::WeakSet(data) => data.sweep_values(compactions),
+            Self::WeakSet(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(data) => data.sweep_values(compactions),
+            Self::Int8Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(data) => data.sweep_values(compactions),
+            Self::Uint8Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(data) => data.sweep_values(compactions),
+            Self::Uint8ClampedArray(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Int16Array(data) => data.sweep_values(compactions),
+            Self::Int16Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(data) => data.sweep_values(compactions),
+            Self::Uint16Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Int32Array(data) => data.sweep_values(compactions),
+            Self::Int32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(data) => data.sweep_values(compactions),
+            Self::Uint32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(data) => data.sweep_values(compactions),
+            Self::BigInt64Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(data) => data.sweep_values(compactions),
+            Self::BigUint64Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(data) => data.sweep_values(compactions),
+            Self::Float16Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Float32Array(data) => data.sweep_values(compactions),
+            Self::Float32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Object::Float64Array(data) => data.sweep_values(compactions),
-            Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncGenerator(data) => data.sweep_values(compactions),
-            Object::ArrayIterator(data) => data.sweep_values(compactions),
+            Self::Float64Array(data) => data.sweep_values(compactions),
+            Self::AsyncFromSyncIterator => todo!(),
+            Self::AsyncGenerator(data) => data.sweep_values(compactions),
+            Self::ArrayIterator(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
-            Object::SetIterator(data) => data.sweep_values(compactions),
-            Object::MapIterator(data) => data.sweep_values(compactions),
-            Object::StringIterator(data) => data.sweep_values(compactions),
-            Object::Generator(data) => data.sweep_values(compactions),
-            Object::Module(data) => data.sweep_values(compactions),
-            Object::EmbedderObject(data) => data.sweep_values(compactions),
+            Self::SetIterator(data) => data.sweep_values(compactions),
+            Self::MapIterator(data) => data.sweep_values(compactions),
+            Self::StringIterator(data) => data.sweep_values(compactions),
+            Self::Generator(data) => data.sweep_values(compactions),
+            Self::Module(data) => data.sweep_values(compactions),
+            Self::EmbedderObject(data) => data.sweep_values(compactions),
+        }
+    }
+}
+
+impl HeapSweepWeakReference for Object<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        match self {
+            Self::Object(data) => data.sweep_weak_reference(compactions).map(Self::Object),
+            Self::BoundFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BoundFunction),
+            Self::BuiltinFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinFunction),
+            Self::ECMAScriptFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::ECMAScriptFunction),
+            Self::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
+            Self::BuiltinConstructorFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinConstructorFunction),
+            Self::BuiltinPromiseResolvingFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinPromiseResolvingFunction),
+            Self::BuiltinPromiseCollectorFunction => Some(Self::BuiltinPromiseCollectorFunction),
+            Self::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
+            Self::PrimitiveObject(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::PrimitiveObject),
+            Self::Arguments(data) => data.sweep_weak_reference(compactions).map(Self::Arguments),
+            Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
+            #[cfg(feature = "array-buffer")]
+            Self::ArrayBuffer(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::ArrayBuffer),
+            #[cfg(feature = "array-buffer")]
+            Self::DataView(data) => data.sweep_weak_reference(compactions).map(Self::DataView),
+            #[cfg(feature = "date")]
+            Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
+            Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
+            Self::FinalizationRegistry(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::FinalizationRegistry),
+            Self::Map(data) => data.sweep_weak_reference(compactions).map(Self::Map),
+            Self::Promise(data) => data.sweep_weak_reference(compactions).map(Self::Promise),
+            Self::Proxy(data) => data.sweep_weak_reference(compactions).map(Self::Proxy),
+            #[cfg(feature = "regexp")]
+            Self::RegExp(data) => data.sweep_weak_reference(compactions).map(Self::RegExp),
+            #[cfg(feature = "set")]
+            Self::Set(data) => data.sweep_weak_reference(compactions).map(Self::Set),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedArrayBuffer),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakMap(data) => data.sweep_weak_reference(compactions).map(Self::WeakMap),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakRef(data) => data.sweep_weak_reference(compactions).map(Self::WeakRef),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakSet(data) => data.sweep_weak_reference(compactions).map(Self::WeakSet),
+            #[cfg(feature = "array-buffer")]
+            Self::Int8Array(data) => data.sweep_weak_reference(compactions).map(Self::Int8Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(data) => data.sweep_weak_reference(compactions).map(Self::Uint8Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Uint8ClampedArray),
+            #[cfg(feature = "array-buffer")]
+            Self::Int16Array(data) => data.sweep_weak_reference(compactions).map(Self::Int16Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint16Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Uint16Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Int32Array(data) => data.sweep_weak_reference(compactions).map(Self::Int32Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint32Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Uint32Array),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BigInt64Array),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BigUint64Array),
+            #[cfg(feature = "proposal-float16array")]
+            Self::Float16Array(data) => data.sweep_weak_values(compactions).map(Self::Float16Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Float32Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Float32Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Float64Array(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::Float64Array),
+            Self::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
+            Self::AsyncGenerator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::AsyncGenerator),
+            Self::ArrayIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::ArrayIterator),
+            #[cfg(feature = "set")]
+            Self::SetIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::SetIterator),
+            Self::MapIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::MapIterator),
+            Self::StringIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::StringIterator),
+            Self::Generator(data) => data.sweep_weak_reference(compactions).map(Self::Generator),
+            Self::Module(data) => data.sweep_weak_reference(compactions).map(Self::Module),
+            Self::EmbedderObject(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::EmbedderObject),
         }
     }
 }

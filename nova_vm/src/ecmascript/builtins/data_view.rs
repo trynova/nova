@@ -15,8 +15,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep,
-        indexes::{DataViewIndex, IntoBaseIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::DataViewIndex,
     },
 };
 
@@ -97,12 +97,6 @@ unsafe impl Bindable for DataView<'_> {
 impl<'a> From<DataViewIndex<'a>> for DataView<'a> {
     fn from(value: DataViewIndex<'a>) -> Self {
         Self(value)
-    }
-}
-
-impl<'a> IntoBaseIndex<'a, DataViewHeapData<'a>> for DataView<'a> {
-    fn into_base_index(self) -> DataViewIndex<'a> {
-        self.0
     }
 }
 
@@ -210,11 +204,17 @@ impl<'a> CreateHeapData<DataViewHeapData<'a>, DataView<'a>> for Heap {
 }
 
 impl HeapMarkAndSweep for DataView<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.data_views.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.data_views.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for DataView<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.data_views.shift_weak_index(self.0).map(Self)
     }
 }

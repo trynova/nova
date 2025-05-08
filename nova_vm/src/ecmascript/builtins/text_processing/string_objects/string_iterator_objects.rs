@@ -11,7 +11,9 @@ use crate::ecmascript::types::{
 };
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::heap::indexes::StringIteratorIndex;
-use crate::heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues};
+use crate::heap::{
+    CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -151,6 +153,15 @@ impl HeapMarkAndSweep for StringIterator<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.string_iterators.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for StringIterator<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .string_iterators
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

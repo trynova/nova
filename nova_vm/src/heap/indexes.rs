@@ -63,13 +63,6 @@ const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u
 const _OPTION_INDEX_SIZE_IS_U32: () =
     assert!(size_of::<Option<BaseIndex<()>>>() == size_of::<u32>());
 
-pub(crate) trait IntoBaseIndex<'a, T: ?Sized> {
-    fn into_base_index(self) -> BaseIndex<'a, T>;
-}
-pub(crate) trait GetBaseIndexMut<'a, T: ?Sized> {
-    fn get_base_index_mut(&mut self) -> &mut BaseIndex<'a, T>;
-}
-
 impl<T: ?Sized> Debug for BaseIndex<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         assert!(self.0.get() != 0);

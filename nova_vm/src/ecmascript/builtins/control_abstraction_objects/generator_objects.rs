@@ -6,6 +6,7 @@ use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
+use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -394,6 +395,12 @@ impl HeapMarkAndSweep for Generator<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.generators.shift_index(&mut self.0)
+    }
+}
+
+impl HeapSweepWeakReference for Generator<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.generators.shift_weak_index(self.0).map(Self)
     }
 }
 

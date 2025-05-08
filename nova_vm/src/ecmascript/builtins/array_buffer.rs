@@ -17,8 +17,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        indexes::{ArrayBufferIndex, IntoBaseIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::ArrayBufferIndex,
     },
 };
 
@@ -193,12 +193,6 @@ impl<'a> From<ArrayBufferIndex<'a>> for ArrayBuffer<'a> {
     }
 }
 
-impl IntoBaseIndex<'_, ArrayBufferHeapData<'_>> for ArrayBuffer<'static> {
-    fn into_base_index(self) -> ArrayBufferIndex<'static> {
-        self.0
-    }
-}
-
 impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
     fn from(value: ArrayBuffer) -> Self {
         Self::ArrayBuffer(value.unbind())
@@ -295,6 +289,12 @@ impl HeapMarkAndSweep for ArrayBuffer<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.array_buffers.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for ArrayBuffer<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.array_buffers.shift_weak_index(self.0).map(Self)
     }
 }
 
