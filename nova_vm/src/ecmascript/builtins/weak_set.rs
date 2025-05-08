@@ -51,7 +51,7 @@ impl WeakSet<'_> {
         // is exceedingly unlikely that the `add` function wouldn't be unique
         // and even if it isn't, we don't care since we only care about its
         // inner workings.
-        #[allow(unknown_lints)]
+        #[allow(unknown_lints, renamed_and_removed_lints)]
         {
             #[allow(
                 clippy::fn_address_comparisons,
