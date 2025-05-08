@@ -8989,7 +8989,6 @@
   "built-ins/TypedArray/prototype/values/resizable-buffer-grow-mid-iteration.js": "FAIL",
   "built-ins/TypedArray/prototype/values/resizable-buffer-shrink-mid-iteration.js": "FAIL",
   "built-ins/TypedArray/prototype/values/resizable-buffer.js": "FAIL",
-  "built-ins/TypedArray/prototype/with/index-validated-against-current-length.js": "CRASH",
   "built-ins/TypedArrayConstructors/ctors-bigint/buffer-arg/bufferbyteoffset-throws-from-modulo-element-size-sab.js": "FAIL",
   "built-ins/TypedArrayConstructors/ctors-bigint/buffer-arg/byteoffset-is-negative-throws-sab.js": "FAIL",
   "built-ins/TypedArrayConstructors/ctors-bigint/buffer-arg/byteoffset-is-negative-zero-sab.js": "FAIL",
