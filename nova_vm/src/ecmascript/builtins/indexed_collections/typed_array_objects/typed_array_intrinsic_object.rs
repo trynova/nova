@@ -53,11 +53,10 @@ use crate::{
 };
 
 use super::abstract_operations::{
-    TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds,
-    is_valid_integer_index_generic, make_typed_array_with_buffer_witness_record,
-    typed_array_byte_length, typed_array_create_from_constructor_with_length,
-    typed_array_create_same_type, typed_array_length, typed_array_species_create_with_length,
-    validate_typed_array,
+    TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds, is_valid_integer_index,
+    make_typed_array_with_buffer_witness_record, typed_array_byte_length,
+    typed_array_create_from_constructor_with_length, typed_array_create_same_type,
+    typed_array_length, typed_array_species_create_with_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -2162,94 +2161,16 @@ impl TypedArrayPrototype {
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        let o = match ta_record.object {
-            TypedArray::Int8Array(_) => with_typed_array::<i8>(
+        let o = with_typed_array_viewable!(
+            ta_record.object,
+            with_typed_array::<T>(
                 agent,
                 ta_record.unbind(),
                 index.unbind(),
                 value.unbind(),
                 gc,
-            ),
-            TypedArray::Uint8Array(_) => with_typed_array::<u8>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Uint8ClampedArray(_) => with_typed_array::<U8Clamped>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Int16Array(_) => with_typed_array::<i16>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Uint16Array(_) => with_typed_array::<u16>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Int32Array(_) => with_typed_array::<i32>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Uint32Array(_) => with_typed_array::<u32>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::BigInt64Array(_) => with_typed_array::<i64>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::BigUint64Array(_) => with_typed_array::<u64>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => with_typed_array::<f16>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Float32Array(_) => with_typed_array::<f32>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-            TypedArray::Float64Array(_) => with_typed_array::<f64>(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc,
-            ),
-        };
-
+            )
+        );
         o.map(|o| o.into_value())
     }
 
@@ -2947,6 +2868,7 @@ fn split_typed_array_views<'a, T: Viewable + std::fmt::Debug>(
     let a_ptr = a_slice.as_mut_ptr();
     let a_len = a_slice.len();
     let o_aligned = viewable_slice::<T>(agent, o, gc).unwrap();
+    // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
     let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
     Ok((a_aligned, o_aligned))
 }
@@ -2958,10 +2880,14 @@ fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
     value: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
+    let ta_record = ta_record.bind(gc.nogc());
     let index = index.bind(gc.nogc());
     let value = value.bind(gc.nogc());
     let o = ta_record.object;
+    let scoped_o = o.scope(agent, gc.nogc());
     let scoped_value = value.scope(agent, gc.nogc());
+    // 3. Let len be TypedArrayLength(taRecord).
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
     // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
     // 5. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
     let relative_index = if let Value::Integer(index) = index {
@@ -2972,16 +2898,20 @@ fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
             .bind(gc.nogc())
             .into_i64()
     };
-    let numeric_value = scoped_value
-        .get(agent)
-        .into_value()
-        .to_numeric(agent, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
-    // 7. If O.[[ContentType]] is bigint, let numericValue be ? ToBigInt(value).
-    let numeric_value = T::from_le_value(agent, numeric_value);
-    // 3. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    // 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
+    let numeric_value = if T::IS_BIGINT {
+        to_big_int(agent, scoped_value.get(agent), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .into_numeric()
+    } else {
+        // 8. Else, let numericValue be ? ToNumber(value).
+        to_number(agent, scoped_value.get(agent), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+            .into_numeric()
+    };
+    let numeric_value = T::from_ne_value(agent, numeric_value);
     // 5. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
     let actual_index = if relative_index >= 0 {
         relative_index
@@ -2990,7 +2920,7 @@ fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
         len + relative_index
     };
     // 9. If IsValidIntegerIndex(O, 𝔽(actualIndex)) is false, throw a RangeError exception.
-    if is_valid_integer_index_generic(agent, o, actual_index, gc.nogc()).is_none() {
+    if is_valid_integer_index::<T>(agent, scoped_o.get(agent), actual_index, gc.nogc()).is_none() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "Index out of bounds",
@@ -2998,7 +2928,7 @@ fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
         ));
     }
     // 10. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
-    let a = typed_array_create_same_type(agent, o, len, gc.reborrow())
+    let a = typed_array_create_same_type(agent, scoped_o.get(agent), len, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     // 11. Let k be 0.
@@ -3008,12 +2938,13 @@ fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
     //  c. Else, let fromValue be ! Get(O, Pk).
     //  d. Perform ! Set(A, Pk, fromValue, true).
     //  e. Set k to k + 1.
-    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, o, gc.nogc()).unwrap();
+    let (a_slice, o_slice) =
+        split_typed_array_views::<T>(agent, a, scoped_o.get(agent), gc.nogc()).unwrap();
     let len = len as usize;
     let a_slice = &mut a_slice[..len];
-    let o_slice = &o_slice[..len];
-    a_slice.copy_from_slice(o_slice);
-    if !o_slice.is_empty() && o_slice.len() == len {
+    let from_slice = &o_slice[..len];
+    a_slice.copy_from_slice(from_slice);
+    if !from_slice.is_empty() && o_slice.len() == len {
         a_slice[actual_index as usize] = numeric_value;
     }
     // 13. Return A.
