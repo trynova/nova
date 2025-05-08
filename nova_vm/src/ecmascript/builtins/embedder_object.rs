@@ -14,7 +14,7 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        HeapMarkAndSweep,
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, EmbedderObjectIndex},
     },
 };
@@ -144,11 +144,20 @@ impl TryFrom<HeapRootData> for EmbedderObject<'_> {
 }
 
 impl HeapMarkAndSweep for EmbedderObject<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.embedder_objects.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.embedder_objects.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for EmbedderObject<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .embedder_objects
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }

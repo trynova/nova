@@ -102,7 +102,9 @@ use element_array::{
     PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32, PropertyStorageVector,
 };
 use hashbrown::HashTable;
-pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
+pub(crate) use heap_bits::{
+    CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, sweep_side_set,
+};
 use indexes::TypedArrayIndex;
 use wtf8::Wtf8;
 

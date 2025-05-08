@@ -29,7 +29,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
         indexes::{AsyncGeneratorIndex, BaseIndex},
     },
 };
@@ -586,6 +587,15 @@ impl HeapMarkAndSweep for AsyncGenerator<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.async_generators.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for AsyncGenerator<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .async_generators
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

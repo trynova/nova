@@ -157,8 +157,7 @@ impl HeapMarkAndSweep for Realm<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let self_index = self.into_u32_index();
-        *self = Self::from_u32(self_index - compactions.realms.get_shift_for_index(self_index));
+        compactions.realms.shift_non_zero_u32_index(&mut self.0);
     }
 }
 

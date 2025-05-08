@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, Scopable};
 use crate::engine::{TryResult, unwrap_try};
+use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
@@ -31,6 +32,7 @@ use super::ordinary::{
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Module<'a>(u32, PhantomData<&'a ()>);
 
 impl<'a> From<Module<'a>> for Value<'a> {
@@ -692,6 +694,15 @@ impl HeapMarkAndSweep for Module<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.0 -= compactions.modules.get_shift_for_index(self.0);
+        compactions.modules.shift_u32_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Module<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .modules
+            .shift_weak_u32_index(self.0)
+            .map(Self::from_u32)
     }
 }

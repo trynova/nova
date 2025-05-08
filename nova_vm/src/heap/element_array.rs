@@ -209,6 +209,7 @@ impl ElementsVector<'_> {
         backing_store.0.is_none()
     }
 
+    /// An elements vector is dense if it contains no holes or getters.
     pub(crate) fn is_dense(&self, arena: &impl AsRef<ElementArrays>) -> bool {
         let (descriptors, elements) = arena.as_ref().get_descriptors_and_values(self);
         if let Some(descriptors) = descriptors {
@@ -226,15 +227,11 @@ impl ElementsVector<'_> {
                     }
                 }
             }
+            true
         } else {
-            for ele in elements {
-                if ele.is_none() {
-                    // No descriptors, no value: That's a hole.
-                    return false;
-                }
-            }
+            // No descriptors, no value: That's a hole.
+            elements.iter().all(|e| e.is_some())
         }
-        true
     }
 
     pub(crate) fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {

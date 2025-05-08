@@ -29,9 +29,9 @@ use crate::{
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, IntrinsicConstructorIndexes,
-        IntrinsicFunctionIndexes, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        indexes::BuiltinFunctionIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinFunctionIndex,
     },
 };
 
@@ -927,6 +927,15 @@ impl HeapMarkAndSweep for BuiltinFunction<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.builtin_functions.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for BuiltinFunction<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .builtin_functions
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

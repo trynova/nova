@@ -23,9 +23,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, PropertyKeyHeap,
-        WorkQueues,
-        indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        PrimitiveHeap, PropertyKeyHeap, WorkQueues, indexes::StringIndex,
     },
 };
 
@@ -116,18 +115,6 @@ impl IndexMut<HeapString<'_>> for Vec<Option<StringHeapData>> {
             .expect("HeapString out of bounds")
             .as_mut()
             .expect("HeapString slot empty")
-    }
-}
-
-impl<'a> IntoBaseIndex<'a, StringHeapData> for HeapString<'a> {
-    fn into_base_index(self) -> StringIndex<'a> {
-        self.0
-    }
-}
-
-impl<'a> GetBaseIndexMut<'a, StringHeapData> for HeapString<'a> {
-    fn get_base_index_mut(&mut self) -> &mut StringIndex<'a> {
-        &mut self.0
     }
 }
 
@@ -620,6 +607,12 @@ impl HeapMarkAndSweep for HeapString<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.strings.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for HeapString<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.strings.shift_weak_index(self.0).map(Self)
     }
 }
 

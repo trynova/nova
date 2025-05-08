@@ -137,7 +137,8 @@ pub mod private {
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, agent::JsError,
+                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
+                agent::JsError,
             },
             scripts_and_modules::{script::Script, source_code::SourceCode},
             types::{
@@ -201,6 +202,7 @@ pub mod private {
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray<'_> {}
     impl RootableSealed for Value<'_> {}
+    impl RootableSealed for WeakKey<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakMap<'_> {}
     #[cfg(feature = "weak-refs")]

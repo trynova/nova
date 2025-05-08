@@ -14,7 +14,7 @@ use core::ops::{Index, IndexMut, RangeInclusive};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list},
+            operations_on_objects::{call_function, create_array_from_list, try_get_object_method},
             testing_and_comparison::same_value,
         },
         builtins::{
@@ -23,8 +23,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
@@ -34,7 +34,8 @@ use crate::{
         unwrap_try,
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WellKnownSymbolIndexes, WorkQueues,
         element_array::{ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ArrayIndex,
     },
@@ -90,6 +91,12 @@ impl<'a> Array<'a> {
         agent[*self].elements.is_empty()
     }
 
+    /// An array is dense if it contains no holes or getters.
+    ///
+    /// A dense array's properties can be accessed without calling into
+    /// JavaScript. This does not necessarily mean that all the slots in the
+    /// array contain a Value; some may be None but those slots are setters
+    /// without a matching getter and accessing them returns `undefined`.
     pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
         agent[self].elements.is_dense(agent)
     }
@@ -102,6 +109,42 @@ impl<'a> Array<'a> {
     /// An array is trivial if it contains no element descriptors.
     pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
         agent[self].elements.is_trivial(agent)
+    }
+
+    /// Returns true if it is trivially iterable, ie. it contains no element
+    /// accessor descriptors and uses the Array intrinsic itrator method.
+    pub(crate) fn is_trivially_iterable<'b>(
+        self,
+        agent: &'b mut Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> bool {
+        if !self.is_dense(agent) {
+            // Contains holes or getters, so cannot be iterated without looking
+            // into the prototype chain or calling getters.
+            false
+        } else {
+            let TryResult::Continue(Ok(Some(iterator_method))) = try_get_object_method(
+                agent,
+                self.into_object(),
+                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                gc,
+            ) else {
+                // Can't get iterator method without calling a getter or Proxy
+                // method; or getting the method threw an error which we ignore
+                // here; or there is no iterator method, which will throw an
+                // error later.
+                return false;
+            };
+
+            // We got a proper iterator method; but is it the intrinsic Array
+            // values iterator method?
+            iterator_method
+                == agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .array_prototype_values()
+                    .into_function()
+        }
     }
 
     // This method creates a "shallow clone" of the elements of a simple array (no descriptors).
@@ -759,8 +802,14 @@ impl HeapMarkAndSweep for Array<'static> {
         queues.arrays.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.arrays.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for Array<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.arrays.shift_weak_index(self.0).map(Self)
     }
 }
 

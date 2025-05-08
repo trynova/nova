@@ -2,8 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::weak_set::WeakSet;
+use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::execution::{can_be_held_weakly, throw_not_weak_key_error};
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -36,31 +39,92 @@ impl Builtin for WeakSetPrototypeHas {
 }
 
 impl WeakSetPrototype {
-    fn add<'gc>(
+    /// ### [24.4.3.1 WeakSet.prototype.add ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.add)
+    pub(crate) fn add<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("WeakSet.prototype.add", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
+
+        // 1. Let S be the this value.
+        let s = this_value;
+        // 2. Perform ? RequireInternalSlot(S, [[WeakSetData]]).
+        let s = require_internal_slot_weak_set(agent, s, gc)?;
+        // 3. If CanBeHeldWeakly(value) is false, throw a TypeError exception.
+        let Some(value) = can_be_held_weakly(value) else {
+            return Err(throw_not_weak_key_error(agent, value.unbind(), gc));
+        };
+        // 4. For each element e of S.[[WeakSetData]], do
+        // a. If e is not empty and SameValue(e, value) is true, then
+        // i. Return S.
+        // 5. Append value to S.[[WeakSetData]].
+        // 6. Return S.
+        agent[s].add(value);
+        Ok(s.into_value().unbind())
     }
 
+    /// ### [24.4.3.3 WeakSet.prototype.delete ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.delete)
+    ///
+    /// > Note: The value empty is used as a specification device to indicate
+    /// > that an entry has been deleted. Actual implementations may take other
+    /// > actions such as physically removing the entry from internal data
+    /// > structures.
     fn delete<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("WeakSet.prototype.delete", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
+
+        // 1. Let S be the this value.
+        let s = this_value;
+        // 2. Perform ? RequireInternalSlot(S, [[WeakSetData]]).
+        let s = require_internal_slot_weak_set(agent, s, gc)?;
+        // 3. If CanBeHeldWeakly(value) is false, return false.
+        let Some(value) = can_be_held_weakly(value) else {
+            return Ok(false.into_value());
+        };
+        // 4. For each element e of S.[[WeakSetData]], do
+        // a. If e is not empty and SameValue(e, value) is true, then
+        // i. Replace the element of S.[[WeakSetData]] whose value is e with an
+        //    element whose value is empty.
+        // ii. Return true.
+        let deleted = agent[s].delete(value);
+        // 5. Return false.
+        Ok(deleted.into_value())
     }
 
+    /// ### [24.4.3.4 WeakSet.prototype.has ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("WeakSet.prototype.has", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
+
+        // 1. Let S be the this value.
+        let s = this_value;
+        // 2. Perform ? RequireInternalSlot(S, [[WeakSetData]]).
+        let s = require_internal_slot_weak_set(agent, s, gc)?;
+        // 3. If CanBeHeldWeakly(value) is false, return false.
+        let Some(value) = can_be_held_weakly(value) else {
+            return Ok(false.into_value());
+        };
+        // 4. For each element e of S.[[WeakSetData]], do
+        // a. If e is not empty and SameValue(e, value) is true, return true.
+        // 5. Return false.
+        let result = agent[s].has(value);
+        Ok(result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -79,11 +143,28 @@ impl WeakSetPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakMap.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakSet.into_value())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
             })
             .build();
+    }
+}
+
+#[inline]
+fn require_internal_slot_weak_set<'a>(
+    agent: &mut Agent,
+    o: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, WeakSet<'a>> {
+    match o {
+        // 1. Perform ? RequireInternalSlot(O, [[WeakSetData]]).
+        Value::WeakSet(array_buffer) => Ok(array_buffer.unbind().bind(gc)),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected this to be WeakSet",
+            gc,
+        )),
     }
 }

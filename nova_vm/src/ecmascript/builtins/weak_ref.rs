@@ -6,7 +6,7 @@ use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
+        execution::{Agent, ProtoIntrinsics, WeakKey},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
@@ -14,7 +14,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
         indexes::{BaseIndex, WeakRefIndex},
     },
 };
@@ -36,7 +37,7 @@ impl<'a> WeakRef<'a> {
         self.0.into_index()
     }
 
-    pub(crate) fn set_target(self, agent: &mut Agent, target: Value) {
+    pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
         agent[self].weak_ref_target = Some(target.unbind());
         // Note: WeakRefTarget is set only from the constructor, and it also
         // adds the WeakRef into the [[KeptAlive]] list; hence we set the
@@ -44,7 +45,7 @@ impl<'a> WeakRef<'a> {
         agent[self].kept_alive = true;
     }
 
-    pub(crate) fn get_target(self, agent: &mut Agent) -> Option<Value<'a>> {
+    pub(crate) fn get_target(self, agent: &mut Agent) -> Option<WeakKey<'a>> {
         let target = agent[self].weak_ref_target;
         if target.is_some() {
             // When observed, WeakRef gets added to [[KeptAlive]] list.
@@ -157,11 +158,17 @@ impl<'a> CreateHeapData<WeakRefHeapData<'a>, WeakRef<'a>> for Heap {
 }
 
 impl HeapMarkAndSweep for WeakRef<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.weak_refs.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.weak_refs.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for WeakRef<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.weak_refs.shift_weak_index(self.0).map(Self)
     }
 }

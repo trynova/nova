@@ -4,9 +4,15 @@
 
 //! [9.9 Processing Model of WeakRef and FinalizationRegistry Targets](https://tc39.es/ecma262/#sec-weakref-processing-model)
 
-use crate::ecmascript::types::Value;
+use crate::{
+    ecmascript::{
+        execution::{Agent, weak_key::WeakKey},
+        types::{Object, Value},
+    },
+    engine::context::NoGcScope,
+};
 
-use super::Agent;
+use super::agent::{ExceptionType, JsError};
 
 /// ### [9.10 ClearKeptObjects ( )](https://tc39.es/ecma262/#sec-clear-kept-objects)
 ///
@@ -35,8 +41,7 @@ pub(super) fn clear_kept_objects(agent: &mut Agent) {
 /// > Note: When the abstract operation AddToKeptObjects is called with a
 /// > target object or symbol, it adds the target to a list that will point
 /// > strongly at the target until ClearKeptObjects is called.
-pub(crate) fn add_to_kept_objects(agent: &mut Agent, value: Value) {
-    debug_assert!(value.is_object() || value.is_symbol());
+pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
     // 1. Let agentRecord be the surrounding agent's Agent Record.
     // 2. Append value to agentRecord.[[KeptAlive]].
     agent.kept_alive = true;
@@ -61,18 +66,31 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, value: Value) {
 /// > approaches. However, any value associated to a well-known symbol in a
 /// > live WeakMap is unlikely to be collected and could “leak” memory
 /// > resources in implementations.
-pub(crate) fn can_be_held_weakly(_agent: &Agent, v: Value) -> bool {
+///
+/// > NOTE: We return an option of a WeakKey enum instead of a boolean.
+pub(crate) fn can_be_held_weakly(v: Value) -> Option<WeakKey> {
     // 1. If v is an Object, return true.
-    if v.is_object() {
-        true
-    } else if let Value::Symbol(_v) = v {
+    if let Ok(v) = Object::try_from(v) {
+        Some(v.into())
+    } else if let Value::Symbol(v) = v {
         // 2. If v is a Symbol and KeyForSymbol(v) is undefined, return true.
         // TODO: KeyForSymbol
-        true
+        Some(WeakKey::Symbol(v))
     } else {
         // 3. Return false.
-        false
+        None
     }
 }
 
-// Note
+pub(crate) fn throw_not_weak_key_error<'a>(
+    agent: &mut Agent,
+    target: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    let string_repr = target.try_string_repr(agent, gc);
+    let message = format!(
+        "{} is not a non-null object or unique symbol",
+        string_repr.as_str(agent)
+    );
+    agent.throw_exception(ExceptionType::TypeError, message, gc)
+}

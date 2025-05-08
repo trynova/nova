@@ -8,19 +8,21 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{Function, InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
     heap::{
-        CreateHeapData, HeapMarkAndSweep,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, WeakSetIndex},
     },
 };
 
 use self::data::WeakSetHeapData;
+
+use super::{Behaviour, keyed_collections::weak_set_objects::weak_set_prototype::WeakSetPrototype};
 
 pub mod data;
 
@@ -35,6 +37,30 @@ impl WeakSet<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    /// Returns true if the function is equal to %WeakSet.prototype.add%.
+    pub(crate) fn is_weak_set_prototype_add(agent: &Agent, function: Function) -> bool {
+        let Function::BuiltinFunction(function) = function else {
+            return false;
+        };
+        let Behaviour::Regular(behaviour) = agent[function].behaviour else {
+            return false;
+        };
+        // We allow a function address comparison here against best advice: it
+        // is exceedingly unlikely that the `add` function wouldn't be unique
+        // and even if it isn't, we don't care since we only care about its
+        // inner workings.
+        #[allow(unknown_lints, renamed_and_removed_lints)]
+        {
+            #[allow(
+                clippy::fn_address_comparisons,
+                unpredictable_function_pointer_comparisons
+            )]
+            {
+                behaviour == WeakSetPrototype::add
+            }
+        }
     }
 }
 
@@ -141,11 +167,17 @@ impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
 }
 
 impl HeapMarkAndSweep for WeakSet<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.weak_sets.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.weak_sets.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for WeakSet<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.weak_sets.shift_weak_index(self.0).map(Self)
     }
 }

@@ -40,8 +40,8 @@ use crate::{
     },
     engine::{Executable, rootable::Scopable},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        indexes::ECMAScriptFunctionIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::ECMAScriptFunctionIndex,
     },
 };
 use crate::{
@@ -1192,6 +1192,15 @@ impl HeapMarkAndSweep for ECMAScriptFunction<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.ecmascript_functions.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for ECMAScriptFunction<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .ecmascript_functions
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

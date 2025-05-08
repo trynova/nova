@@ -14,8 +14,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        indexes::SharedArrayBufferIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::SharedArrayBufferIndex,
     },
 };
 
@@ -138,6 +138,15 @@ impl HeapMarkAndSweep for SharedArrayBuffer<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.shared_array_buffers.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for SharedArrayBuffer<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .shared_array_buffers
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

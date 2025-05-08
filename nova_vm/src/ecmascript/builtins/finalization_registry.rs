@@ -14,7 +14,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
         indexes::{BaseIndex, FinalizationRegistryIndex},
     },
 };
@@ -148,11 +149,20 @@ impl<'a> CreateHeapData<FinalizationRegistryHeapData<'a>, FinalizationRegistry<'
 }
 
 impl HeapMarkAndSweep for FinalizationRegistry<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         queues.finalization_registrys.push(*self);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.finalization_registrys.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for FinalizationRegistry<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .finalization_registrys
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }

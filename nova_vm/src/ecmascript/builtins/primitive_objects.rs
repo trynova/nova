@@ -8,6 +8,7 @@ use crate::ecmascript::types::{IntoPrimitive, Primitive};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{TryResult, unwrap_try};
+use crate::heap::HeapSweepWeakReference;
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -731,6 +732,15 @@ impl HeapMarkAndSweep for PrimitiveObject<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.primitive_objects.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for PrimitiveObject<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .primitive_objects
+            .shift_weak_index(self.0)
+            .map(Self)
     }
 }
 

@@ -1431,11 +1431,7 @@ fn sweep(
         if !array_buffers.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);
-                sweep_side_table_values(
-                    array_buffer_detach_keys,
-                    &compactions.array_buffers,
-                    &bits.array_buffers,
-                );
+                sweep_side_table_values(array_buffer_detach_keys, &compactions);
             });
         }
         if !arrays.is_empty() {
@@ -1486,16 +1482,8 @@ fn sweep(
         if !data_views.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
-                sweep_side_table_values(
-                    data_view_byte_lengths,
-                    &compactions.data_views,
-                    &bits.data_views,
-                );
-                sweep_side_table_values(
-                    data_view_byte_offsets,
-                    &compactions.data_views,
-                    &bits.data_views,
-                );
+                sweep_side_table_values(data_view_byte_lengths, &compactions);
+                sweep_side_table_values(data_view_byte_offsets, &compactions);
             });
         }
         #[cfg(feature = "date")]
@@ -1671,7 +1659,7 @@ fn sweep(
         if !strings.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(strings, &compactions, &bits.strings);
-                sweep_lookup_table(string_lookup_table, &compactions, &bits.strings);
+                sweep_lookup_table(string_lookup_table, &compactions);
             });
         }
         if !symbols.is_empty() {
@@ -1683,21 +1671,9 @@ fn sweep(
         if !typed_arrays.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
-                sweep_side_table_values(
-                    typed_array_byte_lengths,
-                    &compactions.typed_arrays,
-                    &bits.typed_arrays,
-                );
-                sweep_side_table_values(
-                    typed_array_byte_offsets,
-                    &compactions.typed_arrays,
-                    &bits.typed_arrays,
-                );
-                sweep_side_table_values(
-                    typed_array_array_lengths,
-                    &compactions.typed_arrays,
-                    &bits.typed_arrays,
-                );
+                sweep_side_table_values(typed_array_byte_lengths, &compactions);
+                sweep_side_table_values(typed_array_byte_offsets, &compactions);
+                sweep_side_table_values(typed_array_array_lengths, &compactions);
             });
         }
         #[cfg(feature = "weak-refs")]
