@@ -6,8 +6,9 @@ use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
+        builtins::Array,
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
         context::{Bindable, NoGcScope},
@@ -22,7 +23,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ArrayIterator<'a>(ArrayIteratorIndex<'a>);
 
-impl ArrayIterator<'_> {
+impl<'a> ArrayIterator<'a> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -44,6 +45,23 @@ impl ArrayIterator<'_> {
             next_index: 0,
             kind,
         })
+    }
+
+    pub(crate) fn from_vm_iterator(
+        agent: &mut Agent,
+        array: Array,
+        index: u32,
+        gc: NoGcScope<'a, '_>,
+    ) -> Self {
+        agent
+            .heap
+            .create(ArrayIteratorHeapData {
+                object_index: None,
+                array: Some(array.into_object().unbind()),
+                next_index: index as i64,
+                kind: CollectionIteratorKind::Value,
+            })
+            .bind(gc)
     }
 }
 

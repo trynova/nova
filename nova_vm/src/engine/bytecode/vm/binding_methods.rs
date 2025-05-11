@@ -37,6 +37,9 @@ pub(super) fn execute_simple_array_binding<'a>(
 
     loop {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
+        if agent.options.print_internals {
+            eprintln!("Executing: {:?}", instr.kind);
+        }
         let mut break_after_bind = false;
 
         let value = match instr.kind {
@@ -204,6 +207,9 @@ pub(super) fn execute_simple_object_binding<'a>(
 
     loop {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
+        if agent.options.print_internals {
+            eprintln!("Executing: {:?}", instr.kind);
+        }
         match instr.kind {
             Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
                 with_vm_gc(
@@ -352,6 +358,9 @@ pub(super) fn execute_nested_simple_binding<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
+    if agent.options.print_internals {
+        eprintln!("Executing: {:?}", instr.kind);
+    }
     match instr.kind {
         Instruction::BeginSimpleArrayBindingPattern => {
             let result = with_vm_gc(

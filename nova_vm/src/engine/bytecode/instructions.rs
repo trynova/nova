@@ -360,6 +360,15 @@ pub enum Instruction {
     IteratorClose,
     /// Perform AsyncCloseIterator on the current iterator
     AsyncIteratorClose,
+    /// Perform CloseIterator on the current iterator with the current result
+    /// as a thrown value.
+    IteratorCloseWithError,
+    /// Perform AsyncCloseIterator on the current iterator with the current
+    /// result as a thrown value.
+    ///
+    /// This handling will store the error on the stack and perform an Await if
+    /// needed, otherwise it will rethrows the error.
+    AsyncIteratorCloseWithError,
     /// Store GetNewTarget() as the result value.
     GetNewTarget,
 }
@@ -1189,6 +1198,10 @@ impl TryFrom<u8> for Instruction {
             unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorClose) };
         const ASYNCITERATORCLOSE: u8 =
             unsafe { std::mem::transmute::<_, u8>(Instruction::AsyncIteratorClose) };
+        const ITERATORCLOSEWITHERROR: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorCloseWithError) };
+        const ASYNCITERATORCLOSEWITHERROR: u8 =
+            unsafe { std::mem::transmute::<_, u8>(Instruction::AsyncIteratorCloseWithError) };
         const GETNEWTARGET: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GetNewTarget) };
         match value {
             ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
@@ -1370,6 +1383,8 @@ impl TryFrom<u8> for Instruction {
             ITERATORRESTINTOARRAY => Ok(Instruction::IteratorRestIntoArray),
             ITERATORCLOSE => Ok(Instruction::IteratorClose),
             ASYNCITERATORCLOSE => Ok(Instruction::AsyncIteratorClose),
+            ITERATORCLOSEWITHERROR => Ok(Instruction::IteratorCloseWithError),
+            ASYNCITERATORCLOSEWITHERROR => Ok(Instruction::AsyncIteratorCloseWithError),
             GETNEWTARGET => Ok(Instruction::GetNewTarget),
             _ => Err(()),
         }
