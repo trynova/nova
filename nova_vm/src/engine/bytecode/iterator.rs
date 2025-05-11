@@ -302,14 +302,12 @@ impl VmIteratorRecord<'_> {
             Ok(VmIteratorRecord::ArrayValues(
                 ArrayValuesIteratorRecord::new(array.unbind()),
             ))
+        } else if let Some(js_iterator) =
+            get_iterator_from_method(agent, obj.unbind(), method.unbind(), gc)?
+        {
+            Ok(VmIteratorRecord::GenericIterator(js_iterator.unbind()))
         } else {
-            if let Some(js_iterator) =
-                get_iterator_from_method(agent, obj.unbind(), method.unbind(), gc)?
-            {
-                Ok(VmIteratorRecord::GenericIterator(js_iterator.unbind()))
-            } else {
-                Ok(VmIteratorRecord::InvalidIterator)
-            }
+            Ok(VmIteratorRecord::InvalidIterator)
         }
     }
 
