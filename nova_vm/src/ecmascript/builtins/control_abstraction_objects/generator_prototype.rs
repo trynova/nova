@@ -5,7 +5,6 @@
 use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
@@ -13,8 +12,6 @@ use crate::{
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
-
-use super::generator_objects::GeneratorState;
 
 pub(crate) struct GeneratorPrototype;
 
@@ -67,61 +64,34 @@ impl GeneratorPrototype {
         Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
     }
 
+    /// ### [27.5.1.3 %GeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-generator.prototype.return)
     fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc.nogc());
+        let value = arguments.get(0).bind(gc.nogc());
         // 1. Let g be the this value.
+        let g = this_value;
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
-        // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
+        let c = value;
 
-        // [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
+        // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
+        // ### 27.5.3.4 GeneratorResumeAbrupt
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        let Value::Generator(generator) = this_value else {
+        let Value::Generator(g) = g else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Generator expected",
-                gc,
+                gc.into_nogc(),
             ));
         };
-        let generator = generator.bind(gc);
 
-        match agent[generator].generator_state.as_ref().unwrap() {
-            // 2. If state is suspended-start, then
-            GeneratorState::Suspended { .. } => {
-                // NOTE: Since we don't support finally blocks, the behavior in the suspended-yield
-                // state is identical to suspended-start. In suspended-yield, the generator would be
-                // resumed, but instead of yielding a value, the behavior would be the same as a
-                // `return` keyword. Without finally support, this would immediately exit the
-                // function execution without running any instructions, and GeneratorStart steps
-                // 4.e-l would set the state to completed and return the iter result object.
-
-                // a. Set generator.[[GeneratorState]] to completed.
-                // b. NOTE: Once a generator enters the completed state it never leaves it and its
-                // associated execution context is never resumed. Any execution state associated
-                // with generator can be discarded at this point.
-                agent[generator].generator_state = Some(GeneratorState::Completed);
-
-                // c. Set state to completed.
-            }
-            GeneratorState::Executing => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "The generator is currently running",
-                    gc,
-                ));
-            }
-            GeneratorState::Completed => {}
-        };
-
-        // NOTE: If we reach here, state is completed.
-        // 3. If state is completed, then
-        //    a. If abruptCompletion is a return completion, then
-        //       i. Return CreateIterResultObject(abruptCompletion.[[Value]], true).
-        Ok(create_iter_result_object(agent, arguments.get(0), true, gc).into_value())
+        g.unbind()
+            .resume_return(agent, c.unbind(), gc)
+            .map(|v| v.into_value())
     }
 
     fn throw<'gc>(

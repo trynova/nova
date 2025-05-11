@@ -14,7 +14,10 @@ use oxc_syntax::operator::BinaryOperator;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::iterator_close_with_value,
+            operations_on_iterator_objects::{
+                async_vm_iterator_close_with_error, iterator_close_with_error,
+                iterator_close_with_value,
+            },
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
                 copy_data_properties_into_object, create_data_property_or_throw,
@@ -145,13 +148,19 @@ enum ContinuationKind {
     Await,
 }
 
-/// Indicates a place to jump after an exception is thrown.
+/// VM exception handler.
 #[derive(Debug)]
-struct ExceptionJumpTarget<'a> {
-    /// Instruction pointer.
-    ip: usize,
-    /// The lexical environment which contains this exception jump target.
-    lexical_environment: Environment<'a>,
+enum ExceptionHandler<'a> {
+    /// Indicates a jump to catch block.
+    CatchBlock {
+        /// Instruction pointer.
+        ip: u32,
+        /// The lexical environment which contains this exception jump target.
+        lexical_environment: Environment<'a>,
+    },
+    /// Indicates that any error should be ignored and the next instruction
+    /// skipped. This is used in AsyncIteratorClose handling.
+    IgnoreErrorAndNextInstruction,
 }
 
 /// ## Notes
@@ -165,7 +174,7 @@ pub(crate) struct Vm {
     stack: Vec<Value<'static>>,
     reference_stack: Vec<Reference<'static>>,
     iterator_stack: Vec<VmIteratorRecord<'static>>,
-    exception_jump_target_stack: Vec<ExceptionJumpTarget<'static>>,
+    exception_handler_stack: Vec<ExceptionHandler<'static>>,
     result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
 }
@@ -188,7 +197,7 @@ pub(crate) struct SuspendedVm {
     iterator_stack: Box<[VmIteratorRecord<'static>]>,
     /// Note: Exception jump stack is non-empty only if the code awaits inside
     /// a try block. This means that often no heap data clone is required.
-    exception_jump_target_stack: Box<[ExceptionJumpTarget<'static>]>,
+    exception_jump_target_stack: Box<[ExceptionHandler<'static>]>,
 }
 
 impl SuspendedVm {
@@ -199,6 +208,9 @@ impl SuspendedVm {
         value: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
+        if agent.options.print_internals {
+            eprintln!("Resuming function with value\n");
+        }
         let vm = Vm::from_suspended(self);
         vm.resume(agent, executable, value, gc)
     }
@@ -210,6 +222,9 @@ impl SuspendedVm {
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
+        if agent.options.print_internals {
+            eprintln!("Resuming function with error\n");
+        }
         // Optimisation: Avoid unsuspending the Vm if we're just going to throw
         // out of it immediately.
         if self.exception_jump_target_stack.is_empty() {
@@ -218,6 +233,47 @@ impl SuspendedVm {
         }
         let vm = Vm::from_suspended(self);
         vm.resume_throw(agent, executable, err, gc)
+    }
+
+    pub(crate) fn resume_return<'gc>(
+        self,
+        agent: &mut Agent,
+        // Note: This will become necessary with finally-blocks since they can
+        // actually resume execution of the bytecode executable.
+        _executable: Scoped<Executable>,
+        result: Value,
+        mut gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let mut result = result.bind(gc.nogc());
+        if agent.options.print_internals {
+            eprintln!("Resuming function with return\n");
+        }
+        // Optimisation: Until we support finally-blocks, the only thing return
+        // can do is close iterators.
+        if !self.iterator_stack.is_empty() {
+            let scoped_result = result.scope(agent, gc.nogc());
+            let mut vm = Vm::from_suspended(self);
+            while let Some(iter) = vm.iterator_stack.pop() {
+                if iter.requires_return_call(agent, gc.nogc()) {
+                    let close_result = with_vm_gc(
+                        agent,
+                        &mut vm,
+                        |agent, gc| iter.close_iterator(agent, scoped_result.get(agent), gc),
+                        gc.reborrow(),
+                    );
+                    // Note: we should do actual error handling here but
+                    // joining the iterator stack and error handling stack is
+                    // pretty devilish.
+                    if let Err(close_result) = close_result {
+                        return ExecutionResult::Throw(close_result.unbind());
+                    }
+                }
+            }
+            // SAFETY: not shared.
+            result = unsafe { scoped_result.take(agent) }.bind(gc.nogc());
+        }
+        // Best guess: I think we should be return the result we got.
+        ExecutionResult::Return(result.unbind())
     }
 }
 
@@ -228,7 +284,7 @@ impl Vm {
             stack: Vec::with_capacity(32),
             reference_stack: Vec::new(),
             iterator_stack: Vec::new(),
-            exception_jump_target_stack: Vec::new(),
+            exception_handler_stack: Vec::new(),
             result: None,
             reference: None,
         }
@@ -240,7 +296,7 @@ impl Vm {
             stack: self.stack.into_boxed_slice(),
             reference_stack: self.reference_stack.into_boxed_slice(),
             iterator_stack: self.iterator_stack.into_boxed_slice(),
-            exception_jump_target_stack: self.exception_jump_target_stack.into_boxed_slice(),
+            exception_jump_target_stack: self.exception_handler_stack.into_boxed_slice(),
         }
     }
 
@@ -250,7 +306,7 @@ impl Vm {
             stack: suspended.stack.into_vec(),
             reference_stack: suspended.reference_stack.into_vec(),
             iterator_stack: suspended.iterator_stack.into_vec(),
-            exception_jump_target_stack: suspended.exception_jump_target_stack.into_vec(),
+            exception_handler_stack: suspended.exception_jump_target_stack.into_vec(),
             result: None,
             reference: None,
         }
@@ -331,6 +387,9 @@ impl Vm {
         let err = err.bind(gc.nogc());
         let err = JsError::new(err.unbind());
         if !self.handle_error(agent, err) {
+            if agent.options.print_internals {
+                eprintln!("Exiting function with error\n");
+            }
             return ExecutionResult::Throw(err);
         }
         self.inner_execute(agent, executable, gc)
@@ -348,6 +407,9 @@ impl Vm {
             if agent.check_gc() {
                 with_vm_gc(agent, &mut self, |agent, gc| agent.gc(gc), gc.reborrow());
             }
+            if agent.options.print_internals {
+                eprintln!("Executing: {:?}", instr.kind);
+            }
             match Self::execute_instruction(
                 agent,
                 &mut self,
@@ -357,10 +419,16 @@ impl Vm {
             ) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
+                    if agent.options.print_internals {
+                        eprintln!("Exiting function with result\n");
+                    }
                     let result = self.result.unwrap_or(Value::Undefined);
                     return ExecutionResult::Return(result);
                 }
                 Ok(ContinuationKind::Yield) => {
+                    if agent.options.print_internals {
+                        eprintln!("Yielding value from function\n");
+                    }
                     let yielded_value = self.result.take().unwrap();
                     return ExecutionResult::Yield {
                         vm: self.suspend(),
@@ -368,6 +436,9 @@ impl Vm {
                     };
                 }
                 Ok(ContinuationKind::Await) => {
+                    if agent.options.print_internals {
+                        eprintln!("Awaiting value in function\n");
+                    }
                     let awaited_value = self.result.take().unwrap();
                     return ExecutionResult::Await {
                         vm: self.suspend(),
@@ -376,6 +447,9 @@ impl Vm {
                 }
                 Err(err) => {
                     if !self.handle_error(agent, err) {
+                        if agent.options.print_internals {
+                            eprintln!("Exiting function with error\n");
+                        }
                         return ExecutionResult::Throw(err.unbind().bind(gc.into_nogc()));
                     }
                 }
@@ -388,10 +462,27 @@ impl Vm {
 
     #[must_use]
     fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
-        if let Some(ejt) = self.exception_jump_target_stack.pop() {
-            self.ip = ejt.ip;
-            agent.set_current_lexical_environment(ejt.lexical_environment);
-            self.result = Some(err.value().unbind());
+        if let Some(handler) = self.exception_handler_stack.pop() {
+            match handler {
+                ExceptionHandler::CatchBlock {
+                    ip,
+                    lexical_environment,
+                } => {
+                    if agent.options.print_internals {
+                        println!("Error: {:?}", err.value());
+                        eprintln!("Jumping to catch block in {ip}\n");
+                    }
+                    self.ip = ip as usize;
+                    agent.set_current_lexical_environment(lexical_environment);
+                    self.result = Some(err.value().unbind());
+                }
+                ExceptionHandler::IgnoreErrorAndNextInstruction => {
+                    if agent.options.print_internals {
+                        eprintln!("Ignoring throw error and skipping to {}\n", self.ip + 1);
+                    }
+                    self.ip += 1;
+                }
+            }
             true
         } else {
             false
@@ -405,9 +496,6 @@ impl Vm {
         instr: &Instr,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
-        if agent.options.print_internals {
-            eprintln!("Executing instruction {:?}", instr.kind);
-        }
         match instr.kind {
             Instruction::ArrayCreate => {
                 let result = array_create(agent, 0, instr.get_first_index(), None, gc.into_nogc())?
@@ -1699,12 +1787,18 @@ impl Vm {
             }
             Instruction::Jump => {
                 let ip = instr.get_jump_slot();
+                if agent.options.print_internals {
+                    eprintln!("Jumping to {ip}");
+                }
                 vm.ip = ip;
             }
             Instruction::JumpIfNot => {
                 let result = vm.result.take().unwrap();
                 let ip = instr.get_jump_slot();
                 if !to_boolean(agent, result) {
+                    if agent.options.print_internals {
+                        eprintln!("Comparison failed, jumping to {ip}");
+                    }
                     vm.ip = ip;
                 }
             }
@@ -1715,6 +1809,9 @@ impl Vm {
                 };
                 if result {
                     let ip = instr.get_jump_slot();
+                    if agent.options.print_internals {
+                        eprintln!("Comparison succeeded, jumping to {ip}");
+                    }
                     vm.ip = ip;
                 }
             }
@@ -2015,13 +2112,16 @@ impl Vm {
                 ));
             }
             Instruction::PushExceptionJumpTarget => {
-                vm.exception_jump_target_stack.push(ExceptionJumpTarget {
-                    ip: instr.get_jump_slot(),
-                    lexical_environment: agent.current_lexical_environment(gc.nogc()).unbind(),
-                });
+                vm.exception_handler_stack
+                    .push(ExceptionHandler::CatchBlock {
+                        // Note: jump slots are passed to us in 32 bits, this
+                        // conversion is lossless.
+                        ip: instr.get_jump_slot() as u32,
+                        lexical_environment: agent.current_lexical_environment(gc.nogc()).unbind(),
+                    });
             }
             Instruction::PopExceptionJumpTarget => {
-                vm.exception_jump_target_stack.pop().unwrap();
+                vm.exception_handler_stack.pop().unwrap();
             }
             Instruction::InstanceofOperator => {
                 let lval = vm.stack.pop().unwrap();
@@ -2284,7 +2384,11 @@ impl Vm {
                         // Iterator finished: pop the iterator from the stack
                         // and jump to escape the iterator loop.
                         vm.iterator_stack.pop();
-                        vm.ip = instr.get_jump_slot();
+                        let ip = instr.get_jump_slot();
+                        if agent.options.print_internals {
+                            eprintln!("Iterator finished, jumping to {ip}");
+                        }
+                        vm.ip = ip;
                     }
                 } else {
                     // Iterator threw an error: pop the iterator from the stack
@@ -2368,6 +2472,75 @@ impl Vm {
                         gc,
                     )?;
                 }
+            }
+            Instruction::AsyncIteratorClose => todo!(),
+            Instruction::IteratorCloseWithError => {
+                let iterator = vm.iterator_stack.pop().unwrap();
+                if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
+                    let result = vm.result.take().unwrap();
+                    return Err(with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| {
+                            iterator_close_with_error(
+                                agent,
+                                iterator_record.iterator,
+                                JsError::new(result),
+                                gc,
+                            )
+                        },
+                        gc,
+                    ));
+                }
+                return Err(JsError::new(vm.result.take().unwrap()));
+            }
+            Instruction::AsyncIteratorCloseWithError => {
+                let iterator = vm.iterator_stack.pop().unwrap();
+                if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
+                    let inner_result_value = with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| {
+                            async_vm_iterator_close_with_error(agent, iterator_record.iterator, gc)
+                        },
+                        gc,
+                    );
+                    if let Some(value) = inner_result_value {
+                        // ### 7.4.13 AsyncIteratorClose
+                        // 4.d. If innerResult is a normal completion, set
+                        //    innerResult to Completion(Await(innerResult.[[Value]])).
+                        // 5. If completion is a throw completion, return ? completion.
+
+                        // We need to await the value and ignore any errors it
+                        // might throw, then rethrow the error. First, we need
+                        // to load the error to the stack for later throwing.
+                        vm.stack.push(vm.result.take().unwrap());
+                        // Then we can put our value as the result.
+                        vm.result = Some(value.unbind());
+                        // Before we await we need to make sure that any error
+                        // throw by the await gets ignored. This also ignores
+                        // the next instruction coming after this, which would
+                        // pop the exception handler stack: the ignore is
+                        // necessary because handling the error pops the
+                        // exception handler stack as well. Without the ignore
+                        // we'd pop twice.
+                        vm.exception_handler_stack
+                            .push(ExceptionHandler::IgnoreErrorAndNextInstruction);
+                        // Now we're ready to await: if the await succeeds then
+                        // we'll continue execution which will pop the above
+                        // exception handler, store the error as the result and
+                        // then rethrow it. If the await throws an error, it
+                        // will trigger our exception handler which will skip
+                        // the exception handler pop instruction but otherwise
+                        // continue as above. As a result, our error is always
+                        // rethrown.
+                        return Ok(ContinuationKind::Await);
+                    }
+                }
+                // If the iterator did not find any "return" method or
+                // trying to get the return method threw an error, then we
+                // should synchronously rethrow our original error.
+                return Err(JsError::new(vm.result.take().unwrap()));
             }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
             Instruction::CreateUnmappedArgumentsObject => {
@@ -2855,21 +3028,29 @@ fn with_vm_gc<'a, 'b, R: 'a>(
     result
 }
 
-impl HeapMarkAndSweep for ExceptionJumpTarget<'static> {
+impl HeapMarkAndSweep for ExceptionHandler<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            ip: _,
-            lexical_environment,
-        } = self;
-        lexical_environment.mark_values(queues);
+        match self {
+            ExceptionHandler::CatchBlock {
+                ip: _,
+                lexical_environment,
+            } => {
+                lexical_environment.mark_values(queues);
+            }
+            ExceptionHandler::IgnoreErrorAndNextInstruction => {}
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            ip: _,
-            lexical_environment,
-        } = self;
-        lexical_environment.sweep_values(compactions);
+        match self {
+            ExceptionHandler::CatchBlock {
+                ip: _,
+                lexical_environment,
+            } => {
+                lexical_environment.sweep_values(compactions);
+            }
+            ExceptionHandler::IgnoreErrorAndNextInstruction => {}
+        }
     }
 }
 
@@ -2880,7 +3061,7 @@ impl HeapMarkAndSweep for Vm {
             stack,
             reference_stack,
             iterator_stack,
-            exception_jump_target_stack,
+            exception_handler_stack: exception_jump_target_stack,
             result,
             reference,
         } = self;
@@ -2898,7 +3079,7 @@ impl HeapMarkAndSweep for Vm {
             stack,
             reference_stack,
             iterator_stack,
-            exception_jump_target_stack,
+            exception_handler_stack: exception_jump_target_stack,
             result,
             reference,
         } = self;

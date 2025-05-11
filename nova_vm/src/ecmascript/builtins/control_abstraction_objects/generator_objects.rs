@@ -4,6 +4,7 @@
 
 use core::ops::{Index, IndexMut};
 
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
 use crate::heap::HeapSweepWeakReference;
@@ -182,8 +183,9 @@ impl Generator<'_> {
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, Object<'a>> {
         let value = value.bind(gc.nogc());
+        let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match agent[self].generator_state.as_ref().unwrap() {
+        match agent[generator].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended(SuspendedGeneratorState {
                 vm_or_args: VmOrArguments::Arguments(_),
                 ..
@@ -193,7 +195,7 @@ impl Generator<'_> {
                 // b. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with generator can be discarded at this point.
-                agent[self].generator_state = Some(GeneratorState::Completed);
+                agent[generator].generator_state = Some(GeneratorState::Completed);
                 // c. Set state to completed.
 
                 // 3. If state is completed, then
@@ -222,12 +224,13 @@ impl Generator<'_> {
             vm_or_args: VmOrArguments::Vm(vm),
             executable,
             execution_context,
-        })) = agent[self]
+        })) = agent[generator]
             .generator_state
             .replace(GeneratorState::Executing)
         else {
             unreachable!()
         };
+        let generator = generator.scope(agent, gc.nogc());
         let executable = executable.scope(agent, gc.nogc());
 
         // 5. Let genContext be generator.[[GeneratorContext]].
@@ -245,6 +248,10 @@ impl Generator<'_> {
             .unbind();
         let gc = gc.into_nogc();
         let execution_result = execution_result.bind(gc);
+        // SAFETY: shared but not stored by resume.
+        let executable = unsafe { executable.take(agent).bind(gc) };
+        // SAFETY: not shared.
+        let generator = unsafe { generator.take(agent).bind(gc) };
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -258,21 +265,151 @@ impl Generator<'_> {
         // 12. Return ? result.
         match execution_result {
             ExecutionResult::Return(result) => {
-                agent[self].generator_state = Some(GeneratorState::Completed);
+                agent[generator].generator_state = Some(GeneratorState::Completed);
                 Ok(create_iter_result_object(agent, result, true, gc))
             }
             ExecutionResult::Throw(err) => {
-                agent[self].generator_state = Some(GeneratorState::Completed);
-                Err(err.unbind())
+                agent[generator].generator_state = Some(GeneratorState::Completed);
+                Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
-                agent[self].generator_state =
+                agent[generator].generator_state =
                     Some(GeneratorState::Suspended(SuspendedGeneratorState {
                         vm_or_args: VmOrArguments::Vm(vm),
-                        executable: executable.get(agent),
+                        executable: executable.unbind(),
                         execution_context,
                     }));
                 Ok(create_iter_result_object(agent, yielded_value, false, gc))
+            }
+            ExecutionResult::Await { .. } => unreachable!(),
+        }
+    }
+
+    /// [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
+    /// NOTE: This method only accepts return completions.
+    pub(crate) fn resume_return<'a>(
+        self,
+        agent: &mut Agent,
+        abrupt_completion: Value,
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
+        let abrupt_completion = abrupt_completion.bind(gc.nogc());
+        let generator = self.bind(gc.nogc());
+        // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
+        match agent[generator].generator_state.as_ref().unwrap() {
+            GeneratorState::Suspended(SuspendedGeneratorState {
+                vm_or_args: VmOrArguments::Arguments(_),
+                ..
+            }) => {
+                // 2. If state is suspended-start, then
+                // a. Set generator.[[GeneratorState]] to completed.
+                // b. NOTE: Once a generator enters the completed state it never leaves it and its
+                // associated execution context is never resumed. Any execution state associated
+                // with generator can be discarded at this point.
+                agent[generator].generator_state = Some(GeneratorState::Completed);
+                // c. Set state to completed.
+
+                // 3. If abruptCompletion is a return completion, then
+                // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
+                return Ok(create_iter_result_object(
+                    agent,
+                    abrupt_completion.unbind(),
+                    true,
+                    gc.into_nogc(),
+                )
+                .into_value());
+            }
+            GeneratorState::Suspended { .. } => {
+                // 4. Assert: state is suspended-yield.
+            }
+            GeneratorState::Executing => {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "The generator is currently running",
+                    gc.into_nogc(),
+                ));
+            }
+            GeneratorState::Completed => {
+                // 3. If abruptCompletion is a return completion, then
+                // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
+                return Ok(create_iter_result_object(
+                    agent,
+                    abrupt_completion.unbind(),
+                    true,
+                    gc.into_nogc(),
+                )
+                .into_value());
+            }
+        };
+
+        // 4. Assert: state is suspended-yield.
+        // 8. Set generator.[[GeneratorState]] to executing.
+        let Some(GeneratorState::Suspended(SuspendedGeneratorState {
+            vm_or_args: VmOrArguments::Vm(vm),
+            executable,
+            execution_context,
+        })) = agent[generator]
+            .generator_state
+            .replace(GeneratorState::Executing)
+        else {
+            unreachable!()
+        };
+        let generator = generator.scope(agent, gc.nogc());
+        let executable = executable.scope(agent, gc.nogc());
+
+        // 5. Let genContext be generator.[[GeneratorContext]].
+        // 6. Let methodContext be the running execution context.
+        // 7. Suspend methodContext.
+        // 9. Push genContext onto the execution context stack; genContext is now the running
+        // execution context.
+        agent.push_execution_context(execution_context);
+
+        // 10. Resume the suspended evaluation of genContext using
+        //     abruptCompletion as the result of the operation that suspended
+        //     it. Let result be the Completion Record returned by the resumed
+        //     computation.
+        let execution_result = vm
+            .resume_return(
+                agent,
+                executable.clone(),
+                abrupt_completion.unbind(),
+                gc.reborrow(),
+            )
+            .unbind();
+        let gc = gc.into_nogc();
+        let execution_result = execution_result.bind(gc);
+        // SAFETY: shared but not stored by resume.
+        let executable = unsafe { executable.take(agent).bind(gc) };
+        // SAFETY: not shared.
+        let generator = unsafe { generator.take(agent).bind(gc) };
+
+        // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
+        // execution context that is at the top of the execution context stack as the running
+        // execution context.
+        // GeneratorYield 6 is the same.
+        let execution_context = agent.pop_execution_context().unwrap();
+
+        // 11. Assert: When we return here, genContext has already been removed
+        // from the execution context stack and methodContext is the currently
+        // running execution context.
+        // 12. Return ? result.
+        match execution_result {
+            ExecutionResult::Return(result) => {
+                agent[generator].generator_state = Some(GeneratorState::Completed);
+                Ok(create_iter_result_object(agent, result, true, gc).into_value())
+            }
+            ExecutionResult::Throw(err) => {
+                agent[generator].generator_state = Some(GeneratorState::Completed);
+                Err(err)
+            }
+            ExecutionResult::Yield { vm, yielded_value } => {
+                agent[generator].generator_state =
+                    Some(GeneratorState::Suspended(SuspendedGeneratorState {
+                        vm_or_args: VmOrArguments::Vm(vm),
+                        executable: executable.unbind(),
+                        execution_context,
+                    }));
+                Ok(create_iter_result_object(agent, yielded_value, false, gc).into_value())
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -425,7 +562,7 @@ pub(crate) struct SuspendedGeneratorState {
 
 #[derive(Debug)]
 pub(crate) enum GeneratorState {
-    // SUSPENDED-START has `vm_or_args` set to Arguments, SUSPENDED-YIELD has it set to Vm.
+    /// SUSPENDED-START has `vm_or_args` set to Arguments, SUSPENDED-YIELD has it set to Vm.
     Suspended(SuspendedGeneratorState),
     Executing,
     Completed,

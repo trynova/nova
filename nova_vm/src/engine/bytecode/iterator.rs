@@ -7,19 +7,24 @@ use std::{marker::PhantomData, ptr::NonNull};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{IteratorRecord, get_iterator_from_method},
+            operations_on_iterator_objects::{
+                IteratorRecord, get_iterator_from_method, iterator_close_with_value,
+            },
             operations_on_objects::{call_function, get, get_method, throw_not_callable},
             type_conversion::to_boolean,
         },
-        builtins::{Array, ScopedArgumentsList},
+        builtins::{
+            Array, ScopedArgumentsList,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+        },
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyKey, PropertyKeySet,
-            Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
+            PropertyKeySet, Value,
         },
     },
     engine::{
-        Scoped,
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope, ScopeToken},
         rootable::Scopable,
     },
@@ -114,6 +119,86 @@ impl VmIteratorRecord<'_> {
             VmIteratorRecord::GenericIterator(_) => None,
             VmIteratorRecord::SliceIterator(slice) => Some(slice.len(agent)),
             VmIteratorRecord::EmptySliceIterator => Some(0),
+        }
+    }
+
+    pub(super) fn requires_return_call(&self, agent: &mut Agent, gc: NoGcScope) -> bool {
+        match self {
+            VmIteratorRecord::InvalidIterator
+            | VmIteratorRecord::ObjectProperties(_)
+            | VmIteratorRecord::SliceIterator(_)
+            | VmIteratorRecord::EmptySliceIterator => false,
+            VmIteratorRecord::ArrayValues(_) => {
+                // Note: no one can access the array values iterator while it is
+                // iterating so we know its prototype is the intrinsic
+                // ArrayIteratorPrototype. But that may have a return method
+                // set on it by a horrible-horrible person somewhere.
+                // TODO: This should actually maybe be the proto of the Array's
+                // realm?
+                let array_iterator_prototype = agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .array_iterator_prototype();
+                // IteratorClose calls GetMethod on the iterator: if a
+                // non-nullable value is found this way then things happen.
+                match array_iterator_prototype.try_get(
+                    agent,
+                    BUILTIN_STRING_MEMORY.r#return.into(),
+                    array_iterator_prototype.into_value(),
+                    gc,
+                ) {
+                    TryResult::Continue(return_method) => {
+                        !return_method.is_undefined() && !return_method.is_null()
+                    }
+                    // Note: here it's still possible that we won't actually
+                    // call a return method but this break already means that
+                    // the user can observe the ArrayIterator object.
+                    TryResult::Break(_) => true,
+                }
+            }
+            VmIteratorRecord::GenericIterator(iter)
+            | VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => {
+                match iter.iterator.try_get(
+                    agent,
+                    BUILTIN_STRING_MEMORY.r#return.into(),
+                    iter.iterator.into_value(),
+                    gc,
+                ) {
+                    TryResult::Continue(return_method) => {
+                        !return_method.is_undefined() && !return_method.is_null()
+                    }
+                    // Note: here it's still possible that we won't actually
+                    // call a return method but this break already means that
+                    // we'll need garbage collection.
+                    TryResult::Break(_) => true,
+                }
+            }
+        }
+    }
+
+    pub(super) fn close_iterator<'a>(
+        self,
+        agent: &mut Agent,
+        completion: Value,
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
+        match self {
+            VmIteratorRecord::InvalidIterator
+            | VmIteratorRecord::ObjectProperties(_)
+            | VmIteratorRecord::SliceIterator(_)
+            | VmIteratorRecord::EmptySliceIterator => unreachable!(),
+            VmIteratorRecord::ArrayValues(iter) => {
+                // We need to create the ArrayIterator object for user to
+                // interact with.
+                let ArrayValuesIteratorRecord { array, index } = iter;
+                let array = array.bind(gc.nogc());
+                let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
+                iterator_close_with_value(agent, iter.into_object().unbind(), completion, gc)
+            }
+            VmIteratorRecord::GenericIterator(iter)
+            | VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => {
+                iterator_close_with_value(agent, iter.iterator, completion, gc)
+            }
         }
     }
 

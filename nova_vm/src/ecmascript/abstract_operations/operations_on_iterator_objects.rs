@@ -7,7 +7,9 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, get, get_method},
+            operations_on_objects::{
+                call_function, get, get_method, get_object_method, try_get_object_method,
+            },
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
@@ -22,7 +24,7 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, ScopedCollection,
+        ScopableCollection, ScopedCollection, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -430,18 +432,32 @@ pub(crate) fn iterator_close_with_value<'a>(
     completion: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
+    let mut iterator = iterator.bind(gc.nogc());
     let completion = completion.scope(agent, gc.nogc());
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
-    let inner_result = get_method(
+    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
         agent,
-        iterator.into_value(),
+        iterator,
         BUILTIN_STRING_MEMORY.r#return.into(),
-        gc.reborrow(),
-    )
-    .unbind()
-    .bind(gc.nogc());
+        gc.nogc(),
+    ) {
+        inner_result
+    } else {
+        let scoped_iterator = iterator.scope(agent, gc.nogc());
+        let inner_result = get_object_method(
+            agent,
+            iterator.unbind(),
+            BUILTIN_STRING_MEMORY.r#return.into(),
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
+        // SAFETY: scoped_iterator is not shared.
+        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+        inner_result
+    };
     // 4. If innerResult.[[Type]] is normal, then
     let inner_result = match inner_result {
         Ok(return_function) => {
@@ -455,7 +471,7 @@ pub(crate) fn iterator_close_with_value<'a>(
             call_function(
                 agent,
                 return_function.unbind(),
-                iterator.into_value(),
+                iterator.into_value().unbind(),
                 None,
                 gc.reborrow(),
             )
@@ -495,16 +511,32 @@ pub(crate) fn iterator_close_with_error<'a>(
     completion: JsError,
     mut gc: GcScope<'a, '_>,
 ) -> JsError<'a> {
+    let mut iterator = iterator.bind(gc.nogc());
     let completion = completion.scope(agent, gc.nogc());
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
-    let inner_result = get_method(
+    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
         agent,
-        iterator.into_value(),
+        iterator,
         BUILTIN_STRING_MEMORY.r#return.into(),
-        gc.reborrow(),
-    );
+        gc.nogc(),
+    ) {
+        inner_result
+    } else {
+        let scoped_iterator = iterator.scope(agent, gc.nogc());
+        let inner_result = get_object_method(
+            agent,
+            iterator.unbind(),
+            BUILTIN_STRING_MEMORY.r#return.into(),
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
+        // SAFETY: scoped_iterator is not shared.
+        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+        inner_result
+    };
     // 4. If innerResult.[[Type]] is normal, then
     if let Ok(r#return) = inner_result {
         // a. Let return be innerResult.[[Value]].
@@ -517,7 +549,7 @@ pub(crate) fn iterator_close_with_error<'a>(
         let _ = call_function(
             agent,
             r#return.unbind(),
-            iterator.into_value(),
+            iterator.into_value().unbind(),
             None,
             gc.reborrow(),
         );
@@ -576,6 +608,71 @@ pub(crate) fn async_iterator_close<'a>(
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     // 8. Return ? completion.
     Err(agent.todo("AsyncIteratorClose", gc.into_nogc()))
+}
+
+/// ### [7.4.13 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
+///
+/// Note: this is used to perform a "return" function call on async VM iterator
+/// close and returns Some(value) if the return function did not throw. If the
+/// return function did not exist or threw an error, then None is returned as a
+/// sign to the VM to proceed to rethrow the completion.
+pub(crate) fn async_vm_iterator_close_with_error<'a>(
+    agent: &mut Agent,
+    iterator: Object,
+    mut gc: GcScope<'a, '_>,
+) -> Option<Value<'a>> {
+    let mut iterator = iterator.bind(gc.nogc());
+    // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
+    // 2. Let iterator be iteratorRecord.[[Iterator]].
+    // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
+    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
+        agent,
+        iterator,
+        BUILTIN_STRING_MEMORY.r#return.into(),
+        gc.nogc(),
+    ) {
+        inner_result
+    } else {
+        let scoped_iterator = iterator.scope(agent, gc.nogc());
+        let inner_result = get_object_method(
+            agent,
+            iterator.unbind(),
+            BUILTIN_STRING_MEMORY.r#return.into(),
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
+        // SAFETY: scoped_iterator is not shared.
+        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+        inner_result
+    };
+    // 4. If innerResult.[[Type]] is normal, then
+    if let Ok(r#return) = inner_result {
+        // a. Let return be innerResult.[[Value]].
+        // b. If return is undefined, return ? completion.
+        let Some(r#return) = r#return else {
+            // Note: we return None to signal that completion should be
+            // rethrown.
+            return None;
+        };
+        // c. Set innerResult to Completion(Call(return, iterator)).
+        let inner_result = call_function(
+            agent,
+            r#return.unbind(),
+            iterator.into_value().unbind(),
+            None,
+            gc,
+        );
+        // d. If innerResult.[[Type]] is normal, set innerResult to
+        //    Completion(Await(innerResult.[[Value]])).
+        if let Ok(value) = inner_result {
+            // Note: we return Some to signal that an Await is required.
+            return Some(value);
+        }
+    }
+    // 5. If completion.[[Type]] is throw, return ? completion.
+    // Note: we return None to signal that completion should be rethrown.
+    None
 }
 
 /// ### [7.4.14 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
