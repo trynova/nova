@@ -291,7 +291,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             // ...
             // b. Let F be CreateBuiltinFunction(defaultConstructor, 0, className, « [[ConstructorKind]], [[SourceText]] », the current Realm Record, constructorParent).
 
-            let index = IndexType::try_from(ctx.class_initializer_bytecodes.len()).unwrap();
+            let index = ctx.get_next_class_initializer_index();
             ctx.add_instruction_with_immediate(
                 Instruction::ClassDefineDefaultConstructor,
                 index.into(),
@@ -474,15 +474,13 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 };
                 constructor_ctx.compile_function_body(constructor_data);
                 let executable = constructor_ctx.finish();
-                ctx.function_expressions[constructor_index as usize].compiled_bytecode =
-                    Some(executable);
+                ctx.set_function_expression_bytecode(constructor_index, executable);
             } else {
-                ctx.class_initializer_bytecodes
-                    .push((Some(constructor_ctx.finish()), has_constructor_parent));
+                let executable = constructor_ctx.finish();
+                ctx.add_class_initializer_bytecode(executable, has_constructor_parent);
             }
         } else if constructor.is_none() {
-            ctx.class_initializer_bytecodes
-                .push((None, has_constructor_parent));
+            ctx.add_class_initializer(has_constructor_parent);
         }
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).
