@@ -35,8 +35,7 @@ pub(super) fn instantiation<'s>(
     code.lexically_scoped_declarations(&mut |d| {
         if !did_enter_declarative_environment {
             did_enter_declarative_environment = true;
-            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            ctx.current_lexical_depth += 1;
+            ctx.enter_lexical_scope();
         }
         handle_block_lexically_scoped_declaration(ctx, d);
     });

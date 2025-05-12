@@ -60,6 +60,20 @@ pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
     }
 }
 
+pub(crate) fn is_boolean_literal_true(expression: &ast::Expression) -> bool {
+    match expression {
+        ast::Expression::BooleanLiteral(lit) if lit.value => true,
+        _ => false,
+    }
+}
+
+pub(crate) fn is_boolean_literal_false(expression: &ast::Expression) -> bool {
+    match expression {
+        ast::Expression::BooleanLiteral(lit) if !lit.value => true,
+        _ => false,
+    }
+}
+
 fn is_chain_expression(expression: &ast::Expression) -> bool {
     match expression {
         ast::Expression::ChainExpression(_) => true,
@@ -1855,8 +1869,7 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
             ele.compile(ctx);
         }
         if did_enter_declarative_environment {
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            ctx.current_lexical_depth -= 1;
+            ctx.exit_lexical_scope();
         }
     }
 }
@@ -1864,11 +1877,9 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
     fn compile_labelled<'gc>(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
-
         let mut per_iteration_lets: Vec<String<'_>> = vec![];
         let mut is_lexical = false;
 
@@ -1916,10 +1927,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                     if is_lexical {
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
-                        // Note: This declaration environment is not something
-                        // that continue/break statements should care about. We
-                        // take care of tearing this one down.
-                        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+                        ctx.enter_lexical_scope();
                         // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
                         let is_const = init.kind.is_const();
                         // 4. Let boundNames be the BoundNames of LexicalDeclaration.
@@ -1985,9 +1993,9 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                     // Get value of binding from lastIterationEnv.
                     ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
                     ctx.add_instruction(Instruction::GetValue);
-                    // Current declarative environment is now "outer"
+                    // Note: here we do not use exit & enter lexical
+                    // environment helpers as we'd just immediately exit again.
                     ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-                    // NewDeclarativeEnvironment(outer)
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, binding);
                     ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
@@ -1998,6 +2006,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                         ctx.add_instruction(Instruction::GetValue);
                         ctx.add_instruction(Instruction::Load);
                     }
+                    // Note: here we do not use exit & enter lexical
+                    // environment helpers as we'd just immediately exit again.
                     ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     for bn in per_iteration_lets.iter().rev() {
@@ -2016,54 +2026,60 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
             create_per_iteration_env(ctx);
         }
 
+        // 3. Repeat,
+        ctx.enter_loop(label_set.cloned());
         let loop_jump = ctx.get_jump_index_to_here();
-        if let Some(test) = &self.test {
+        let end_jump = if let Some(test) = &self.test {
             test.compile(ctx);
             if is_reference(test) {
                 ctx.add_instruction(Instruction::GetValue);
             }
+            // jump over consequent if test fails
+            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
         } else {
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Boolean(true));
-        }
-        // jump over consequent if test fails
-        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            None
+        };
 
         self.body.compile(ctx);
 
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target_here(continue_entry);
-        }
+        let continue_target = if create_per_iteration_env.is_none() && self.update.is_none() {
+            // If there is no work to be done at the end of the loop, continue
+            // can just jump straight to the beginning.
+            loop_jump.clone()
+        } else {
+            let continue_target = ctx.get_jump_index_to_here();
+            if let Some(create_per_iteration_env) = create_per_iteration_env {
+                create_per_iteration_env(ctx);
+            }
 
-        if let Some(create_per_iteration_env) = create_per_iteration_env {
-            create_per_iteration_env(ctx);
-        }
+            if let Some(update) = &self.update {
+                update.compile(ctx);
+            }
 
-        if let Some(update) = &self.update {
-            update.compile(ctx);
-        }
+            continue_target
+        };
+
         ctx.add_jump_instruction_to_index(Instruction::Jump, loop_jump);
-        ctx.set_jump_target_here(end_jump);
-
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
+        if let Some(end_jump) = end_jump {
+            ctx.set_jump_target_here(end_jump);
         }
+
+        ctx.exit_loop(continue_target);
+
         if is_lexical {
             // Lexical binding loops have an extra declarative environment that
             // we need to exit from once we exit the loop.
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+            ctx.exit_lexical_scope();
         }
-        ctx.return_jump_target(previous_jump_target);
     }
 }
 
 impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
         // 1. Let exprRef be ? Evaluation of Expression.
         self.discriminant.compile(ctx);
         if is_reference(&self.discriminant) {
@@ -2071,6 +2087,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             ctx.add_instruction(Instruction::GetValue);
         }
         ctx.add_instruction(Instruction::Load);
+        ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
@@ -2145,29 +2162,11 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             }
         }
 
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
-        }
-        if !jump_target.continues.is_empty() {
-            // Some called continue inside a switch statement; these presumably
-            // belong to a loop outside.
-            let mut previous_jump_target = previous_jump_target.as_ref().unwrap().borrow_mut();
-            previous_jump_target
-                .continues
-                .extend_from_slice(&jump_target.continues);
-            // It's unlikely that any duplicates would exist but it is
-            // technically possible. We'll try avoid those.
-            previous_jump_target.continues.sort();
-            previous_jump_target.continues.dedup();
-        }
-        ctx.return_jump_target(previous_jump_target);
-
-        // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if did_enter_declarative_environment {
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            ctx.current_lexical_depth -= 1;
+            ctx.exit_lexical_scope();
         }
+
+        ctx.exit_switch();
         // 9. Return R.
     }
 }
@@ -2188,10 +2187,9 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
             todo!();
         }
 
-        let jump_to_catch =
-            ctx.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        let jump_to_catch = ctx.enter_try_catch_block();
         self.block.compile(ctx);
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        ctx.exit_try_catch_block();
         let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
         let catch_clause = self.handler.as_ref().unwrap();
@@ -2203,8 +2201,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
             // 4. Set the running execution context's LexicalEnvironment to catchEnv.
             // Note: We skip the declarative environment if there is no catch
             // param as it's not observable.
-            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            ctx.current_lexical_depth += 1;
+            ctx.enter_lexical_scope();
 
             // 3. For each element argName of the BoundNames of CatchParameter, do
             // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
@@ -2242,8 +2239,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
         catch_clause.body.compile(ctx);
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if catch_clause.param.is_some() {
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            ctx.current_lexical_depth -= 1;
+            ctx.exit_lexical_scope();
         }
         // 9. Return ? B.
         ctx.set_jump_target_here(jump_to_end);
@@ -2253,60 +2249,55 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
+        ctx.enter_loop(label_set.cloned());
 
+        // 1. Let V be undefined.
         // 2. Repeat
-        let start_jump = ctx.get_jump_index_to_here();
+        let continue_target = ctx.get_jump_index_to_here();
 
         // a. Let exprRef be ? Evaluation of Expression.
+        // OPTIMISATION: while(true) loops are pretty common, skip the test.
+        let end_jump = if !is_boolean_literal_true(&self.test) {
+            self.test.compile(ctx);
+            if is_reference(&self.test) {
+                // b. Let exprValue be ? GetValue(exprRef).
+                ctx.add_instruction(Instruction::GetValue);
+            }
 
-        self.test.compile(ctx);
-        if is_reference(&self.test) {
-            // b. Let exprValue be ? GetValue(exprRef).
-            ctx.add_instruction(Instruction::GetValue);
-        }
+            // c. If ToBoolean(exprValue) is false, return V.
+            // jump over loop jump if test fails
+            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+        } else {
+            None
+        };
 
-        // c. If ToBoolean(exprValue) is false, return V.
-        // jump over loop jump if test fails
-        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         // d. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
 
+        ctx.add_jump_instruction_to_index(Instruction::Jump, continue_target.clone());
         // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
         // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
-        ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump.clone());
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target(continue_entry, start_jump.clone());
+        if let Some(end_jump) = end_jump {
+            ctx.set_jump_target_here(end_jump);
         }
-
-        ctx.set_jump_target_here(end_jump);
-
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
-        }
-        ctx.return_jump_target(previous_jump_target);
+        ctx.exit_loop(continue_target);
     }
 }
 
 impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
-
+        ctx.enter_loop(label_set.cloned());
         let start_jump = ctx.get_jump_index_to_here();
         self.body.compile(ctx);
 
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target_here(continue_entry);
-        }
+        let continue_target = ctx.get_jump_index_to_here();
 
         self.test.compile(ctx);
         if is_reference(&self.test) {
@@ -2316,65 +2307,19 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
         let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
         ctx.set_jump_target_here(end_jump);
-
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
-        }
-        ctx.return_jump_target(previous_jump_target);
+        ctx.exit_loop(continue_target);
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::BreakStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let depth = ctx.current_lexical_depth;
-        let jump_target = if let Some(label) = &self.label {
-            ctx.labelled_statements
-                .as_ref()
-                .unwrap()
-                .get(&label.name)
-                .unwrap()
-                .clone()
-        } else {
-            ctx.current_jump_target.as_ref().unwrap().clone()
-        };
-        let mut jump_target = jump_target.borrow_mut();
-        let jump_depth = jump_target.depth;
-        assert!(depth >= jump_depth);
-        for _ in jump_depth..depth {
-            // We have to exit the declarative environments we've entered.
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        }
-        let break_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        jump_target.breaks.push(break_jump);
+        ctx.compile_break(self.label.as_ref());
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::ContinueStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let depth = ctx.current_lexical_depth;
-        let jump_target = if let Some(label) = &self.label {
-            ctx.labelled_statements
-                .as_ref()
-                .unwrap()
-                .get(&label.name)
-                .unwrap()
-                .clone()
-        } else {
-            ctx.current_jump_target.as_ref().unwrap().clone()
-        };
-        let mut jump_target = jump_target.borrow_mut();
-        let jump_depth = jump_target.depth;
-        assert!(depth >= jump_depth);
-        for _ in jump_depth..depth {
-            // We have to exit the declarative environments we've entered.
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        }
-        let continue_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        jump_target.continues.push(continue_jump);
-        if let Some(label) = &self.label {
-            let label = label.name.as_str();
-            todo!("continue {};", label);
-        }
+        ctx.compile_continue(self.label.as_ref());
     }
 }
 

@@ -2,9 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cell::RefCell, rc::Rc};
-
-use ahash::AHashMap;
 use oxc_ast::ast::{self, LabelIdentifier, Statement};
 use oxc_span::Atom;
 
@@ -22,7 +19,9 @@ use crate::{
     heap::CreateHeapData,
 };
 
-use super::{function_declaration_instantiation, is_reference};
+use super::{
+    finaliser_stack::ControlFlowStackEntry, function_declaration_instantiation, is_reference,
+};
 
 pub type IndexType = u16;
 
@@ -95,15 +94,13 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     ///
     /// Otherwise, all bindings being created are variable scoped.
     pub(super) lexical_binding_state: bool,
-    /// Current depth of the lexical scope stack.
-    pub(super) current_lexical_depth: u32,
-    pub(super) current_jump_target: Option<Rc<RefCell<JumpTarget>>>,
-    pub(super) labelled_statements: Option<Box<AHashMap<Atom<'script>, Rc<RefCell<JumpTarget>>>>>,
     /// `?.` chain jumps that were present in a chain expression.
     pub(super) optional_chains: Option<Vec<JumpIndex>>,
     /// In a `(a?.b).unbind()?.bind(gc.nogc()).()` chain the evaluation of `(a?.b)` must be considered a
     /// reference.
     pub(super) is_call_optional_chain_this: bool,
+    /// Stores data needed to generate control flow graph transition points.
+    control_flow_stack: Vec<ControlFlowStackEntry<'script>>,
 }
 
 impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
@@ -122,57 +119,322 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             class_initializer_bytecodes: Vec::new(),
             name_identifier: None,
             lexical_binding_state: false,
-            current_lexical_depth: 0,
             optional_chains: None,
-            current_jump_target: None,
-            labelled_statements: None,
             is_call_optional_chain_this: false,
+            control_flow_stack: Vec::new(),
         }
     }
 
-    pub(super) fn return_jump_target(&mut self, jump_target: Option<Rc<RefCell<JumpTarget>>>) {
-        let Some(jump_target) = jump_target else {
-            return;
+    /// Enter a labelled statement.
+    pub(super) fn enter_label(&mut self, label: &'s LabelIdentifier<'s>) {
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::LabelledStatement {
+                label,
+                incoming_control_flows: None,
+            });
+    }
+
+    /// Exit a labelled statement.
+    pub(super) fn exit_label(&mut self) {
+        let Some(ControlFlowStackEntry::LabelledStatement {
+            label: _,
+            incoming_control_flows,
+        }) = self.control_flow_stack.pop()
+        else {
+            unreachable!()
         };
-        self.current_jump_target.replace(jump_target);
+        let break_target = self.get_jump_index_to_here();
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            incoming_control_flows.compile(break_target, self);
+        }
     }
 
-    pub(super) fn push_new_jump_target(
-        &mut self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-    ) -> Option<Rc<RefCell<JumpTarget>>> {
-        let depth = self.current_lexical_depth;
-        let jump_target = Rc::new(RefCell::new(JumpTarget::new(depth)));
-        if let Some(label_set) = label_set {
-            for label in label_set {
-                let pervious = self
-                    .labelled_statements
-                    .as_mut()
-                    .unwrap()
-                    .insert(label.name, jump_target.clone());
-                assert!(pervious.is_none());
-            }
-        }
-        self.current_jump_target.replace(jump_target)
+    /// Enter a lexical scope.
+    pub(super) fn enter_lexical_scope(&mut self) {
+        self.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::LexicalScope);
     }
 
-    pub(super) fn take_current_jump_target(
-        &mut self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-    ) -> JumpTarget {
-        if let Some(label_set) = label_set {
-            for label in label_set {
-                // Note: removing the labeled statement here is important, as
-                // without it the Rc::into_inner below will fail.
-                self.labelled_statements
-                    .as_mut()
-                    .unwrap()
-                    .remove(&label.name);
+    /// Exit a lexical scope.
+    pub(super) fn exit_lexical_scope(&mut self) {
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::LexicalScope)
+        );
+        self.add_instruction(Instruction::ExitDeclarativeEnvironment);
+    }
+
+    /// Enter a class static initialiser.
+    pub(super) fn enter_class_static_block(&mut self) {
+        self.add_instruction(Instruction::EnterClassStaticElementEnvironment);
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::LexicalScope);
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::VariableScope);
+    }
+
+    /// Exit a lexical scope.
+    pub(super) fn exit_class_static_block(&mut self) {
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::VariableScope)
+        );
+        self.add_instruction(Instruction::ExitVariableEnvironment);
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::LexicalScope)
+        );
+        self.add_instruction(Instruction::ExitDeclarativeEnvironment);
+    }
+
+    /// Enter a try-catch block.
+    pub(super) fn enter_try_catch_block(&mut self) -> JumpIndex {
+        let jump_to_catch =
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::CatchBlock);
+        jump_to_catch
+    }
+
+    /// Exit a try-catch block.
+    pub(super) fn exit_try_catch_block(&mut self) {
+        let Some(ControlFlowStackEntry::CatchBlock) = self.control_flow_stack.pop() else {
+            unreachable!()
+        };
+        self.add_instruction(Instruction::PopExceptionJumpTarget);
+    }
+
+    /// Enter a try-finally block.
+    pub(super) fn enter_try_finally_block(&mut self) {
+        let jump_to_catch =
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::FinallyBlock {
+                jump_to_catch,
+                incoming_control_flows: None,
+            });
+    }
+
+    /// Exit a try-finally block.
+    pub(super) fn exit_try_finally_block(&mut self, cb: impl Fn(&mut Self)) {
+        let Some(ControlFlowStackEntry::FinallyBlock {
+            jump_to_catch,
+            incoming_control_flows,
+        }) = self.control_flow_stack.pop()
+        else {
+            unreachable!()
+        };
+        // Compile all finally-block variants here.
+        // First the normal version: Nothing special happened and we just
+        // perform the finally-block.
+        // First we have to pop off the special finally-exception target.
+        self.add_instruction(Instruction::PopExceptionJumpTarget);
+        // Then we compile the finally-block.
+        cb(self);
+        // Finally, we need to jump over any other finally-blocks we'll
+        // generate.
+        let jump_over_others = self.add_instruction_with_jump_slot(Instruction::Jump);
+
+        // Now generate a catch-block version: A catch-version of finally
+        // stores the caught error and rethrows it after performing the
+        // finally-work.
+        self.set_jump_target_here(jump_to_catch);
+        self.add_instruction(Instruction::Load);
+        // Compile the finally-block.
+        cb(self);
+        // Take the error back from the stack and rethrow.
+        self.add_instruction(Instruction::Store);
+        self.add_instruction(Instruction::Throw);
+
+        // Then, for each incoming control flow (break or continue), we need to
+        // generate a finally block for them as well.
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            for (break_source, label) in incoming_control_flows.breaks.into_iter() {
+                // Make the original break jump here.
+                self.set_jump_target_here(break_source);
+                // Compile the finally-block.
+                self.add_instruction(Instruction::PopExceptionJumpTarget);
+                cb(self);
+                // Then send the break on to its real target.
+                self.compile_break(label);
+            }
+
+            for (continue_source, label) in incoming_control_flows.continues.into_iter() {
+                // Make the original continue jump here.
+                self.set_jump_target_here(continue_source);
+                // Compile the finally-block.
+                self.add_instruction(Instruction::PopExceptionJumpTarget);
+                cb(self);
+                // Then send the continue on to its real target.
+                self.compile_continue(label);
             }
         }
-        Rc::into_inner(self.current_jump_target.take().unwrap())
-            .unwrap()
-            .into_inner()
+
+        // Finally, make the normal version jump over the above special cases.
+        self.set_jump_target_here(jump_over_others);
+    }
+
+    /// Enter a for, for-in, or while loop.
+    pub(super) fn enter_loop(&mut self, label_set: Option<Vec<&'s LabelIdentifier<'s>>>) {
+        self.control_flow_stack.push(ControlFlowStackEntry::Loop {
+            label_set,
+            incoming_control_flows: None,
+        });
+    }
+
+    /// Exit a for, for-in, or while loop.
+    pub(super) fn exit_loop(&mut self, continue_target: JumpIndex) {
+        let Some(ControlFlowStackEntry::Loop {
+            label_set: _,
+            incoming_control_flows,
+        }) = self.control_flow_stack.pop()
+        else {
+            unreachable!()
+        };
+        let break_target = self.get_jump_index_to_here();
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            incoming_control_flows.compile(continue_target, break_target, self);
+        }
+    }
+
+    /// Enter a switch block.
+    pub(super) fn enter_switch(&mut self, label_set: Option<Vec<&'s LabelIdentifier<'s>>>) {
+        self.control_flow_stack.push(ControlFlowStackEntry::Switch {
+            label_set,
+            incoming_control_flows: None,
+        });
+    }
+
+    /// Exit a switch block.
+    pub(super) fn exit_switch(&mut self) {
+        let Some(ControlFlowStackEntry::Switch {
+            label_set: _,
+            incoming_control_flows,
+        }) = self.control_flow_stack.pop()
+        else {
+            unreachable!()
+        };
+        let break_target = self.get_jump_index_to_here();
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            incoming_control_flows.compile(break_target, self);
+        }
+    }
+
+    /// Enter a for-of loop.
+    pub(super) fn enter_iterator(
+        &mut self,
+        label_set: Option<Vec<&'s LabelIdentifier<'s>>>,
+    ) -> JumpIndex {
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::Iterator {
+                label_set,
+                incoming_control_flows: None,
+            });
+        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+    }
+
+    /// Exit a for-of loop.
+    pub(super) fn exit_iterator(&mut self, continue_target: JumpIndex) {
+        let Some(ControlFlowStackEntry::Iterator {
+            label_set: _,
+            incoming_control_flows,
+        }) = self.control_flow_stack.pop()
+        else {
+            unreachable!()
+        };
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            let break_target = self.get_jump_index_to_here();
+            if incoming_control_flows.has_breaks() {
+                // When breaking out of iterator, it needs to be closed and its
+                // exception handler removed.
+                self.add_instruction(Instruction::PopExceptionJumpTarget);
+                self.add_instruction(Instruction::IteratorClose);
+            }
+            incoming_control_flows.compile(continue_target, break_target, self);
+        }
+    }
+
+    /// Enter a for-await-of loop.
+    pub(super) fn enter_async_iterator(
+        &mut self,
+        label_set: Option<Vec<&'s LabelIdentifier<'s>>>,
+    ) -> JumpIndex {
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::AsyncIterator {
+                label_set,
+                incoming_control_flows: None,
+            });
+        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+    }
+
+    /// Exit a for-await-of loop.
+    pub(super) fn exit_async_iterator(&mut self, continue_target: JumpIndex) {
+        let Some(ControlFlowStackEntry::AsyncIterator {
+            label_set: _,
+            incoming_control_flows,
+        }) = self.control_flow_stack.pop()
+        else {
+            unreachable!()
+        };
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            let break_target = self.get_jump_index_to_here();
+            // When breaking out of AsyncIterator, we need to close the iterator
+            // and await the "return" function result, if any.
+            self.add_instruction(Instruction::PopExceptionJumpTarget);
+            self.add_instruction(Instruction::AsyncIteratorClose);
+            self.add_instruction(Instruction::Await);
+            incoming_control_flows.compile(continue_target, break_target, self);
+        }
+    }
+
+    pub(super) fn compile_break(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
+        for entry in self.control_flow_stack.iter_mut().rev() {
+            if entry.is_break_target_for(label) {
+                // Stop iterating the stack when we find our target and push
+                // the current instruction pointer as a break source for our
+                // target. Label is pushed in as well because finally-blocks
+                // need to know about labelled breaks and continues.
+                // Jump
+                self.instructions.push(Instruction::Jump.as_u8());
+                entry.add_break_source(
+                    label,
+                    JumpIndex {
+                        index: self.instructions.len(),
+                    },
+                );
+                // JumpSlot
+                self.instructions.extend_from_slice(&[0, 0, 0, 0]);
+                return;
+            }
+            // Compile the exit of each intermediate control flow stack entry.
+            entry.compile_exit(&mut self.instructions);
+        }
+    }
+
+    pub(super) fn compile_continue(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
+        for entry in self.control_flow_stack.iter_mut().rev() {
+            if entry.is_continue_target_for(label) {
+                // Stop iterating the stack when we find our target and push
+                // the current instruction pointer as a break source for our
+                // target. Label is pushed in as well because finally-blocks
+                // need to know about labelled breaks and continues.
+
+                // Jump
+                self.instructions.push(Instruction::Jump.as_u8());
+                entry.add_continue_source(
+                    label,
+                    JumpIndex {
+                        index: self.instructions.len(),
+                    },
+                );
+                // JumpSlot
+                self.instructions.extend_from_slice(&[0, 0, 0, 0]);
+                break;
+            }
+            // Compile the exit of each intermediate control flow stack entry.
+            entry.compile_exit(&mut self.instructions);
+        }
     }
 
     /// Compile a class static field with an optional initializer into the

@@ -35,8 +35,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // 2. Let classEnv be NewDeclarativeEnvironment(env).
         // Note: The specification doesn't enter the declaration here, but
         // no user code is run between here and first enter.
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        ctx.current_lexical_depth += 1;
+        ctx.enter_lexical_scope();
 
         // 3. If classBinding is not undefined, then
         let mut has_class_name_on_stack = false;
@@ -497,8 +496,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             //     ii. Return ? result.
         }
         // Note: We finally leave classEnv here. See step 26.
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.current_lexical_depth -= 1;
+        ctx.exit_lexical_scope();
 
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
@@ -693,8 +691,7 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
         // c. For each element n of varNames, do
-        ctx.add_instruction(Instruction::EnterClassStaticElementEnvironment);
-        ctx.current_lexical_depth += 1;
+        ctx.enter_class_static_block();
         for n in class_static_block_var_declared_names(self) {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
@@ -767,9 +764,6 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         for statement in self.body.iter() {
             statement.compile(ctx);
         }
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.current_lexical_depth -= 1;
-
-        ctx.add_instruction(Instruction::ExitVariableEnvironment);
+        ctx.exit_class_static_block();
     }
 }

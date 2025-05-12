@@ -93,8 +93,7 @@ pub(crate) fn instantiation<'s>(
     //   d. Assert: The VariableEnvironment of calleeContext and calleeEnv are the same Environment Record.
     //   e. Set the LexicalEnvironment of calleeContext to env.
     if !strict && has_parameter_expressions {
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        ctx.current_lexical_depth += 1;
+        ctx.enter_lexical_scope();
     }
 
     // 21. For each String paramName of parameterNames, do
@@ -212,8 +211,7 @@ pub(crate) fn instantiation<'s>(
         //   a. Let lexEnv be varEnv.
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
         if !strict {
-            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            ctx.current_lexical_depth += 1;
+            ctx.enter_lexical_scope();
         }
     } else {
         // 28. Else,
