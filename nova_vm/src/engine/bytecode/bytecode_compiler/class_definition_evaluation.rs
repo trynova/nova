@@ -35,8 +35,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // 2. Let classEnv be NewDeclarativeEnvironment(env).
         // Note: The specification doesn't enter the declaration here, but
         // no user code is run between here and first enter.
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        ctx.current_lexical_depth += 1;
+        ctx.enter_lexical_scope();
 
         // 3. If classBinding is not undefined, then
         let mut has_class_name_on_stack = false;
@@ -291,7 +290,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             // ...
             // b. Let F be CreateBuiltinFunction(defaultConstructor, 0, className, « [[ConstructorKind]], [[SourceText]] », the current Realm Record, constructorParent).
 
-            let index = IndexType::try_from(ctx.class_initializer_bytecodes.len()).unwrap();
+            let index = ctx.get_next_class_initializer_index();
             ctx.add_instruction_with_immediate(
                 Instruction::ClassDefineDefaultConstructor,
                 index.into(),
@@ -474,15 +473,13 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 };
                 constructor_ctx.compile_function_body(constructor_data);
                 let executable = constructor_ctx.finish();
-                ctx.function_expressions[constructor_index as usize].compiled_bytecode =
-                    Some(executable);
+                ctx.set_function_expression_bytecode(constructor_index, executable);
             } else {
-                ctx.class_initializer_bytecodes
-                    .push((Some(constructor_ctx.finish()), has_constructor_parent));
+                let executable = constructor_ctx.finish();
+                ctx.add_class_initializer_bytecode(executable, has_constructor_parent);
             }
         } else if constructor.is_none() {
-            ctx.class_initializer_bytecodes
-                .push((None, has_constructor_parent));
+            ctx.add_class_initializer(has_constructor_parent);
         }
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).
@@ -499,8 +496,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             //     ii. Return ? result.
         }
         // Note: We finally leave classEnv here. See step 26.
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.current_lexical_depth -= 1;
+        ctx.exit_lexical_scope();
 
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
@@ -695,8 +691,7 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
         // c. For each element n of varNames, do
-        ctx.add_instruction(Instruction::EnterClassStaticElementEnvironment);
-        ctx.current_lexical_depth += 1;
+        ctx.enter_class_static_block();
         for n in class_static_block_var_declared_names(self) {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
@@ -769,9 +764,6 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         for statement in self.body.iter() {
             statement.compile(ctx);
         }
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.current_lexical_depth -= 1;
-
-        ctx.add_instruction(Instruction::ExitVariableEnvironment);
+        ctx.exit_class_static_block();
     }
 }

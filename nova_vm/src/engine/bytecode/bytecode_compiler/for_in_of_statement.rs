@@ -11,7 +11,7 @@ use oxc_ast::ast::{self, BindingPatternKind, ForStatementLeft};
 use oxc_ecmascript::BoundNames;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum IterationKind {
+pub(super) enum IterationKind {
     Enumerate,
     Iterate,
     AsyncIterate,
@@ -41,8 +41,7 @@ fn for_in_of_head_evaluation<'s, 'gc>(
     if !uninitialized_bound_names.is_empty() {
         // a. Assert: uninitializedBoundNames has no duplicate entries.
         // b. Let newEnv be NewDeclarativeEnvironment(oldEnv).
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        ctx.current_lexical_depth += 1;
+        ctx.enter_lexical_scope();
 
         // c. For each String name of uninitializedBoundNames, do
         for name in uninitialized_bound_names.iter() {
@@ -55,8 +54,7 @@ fn for_in_of_head_evaluation<'s, 'gc>(
     expr.compile(ctx);
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
     if !uninitialized_bound_names.is_empty() {
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.current_lexical_depth -= 1;
+        ctx.exit_lexical_scope();
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
     if is_reference(expr) {
@@ -121,21 +119,9 @@ fn for_in_of_body_evaluation<'s>(
     key_result: Option<JumpIndex>,
     iteration_kind: IterationKind,
     lhs_kind: LeftHandSideKind,
-    mut label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
+    label_set: Option<&Vec<&'s ast::LabelIdentifier<'s>>>,
 ) {
-    // TODO: Any labelled breaks or continues targeting higher-up loops need to
-    // jump to (Async)IteratorClose below and then jump onwards towards the
-    // original labelled statement. This requires overwriting labelled jump
-    // targets in the context for the duration of the loop and then rethreading
-    // them to jump on their merry way after the close call, before finally
-    // returning the original labelled jump targets into the context.
-    let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
-
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
-    let iterator_kind = match iteration_kind {
-        IterationKind::Enumerate | IterationKind::Iterate => IteratorKind::Sync,
-        IterationKind::AsyncIterate => IteratorKind::Async,
-    };
     // 2. Let oldEnv be the running execution context's LexicalEnvironment.
     // 3. Let V be undefined.
     // 4. Let destructuring be IsDestructuring of lhs.
@@ -170,17 +156,19 @@ fn for_in_of_body_evaluation<'s>(
     // d. Let done be ? IteratorComplete(nextResult).
     // e. If done is true, return V.
     // f. Let nextValue be ? IteratorValue(nextResult).
-    // Note: stepping the iterator happens "outside" the loop in a sense;
-    // errors thrown by the iterator itself do not cause the iterator to be
-    // closed so there's no jump to iterator close on error here.
     let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
-    let jump_to_iterator_close_on_error = if iteration_kind == IterationKind::Enumerate {
-        // Enumerate simply rethrows errors
-        None
-    } else {
-        Some(ctx.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget))
+    // Note: stepping the iterator happens "outside" the loop in a sense;
+    // errors thrown above do not close the iterator.
+
+    let jump_to_iterator_error_handler = match iteration_kind {
+        IterationKind::Enumerate => {
+            ctx.enter_loop(label_set.cloned());
+            None
+        }
+        IterationKind::Iterate => Some(ctx.enter_iterator(label_set.cloned())),
+        IterationKind::AsyncIterate => Some(ctx.enter_async_iterator(label_set.cloned())),
     };
-    let pushed_exception_jump_target = jump_to_iterator_close_on_error.is_some();
+
     let mut entered_declarative_environment = false;
     // g. If lhsKind is either ASSIGNMENT or VAR-BINDING, then
     match lhs_kind {
@@ -291,8 +279,7 @@ fn for_in_of_body_evaluation<'s>(
                     if !entered_declarative_environment {
                         // Optimization: Only enter declarative environment if
                         // bound names exist.
-                        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-                        ctx.current_lexical_depth += 1;
+                        ctx.enter_lexical_scope();
 
                         entered_declarative_environment = true;
                     }
@@ -322,8 +309,7 @@ fn for_in_of_body_evaluation<'s>(
                     // v. Set the running execution context's LexicalEnvironment to iterationEnv.
                     // 1. Assert: lhs binds a single name.
                     assert!(!entered_declarative_environment);
-                    ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-                    ctx.current_lexical_depth += 1;
+                    ctx.enter_lexical_scope();
                     entered_declarative_environment = true;
 
                     // 2. Let lhsName be the sole element of the BoundNames of lhs.
@@ -347,50 +333,36 @@ fn for_in_of_body_evaluation<'s>(
         }
     }
     // i. If status is an abrupt completion, then ...
+    // Note: we move the abrupt completion handling after the loop to improve
+    // performance.
+
     // j. Let result be Completion(Evaluation of stmt).
     stmt.compile(ctx);
 
+    // k. Set the running execution context's LexicalEnvironment to oldEnv.
     if entered_declarative_environment {
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.current_lexical_depth -= 1;
+        ctx.exit_lexical_scope();
     }
 
-    // k. Set the running execution context's LexicalEnvironment to oldEnv.
+    let continue_target = ctx.get_jump_index_to_here();
+
+    if jump_to_iterator_error_handler.is_some() {
+        // Note: This is a loop-internal temporary exit.
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+    }
+
     // l. Corollary: If LoopContinues(result, labelSet) is true, then
     //    jump to loop start.
-    let jump_target = ctx.take_current_jump_target(label_set);
-    if pushed_exception_jump_target {
-        // Note: If we've pushed an exception handler then we have to reverse
-        // those changes before we continue our loop. Thus we put point
-        // continue jumps here.
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target_here(continue_entry);
-        }
-
-        if pushed_exception_jump_target {
-            ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-        }
-    } else {
-        // If the loop doesn't push an exception handlers then continues inside
-        // the loop can simply jump directly to the loop start.
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target(continue_entry, loop_start.clone());
-        }
-    }
-
-    // Note: this is the final fall-through jump to start.
-    // TODO: Load V back from stack and compare with result, store.
     ctx.add_jump_instruction_to_index(Instruction::Jump, loop_start);
-
-    // Note: this block is here for handling of exceptions in the loop binding
-    // evaluation; these need to perform (Async)IteratorClose. ENUMERATE
-    // iteration does not need this as its handling would simply rethrow.
-    if let Some(jump_to_iterator_close_on_error) = jump_to_iterator_close_on_error {
-        ctx.set_jump_target_here(jump_to_iterator_close_on_error);
+    // Note: this block is here for handling of exceptions iterator loops;
+    // these need to perform (Async)IteratorClose. ENUMERATE iteration does not
+    // need this as its handling would just rethrow immediately.
+    if let Some(jump_to_iterator_error_handler) = jump_to_iterator_error_handler {
+        ctx.set_jump_target_here(jump_to_iterator_error_handler);
         // i. Set the running execution context's LexicalEnvironment to oldEnv.
         // Note: the jump target has already returned to the old environment.
         // ii. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
-        if iterator_kind == IteratorKind::Async {
+        if iteration_kind == IterationKind::AsyncIterate {
             ctx.add_instruction(Instruction::AsyncIteratorCloseWithError);
             // If AsyncIteratorCloseWithError ends up performing an Await then
             // it will have added the thrown error into the stack: we need to
@@ -401,7 +373,6 @@ fn for_in_of_body_evaluation<'s>(
         } else {
             // iv. Else,
             // 1. Assert: iterationKind is ITERATE.
-            assert!(iteration_kind == IterationKind::Iterate);
             // 2. Return ? IteratorClose(iteratorRecord, status).
             ctx.add_instruction(Instruction::IteratorCloseWithError);
         }
@@ -410,31 +381,19 @@ fn for_in_of_body_evaluation<'s>(
     }
 
     // l. If LoopContinues(result, labelSet) is false, then
-    for break_entry in jump_target.breaks {
-        ctx.set_jump_target_here(break_entry);
-    }
-    // When breaking out of the loop, we need to pop the exception target.
-    // Note that the declarative environment is automatically handled by our
-    // break jump generation.
-    if pushed_exception_jump_target {
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-    }
-    // i. If iterationKind is ENUMERATE, then
-    if iteration_kind == IterationKind::Enumerate {
+    match iteration_kind {
+        // i. If iterationKind is ENUMERATE, then
         // 1. Return ? UpdateEmpty(result, V).
         // TODO: This is probably a no-op.
-    } else {
+        IterationKind::Enumerate => ctx.exit_loop(continue_target),
         // ii. Else,
         // 1. Assert: iterationKind is ITERATE.
         // 2. Set status to Completion(UpdateEmpty(result, V)).
         // TODO: This is probably a no-op.
+        // 4. Return ? IteratorClose(iteratorRecord, status).
+        IterationKind::Iterate => ctx.exit_iterator(continue_target),
         // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
-        if iterator_kind == IteratorKind::Async {
-            ctx.add_instruction(Instruction::AsyncIteratorClose);
-        } else {
-            // 4. Return ? IteratorClose(iteratorRecord, status).
-            ctx.add_instruction(Instruction::IteratorClose);
-        }
+        IterationKind::AsyncIterate => ctx.exit_async_iterator(continue_target),
     }
 
     // m. If result.[[Value]] is not EMPTY, set V to result.[[Value]].
@@ -442,8 +401,6 @@ fn for_in_of_body_evaluation<'s>(
     if let Some(key_result) = key_result {
         ctx.set_jump_target_here(key_result)
     }
-
-    ctx.return_jump_target(previous_jump_target);
 }
 
 fn get_for_statement_left_hand_side_kind<'gc>(
@@ -503,7 +460,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
             key_result,
             IterationKind::Enumerate,
             lhs_kind,
-            label_set,
+            label_set.as_deref(),
         );
     }
 }
@@ -511,11 +468,9 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::ForOfStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
-
         let mut uninitialized_bound_names = vec![];
 
         let lhs_kind =
@@ -539,9 +494,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForOfStatement<'s> {
             None,
             iteration_kind,
             lhs_kind,
-            label_set,
+            label_set.as_deref(),
         );
-
-        ctx.return_jump_target(previous_jump_target);
     }
 }

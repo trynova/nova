@@ -5,565 +5,36 @@
 mod assignment;
 mod block_declaration_instantiation;
 mod class_definition_evaluation;
+mod compile_context;
+mod finaliser_stack;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
 mod labelled_statement;
 
-use std::{cell::RefCell, rc::Rc};
-
-use super::{
-    Executable, ExecutableHeapData, FunctionExpression, Instruction, SendableRef,
-    executable::ArrowFunctionExpression,
-};
+use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::regexp::reg_exp_create_literal;
 use crate::{
     ecmascript::{
-        execution::Agent,
         syntax_directed_operations::{
-            function_definitions::{CompileFunctionBodyData, ContainsExpression},
+            function_definitions::ContainsExpression,
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, PropertyKey, String, Value},
     },
-    engine::context::{Bindable, NoGcScope},
     heap::CreateHeapData,
 };
-use ahash::AHashMap;
+pub(crate) use compile_context::{
+    CompileContext, CompileEvaluation, CompileLabelledEvaluation, IndexType, JumpIndex,
+    NamedEvaluationParameter,
+};
 use num_traits::Num;
 use oxc_ast::ast::{
     self, BindingPattern, BindingRestElement, CallExpression, LabelIdentifier, NewExpression,
     Statement,
 };
 use oxc_ecmascript::BoundNames;
-use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
-
-pub type IndexType = u16;
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum NamedEvaluationParameter {
-    /// Name is in the result register
-    Result,
-    /// Name is at the top of the stack
-    Stack,
-    /// Name is in the reference register
-    Reference,
-    /// Name is at the top of the reference stack
-    ReferenceStack,
-}
-
-pub(crate) struct JumpTarget {
-    /// Depth of the lexical of the jump target.
-    ///
-    /// This is used to determine how many ExitDeclarativeEnvironment
-    /// instructions are needed before jumping to this target from a continue
-    /// or break statement.
-    depth: u32,
-    /// `continue;` statements that target this jump target.
-    pub(crate) continues: Vec<JumpIndex>,
-    /// `break;` statements that target this jump target.
-    pub(crate) breaks: Vec<JumpIndex>,
-}
-
-impl JumpTarget {
-    pub(super) fn new(depth: u32) -> Self {
-        Self {
-            depth,
-            continues: vec![],
-            breaks: vec![],
-        }
-    }
-}
-
-/// Context for bytecode compilation.
-///
-/// The lifetimes on this context are:
-/// - `'agent`: The lifetime of the Agent, which owns the heap.
-/// - `'script`: The lifetime of the oxc Program struct which contains the AST.
-/// - `'gc`: The garbage collector marker lifetime, needed for tracking garbage
-///   collected data lifetime.
-/// - `'scope`: The Javascript scope marker lifetime, only here because `gc`
-///   tracks it.
-pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
-    pub(crate) agent: &'agent mut Agent,
-    pub(crate) gc: NoGcScope<'gc, 'scope>,
-    current_instruction: u32,
-    /// Instructions being built
-    instructions: Vec<u8>,
-    /// Constants being built
-    constants: Vec<Value<'gc>>,
-    /// Function expressions being built
-    function_expressions: Vec<FunctionExpression<'gc>>,
-    /// Arrow function expressions being built
-    arrow_function_expressions: Vec<ArrowFunctionExpression>,
-    class_initializer_bytecodes: Vec<(Option<Executable<'gc>>, bool)>,
-    /// NamedEvaluation name parameter
-    name_identifier: Option<NamedEvaluationParameter>,
-    /// If true, indicates that all bindings being created are lexical.
-    ///
-    /// Otherwise, all bindings being created are variable scoped.
-    lexical_binding_state: bool,
-    /// Current depth of the lexical scope stack.
-    current_lexical_depth: u32,
-    current_jump_target: Option<Rc<RefCell<JumpTarget>>>,
-    labelled_statements: Option<Box<AHashMap<Atom<'script>, Rc<RefCell<JumpTarget>>>>>,
-    /// `?.` chain jumps that were present in a chain expression.
-    optional_chains: Option<Vec<JumpIndex>>,
-    /// In a `(a?.b).unbind()?.bind(gc.nogc()).()` chain the evaluation of `(a?.b)` must be considered a
-    /// reference.
-    is_call_optional_chain_this: bool,
-}
-
-impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
-    pub(super) fn new(
-        agent: &'a mut Agent,
-        gc: NoGcScope<'gc, 'scope>,
-    ) -> CompileContext<'a, 's, 'gc, 'scope> {
-        CompileContext {
-            agent,
-            gc,
-            current_instruction: 0,
-            instructions: Vec::new(),
-            constants: Vec::new(),
-            function_expressions: Vec::new(),
-            arrow_function_expressions: Vec::new(),
-            class_initializer_bytecodes: Vec::new(),
-            name_identifier: None,
-            lexical_binding_state: false,
-            current_lexical_depth: 0,
-            optional_chains: None,
-            current_jump_target: None,
-            labelled_statements: None,
-            is_call_optional_chain_this: false,
-        }
-    }
-
-    pub(super) fn return_jump_target(&mut self, jump_target: Option<Rc<RefCell<JumpTarget>>>) {
-        let Some(jump_target) = jump_target else {
-            return;
-        };
-        self.current_jump_target.replace(jump_target);
-    }
-
-    pub(super) fn push_new_jump_target(
-        &mut self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-    ) -> Option<Rc<RefCell<JumpTarget>>> {
-        let depth = self.current_lexical_depth;
-        let jump_target = Rc::new(RefCell::new(JumpTarget::new(depth)));
-        if let Some(label_set) = label_set {
-            for label in label_set {
-                let pervious = self
-                    .labelled_statements
-                    .as_mut()
-                    .unwrap()
-                    .insert(label.name, jump_target.clone());
-                assert!(pervious.is_none());
-            }
-        }
-        self.current_jump_target.replace(jump_target)
-    }
-
-    pub(super) fn take_current_jump_target(
-        &mut self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-    ) -> JumpTarget {
-        if let Some(label_set) = label_set {
-            for label in label_set {
-                // Note: removing the labeled statement here is important, as
-                // without it the Rc::into_inner below will fail.
-                self.labelled_statements
-                    .as_mut()
-                    .unwrap()
-                    .remove(&label.name);
-            }
-        }
-        Rc::into_inner(self.current_jump_target.take().unwrap())
-            .unwrap()
-            .into_inner()
-    }
-
-    /// Compile a class static field with an optional initializer into the
-    /// current context.
-    pub(crate) fn compile_class_static_field(
-        &mut self,
-        identifier_name: &'s ast::IdentifierName<'s>,
-        value: &'s Option<ast::Expression<'s>>,
-    ) {
-        let identifier = String::from_str(self.agent, identifier_name.name.as_str(), self.gc);
-        // Turn the static name to a 'this' property access.
-        self.add_instruction(Instruction::ResolveThisBinding);
-        self.add_instruction_with_identifier(
-            Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            identifier,
-        );
-        if let Some(value) = value {
-            // Minor optimisation: We do not need to push and pop the
-            // reference if we know we're not using the reference stack.
-            let is_literal = value.is_literal();
-            if !is_literal {
-                self.add_instruction(Instruction::PushReference);
-            }
-            value.compile(self);
-            if is_reference(value) {
-                self.add_instruction(Instruction::GetValue);
-            }
-            if !is_literal {
-                self.add_instruction(Instruction::PopReference);
-            }
-        } else {
-            // Same optimisation is unconditionally valid here.
-            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        }
-        self.add_instruction(Instruction::PutValue);
-    }
-
-    /// Compile a class computed field with an optional initializer into the
-    /// current context.
-    pub(crate) fn compile_class_computed_field(
-        &mut self,
-        property_key_id: String<'gc>,
-        value: &'s Option<ast::Expression<'s>>,
-    ) {
-        // Resolve 'this' into the stack.
-        self.add_instruction(Instruction::ResolveThisBinding);
-        self.add_instruction(Instruction::Load);
-        // Resolve the static computed key ID to the actual computed key value.
-        self.add_instruction_with_identifier(Instruction::ResolveBinding, property_key_id);
-        // Store the computed key value as the result.
-        self.add_instruction(Instruction::GetValue);
-        // Evaluate access to 'this' with the computed key.
-        self.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-        if let Some(value) = value {
-            // Minor optimisation: We do not need to push and pop the
-            // reference if we know we're not using the reference stack.
-            let is_literal = value.is_literal();
-            if !is_literal {
-                self.add_instruction(Instruction::PushReference);
-            }
-            value.compile(self);
-            if is_reference(value) {
-                self.add_instruction(Instruction::GetValue);
-            }
-            if !is_literal {
-                self.add_instruction(Instruction::PopReference);
-            }
-        } else {
-            // Same optimisation is unconditionally valid here.
-            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        }
-        self.add_instruction(Instruction::PutValue);
-    }
-
-    /// Compile a function body into the current context.
-    ///
-    /// This is useful when the function body is part of a larger whole, namely
-    /// with class constructors.
-    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'s>) {
-        if self.agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Compiling Function ===");
-            eprintln!();
-        }
-
-        function_declaration_instantiation::instantiation(
-            self,
-            data.params,
-            data.body,
-            data.is_strict,
-            data.is_lexical,
-        );
-
-        // SAFETY: Script referred by the Function uniquely owns the Program
-        // and the body buffer does not move under any circumstances during
-        // heap operations.
-        let body: &[Statement] = unsafe { core::mem::transmute(data.body.statements.as_slice()) };
-
-        self.compile_statements(body);
-    }
-
-    pub(super) fn compile_statements(&mut self, body: &'s [Statement<'s>]) {
-        let iter = body.iter();
-
-        for stmt in iter {
-            stmt.compile(self);
-        }
-    }
-
-    pub(super) fn do_implicit_return(&mut self) {
-        if self.instructions.last() != Some(&Instruction::Return.as_u8()) {
-            // If code did not end with a return statement, add it manually
-            self.add_instruction(Instruction::Return);
-        }
-    }
-
-    pub(super) fn finish(self) -> Executable<'gc> {
-        self.agent.heap.create(ExecutableHeapData {
-            instructions: self.instructions.into_boxed_slice(),
-            constants: self.constants.unbind().into_boxed_slice(),
-            function_expressions: self.function_expressions.unbind().into_boxed_slice(),
-            arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
-            class_initializer_bytecodes: self
-                .class_initializer_bytecodes
-                .into_iter()
-                .map(|(exe, b)| (exe.unbind(), b))
-                .collect(),
-        })
-    }
-
-    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String<'gc> {
-        let existing = self.constants.iter().find_map(|constant| {
-            if let Ok(existing_identifier) = String::try_from(*constant) {
-                if existing_identifier.as_str(self.agent) == atom.as_str() {
-                    Some(existing_identifier)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
-        if let Some(existing) = existing {
-            existing
-        } else {
-            String::from_str(self.agent, atom.as_str(), self.gc)
-        }
-    }
-
-    #[inline]
-    fn peek_last_instruction(&self) -> Option<Instruction> {
-        let current_instruction = self.instructions.get(self.current_instruction as usize)?;
-        // SAFETY: current_instruction is only set by _push_instruction
-        Some(unsafe { std::mem::transmute::<u8, Instruction>(*current_instruction) })
-    }
-
-    fn _push_instruction(&mut self, instruction: Instruction) {
-        if instruction != Instruction::ExitDeclarativeEnvironment {
-            self.current_instruction = u32::try_from(self.instructions.len())
-                .expect("Bytecodes over 4 GiB are not supported");
-        }
-        self.instructions.push(instruction.as_u8());
-    }
-
-    fn add_instruction(&mut self, instruction: Instruction) {
-        debug_assert_eq!(instruction.argument_count(), 0);
-        debug_assert!(
-            !instruction.has_constant_index()
-                && !instruction.has_function_expression_index()
-                && !instruction.has_identifier_index()
-        );
-        self._push_instruction(instruction);
-    }
-
-    fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_jump_slot());
-        self._push_instruction(instruction);
-        self.add_jump_index()
-    }
-
-    fn add_jump_instruction_to_index(&mut self, instruction: Instruction, jump_index: JumpIndex) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_jump_slot());
-        self._push_instruction(instruction);
-        self.add_double_index(jump_index.index);
-    }
-
-    fn get_jump_index_to_here(&self) -> JumpIndex {
-        JumpIndex {
-            index: self.instructions.len(),
-        }
-    }
-
-    fn add_constant(&mut self, constant: Value<'gc>) -> usize {
-        let duplicate = self
-            .constants
-            .iter()
-            .enumerate()
-            .find(|item| item.1.eq(&constant))
-            .map(|(idx, _)| idx);
-
-        duplicate.unwrap_or_else(|| {
-            let index = self.constants.len();
-            self.constants.push(constant);
-            index
-        })
-    }
-
-    fn add_identifier(&mut self, identifier: String<'gc>) -> usize {
-        let duplicate = self
-            .constants
-            .iter()
-            .enumerate()
-            .find(|item| String::try_from(*item.1) == Ok(identifier))
-            .map(|(idx, _)| idx);
-
-        duplicate.unwrap_or_else(|| {
-            let index = self.constants.len();
-            self.constants.push(identifier.into_value());
-            index
-        })
-    }
-
-    fn add_instruction_with_immediate(&mut self, instruction: Instruction, immediate: usize) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        self._push_instruction(instruction);
-        self.add_index(immediate);
-    }
-
-    fn add_instruction_with_constant(
-        &mut self,
-        instruction: Instruction,
-        constant: impl Into<Value<'gc>>,
-    ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_constant_index());
-        self._push_instruction(instruction);
-        let constant = self.add_constant(constant.into());
-        self.add_index(constant);
-    }
-
-    fn add_instruction_with_identifier(
-        &mut self,
-        instruction: Instruction,
-        identifier: String<'gc>,
-    ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_identifier_index());
-        self._push_instruction(instruction);
-        let identifier = self.add_identifier(identifier);
-        self.add_index(identifier);
-    }
-
-    fn add_instruction_with_identifier_and_constant(
-        &mut self,
-        instruction: Instruction,
-        identifier: String<'gc>,
-        constant: impl Into<Value<'gc>>,
-    ) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
-        self._push_instruction(instruction);
-        let identifier = self.add_identifier(identifier);
-        self.add_index(identifier);
-        let constant = self.add_constant(constant.into());
-        self.add_index(constant);
-    }
-
-    fn add_instruction_with_immediate_and_immediate(
-        &mut self,
-        instruction: Instruction,
-        immediate1: usize,
-        immediate2: usize,
-    ) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        self._push_instruction(instruction);
-        self.add_index(immediate1);
-        self.add_index(immediate2)
-    }
-
-    fn add_index(&mut self, index: usize) {
-        let index = IndexType::try_from(index).expect("Immediate value is too large");
-        let bytes: [u8; 2] = index.to_ne_bytes();
-        self.instructions.extend_from_slice(&bytes);
-    }
-
-    fn add_double_index(&mut self, index: usize) {
-        let index = u32::try_from(index).expect("Immediate value is too large");
-        let bytes: [u8; 4] = index.to_ne_bytes();
-        self.instructions.extend_from_slice(&bytes);
-    }
-
-    fn add_instruction_with_function_expression(
-        &mut self,
-        instruction: Instruction,
-        function_expression: FunctionExpression<'gc>,
-    ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_function_expression_index());
-        self._push_instruction(instruction);
-        self.function_expressions.push(function_expression);
-        let index = self.function_expressions.len() - 1;
-        self.add_index(index);
-    }
-
-    /// Add an Instruction that takes a function expression and an immediate
-    /// as its bytecode parameters.
-    ///
-    /// Returns the function expression's index.
-    fn add_instruction_with_function_expression_and_immediate(
-        &mut self,
-        instruction: Instruction,
-        function_expression: FunctionExpression<'gc>,
-        immediate: usize,
-    ) -> IndexType {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_function_expression_index());
-        self._push_instruction(instruction);
-        self.function_expressions.push(function_expression);
-        let index = self.function_expressions.len() - 1;
-        self.add_index(index);
-        self.add_index(immediate);
-        // Note: add_index would have panicked if this was not a lossless
-        // conversion.
-        index as IndexType
-    }
-
-    fn add_arrow_function_expression(
-        &mut self,
-        arrow_function_expression: ArrowFunctionExpression,
-    ) {
-        let instruction = Instruction::InstantiateArrowFunctionExpression;
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_function_expression_index());
-        self._push_instruction(instruction);
-        self.arrow_function_expressions
-            .push(arrow_function_expression);
-        let index = self.arrow_function_expressions.len() - 1;
-        self.add_index(index);
-    }
-
-    fn add_jump_index(&mut self) -> JumpIndex {
-        self.add_double_index(0);
-        JumpIndex {
-            index: self.instructions.len() - core::mem::size_of::<u32>(),
-        }
-    }
-
-    fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
-        assert!(target.index < u32::MAX as usize);
-        let bytes: [u8; 4] = (target.index as u32).to_ne_bytes();
-        self.instructions[source.index..source.index + 4].copy_from_slice(&bytes);
-    }
-
-    fn set_jump_target_here(&mut self, jump: JumpIndex) {
-        self.set_jump_target(
-            jump,
-            JumpIndex {
-                index: self.instructions.len(),
-            },
-        );
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(transparent)]
-pub(crate) struct JumpIndex {
-    pub(crate) index: usize,
-}
-
-pub(crate) trait CompileEvaluation<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>);
-}
-
-pub(crate) trait CompileLabelledEvaluation<'s> {
-    fn compile_labelled(
-        &'s self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
-    );
-}
 
 impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
     fn compile_labelled(
@@ -587,6 +58,14 @@ pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
         }
         _ => false,
     }
+}
+
+pub(crate) fn is_boolean_literal_true(expression: &ast::Expression) -> bool {
+    matches!(expression, ast::Expression::BooleanLiteral(lit) if lit.value)
+}
+
+pub(crate) fn is_boolean_literal_false(expression: &ast::Expression) -> bool {
+    matches!(expression, ast::Expression::BooleanLiteral(lit) if !lit.value)
 }
 
 fn is_chain_expression(expression: &ast::Expression) -> bool {
@@ -1751,7 +1230,7 @@ impl<'s> CompileEvaluation<'s> for ast::ReturnStatement<'s> {
         } else {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        ctx.add_instruction(Instruction::Return);
+        ctx.compile_return();
     }
 }
 
@@ -1769,8 +1248,8 @@ impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
         if let Some(alternate) = &self.alternate {
             // Optimisation: If the an else branch exists, the consequent
             // branch needs to end in a jump over it. But if the consequent
-            // branch ends in a return statement that jump becomes unnecessary.
-            if ctx.peek_last_instruction() != Some(Instruction::Return) {
+            // branch ends in a terminal statement that jump becomes unnecessary.
+            if !ctx.is_terminal() {
                 jump_over_else = Some(ctx.add_instruction_with_jump_slot(Instruction::Jump));
             }
 
@@ -2384,8 +1863,7 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
             ele.compile(ctx);
         }
         if did_enter_declarative_environment {
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            ctx.current_lexical_depth -= 1;
+            ctx.exit_lexical_scope();
         }
     }
 }
@@ -2393,11 +1871,9 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
     fn compile_labelled<'gc>(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
-
         let mut per_iteration_lets: Vec<String<'_>> = vec![];
         let mut is_lexical = false;
 
@@ -2445,10 +1921,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                     if is_lexical {
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
-                        // Note: This declaration environment is not something
-                        // that continue/break statements should care about. We
-                        // take care of tearing this one down.
-                        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+                        ctx.enter_lexical_scope();
                         // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
                         let is_const = init.kind.is_const();
                         // 4. Let boundNames be the BoundNames of LexicalDeclaration.
@@ -2514,9 +1987,9 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                     // Get value of binding from lastIterationEnv.
                     ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
                     ctx.add_instruction(Instruction::GetValue);
-                    // Current declarative environment is now "outer"
+                    // Note: here we do not use exit & enter lexical
+                    // environment helpers as we'd just immediately exit again.
                     ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-                    // NewDeclarativeEnvironment(outer)
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, binding);
                     ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
@@ -2527,6 +2000,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                         ctx.add_instruction(Instruction::GetValue);
                         ctx.add_instruction(Instruction::Load);
                     }
+                    // Note: here we do not use exit & enter lexical
+                    // environment helpers as we'd just immediately exit again.
                     ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     for bn in per_iteration_lets.iter().rev() {
@@ -2545,54 +2020,60 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
             create_per_iteration_env(ctx);
         }
 
+        // 3. Repeat,
+        ctx.enter_loop(label_set.cloned());
         let loop_jump = ctx.get_jump_index_to_here();
-        if let Some(test) = &self.test {
+        let end_jump = if let Some(test) = &self.test {
             test.compile(ctx);
             if is_reference(test) {
                 ctx.add_instruction(Instruction::GetValue);
             }
+            // jump over consequent if test fails
+            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
         } else {
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Boolean(true));
-        }
-        // jump over consequent if test fails
-        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            None
+        };
 
         self.body.compile(ctx);
 
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target_here(continue_entry);
-        }
+        let continue_target = if create_per_iteration_env.is_none() && self.update.is_none() {
+            // If there is no work to be done at the end of the loop, continue
+            // can just jump straight to the beginning.
+            loop_jump.clone()
+        } else {
+            let continue_target = ctx.get_jump_index_to_here();
+            if let Some(create_per_iteration_env) = create_per_iteration_env {
+                create_per_iteration_env(ctx);
+            }
 
-        if let Some(create_per_iteration_env) = create_per_iteration_env {
-            create_per_iteration_env(ctx);
-        }
+            if let Some(update) = &self.update {
+                update.compile(ctx);
+            }
 
-        if let Some(update) = &self.update {
-            update.compile(ctx);
-        }
+            continue_target
+        };
+
         ctx.add_jump_instruction_to_index(Instruction::Jump, loop_jump);
-        ctx.set_jump_target_here(end_jump);
-
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
+        if let Some(end_jump) = end_jump {
+            ctx.set_jump_target_here(end_jump);
         }
+
+        ctx.exit_loop(continue_target);
+
         if is_lexical {
             // Lexical binding loops have an extra declarative environment that
             // we need to exit from once we exit the loop.
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+            ctx.exit_lexical_scope();
         }
-        ctx.return_jump_target(previous_jump_target);
     }
 }
 
 impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
         // 1. Let exprRef be ? Evaluation of Expression.
         self.discriminant.compile(ctx);
         if is_reference(&self.discriminant) {
@@ -2600,6 +2081,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             ctx.add_instruction(Instruction::GetValue);
         }
         ctx.add_instruction(Instruction::Load);
+        ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
@@ -2674,29 +2156,11 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             }
         }
 
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
-        }
-        if !jump_target.continues.is_empty() {
-            // Some called continue inside a switch statement; these presumably
-            // belong to a loop outside.
-            let mut previous_jump_target = previous_jump_target.as_ref().unwrap().borrow_mut();
-            previous_jump_target
-                .continues
-                .extend_from_slice(&jump_target.continues);
-            // It's unlikely that any duplicates would exist but it is
-            // technically possible. We'll try avoid those.
-            previous_jump_target.continues.sort();
-            previous_jump_target.continues.dedup();
-        }
-        ctx.return_jump_target(previous_jump_target);
-
-        // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if did_enter_declarative_environment {
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            ctx.current_lexical_depth -= 1;
+            ctx.exit_lexical_scope();
         }
+
+        ctx.exit_switch();
         // 9. Return R.
     }
 }
@@ -2714,128 +2178,150 @@ impl<'s> CompileEvaluation<'s> for ast::ThrowStatement<'s> {
 impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.finalizer.is_some() {
-            todo!();
+            ctx.enter_try_finally_block();
         }
 
-        let jump_to_catch =
-            ctx.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        let jump_to_catch = if self.handler.is_some() {
+            Some(ctx.enter_try_catch_block())
+        } else {
+            None
+        };
+        // 1. Let B be Completion(Evaluation of Block).
         self.block.compile(ctx);
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        // 2. If B is a throw completion, let C be
+        //    Completion(CatchClauseEvaluation of Catch with argument B.[[Value]]).
+        let (jump_over_catch_blocks, catch_block_is_terminal) =
+            if let Some(catch_clause) = &self.handler {
+                ctx.exit_try_catch_block();
+                let jump_over_catch_blocks = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+                ctx.set_jump_target_here(jump_to_catch.unwrap());
 
-        let catch_clause = self.handler.as_ref().unwrap();
-        ctx.set_jump_target_here(jump_to_catch);
+                // 14.15.2 Runtime Semantics: CatchClauseEvaluation
+                if let Some(exception_param) = &catch_clause.param {
+                    // 1. Let oldEnv be the running execution context's LexicalEnvironment.
+                    // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
+                    // 4. Set the running execution context's LexicalEnvironment to catchEnv.
+                    // Note: We skip the declarative environment if there is no catch
+                    // param as it's not observable.
+                    ctx.enter_lexical_scope();
 
-        if let Some(exception_param) = &catch_clause.param {
-            // 1. Let oldEnv be the running execution context's LexicalEnvironment.
-            // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
-            // 4. Set the running execution context's LexicalEnvironment to catchEnv.
-            // Note: We skip the declarative environment if there is no catch
-            // param as it's not observable.
-            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            ctx.current_lexical_depth += 1;
-
-            // 3. For each element argName of the BoundNames of CatchParameter, do
-            // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
-            exception_param.pattern.bound_names(&mut |arg_name| {
-                let arg_name = String::from_str(ctx.agent, arg_name.name.as_str(), ctx.gc);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, arg_name);
-            });
-            // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
-            // 6. If status is an abrupt completion, then
-            // a. Set the running execution context's LexicalEnvironment to oldEnv.
-            // b. Return ? status.
-            match &exception_param.pattern.kind {
-                ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                    let identifier_string = ctx.create_identifier(&identifier.name);
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier_string,
-                    );
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                    // 3. For each element argName of the BoundNames of CatchParameter, do
+                    // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
+                    exception_param.pattern.bound_names(&mut |arg_name| {
+                        let arg_name = String::from_str(ctx.agent, arg_name.name.as_str(), ctx.gc);
+                        ctx.add_instruction_with_identifier(
+                            Instruction::CreateMutableBinding,
+                            arg_name,
+                        );
+                    });
+                    // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
+                    // 6. If status is an abrupt completion, then
+                    // a. Set the running execution context's LexicalEnvironment to oldEnv.
+                    // b. Return ? status.
+                    match &exception_param.pattern.kind {
+                        ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                            let identifier_string = ctx.create_identifier(&identifier.name);
+                            ctx.add_instruction_with_identifier(
+                                Instruction::ResolveBinding,
+                                identifier_string,
+                            );
+                            ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                        }
+                        ast::BindingPatternKind::ObjectPattern(pattern) => {
+                            ctx.add_instruction(Instruction::Load);
+                            ctx.lexical_binding_state = true;
+                            pattern.compile(ctx);
+                        }
+                        ast::BindingPatternKind::ArrayPattern(pattern) => {
+                            ctx.add_instruction(Instruction::Load);
+                            ctx.lexical_binding_state = true;
+                            pattern.compile(ctx);
+                        }
+                        ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+                    }
                 }
-                ast::BindingPatternKind::ObjectPattern(pattern) => {
-                    ctx.add_instruction(Instruction::Load);
-                    ctx.lexical_binding_state = true;
-                    pattern.compile(ctx);
+                // 7. Let B be Completion(Evaluation of Block).
+                catch_clause.body.compile(ctx);
+                let catch_block_is_terminal = ctx.is_terminal();
+                // 8. Set the running execution context's LexicalEnvironment to oldEnv.
+                if catch_clause.param.is_some() {
+                    if catch_block_is_terminal {
+                        // If the catch block is terminal, it means that we don't
+                        // need to add the lexical scope exit instruction here as
+                        // it'd just be skipped over anyhow.
+                        ctx.pop_lexical_scope();
+                    } else {
+                        ctx.exit_lexical_scope();
+                    }
                 }
-                ast::BindingPatternKind::ArrayPattern(pattern) => {
-                    ctx.add_instruction(Instruction::Load);
-                    ctx.lexical_binding_state = true;
-                    pattern.compile(ctx);
-                }
-                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-            }
+                // 9. Return ? B.
+                (Some(jump_over_catch_blocks), catch_block_is_terminal)
+            } else {
+                assert!(jump_to_catch.is_none());
+                (None, true)
+            };
+        if let Some(finalizer) = &self.finalizer {
+            ctx.exit_try_finally_block(finalizer, jump_over_catch_blocks, catch_block_is_terminal);
+        } else if let Some(jump_over_catch_blocks) = jump_over_catch_blocks {
+            // If we have a catch block following the normal execution but no
+            // finally block then we'll have to handle the jump out ourselves.
+            ctx.set_jump_target_here(jump_over_catch_blocks);
         }
-        // 7. Let B be Completion(Evaluation of Block).
-        catch_clause.body.compile(ctx);
-        // 8. Set the running execution context's LexicalEnvironment to oldEnv.
-        if catch_clause.param.is_some() {
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-            ctx.current_lexical_depth -= 1;
-        }
-        // 9. Return ? B.
-        ctx.set_jump_target_here(jump_to_end);
     }
 }
 
 impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
+        ctx.enter_loop(label_set.cloned());
 
+        // 1. Let V be undefined.
         // 2. Repeat
-        let start_jump = ctx.get_jump_index_to_here();
+        let continue_target = ctx.get_jump_index_to_here();
 
         // a. Let exprRef be ? Evaluation of Expression.
+        // OPTIMISATION: while(true) loops are pretty common, skip the test.
+        let end_jump = if !is_boolean_literal_true(&self.test) {
+            self.test.compile(ctx);
+            if is_reference(&self.test) {
+                // b. Let exprValue be ? GetValue(exprRef).
+                ctx.add_instruction(Instruction::GetValue);
+            }
 
-        self.test.compile(ctx);
-        if is_reference(&self.test) {
-            // b. Let exprValue be ? GetValue(exprRef).
-            ctx.add_instruction(Instruction::GetValue);
-        }
+            // c. If ToBoolean(exprValue) is false, return V.
+            // jump over loop jump if test fails
+            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+        } else {
+            None
+        };
 
-        // c. If ToBoolean(exprValue) is false, return V.
-        // jump over loop jump if test fails
-        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         // d. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
 
+        ctx.add_jump_instruction_to_index(Instruction::Jump, continue_target.clone());
         // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
         // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
-        ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump.clone());
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target(continue_entry, start_jump.clone());
+        if let Some(end_jump) = end_jump {
+            ctx.set_jump_target_here(end_jump);
         }
-
-        ctx.set_jump_target_here(end_jump);
-
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
-        }
-        ctx.return_jump_target(previous_jump_target);
+        ctx.exit_loop(continue_target);
     }
 }
 
 impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
     fn compile_labelled(
         &'s self,
-        mut label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        let previous_jump_target = ctx.push_new_jump_target(label_set.as_deref_mut());
-
+        ctx.enter_loop(label_set.cloned());
         let start_jump = ctx.get_jump_index_to_here();
         self.body.compile(ctx);
 
-        let jump_target = ctx.take_current_jump_target(label_set);
-        for continue_entry in jump_target.continues {
-            ctx.set_jump_target_here(continue_entry);
-        }
+        let continue_target = ctx.get_jump_index_to_here();
 
         self.test.compile(ctx);
         if is_reference(&self.test) {
@@ -2845,65 +2331,19 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
         let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
         ctx.set_jump_target_here(end_jump);
-
-        for break_entry in jump_target.breaks {
-            ctx.set_jump_target_here(break_entry);
-        }
-        ctx.return_jump_target(previous_jump_target);
+        ctx.exit_loop(continue_target);
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::BreakStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let depth = ctx.current_lexical_depth;
-        let jump_target = if let Some(label) = &self.label {
-            ctx.labelled_statements
-                .as_ref()
-                .unwrap()
-                .get(&label.name)
-                .unwrap()
-                .clone()
-        } else {
-            ctx.current_jump_target.as_ref().unwrap().clone()
-        };
-        let mut jump_target = jump_target.borrow_mut();
-        let jump_depth = jump_target.depth;
-        assert!(depth >= jump_depth);
-        for _ in jump_depth..depth {
-            // We have to exit the declarative environments we've entered.
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        }
-        let break_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        jump_target.breaks.push(break_jump);
+        ctx.compile_break(self.label.as_ref());
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::ContinueStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let depth = ctx.current_lexical_depth;
-        let jump_target = if let Some(label) = &self.label {
-            ctx.labelled_statements
-                .as_ref()
-                .unwrap()
-                .get(&label.name)
-                .unwrap()
-                .clone()
-        } else {
-            ctx.current_jump_target.as_ref().unwrap().clone()
-        };
-        let mut jump_target = jump_target.borrow_mut();
-        let jump_depth = jump_target.depth;
-        assert!(depth >= jump_depth);
-        for _ in jump_depth..depth {
-            // We have to exit the declarative environments we've entered.
-            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-        }
-        let continue_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        jump_target.continues.push(continue_jump);
-        if let Some(label) = &self.label {
-            let label = label.name.as_str();
-            todo!("continue {};", label);
-        }
+        ctx.compile_continue(self.label.as_ref());
     }
 }
 
