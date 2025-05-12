@@ -671,12 +671,11 @@ impl<'a> GenericIterator<'a> {
     }
 
     fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord {
-        let iter = match self.iter.get(agent) {
+        match self.iter.get(agent) {
             VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter,
             VmIteratorRecord::GenericIterator(iter) => iter,
             _ => unreachable!(),
-        };
-        iter
+        }
     }
 }
 

@@ -20,7 +20,8 @@ use crate::{
 };
 
 use super::{
-    finaliser_stack::ControlFlowStackEntry, function_declaration_instantiation, is_reference,
+    finaliser_stack::{ControlFlowFinallyEntry, ControlFlowStackEntry},
+    function_declaration_instantiation, is_reference,
 };
 
 pub type IndexType = u16;
@@ -78,7 +79,9 @@ pub(crate) struct JumpIndex {
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
-    current_instruction: u32,
+    /// true if the current last instruction is a terminal instruction and no
+    /// jumps point past it.
+    last_instruction_is_terminal: bool,
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
@@ -111,7 +114,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         CompileContext {
             agent,
             gc,
-            current_instruction: 0,
+            // Note: when no instructions exist, we are indeed terminal.
+            last_instruction_is_terminal: true,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),
@@ -163,6 +167,14 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             Some(ControlFlowStackEntry::LexicalScope)
         );
         self.add_instruction(Instruction::ExitDeclarativeEnvironment);
+    }
+
+    /// Exit a lexical scope without performing the instruction.
+    pub(super) fn pop_lexical_scope(&mut self) {
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::LexicalScope)
+        );
     }
 
     /// Enter a class static initialiser.
@@ -217,7 +229,12 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     /// Exit a try-finally block.
-    pub(super) fn exit_try_finally_block(&mut self, cb: impl Fn(&mut Self)) {
+    pub(super) fn exit_try_finally_block(
+        &mut self,
+        block: &'s ast::BlockStatement<'s>,
+        jump_over_catch_blocks: Option<JumpIndex>,
+        catch_block_is_terminal: bool,
+    ) {
         let Some(ControlFlowStackEntry::FinallyBlock {
             jump_to_catch,
             incoming_control_flows,
@@ -226,53 +243,105 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             unreachable!()
         };
         // Compile all finally-block variants here.
-        // First the normal version: Nothing special happened and we just
-        // perform the finally-block.
-        // First we have to pop off the special finally-exception target.
-        self.add_instruction(Instruction::PopExceptionJumpTarget);
-        // Then we compile the finally-block.
-        cb(self);
-        // Finally, we need to jump over any other finally-blocks we'll
-        // generate.
-        let jump_over_others = self.add_instruction_with_jump_slot(Instruction::Jump);
+        // If we have a preceding catch block then we'll put all of our
+        // abrupt completion paths after it to make sure the normal control
+        // flow only jumps once.
+        if let Some(jump_over_catch_blocks) = jump_over_catch_blocks {
+            let jump_to_finally_from_catch_end = if !catch_block_is_terminal {
+                // If the preceding catch doesn't end in a terminal
+                // instruction, we have to make sure that any fallthrough from
+                // it goes into the normal finally-flow.
+                Some(self.add_instruction_with_jump_slot(Instruction::Jump))
+            } else {
+                None
+            };
+            self.compile_abrupt_finally_blocks(block, jump_to_catch, incoming_control_flows);
+            // Then compile the normal version: we jump over the catch blocks
+            // and other abrupt completions, landing here to perform the
+            // finally-work before continuing from the try-catch-finally block.
+            // First we have to pop off the special finally-exception target.
+            self.set_jump_target_here(jump_over_catch_blocks);
+            if let Some(jump_to_finally_from_catch_end) = jump_to_finally_from_catch_end {
+                self.set_jump_target_here(jump_to_finally_from_catch_end);
+            }
+            self.add_instruction(Instruction::PopExceptionJumpTarget);
+            // Then we compile the finally-block.
+            block.compile(self);
+            // And continue on our merry way!
+        } else {
+            // No preceding catch-block exists: this means that the normal
+            // code flow is right here, right now. We should first compile the
+            // normal version of the finally-block and then make it jump
+            self.add_instruction(Instruction::PopExceptionJumpTarget);
+            block.compile(self);
+            // We need to jump over the abrupt completion handling blocks,
+            // unless our finally block ends in a terminal instruction.
+            let jump_over_abrupt_completions = if !self.is_terminal() {
+                Some(self.add_instruction_with_jump_slot(Instruction::Jump))
+            } else {
+                None
+            };
 
-        // Now generate a catch-block version: A catch-version of finally
-        // stores the caught error and rethrows it after performing the
-        // finally-work.
+            self.compile_abrupt_finally_blocks(block, jump_to_catch, incoming_control_flows);
+            if let Some(jump_over_abrupt_completions) = jump_over_abrupt_completions {
+                self.set_jump_target_here(jump_over_abrupt_completions);
+            }
+        }
+    }
+
+    fn compile_abrupt_finally_blocks(
+        &mut self,
+        block: &'s ast::BlockStatement<'s>,
+        jump_to_catch: JumpIndex,
+        incoming_control_flows: Option<Box<ControlFlowFinallyEntry<'s>>>,
+    ) {
+        // A catch-version of finally stores the caught error and rethrows
+        // it after performing the finally-work.
         self.set_jump_target_here(jump_to_catch);
         self.add_instruction(Instruction::Load);
         // Compile the finally-block.
-        cb(self);
+        block.compile(self);
         // Take the error back from the stack and rethrow.
         self.add_instruction(Instruction::Store);
         self.add_instruction(Instruction::Throw);
-
         // Then, for each incoming control flow (break or continue), we need to
         // generate a finally block for them as well.
         if let Some(incoming_control_flows) = incoming_control_flows {
-            for (break_source, label) in incoming_control_flows.breaks.into_iter() {
+            for (break_source, label) in incoming_control_flows.breaks {
                 // Make the original break jump here.
                 self.set_jump_target_here(break_source);
-                // Compile the finally-block.
+                // Exit from the finally-block's grasp.
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
-                cb(self);
+                // Compile the finally-block.
+                block.compile(self);
                 // Then send the break on to its real target.
                 self.compile_break(label);
             }
 
-            for (continue_source, label) in incoming_control_flows.continues.into_iter() {
+            for (continue_source, label) in incoming_control_flows.continues {
                 // Make the original continue jump here.
                 self.set_jump_target_here(continue_source);
-                // Compile the finally-block.
+                // Exit from the finally-block's grasp.
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
-                cb(self);
+                // Compile the finally-block.
+                block.compile(self);
                 // Then send the continue on to its real target.
                 self.compile_continue(label);
             }
-        }
 
-        // Finally, make the normal version jump over the above special cases.
-        self.set_jump_target_here(jump_over_others);
+            if !incoming_control_flows.returns.is_empty() {
+                for return_source in incoming_control_flows.returns {
+                    self.set_jump_target_here(return_source);
+                }
+                self.add_instruction(Instruction::PopExceptionJumpTarget);
+                // Load the return result onto the stack.
+                self.add_instruction(Instruction::Load);
+                block.compile(self);
+                // Store the return result back into the result register.
+                self.add_instruction(Instruction::Store);
+                self.compile_return();
+            }
+        }
     }
 
     /// Enter a for, for-in, or while loop.
@@ -383,11 +452,22 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             // and await the "return" function result, if any.
             self.add_instruction(Instruction::PopExceptionJumpTarget);
             self.add_instruction(Instruction::AsyncIteratorClose);
+            // If async iterator close returned a Value, then it'll push the
+            // previous result value into the stack, add an "ignore" exception
+            // handler, and put the received Value
             self.add_instruction(Instruction::Await);
+            self.add_instruction(Instruction::PopExceptionJumpTarget);
+            self.add_instruction(Instruction::Store);
             incoming_control_flows.compile(continue_target, break_target, self);
         }
     }
 
+    /// Compile a break statement targeting optional label.
+    ///
+    /// This helper injects all necessary finalisers at the break statement
+    /// site before jumping to the target. If user-defined finally-blocks are
+    /// present in the finaliser stack, the method instead jumps to a
+    /// finally-block that ends with a jump to the final target.
     pub(super) fn compile_break(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
         for entry in self.control_flow_stack.iter_mut().rev() {
             if entry.is_break_target_for(label) {
@@ -397,6 +477,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
                 // need to know about labelled breaks and continues.
                 // Jump
                 self.instructions.push(Instruction::Jump.as_u8());
+                self.last_instruction_is_terminal = true;
                 entry.add_break_source(
                     label,
                     JumpIndex {
@@ -410,8 +491,17 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             // Compile the exit of each intermediate control flow stack entry.
             entry.compile_exit(&mut self.instructions);
         }
+        // Note: if we got here then we're at the end of a loop to do teardown
+        // for a break. The teardown instructions are not terminal.
+        self.last_instruction_is_terminal = false;
     }
 
+    /// Compile a continue statement targeting optional label.
+    ///
+    /// This helper injects all necessary finalisers at the continue statement
+    /// site before jumping to the target. If user-defined finally-blocks are
+    /// present in the finaliser stack, the method instead jumps to a
+    /// finally-block that ends with a jump to the final target.
     pub(super) fn compile_continue(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
         for entry in self.control_flow_stack.iter_mut().rev() {
             if entry.is_continue_target_for(label) {
@@ -422,6 +512,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
 
                 // Jump
                 self.instructions.push(Instruction::Jump.as_u8());
+                self.last_instruction_is_terminal = true;
                 entry.add_continue_source(
                     label,
                     JumpIndex {
@@ -435,6 +526,80 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             // Compile the exit of each intermediate control flow stack entry.
             entry.compile_exit(&mut self.instructions);
         }
+        // Note: if we got here then we're at the end of a loop to do teardown
+        // for a continue. The teardown instructions are not terminal.
+        self.last_instruction_is_terminal = false;
+    }
+
+    /// Compile a return statement.
+    ///
+    /// This helper injects all necessary finalisers at the return site before
+    /// performing the final return. If user-defined finally-blocks are
+    /// present in the finaliser stack, the method instead jumps to a
+    /// finally-block that ends with a return.
+    pub(super) fn compile_return(&mut self) {
+        let (stack_contains_finally_blocks, stack_contains_finalisers) = self
+            .control_flow_stack
+            .iter()
+            .fold((false, false), |acc, entry| {
+                (
+                    acc.0 || entry.is_return_target(),
+                    acc.1 || entry.requires_return_finalisation(false),
+                )
+            });
+        if !stack_contains_finalisers {
+            // If there are no finalisers to be called, then we can just jump
+            // straight to Return. This is the common case.
+            self.add_instruction(Instruction::Return);
+            return;
+        } else if !stack_contains_finally_blocks {
+            // If there are no finally-blocks to be visited, then we can just
+            // directly inline all the finalisers at the return site. Note that
+            // we can skip exiting declarative environments but must exit catch
+            // blocks so as to ensure they don't interfere with closing of
+            // iterators.
+            // First we need to load our return result to the stack.
+            self.add_instruction(Instruction::Load);
+            for entry in self.control_flow_stack.iter().rev() {
+                if entry.requires_return_finalisation(true) {
+                    entry.compile_exit(&mut self.instructions);
+                }
+            }
+            // Before returning we need to store the return result back from
+            // the stack.
+            self.add_instruction(Instruction::Store);
+            self.add_instruction(Instruction::Return);
+            return;
+        }
+        // The rare case: We have at least one finally-block in the stack. In
+        // this case we have to perform normal unwinding of the stack until the
+        // first finally-block.
+        // First we need to load our return result to the stack.
+        self.add_instruction(Instruction::Load);
+        for entry in self.control_flow_stack.iter_mut().rev() {
+            if entry.is_return_target() {
+                // Before continuing our unwind jump we need to take the return
+                // result from the stack.
+                self.instructions.push(Instruction::Store.as_u8());
+                // Jump
+                self.instructions.push(Instruction::Jump.as_u8());
+                self.last_instruction_is_terminal = true;
+                entry.add_return_source(JumpIndex {
+                    index: self.instructions.len(),
+                });
+                // JumpSlot
+                self.instructions.extend_from_slice(&[0, 0, 0, 0]);
+                return;
+            }
+            entry.compile_exit(&mut self.instructions);
+        }
+        unreachable!()
+    }
+
+    /// Returns true if the last instruction is a terminal instruction and no
+    /// jumps point past it.
+    pub(crate) fn is_terminal(&self) -> bool {
+        self.last_instruction_is_terminal
     }
 
     /// Compile a class static field with an optional initializer into the
@@ -545,8 +710,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     pub(crate) fn do_implicit_return(&mut self) {
-        if self.instructions.last() != Some(&Instruction::Return.as_u8()) {
-            // If code did not end with a return statement, add it manually
+        if !self.is_terminal() {
             self.add_instruction(Instruction::Return);
         }
     }
@@ -584,19 +748,9 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         }
     }
 
-    #[inline]
-    pub(super) fn peek_last_instruction(&self) -> Option<Instruction> {
-        let current_instruction = self.instructions.get(self.current_instruction as usize)?;
-        // SAFETY: current_instruction is only set by _push_instruction
-        Some(unsafe { std::mem::transmute::<u8, Instruction>(*current_instruction) })
-    }
-
     fn _push_instruction(&mut self, instruction: Instruction) {
-        if instruction != Instruction::ExitDeclarativeEnvironment {
-            self.current_instruction = u32::try_from(self.instructions.len())
-                .expect("Bytecodes over 4 GiB are not supported");
-        }
         self.instructions.push(instruction.as_u8());
+        self.last_instruction_is_terminal = instruction.is_terminal();
     }
 
     pub(super) fn add_instruction(&mut self, instruction: Instruction) {
@@ -627,7 +781,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         self.add_double_index(jump_index.index);
     }
 
-    pub(super) fn get_jump_index_to_here(&self) -> JumpIndex {
+    pub(super) fn get_jump_index_to_here(&mut self) -> JumpIndex {
+        self.last_instruction_is_terminal = false;
         JumpIndex {
             index: self.instructions.len(),
         }
@@ -786,6 +941,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     fn add_jump_index(&mut self) -> JumpIndex {
+        self.last_instruction_is_terminal = false;
         self.add_double_index(0);
         JumpIndex {
             index: self.instructions.len() - core::mem::size_of::<u32>(),
@@ -805,6 +961,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
                 index: self.instructions.len(),
             },
         );
+        self.last_instruction_is_terminal = false;
     }
 
     pub(super) fn get_next_class_initializer_index(&self) -> IndexType {

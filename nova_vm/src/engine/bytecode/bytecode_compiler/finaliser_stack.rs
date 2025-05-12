@@ -23,6 +23,7 @@ use super::{CompileContext, JumpIndex};
 pub(super) struct ControlFlowFinallyEntry<'a> {
     pub(super) continues: Vec<(JumpIndex, Option<&'a LabelIdentifier<'a>>)>,
     pub(super) breaks: Vec<(JumpIndex, Option<&'a LabelIdentifier<'a>>)>,
+    pub(super) returns: Vec<JumpIndex>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +95,7 @@ impl<'a> ControlFlowStackEntry<'a> {
                     *incoming_control_flows = Some(Box::new(ControlFlowFinallyEntry {
                         continues: vec![],
                         breaks: vec![(break_source, label)],
+                        returns: vec![],
                     }));
                 }
             }
@@ -156,6 +158,7 @@ impl<'a> ControlFlowStackEntry<'a> {
                     *incoming_control_flows = Some(Box::new(ControlFlowFinallyEntry {
                         continues: vec![(continue_source, label)],
                         breaks: vec![],
+                        returns: vec![],
                     }));
                 }
             }
@@ -184,10 +187,29 @@ impl<'a> ControlFlowStackEntry<'a> {
         }
     }
 
+    pub(super) fn add_return_source(&mut self, return_source: JumpIndex) {
+        let ControlFlowStackEntry::FinallyBlock {
+            incoming_control_flows,
+            ..
+        } = self
+        else {
+            unreachable!()
+        };
+        if let Some(incoming_control_flows) = incoming_control_flows {
+            incoming_control_flows.returns.push(return_source);
+        } else {
+            *incoming_control_flows = Some(Box::new(ControlFlowFinallyEntry {
+                continues: vec![],
+                breaks: vec![],
+                returns: vec![return_source],
+            }));
+        }
+    }
+
     pub(super) fn is_break_target_for(&self, label: Option<&'a LabelIdentifier<'a>>) -> bool {
         match self {
             ControlFlowStackEntry::LabelledStatement { label: l, .. } => {
-                label.map_or(false, |label| l.name == label.name)
+                label.is_some_and(|label| l.name == label.name)
             }
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
@@ -216,7 +238,7 @@ impl<'a> ControlFlowStackEntry<'a> {
     pub(super) fn is_continue_target_for(&self, label: Option<&'a LabelIdentifier<'a>>) -> bool {
         match self {
             ControlFlowStackEntry::LabelledStatement { label: l, .. } => {
-                label.map_or(false, |label| l.name == label.name)
+                label.is_some_and(|label| l.name == label.name)
             }
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
@@ -242,6 +264,43 @@ impl<'a> ControlFlowStackEntry<'a> {
         }
     }
 
+    /// Return cannot target any block in particular, but finally-blocks do
+    /// intercept returns and thus are an indirect target for them.
+    pub(super) fn is_return_target(&self) -> bool {
+        match self {
+            ControlFlowStackEntry::LabelledStatement { .. }
+            | ControlFlowStackEntry::LexicalScope
+            | ControlFlowStackEntry::VariableScope
+            | ControlFlowStackEntry::CatchBlock { .. }
+            | ControlFlowStackEntry::Switch { .. }
+            | ControlFlowStackEntry::Loop { .. }
+            | ControlFlowStackEntry::Iterator { .. }
+            | ControlFlowStackEntry::AsyncIterator { .. } => false,
+            // Finally-block needs to intercept return.
+            ControlFlowStackEntry::FinallyBlock { .. } => true,
+        }
+    }
+
+    /// Returns true if the entry requires finalisation on return.
+    pub(super) fn requires_return_finalisation(&self, will_perform_other_finalisers: bool) -> bool {
+        match self {
+            ControlFlowStackEntry::LabelledStatement { .. }
+            | ControlFlowStackEntry::LexicalScope
+            | ControlFlowStackEntry::VariableScope
+            | ControlFlowStackEntry::Loop { .. }
+            | ControlFlowStackEntry::Switch { .. } => false,
+            // User-controlled finally-blocks, and iterator closes must be
+            // called on return.
+            ControlFlowStackEntry::Iterator { .. }
+            | ControlFlowStackEntry::AsyncIterator { .. }
+            | ControlFlowStackEntry::FinallyBlock { .. } => true,
+            // Catch blocks don't require finalisation on
+            // their own, but they can affect iterator and finally block work
+            // if those throw errors.
+            ControlFlowStackEntry::CatchBlock => will_perform_other_finalisers,
+        }
+    }
+
     pub(super) fn compile_exit(&self, instructions: &mut Vec<u8>) {
         match self {
             ControlFlowStackEntry::LabelledStatement { .. } => {
@@ -254,7 +313,6 @@ impl<'a> ControlFlowStackEntry<'a> {
                 instructions.push(Instruction::ExitVariableEnvironment.as_u8());
             }
             ControlFlowStackEntry::CatchBlock { .. } => {
-                eprintln!("FinaliserStack Catch");
                 instructions.push(Instruction::PopExceptionJumpTarget.as_u8());
             }
             ControlFlowStackEntry::FinallyBlock { .. } => {
@@ -266,15 +324,21 @@ impl<'a> ControlFlowStackEntry<'a> {
             }
             ControlFlowStackEntry::Iterator { .. } => {
                 // Iterators have to be closed and their catch handler popped.
-                instructions.push(Instruction::PopExceptionJumpTarget.as_u8());
-                instructions.push(Instruction::IteratorClose.as_u8());
+                instructions.extend_from_slice(&[
+                    Instruction::PopExceptionJumpTarget.as_u8(),
+                    Instruction::IteratorClose.as_u8(),
+                ]);
             }
             ControlFlowStackEntry::AsyncIterator { .. } => {
                 // Async iterators have to be closed and the "return" function
                 // result, if any, awaited.
-                instructions.push(Instruction::PopExceptionJumpTarget.as_u8());
-                instructions.push(Instruction::AsyncIteratorClose.as_u8());
-                instructions.push(Instruction::Await.as_u8());
+                instructions.extend_from_slice(&[
+                    Instruction::PopExceptionJumpTarget.as_u8(),
+                    Instruction::AsyncIteratorClose.as_u8(),
+                    Instruction::Await.as_u8(),
+                    Instruction::PopExceptionJumpTarget.as_u8(),
+                    Instruction::Store.as_u8(),
+                ]);
             }
         }
     }

@@ -374,6 +374,20 @@ pub enum Instruction {
 }
 
 impl Instruction {
+    /// Returns true if this instruction is a terminal instruction where
+    /// control flow cannot continue to the next instruction.
+    pub const fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Jump
+                | Self::Return
+                | Self::Throw
+                | Self::ThrowError
+                | Self::IteratorCloseWithError
+                | Self::AsyncIteratorCloseWithError
+        )
+    }
+
     pub fn argument_count(self) -> u8 {
         match self {
             // Number of repetitions and lexical status

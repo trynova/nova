@@ -2463,7 +2463,7 @@ impl Vm {
                 let iterator = vm.iterator_stack.pop().unwrap();
                 if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
                     let result = vm.result.take().unwrap_or(Value::Undefined);
-                    with_vm_gc(
+                    let result = with_vm_gc(
                         agent,
                         vm,
                         |agent, gc| {
@@ -2471,9 +2471,31 @@ impl Vm {
                         },
                         gc,
                     )?;
+                    vm.result = Some(result.unbind());
                 }
             }
-            Instruction::AsyncIteratorClose => todo!(),
+            Instruction::AsyncIteratorClose => {
+                let iterator = vm.iterator_stack.pop().unwrap();
+                if let VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iterator {
+                    let result = with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| {
+                            async_vm_iterator_close_with_error(agent, iterator_record.iterator, gc)
+                        },
+                        gc,
+                    );
+                    if let Some(result) = result {
+                        let result = vm.result.replace(result.unbind());
+                        vm.stack.push(result.unwrap_or(Value::Undefined));
+                        vm.exception_handler_stack
+                            .push(ExceptionHandler::IgnoreErrorAndNextInstruction);
+                    } else {
+                        // Skip over Await, PopExceptionJumpTarget, and Store.
+                        vm.ip += 3;
+                    }
+                }
+            }
             Instruction::IteratorCloseWithError => {
                 let iterator = vm.iterator_stack.pop().unwrap();
                 if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
