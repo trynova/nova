@@ -195,7 +195,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match property_key {
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
                 TryResult::Continue(
                     self.get_backing_object(agent)
@@ -208,7 +208,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
-                    PropertyKey::Integer(_) | PropertyKey::Symbol(_) => unreachable!(),
+                    PropertyKey::Integer(_)
+                    | PropertyKey::Symbol(_)
+                    | PropertyKey::PrivateName(_) => unreachable!(),
                 };
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
@@ -242,9 +244,11 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     ) -> JsResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let property_key = property_key.bind(gc.nogc());
         match property_key {
-            PropertyKey::Symbol(_) => {
-                // This would've returned Some from try branch.
-                unreachable!();
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+                // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
+                Ok(self
+                    .get_backing_object(agent)
+                    .and_then(|object| ordinary_get_own_property(agent, object, property_key)))
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
@@ -253,7 +257,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
                     PropertyKey::Integer(_) => todo!(),
-                    PropertyKey::Symbol(_) => unreachable!(),
+                    PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
                 };
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
@@ -286,7 +290,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
                 TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
                     ordinary_define_own_property(
@@ -344,7 +348,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         let property_key = property_key.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
         match property_key {
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
                 Ok(match o.get_backing_object(agent) {
                     Some(object) => ordinary_define_own_property(
@@ -431,7 +435,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(false)
                 }
             }
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
                     unwrap_try(ordinary_try_has_property(agent, object, property_key, gc))
@@ -456,7 +460,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
 
         match property_key {
             // 1. If P is a Symbol, then
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
                 TryResult::Continue(self.get_backing_object(agent).map_or(
                     Value::Undefined,
@@ -472,7 +476,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
                     PropertyKey::Integer(_) => todo!(),
-                    PropertyKey::Symbol(_) => unreachable!(),
+                    PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
                 };
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
@@ -532,7 +536,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
 
         match property_key {
             // 1. If P is a Symbol, then
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
                 Ok(match self.get_backing_object(agent) {
                     Some(object) => ordinary_get(
@@ -620,7 +624,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
-            PropertyKey::Symbol(_) => {
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
                 TryResult::Continue(

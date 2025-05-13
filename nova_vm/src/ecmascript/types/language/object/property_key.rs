@@ -13,7 +13,7 @@ use crate::{
         abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
-            String, Symbol, Value,
+            PrivateName, String, Symbol, Value,
             language::{
                 string::HeapString,
                 value::{
@@ -31,6 +31,8 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
 };
 
+const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum PropertyKey<'a> {
@@ -38,7 +40,7 @@ pub enum PropertyKey<'a> {
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     String(HeapString<'a>) = STRING_DISCRIMINANT,
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
-    // TODO: PrivateKey
+    PrivateName(PrivateName) = PRIVATE_NAME_DISCRIMINANT,
 }
 
 impl<'a> PropertyKey<'a> {
@@ -85,6 +87,7 @@ impl<'a> PropertyKey<'a> {
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
             PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
             PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
+            PropertyKey::PrivateName(_) => unreachable!(),
         }
     }
 
@@ -106,6 +109,7 @@ impl<'a> PropertyKey<'a> {
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
             PropertyKey::String(heap_string) => Value::String(heap_string),
             PropertyKey::Symbol(symbol) => Value::Symbol(symbol),
+            PropertyKey::PrivateName(_) => unreachable!(),
         }
     }
 
@@ -208,6 +212,10 @@ impl<'a> PropertyKey<'a> {
                 Wtf8::from_str(s.as_str()).hash(&mut hasher);
             }
             PropertyKey::Integer(n) => n.into_i64().hash(&mut hasher),
+            PropertyKey::PrivateName(p) => {
+                core::mem::discriminant(&self).hash(&mut hasher);
+                p.hash(&mut hasher);
+            }
         }
         hasher.finish()
     }
@@ -246,6 +254,9 @@ impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
                 } else {
                     "Symbol()".fmt(f)
                 }
+            }
+            PropertyKey::PrivateName(data) => {
+                write!(f, "##{}", data.into_u32())
             }
         }
     }
@@ -358,8 +369,8 @@ impl TryFrom<usize> for PropertyKey<'static> {
 impl HeapMarkAndSweep for PropertyKey<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            PropertyKey::Integer(_) => {}
-            PropertyKey::SmallString(_) => {}
+            PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::PrivateName(_) => {
+            }
             PropertyKey::String(string) => string.mark_values(queues),
             PropertyKey::Symbol(symbol) => symbol.mark_values(queues),
         }
@@ -367,8 +378,8 @@ impl HeapMarkAndSweep for PropertyKey<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            PropertyKey::Integer(_) => {}
-            PropertyKey::SmallString(_) => {}
+            PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::PrivateName(_) => {
+            }
             PropertyKey::String(string) => string.sweep_values(compactions),
             PropertyKey::Symbol(symbol) => symbol.sweep_values(compactions),
         }
@@ -380,6 +391,7 @@ impl HeapMarkAndSweep for PropertyKey<'static> {
 pub enum PropertyKeyRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    PrivateName(PrivateName) = PRIVATE_NAME_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
 
@@ -393,6 +405,7 @@ impl Rootable for PropertyKey<'_> {
             PropertyKey::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
             PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
             PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            PropertyKey::PrivateName(p) => Ok(Self::RootRepr::PrivateName(p)),
         }
     }
 
@@ -401,6 +414,7 @@ impl Rootable for PropertyKey<'_> {
         match *value {
             PropertyKeyRootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
             PropertyKeyRootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            PropertyKeyRootRepr::PrivateName(p) => Ok(Self::PrivateName(p)),
             PropertyKeyRootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
         }
     }

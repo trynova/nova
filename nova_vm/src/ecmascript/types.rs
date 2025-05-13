@@ -11,5 +11,6 @@ pub use language::{
     IntoNumeric, IntoObject, IntoPrimitive, IntoValue, Number, Numeric, Object, OrdinaryObject,
     Primitive, PropertyKey, PropertyKeySet, String, Symbol, Value, bigint,
 };
+pub use spec::PrivateName;
 pub use spec::PropertyDescriptor;
 pub(crate) use spec::*;
