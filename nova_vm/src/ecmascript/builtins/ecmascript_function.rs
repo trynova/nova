@@ -1100,14 +1100,17 @@ pub(crate) fn set_function_name<'a>(
                     String::from_string(agent, format!("[{descriptor}]"), gc)
                 })
         }
-        // TODO: Private Name
-        // 3. Else if name is a Private Name, then
-        // a. Set name to name.[[Description]].
+
         PropertyKey::Integer(integer) => {
             String::from_string(agent, integer.into_i64().to_string(), gc)
         }
         PropertyKey::SmallString(str) => str.into(),
         PropertyKey::String(str) => str.into(),
+        // 3. Else if name is a Private Name, then
+        // a. Set name to name.[[Description]].
+        PropertyKey::PrivateName(p) => p
+            .get_description(agent, gc)
+            .expect("Should always find PrivateName in scope when calling SetFunctionName"),
     };
     // 5. If prefix is present, then
     // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.

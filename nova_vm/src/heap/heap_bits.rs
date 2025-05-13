@@ -53,7 +53,8 @@ use crate::ecmascript::{
         text_processing::string_objects::string_iterator_objects::StringIterator,
     },
     execution::{
-        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment, Realm,
+        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
+        PrivateEnvironment, Realm,
     },
     scripts_and_modules::{script::Script, source_code::SourceCode},
     types::{
@@ -112,6 +113,7 @@ pub struct HeapBits {
     pub object_environments: Box<[bool]>,
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
+    pub private_environments: Box<[bool]>,
     pub promise_reaction_records: Box<[bool]>,
     pub promise_resolving_functions: Box<[bool]>,
     pub promises: Box<[bool]>,
@@ -188,6 +190,7 @@ pub(crate) struct WorkQueues {
     pub object_environments: Vec<ObjectEnvironment<'static>>,
     pub objects: Vec<OrdinaryObject<'static>>,
     pub primitive_objects: Vec<PrimitiveObject<'static>>,
+    pub private_environments: Vec<PrivateEnvironment<'static>>,
     pub promises: Vec<Promise<'static>>,
     pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
@@ -266,6 +269,7 @@ impl HeapBits {
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
         let promise_resolving_functions = vec![false; heap.promise_resolving_functions.len()];
+        let private_environments = vec![false; heap.environments.private.len()];
         let promises = vec![false; heap.promises.len()];
         let proxys = vec![false; heap.proxys.len()];
         let realms = vec![false; heap.realms.len()];
@@ -339,6 +343,7 @@ impl HeapBits {
             primitive_objects: primitive_objects.into_boxed_slice(),
             promise_reaction_records: promise_reaction_records.into_boxed_slice(),
             promise_resolving_functions: promise_resolving_functions.into_boxed_slice(),
+            private_environments: private_environments.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
             proxys: proxys.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
@@ -416,6 +421,7 @@ impl WorkQueues {
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
+            private_environments: Vec::with_capacity(heap.environments.private.len() / 4),
             promise_reaction_records: Vec::with_capacity(heap.promise_reaction_records.len() / 4),
             promise_resolving_functions: Vec::with_capacity(
                 heap.promise_resolving_functions.len() / 4,
@@ -495,6 +501,7 @@ impl WorkQueues {
             object_environments,
             objects,
             primitive_objects,
+            private_environments,
             promises,
             promise_reaction_records,
             promise_resolving_functions,
@@ -588,6 +595,7 @@ impl WorkQueues {
             && object_environments.is_empty()
             && objects.is_empty()
             && primitive_objects.is_empty()
+            && private_environments.is_empty()
             && promise_reaction_records.is_empty()
             && promise_resolving_functions.is_empty()
             && promises.is_empty()
@@ -909,6 +917,7 @@ pub(crate) struct CompactionLists {
     pub object_environments: CompactionList,
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
+    pub private_environments: CompactionList,
     pub promise_reaction_records: CompactionList,
     pub promise_resolving_functions: CompactionList,
     pub promises: CompactionList,
@@ -995,6 +1004,8 @@ impl CompactionLists {
             map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
+            primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
+            private_environments: CompactionList::from_mark_bits(&bits.private_environments),
             promise_reaction_records: CompactionList::from_mark_bits(
                 &bits.promise_reaction_records,
             ),
@@ -1002,7 +1013,6 @@ impl CompactionLists {
                 &bits.promise_resolving_functions,
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
-            primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             #[cfg(feature = "set")]

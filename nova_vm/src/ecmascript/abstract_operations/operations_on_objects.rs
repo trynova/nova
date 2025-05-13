@@ -1665,7 +1665,7 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
             // i. Assert: kind is KEY+VALUE.
             debug_assert_eq!(Kind::KIND, EnumPropKind::KeyValue);
             let key_value = match key {
-                PropertyKey::Symbol(_) => {
+                PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
                     unreachable!();
                 }
                 PropertyKey::Integer(int) => {
