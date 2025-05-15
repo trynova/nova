@@ -273,7 +273,6 @@ impl AtomicsObject {
     /// > NOTE: Due to the overhead of function calls, it is reasonable that an
     /// > inlined call to this method in an optimizing compiler waits a
     /// > different amount of time than a non-inlined call.
-    #[cfg(feature = "proposal-atomics-microwait")]
     fn pause<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -286,7 +285,7 @@ impl AtomicsObject {
         // 1. If N is neither undefined nor an integral Number, throw a TypeError exception.
         if !n.is_undefined() && !n.is_integer() {
             return Err(agent.throw_exception_with_static_message(
-                crate::ecmascript::execution::agent::ExceptionType::TypeError,
+                ExceptionType::TypeError,
                 "Atomics.pause called with non-integral Number",
                 nogc,
             ));
@@ -294,7 +293,11 @@ impl AtomicsObject {
 
         // Consider this the "internal upper bound" on the maximum amount of
         // time paused.
-        let n = n.to_uint16(agent, gc).unwrap_or(1);
+        let n = if let Value::Integer(n) = n {
+            u16::try_from(n.into_i64()).unwrap_or(u16::MAX)
+        } else {
+            1
+        };
 
         // TODO: This should be implemented in a similar manner to `eval`
         // where we compile calls to `Atomics.pause` as a `pause` instruction
