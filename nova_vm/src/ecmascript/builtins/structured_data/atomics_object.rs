@@ -295,7 +295,8 @@ impl AtomicsObject {
         // Consider this the "internal upper bound" on the maximum amount of
         // time paused.
         let n = if let Value::Integer(n) = n {
-            u16::try_from(n.into_i64()).unwrap_or(u16::MAX)
+            let n = n.into_i64();
+            u16::try_from(n).unwrap_or(if n > 0 { u16::MAX } else { 1 })
         } else {
             1
         };
