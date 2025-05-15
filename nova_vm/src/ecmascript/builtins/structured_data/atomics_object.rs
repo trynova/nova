@@ -273,6 +273,7 @@ impl AtomicsObject {
     /// > NOTE: Due to the overhead of function calls, it is reasonable that an
     /// > inlined call to this method in an optimizing compiler waits a
     /// > different amount of time than a non-inlined call.
+    #[cfg(feature = "proposal-atomics-microwait")]
     fn pause<'gc>(
         agent: &mut Agent,
         _this_value: Value,
