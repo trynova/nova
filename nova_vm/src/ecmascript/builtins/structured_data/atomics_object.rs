@@ -286,16 +286,18 @@ impl AtomicsObject {
         // 1. If N is neither undefined nor an integral Number, throw a TypeError exception.
         if !n.is_undefined() && !n.is_integer() {
             return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
+                crate::ecmascript::execution::agent::ExceptionType::TypeError,
                 "Atomics.pause called with non-integral Number",
                 nogc,
             ));
         }
 
+        let n = n.to_uint32(agent, gc).unwrap_or(1);
+
         // TODO: This should be implemented in a similar manner to `eval`
         // where we compile calls to `Atomics.pause` as a `pause` instruction
-        // directly in the bytecode to comply with the above note and the
-        // following step:
+        // directly in the bytecode.
+
         // 2. If the execution environment of the ECMAScript implementation supports
         // signaling to the operating system or CPU that the current executing
         // code is in a spin-wait loop, such as executing a pause CPU instruction,
@@ -303,6 +305,9 @@ impl AtomicsObject {
         // of times that signal is sent. The number of times the signal is sent
         // for an integral Number N is less than or equal to the number times it
         // is sent for N + 1 if both N and N + 1 have the same sign.
+        for _ in 0..n {
+            std::hint::spin_loop();
+        }
 
         // 3. Return undefined.
         Ok(Value::Undefined)
