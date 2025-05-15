@@ -292,6 +292,8 @@ impl AtomicsObject {
             ));
         }
 
+        // Consider this the "internal upper bound" on the maximum amount of
+        // time paused.
         let n = n.to_uint32(agent, gc).unwrap_or(1);
 
         // TODO: This should be implemented in a similar manner to `eval`
