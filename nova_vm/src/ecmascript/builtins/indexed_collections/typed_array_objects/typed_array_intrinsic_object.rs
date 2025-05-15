@@ -1629,13 +1629,33 @@ impl TypedArrayPrototype {
         Ok(Value::try_from(length).unwrap())
     }
 
+    /// ### [23.2.3.22 %TypedArray%.prototype.map ( callback [ , thisArg ] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.map)
+    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.map as defined in 23.1.3.21.
     fn map<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("TypedArray.prototype.map", gc.into_nogc()))
+        // 1. Let O be the this value.
+        let o = this_value.bind(gc.nogc());
+        let callback_fn = arguments.get(0).bind(gc.nogc());
+        let this_arg = arguments.get(1).bind(gc.nogc());
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let a = with_typed_array_viewable!(
+            ta_record.object,
+            map_typed_array::<T>(
+                agent,
+                callback_fn.unbind(),
+                this_arg.unbind(),
+                ta_record.unbind(),
+                gc
+            )?
+        );
+        Ok(a.into_value())
     }
 
     /// ### [23.2.3.23 %TypedArray%.prototype.reduce ( callback [ , initialValue ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduce)
@@ -2355,6 +2375,74 @@ fn viewable_slice_mut<'a, T: Viewable>(
         panic!("TypedArray is not properly aligned");
     }
     Ok(slice)
+}
+
+fn map_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
+    agent: &mut Agent,
+    callback_fn: Value,
+    this_arg: Value,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let callback_fn = callback_fn.bind(gc.nogc()).scope(agent, gc.nogc());
+    let this_arg = this_arg.bind(gc.nogc()).scope(agent, gc.nogc());
+    let o = ta_record.object.bind(gc.nogc());
+    // 3. Let len be TypedArrayLength(taRecord).
+    // 4. If IsCallable(callback) is false, throw a TypeError exception.
+    let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Callback is not callable",
+            gc.into_nogc(),
+        ));
+    };
+    // SAFETY: callback_fn is not shared.
+    let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
+    let scoped_o = o.scope(agent, gc.nogc());
+    // 5. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(len) »).
+    let a =
+        typed_array_species_create_with_length::<T>(agent, scoped_o.get(agent), len, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+    // 6. Let k be 0.
+    // 7. Repeat, while k < len,
+    let scoped_a = a.scope(agent, gc.nogc());
+    for k in 0..len {
+        // 𝔽(k)
+        let k_int = k.try_into().unwrap();
+        // a. Let Pk be ! ToString(𝔽(k)).
+        let pk = PropertyKey::Integer(k_int);
+        // b. Let kValue be ! Get(O, Pk).
+        let k_value = unwrap_try(try_get(agent, scoped_o.get(agent), pk, gc.nogc()));
+        // c. Let mappedValue be ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
+        let mapped_value = call_function(
+            agent,
+            callback_fn.get(agent),
+            this_arg.get(agent),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                k_value.unbind(),
+                Number::from(k_int).into_value(),
+                scoped_o.get(agent).into_value(),
+            ])),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // d. Perform ? Set(A, Pk, mappedValue, true).
+        set(
+            agent,
+            scoped_a.get(agent).into_object(),
+            pk,
+            mapped_value.unbind(),
+            true,
+            gc.reborrow(),
+        )
+        .unbind()?
+        // e. Set k to k + 1.
+    }
+    // 8. Return A.
+    Ok(scoped_a.get(agent).unbind())
 }
 
 fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
