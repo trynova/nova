@@ -299,6 +299,7 @@ padStart
 parse
 parseFloat
 parseInt
+pause
 PI
 pop
 POSITIVE_INFINITY
