@@ -197,6 +197,11 @@ impl<'a> PropertyKey<'a> {
         )
     }
 
+    /// Returns true if the PropertyKey is a PrivateName.
+    pub fn is_private_name(&self) -> bool {
+        matches!(self, PropertyKey::PrivateName(_))
+    }
+
     pub(crate) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
         let mut hasher = AHasher::default();
         match self {

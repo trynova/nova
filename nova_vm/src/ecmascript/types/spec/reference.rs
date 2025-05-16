@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    private_get, private_set, throw_no_private_name_error, try_private_get, try_set,
+};
 use crate::ecmascript::types::IntoValue;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
@@ -109,10 +111,9 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
 ///
 /// The abstract operation IsPrivateReference takes argument V (a Reference
 /// Record) and returns a Boolean.
-pub(crate) fn is_private_reference(_: &Reference) -> bool {
+pub(crate) fn is_private_reference(reference: &Reference) -> bool {
     // 1. If V.[[ReferencedName]] is a Private Name, return true; otherwise return false.
-    // matches!(reference.referenced_name, PropertyKey::PrivateName)
-    false
+    matches!(reference.referenced_name, PropertyKey::PrivateName(_))
 }
 
 /// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
@@ -137,6 +138,11 @@ pub(crate) fn get_value<'gc>(
             // implementation might choose to avoid the actual
             // creation of the object.
             if let Ok(object) = Object::try_from(value) {
+                // b. If IsPrivateReference(V) is true, then
+                if let PropertyKey::PrivateName(referenced_name) = referenced_name {
+                    // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
+                    return private_get(agent, object, referenced_name, gc);
+                }
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
                 object.internal_get(
                     agent,
@@ -178,6 +184,10 @@ fn handle_primitive_get_value<'a>(
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     // Primitive value. annoying stuff.
+    if referenced_name.is_private_name() {
+        // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
+        return Err(throw_no_private_name_error(agent, gc.into_nogc()));
+    }
     match value {
         Value::Undefined => {
             let error_message = format!(
@@ -229,6 +239,77 @@ fn handle_primitive_get_value<'a>(
     }
 }
 
+fn try_handle_primitive_get_value<'a>(
+    agent: &mut Agent,
+    referenced_name: PropertyKey,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<'a, Value<'a>>> {
+    // b. If IsPrivateReference(V) is true, then
+    if referenced_name.is_private_name() {
+        // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
+        return TryResult::Continue(Err(throw_no_private_name_error(agent, gc)));
+    }
+    // Primitive value. annoying stuff.
+    match value {
+        Value::Undefined => {
+            let error_message = format!(
+                "Cannot read property '{}' of undefined.",
+                referenced_name.as_display(agent)
+            );
+            TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc,
+            )))
+        }
+        Value::Null => {
+            let error_message = format!(
+                "Cannot read property '{}' of null.",
+                referenced_name.as_display(agent)
+            );
+            TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc,
+            )))
+        }
+        Value::Boolean(_) => TryResult::Continue(Ok(agent
+            .current_realm_record()
+            .intrinsics()
+            .boolean_prototype()
+            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+        Value::String(_) | Value::SmallString(_) => {
+            let string = String::try_from(value).unwrap();
+            if let Some(prop_desc) = string.get_property_descriptor(agent, referenced_name) {
+                TryResult::Continue(Ok(prop_desc.value.unwrap()))
+            } else {
+                TryResult::Continue(Ok(agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .string_prototype()
+                    .try_get(agent, referenced_name.unbind(), value, gc)?))
+            }
+        }
+        Value::Symbol(_) => TryResult::Continue(Ok(agent
+            .current_realm_record()
+            .intrinsics()
+            .symbol_prototype()
+            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => TryResult::Continue(Ok(agent
+            .current_realm_record()
+            .intrinsics()
+            .number_prototype()
+            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+        Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
+            .current_realm_record()
+            .intrinsics()
+            .big_int_prototype()
+            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+        _ => unreachable!(),
+    }
+}
+
 /// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
@@ -251,6 +332,11 @@ pub(crate) fn try_get_value<'gc>(
             // implementation might choose to avoid the actual
             // creation of the object.
             if let Ok(object) = Object::try_from(value) {
+                // b. If IsPrivateReference(V) is true, then
+                if let PropertyKey::PrivateName(referenced_name) = referenced_name {
+                    // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
+                    return try_private_get(agent, object, referenced_name, gc);
+                }
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
                 TryResult::Continue(Ok(object.try_get(
                     agent,
@@ -259,68 +345,7 @@ pub(crate) fn try_get_value<'gc>(
                     gc,
                 )?))
             } else {
-                // Primitive value. annoying stuff.
-                match value {
-                    Value::Undefined => {
-                        let error_message = format!(
-                            "Cannot read property '{}' of undefined.",
-                            referenced_name.as_display(agent)
-                        );
-                        TryResult::Continue(Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc,
-                        )))
-                    }
-                    Value::Null => {
-                        let error_message = format!(
-                            "Cannot read property '{}' of null.",
-                            referenced_name.as_display(agent)
-                        );
-                        TryResult::Continue(Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            error_message,
-                            gc,
-                        )))
-                    }
-                    Value::Boolean(_) => TryResult::Continue(Ok(agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .boolean_prototype()
-                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
-                    Value::String(_) | Value::SmallString(_) => {
-                        let string = String::try_from(value).unwrap();
-                        if let Some(prop_desc) =
-                            string.get_property_descriptor(agent, referenced_name)
-                        {
-                            TryResult::Continue(Ok(prop_desc.value.unwrap()))
-                        } else {
-                            TryResult::Continue(Ok(agent
-                                .current_realm_record()
-                                .intrinsics()
-                                .string_prototype()
-                                .try_get(agent, referenced_name.unbind(), value, gc)?))
-                        }
-                    }
-                    Value::Symbol(_) => TryResult::Continue(Ok(agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .symbol_prototype()
-                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
-                    Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
-                        TryResult::Continue(Ok(agent
-                            .current_realm_record()
-                            .intrinsics()
-                            .number_prototype()
-                            .try_get(agent, referenced_name.unbind(), value, gc)?))
-                    }
-                    Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .big_int_prototype()
-                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
-                    _ => unreachable!(),
-                }
+                try_handle_primitive_get_value(agent, referenced_name.unbind(), value, gc)
             }
         }
         Base::Environment(env) => {
@@ -361,6 +386,7 @@ pub(crate) fn put_value<'a>(
     w: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let w = w.bind(gc.nogc());
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
@@ -380,7 +406,14 @@ pub(crate) fn put_value<'a>(
         let global_obj = get_global_object(agent, gc.nogc());
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = v.referenced_name;
-        set(agent, global_obj.unbind(), referenced_name, w, false, gc)?;
+        set(
+            agent,
+            global_obj.unbind(),
+            referenced_name,
+            w.unbind(),
+            false,
+            gc,
+        )?;
         // d. Return UNUSED.
         Ok(())
     } else if is_property_reference(v) {
@@ -392,17 +425,29 @@ pub(crate) fn put_value<'a>(
         };
         let base_obj = to_object(agent, base, gc.nogc()).unbind()?.bind(gc.nogc());
         // b. If IsPrivateReference(V) is true, then
-        if is_private_reference(v) {
+        let referenced_name = v.referenced_name;
+        if let PropertyKey::PrivateName(referenced_name) = referenced_name {
             // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
-            todo!();
+            return private_set(
+                agent,
+                base_obj.unbind(),
+                referenced_name.unbind(),
+                w.unbind(),
+                gc,
+            );
         }
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
-        let referenced_name = v.referenced_name;
         let scoped_base_obj = base_obj.scope(agent, gc.nogc());
         let succeeded = base_obj
             .unbind()
-            .internal_set(agent, referenced_name, w, this_value, gc.reborrow())
+            .internal_set(
+                agent,
+                referenced_name,
+                w.unbind(),
+                this_value,
+                gc.reborrow(),
+            )
             .unbind()?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
@@ -437,7 +482,7 @@ pub(crate) fn put_value<'a>(
             PropertyKey::SmallString(data) => String::SmallString(*data),
             _ => unreachable!(),
         };
-        base.set_mutable_binding(agent, referenced_name, w, v.strict, gc)
+        base.set_mutable_binding(agent, referenced_name, w.unbind(), v.strict, gc)
     }
     // NOTE
     // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.

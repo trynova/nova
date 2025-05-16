@@ -43,15 +43,16 @@ use crate::{
             set_function_name,
         },
         execution::{
-            Agent, Environment, JsResult, ProtoIntrinsics,
+            Agent, Environment, JsResult, PrivateMethod, ProtoIntrinsics,
             agent::{ExceptionType, JsError, resolve_binding, try_resolve_binding},
             get_this_environment, new_class_static_element_environment,
-            new_declarative_environment,
+            new_declarative_environment, new_private_environment, resolve_private_identifier,
+            resolve_this_binding,
         },
         types::{
-            BUILTIN_STRING_MEMORY, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
+            BUILTIN_STRING_MEMORY, Base, BigInt, Function, InternalMethods, InternalSlots,
+            IntoFunction, IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject,
+            Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_super_reference, put_value, try_get_value, try_initialize_referenced_binding,
         },
@@ -591,24 +592,12 @@ impl Vm {
                 vm.reference = Some(reference.unbind());
             }
             Instruction::ResolveThisBinding => {
-                // 1. Let envRec be GetThisEnvironment().
-                let env_rec = get_this_environment(agent, gc.nogc());
-                // 2. Return ? envRec.GetThisBinding().
-                let result = match env_rec {
-                    Environment::Declarative(_) => unreachable!(),
-                    Environment::Function(idx) => {
-                        idx.unbind().get_this_binding(agent, gc.into_nogc())?
-                    }
-                    Environment::Global(idx) => idx
-                        .unbind()
-                        .get_this_binding(agent, gc.into_nogc())
-                        .into_value(),
-                    Environment::Object(_) => unreachable!(),
-                };
-                vm.result = Some(result.unbind());
+                let this = resolve_this_binding(agent, gc.into_nogc())?.unbind();
+                vm.result = Some(this);
             }
             Instruction::LoadConstant => {
-                let constant = executable.fetch_constant(agent, instr.get_first_index(), gc.nogc());
+                let constant =
+                    executable.fetch_constant(agent, instr.get_first_index(), gc.into_nogc());
                 vm.stack.push(constant.unbind());
             }
             Instruction::Load => {
@@ -1486,6 +1475,176 @@ impl Vm {
 
                 vm.result = Some(function.into_value().unbind());
             }
+            Instruction::ClassDefinePrivateMethod => {
+                let description =
+                    String::try_from(vm.result.take().unwrap().bind(gc.nogc())).unwrap();
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
+                let bits = instr.get_second_index() as u8;
+                let is_static = bits & 0b100 == 0b100;
+                let is_setter = bits & 0b10 == 0b10;
+                let is_getter = bits & 0b1 == 0b1;
+                assert!(vm.stack.len() >= 2);
+                let object = if is_static {
+                    vm.stack[vm.stack.len() - 1]
+                } else {
+                    vm.stack[vm.stack.len() - 2]
+                };
+                let object = Object::try_from(object).unwrap().bind(gc.nogc());
+                let function_expression = expression.get();
+                // 2. Let env be the running execution context's LexicalEnvironment.
+                let env = agent.current_lexical_environment(gc.nogc());
+                // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                let private_env = agent.current_private_environment(gc.nogc()).unwrap();
+                // 1. Let propKey be ? Evaluation of ClassElementName.
+                // 5. Let formalParameterList be ...
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    source_code: None,
+                    // 4. Let sourceText be the source text matched by MethodDefinition.
+                    source_text: function_expression.span,
+                    parameters_list: &function_expression.params,
+                    body: function_expression.body.as_ref().unwrap(),
+                    is_async: function_expression.r#async,
+                    is_generator: function_expression.generator,
+                    is_concise_arrow_function: false,
+                    lexical_this: false,
+                    env,
+                    private_env: Some(private_env),
+                };
+                // 6. Let closure be OrdinaryFunctionCreate(
+                //      %Function.prototype%,
+                //      sourceText,
+                //      formalParameterList,
+                //      FunctionBody,
+                //      non-lexical-this,
+                //      env,
+                //      privateEnv
+                //  ).
+                let closure = ordinary_function_create(agent, params, gc.nogc());
+                // 7. Perform MakeMethod(closure, object).
+                make_method(agent, closure, object.into_object());
+                // 8. Perform SetFunctionName(closure, propKey).
+                set_function_name(
+                    agent,
+                    closure,
+                    // Note: it should be guaranteed that description is a
+                    // non-numeric PropertyKey.
+                    description.into(),
+                    if is_getter {
+                        Some(BUILTIN_STRING_MEMORY.get)
+                    } else if is_setter {
+                        Some(BUILTIN_STRING_MEMORY.set)
+                    } else {
+                        None
+                    },
+                    gc.nogc(),
+                );
+                if is_static {
+                    let desc = PropertyDescriptor {
+                        value: if !is_getter && !is_setter {
+                            Some(closure.into_value().unbind())
+                        } else {
+                            None
+                        },
+                        writable: if !is_getter && !is_setter {
+                            Some(false)
+                        } else {
+                            None
+                        },
+                        get: if is_getter {
+                            Some(closure.into_function().unbind())
+                        } else {
+                            None
+                        },
+                        set: if is_setter {
+                            Some(closure.into_function().unbind())
+                        } else {
+                            None
+                        },
+                        enumerable: Some(false),
+                        configurable: Some(false),
+                    };
+                    // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
+                    let private_name = private_env.add_static_private_method(agent, description);
+                    let object = object.unbind();
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| {
+                            define_property_or_throw(agent, object, private_name.into(), desc, gc)
+                        },
+                        gc,
+                    )?;
+                } else {
+                    // a. Return PrivateElement {
+                    //      [[Key]]: propKey,
+                    //      [[Kind]]: ...,
+                    //      [[Get]]: ...,
+                    //      [[Set]]: ...
+                    //    }.
+                    let private_method = if is_getter {
+                        PrivateMethod::Getter(closure)
+                    } else if is_setter {
+                        PrivateMethod::Setter(closure)
+                    } else {
+                        PrivateMethod::Method(closure)
+                    };
+                    private_env.add_instance_private_method(agent, description, private_method);
+                }
+                // c. Return unused.
+            }
+            Instruction::ClassDefinePrivateProperty => {
+                let description =
+                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                let is_static = instr.get_second_bool();
+                let private_env = agent
+                    .current_private_environment(gc.nogc())
+                    .expect("Attempted to define private property with no PrivateEnvironment");
+                if is_static {
+                    let private_name = private_env.add_static_private_field(agent, description);
+                    let object = vm.stack.last().unwrap().bind(gc.nogc());
+                    let object = Object::try_from(object).unwrap();
+                    object
+                        .get_or_create_backing_object(agent)
+                        .bind(gc.nogc())
+                        .property_storage()
+                        .add_private_field_slot(agent, private_name);
+                } else {
+                    private_env.add_instance_private_field(agent, description);
+                }
+            }
+            Instruction::ClassInitializePrivateElements => {
+                let gc = gc.into_nogc();
+                let class_instance = Object::try_from(
+                    resolve_this_binding(agent, gc)
+                        .expect("Invalid private elements initialize call"),
+                )
+                .unwrap();
+                class_instance
+                    .get_or_create_backing_object(agent)
+                    .property_storage()
+                    .initialize_private_elements(agent, gc);
+            }
+            Instruction::ClassInitializePrivateValue => {
+                let gc = gc.into_nogc();
+                let this =
+                    Object::try_from(resolve_this_binding(agent, gc).unbind()?.bind(gc)).unwrap();
+                let value = vm.result.take().unwrap().bind(gc);
+                let offset = instr.get_first_index();
+                let private_env = agent
+                    .current_private_environment(gc)
+                    .expect("Attempted to define private property with no PrivateEnvironment");
+                // SAFETY: Generated bytecode only uses this instruction when
+                // it statically knows we're inside the correct
+                // PrivateEnvironment.
+                let private_name = unsafe { private_env.get_private_name(agent, offset) };
+                assert!(
+                    this.get_or_create_backing_object(agent)
+                        .property_storage()
+                        .set_private_field_value(agent, private_name, offset, value)
+                );
+            }
             Instruction::Swap => {
                 let a = vm.stack.pop().unwrap();
                 let b = vm.stack.pop().unwrap();
@@ -1785,6 +1944,33 @@ impl Vm {
                     this_value: None,
                 });
             }
+            Instruction::MakePrivateReference => {
+                let gc = gc.into_nogc();
+                let private_identifier =
+                    executable.fetch_identifier(agent, instr.get_first_index(), gc);
+                let base_value = vm.result.take().unwrap().bind(gc);
+                // 1. Let privateEnv be the running execution context's
+                //    PrivateEnvironment.
+                // 2. Assert: privateEnv is not null.
+                let private_env = agent
+                    .current_private_environment(gc)
+                    .expect("Attempted to make private reference in non-class environment");
+                // 3. Let privateName be ResolvePrivateIdentifier(privateEnv, privateIdentifier).
+                let private_name =
+                    resolve_private_identifier(agent, private_env, private_identifier);
+                // 4. Return the Reference Record {
+                //    [[Base]]: baseValue,
+                //    [[ReferencedName]]: privateName,
+                //    [[Strict]]: true,
+                //    [[ThisValue]]: empty
+                // }.
+                vm.reference.replace(Reference {
+                    base: Base::Value(base_value.unbind()),
+                    referenced_name: private_name.into(),
+                    strict: true,
+                    this_value: None,
+                });
+            }
             Instruction::Jump => {
                 let ip = instr.get_jump_slot();
                 if agent.options.print_internals {
@@ -2062,6 +2248,12 @@ impl Vm {
                 agent.set_current_lexical_environment(local_env);
                 agent.set_current_variable_environment(local_env);
             }
+            Instruction::EnterPrivateEnvironment => {
+                let outer_env = agent.current_private_environment(gc.nogc());
+                let new_env =
+                    new_private_environment(agent, outer_env, instr.get_first_index(), gc.nogc());
+                agent.set_current_private_environment(new_env.into());
+            }
             Instruction::ExitDeclarativeEnvironment => {
                 let old_env = agent
                     .current_lexical_environment(gc.nogc())
@@ -2075,6 +2267,13 @@ impl Vm {
                     .get_outer_env(agent, gc.nogc())
                     .unwrap();
                 agent.set_current_variable_environment(old_env);
+            }
+            Instruction::ExitPrivateEnvironment => {
+                let old_env = agent
+                    .current_private_environment(gc.nogc())
+                    .unwrap()
+                    .get_outer_env(agent, gc.nogc());
+                agent.set_current_private_environment(old_env);
             }
             Instruction::CreateMutableBinding => {
                 let lex_env = agent.current_lexical_environment(gc.nogc());
@@ -2591,7 +2790,6 @@ impl Vm {
                         .unbind(),
                 );
             }
-            other => todo!("{other:?}"),
         }
 
         Ok(ContinuationKind::Normal)

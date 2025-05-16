@@ -22,6 +22,7 @@ use core::{
     mem::MaybeUninit,
     ops::{Index, IndexMut},
 };
+use std::collections::hash_map::Entry;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ElementArrayKey {
@@ -428,6 +429,8 @@ impl<'a> PropertyStorageVector<'a> {
         elements.as_mut().reserve_keys_and_values(self, new_len);
     }
 
+    /// Access the currently allocated keys of this property storage vector as
+    /// a slice.
     pub(crate) fn keys<'b>(
         &self,
         elements: &'b impl AsRef<ElementArrays>,
@@ -435,11 +438,13 @@ impl<'a> PropertyStorageVector<'a> {
         elements.as_ref().get_keys(self)
     }
 
+    /// Access the currently reserved keys of this property storage vector as
+    /// a mutable slice.
     pub(crate) fn keys_mut<'b>(
         &self,
         elements: &'b mut impl AsMut<ElementArrays>,
     ) -> &'b mut [Option<PropertyKey<'static>>] {
-        elements.as_mut().get_keys_mut(self)
+        elements.as_mut().get_keys_uninit(self)
     }
 
     pub(crate) fn values<'b>(
@@ -454,6 +459,58 @@ impl<'a> PropertyStorageVector<'a> {
         elements: &'b mut impl AsMut<ElementArrays>,
     ) -> &'b mut [Option<Value<'static>>] {
         elements.as_mut().get_values_mut(self)
+    }
+
+    pub(crate) fn descriptors_and_values_uninit<'b>(
+        &self,
+        elements: &'b mut impl AsMut<ElementArrays>,
+    ) -> (
+        Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+        &'b mut [Option<Value<'static>>],
+    ) {
+        elements.as_mut().get_descriptors_and_values_uninit(self)
+    }
+
+    pub(crate) fn get_storage<'b>(
+        &self,
+        elements: &'b impl AsRef<ElementArrays>,
+    ) -> (
+        // keys
+        &'b [PropertyKey<'a>],
+        // values
+        &'b [Option<Value<'static>>],
+        // descriptors
+        Option<&'b AHashMap<u32, ElementDescriptor<'static>>>,
+    ) {
+        elements.as_ref().get_storage(self)
+    }
+
+    pub(crate) fn get_storage_mut<'b>(
+        &self,
+        elements: &'b mut impl AsMut<ElementArrays>,
+    ) -> (
+        // keys
+        &'b [PropertyKey<'a>],
+        // values
+        &'b mut [Option<Value<'static>>],
+        // descriptors
+        Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+    ) {
+        elements.as_mut().get_storage_mut(self)
+    }
+
+    pub(crate) fn get_storage_uninit<'b>(
+        &self,
+        elements: &'b mut impl AsMut<ElementArrays>,
+    ) -> (
+        // keys
+        &'b mut [Option<PropertyKey<'static>>],
+        // values
+        &'b mut [Option<Value<'static>>],
+        // descriptors
+        Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+    ) {
+        elements.as_mut().get_storage_uninit(self)
     }
 
     pub(crate) fn push(
@@ -1326,6 +1383,13 @@ impl<const N: usize> ElementArray<N> {
         &mut self.values[vector.elements_index()].as_mut_slice()[0..vector.len() as usize]
     }
 
+    fn get_values_uninit(
+        &mut self,
+        vector: &impl ElementsIndexable,
+    ) -> &mut [Option<Value<'static>>] {
+        self.values[vector.elements_index()].as_mut_slice()
+    }
+
     fn get_descriptors_and_values(
         &self,
         vector: &impl ElementsIndexable,
@@ -1349,11 +1413,11 @@ impl<const N: usize> ElementArray<N> {
         &mut self,
         vector: &impl ElementsIndexable,
     ) -> (
-        Option<&mut AHashMap<u32, ElementDescriptor<'static>>>,
+        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
         &mut [Option<Value<'static>>],
     ) {
         (
-            self.descriptors.get_mut(&vector.elements_index()),
+            self.descriptors.entry(vector.elements_index()),
             &mut self
                 .values
                 .get_mut(vector.index())
@@ -1361,6 +1425,26 @@ impl<const N: usize> ElementArray<N> {
                 .as_mut()
                 .unwrap()
                 .as_mut_slice()[0..vector.len() as usize],
+        )
+    }
+
+    /// Get the currently reserved values storage and any possible descriptors
+    /// as mutable.
+    fn get_descriptors_and_values_uninit(
+        &mut self,
+        vector: &impl ElementsIndexable,
+    ) -> (
+        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+        &mut [Option<Value<'static>>],
+    ) {
+        (
+            self.descriptors.entry(vector.elements_index()),
+            self.values
+                .get_mut(vector.index())
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut_slice(),
         )
     }
 
@@ -1484,7 +1568,7 @@ impl<const N: usize> PropertyKeyArray<N> {
         unsafe { std::mem::transmute::<&[Option<PropertyKey<'a>>], &[PropertyKey<'a>]>(keys) }
     }
 
-    fn get_mut(&mut self, props: &PropertyStorageVector) -> &mut [Option<PropertyKey<'static>>] {
+    fn get_uninit(&mut self, props: &PropertyStorageVector) -> &mut [Option<PropertyKey<'static>>] {
         self.keys[props.keys_index.into_index()].as_mut_slice()
     }
 
@@ -2223,20 +2307,23 @@ impl ElementArrays {
         }
     }
 
-    pub(crate) fn get_keys_mut(
+    /// Get the currently reserved key storage as a mutable slice. None values
+    /// may appear at the end of the storage and stand for unset key/value
+    /// slots in the object.
+    pub(crate) fn get_keys_uninit(
         &mut self,
         props: &PropertyStorageVector,
     ) -> &mut [Option<PropertyKey<'static>>] {
         match props.cap {
             ElementArrayKey::Empty => &mut [],
-            ElementArrayKey::E4 => self.k2pow4.get_mut(props),
-            ElementArrayKey::E6 => self.k2pow6.get_mut(props),
-            ElementArrayKey::E8 => self.k2pow8.get_mut(props),
-            ElementArrayKey::E10 => self.k2pow10.get_mut(props),
-            ElementArrayKey::E12 => self.k2pow12.get_mut(props),
-            ElementArrayKey::E16 => self.k2pow16.get_mut(props),
-            ElementArrayKey::E24 => self.k2pow24.get_mut(props),
-            ElementArrayKey::E32 => self.k2pow32.get_mut(props),
+            ElementArrayKey::E4 => self.k2pow4.get_uninit(props),
+            ElementArrayKey::E6 => self.k2pow6.get_uninit(props),
+            ElementArrayKey::E8 => self.k2pow8.get_uninit(props),
+            ElementArrayKey::E10 => self.k2pow10.get_uninit(props),
+            ElementArrayKey::E12 => self.k2pow12.get_uninit(props),
+            ElementArrayKey::E16 => self.k2pow16.get_uninit(props),
+            ElementArrayKey::E24 => self.k2pow24.get_uninit(props),
+            ElementArrayKey::E32 => self.k2pow32.get_uninit(props),
         }
     }
 
@@ -2271,6 +2358,26 @@ impl ElementArrays {
         }
     }
 
+    /// Get the currently reserved values storage as a mutable slice. None
+    /// values in the slice may or may not be empty slots; they may also be
+    /// getters or setters. Only the keys storage holds the real truth on that.
+    pub(crate) fn get_values_uninit(
+        &mut self,
+        vector: &impl ElementsIndexable,
+    ) -> &mut [Option<Value<'static>>] {
+        match vector.cap() {
+            ElementArrayKey::Empty => &mut [],
+            ElementArrayKey::E4 => self.e2pow4.get_values_uninit(vector),
+            ElementArrayKey::E6 => self.e2pow6.get_values_uninit(vector),
+            ElementArrayKey::E8 => self.e2pow8.get_values_uninit(vector),
+            ElementArrayKey::E10 => self.e2pow10.get_values_uninit(vector),
+            ElementArrayKey::E12 => self.e2pow12.get_values_uninit(vector),
+            ElementArrayKey::E16 => self.e2pow16.get_values_uninit(vector),
+            ElementArrayKey::E24 => self.e2pow24.get_values_uninit(vector),
+            ElementArrayKey::E32 => self.e2pow32.get_values_uninit(vector),
+        }
+    }
+
     pub(crate) fn get_descriptors_and_values(
         &self,
         vector: &impl ElementsIndexable,
@@ -2295,11 +2402,11 @@ impl ElementArrays {
         &mut self,
         vector: &impl ElementsIndexable,
     ) -> (
-        Option<&mut AHashMap<u32, ElementDescriptor<'static>>>,
+        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
         &mut [Option<Value<'static>>],
     ) {
         match vector.cap() {
-            ElementArrayKey::Empty => (None, &mut []),
+            ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_mut(vector),
             ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_mut(vector),
             ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_mut(vector),
@@ -2308,6 +2415,206 @@ impl ElementArrays {
             ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_mut(vector),
             ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_mut(vector),
             ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_mut(vector),
+        }
+    }
+
+    /// Get the currently reserved values storage and any possible descriptors
+    /// as mutable. None values in the slice may or may not be empty slots;
+    /// they may also be getters or setters, in which case a descriptor for
+    /// those slots exists.
+    pub(crate) fn get_descriptors_and_values_uninit(
+        &mut self,
+        vector: &impl ElementsIndexable,
+    ) -> (
+        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+        &mut [Option<Value<'static>>],
+    ) {
+        match vector.cap() {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E10 => self.e2pow10.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E12 => self.e2pow12.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_uninit(vector),
+            ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_uninit(vector),
+        }
+    }
+
+    /// Get the currently allocated keys, values, and descriptors as shared.
+    pub(crate) fn get_storage<'a>(
+        &self,
+        props: &PropertyStorageVector<'a>,
+    ) -> (
+        // keys
+        &[PropertyKey<'a>],
+        // values
+        &[Option<Value<'static>>],
+        // descriptors
+        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
+    ) {
+        match props.cap {
+            ElementArrayKey::Empty => (&[], &[], None),
+            ElementArrayKey::E4 => {
+                let keys = self.k2pow4.get(props);
+                let (descs, values) = self.e2pow4.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E6 => {
+                let keys = self.k2pow6.get(props);
+                let (descs, values) = self.e2pow6.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E8 => {
+                let keys = self.k2pow8.get(props);
+                let (descs, values) = self.e2pow8.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E10 => {
+                let keys = self.k2pow10.get(props);
+                let (descs, values) = self.e2pow10.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E12 => {
+                let keys = self.k2pow12.get(props);
+                let (descs, values) = self.e2pow12.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E16 => {
+                let keys = self.k2pow16.get(props);
+                let (descs, values) = self.e2pow16.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E24 => {
+                let keys = self.k2pow24.get(props);
+                let (descs, values) = self.e2pow24.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E32 => {
+                let keys = self.k2pow32.get(props);
+                let (descs, values) = self.e2pow32.get_descriptors_and_values(props);
+                (keys, values, descs)
+            }
+        }
+    }
+
+    /// Get the currently allocated keys, values, and descriptors as mutable.
+    ///
+    /// Note: keys are not given out as mutable, since mutating keys is never
+    /// correct.
+    pub(crate) fn get_storage_mut<'a>(
+        &mut self,
+        props: &PropertyStorageVector<'a>,
+    ) -> (
+        // keys
+        &[PropertyKey<'a>],
+        // values
+        &mut [Option<Value<'static>>],
+        // descriptors
+        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+    ) {
+        match props.cap {
+            // It doesn't make sense to try access an empty storage.
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => {
+                let keys = self.k2pow4.get(props);
+                let (descs, values) = self.e2pow4.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E6 => {
+                let keys = self.k2pow6.get(props);
+                let (descs, values) = self.e2pow6.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E8 => {
+                let keys = self.k2pow8.get(props);
+                let (descs, values) = self.e2pow8.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E10 => {
+                let keys = self.k2pow10.get(props);
+                let (descs, values) = self.e2pow10.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E12 => {
+                let keys = self.k2pow12.get(props);
+                let (descs, values) = self.e2pow12.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E16 => {
+                let keys = self.k2pow16.get(props);
+                let (descs, values) = self.e2pow16.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E24 => {
+                let keys = self.k2pow24.get(props);
+                let (descs, values) = self.e2pow24.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E32 => {
+                let keys = self.k2pow32.get(props);
+                let (descs, values) = self.e2pow32.get_descriptors_and_values_mut(props);
+                (keys, values, descs)
+            }
+        }
+    }
+
+    /// Get the currently reserved keys, values, and descriptors as mutable.
+    pub(crate) fn get_storage_uninit(
+        &mut self,
+        props: &PropertyStorageVector,
+    ) -> (
+        // keys
+        &mut [Option<PropertyKey<'static>>],
+        // values
+        &mut [Option<Value<'static>>],
+        // descriptors
+        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+    ) {
+        match props.cap {
+            // It doesn't make sense to try access an empty storage.
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => {
+                let keys = self.k2pow4.get_uninit(props);
+                let (descs, values) = self.e2pow4.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E6 => {
+                let keys = self.k2pow6.get_uninit(props);
+                let (descs, values) = self.e2pow6.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E8 => {
+                let keys = self.k2pow8.get_uninit(props);
+                let (descs, values) = self.e2pow8.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E10 => {
+                let keys = self.k2pow10.get_uninit(props);
+                let (descs, values) = self.e2pow10.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E12 => {
+                let keys = self.k2pow12.get_uninit(props);
+                let (descs, values) = self.e2pow12.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E16 => {
+                let keys = self.k2pow16.get_uninit(props);
+                let (descs, values) = self.e2pow16.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E24 => {
+                let keys = self.k2pow24.get_uninit(props);
+                let (descs, values) = self.e2pow24.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
+            ElementArrayKey::E32 => {
+                let keys = self.k2pow32.get_uninit(props);
+                let (descs, values) = self.e2pow32.get_descriptors_and_values_uninit(props);
+                (keys, values, descs)
+            }
         }
     }
 

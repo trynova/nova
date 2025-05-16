@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::{cell::Cell, collections::hash_map::Entry};
+
 use crate::{
     ecmascript::{
         execution::agent::ExceptionType,
@@ -63,24 +65,26 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 }
             }
         }
-        // 4. Let outerPrivateEnvironment be the running execution context's PrivateEnvironment.
-        // 5. Let classPrivateEnvironment be NewPrivateEnvironment(outerPrivateEnvironment).
-        // 6. If ClassBody is present, then
-        for dn in self
-            .body
-            .body
-            .iter()
-            .filter(|class_element| class_element.private_bound_identifiers().is_some())
-        {
-            let dn = dn.private_bound_identifiers().unwrap();
-            let _dn = String::from_str(ctx.agent, dn.name.as_str(), ctx.gc);
-            // TODO: Private elements.
-            // a. For each String dn of the PrivateBoundIdentifiers of ClassBody, do
-            //     i. If classPrivateEnvironment.[[Names]] contains a Private Name pn such that pn.[[Description]] is dn, then
-            //         1. Assert: This is only possible for getter/setter pairs.
-            //     ii. Else,
-            //         1. Let name be a new Private Name whose [[Description]] is dn.
-            //         2. Append name to classPrivateEnvironment.[[Names]].
+
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum PrivateFieldKind {
+            Field,
+            Method,
+            Get,
+            Set,
+            GetSet,
+        }
+
+        impl From<Option<MethodDefinitionKind>> for PrivateFieldKind {
+            fn from(value: Option<MethodDefinitionKind>) -> Self {
+                match value {
+                    Some(MethodDefinitionKind::Constructor) => unreachable!(),
+                    Some(MethodDefinitionKind::Get) => Self::Get,
+                    Some(MethodDefinitionKind::Set) => Self::Set,
+                    Some(MethodDefinitionKind::Method) => Self::Method,
+                    None => Self::Field,
+                }
+            }
         }
 
         let mut has_constructor_parent = false;
@@ -101,7 +105,8 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 // consider it.
                 has_constructor_parent = true;
                 // a. Set the running execution context's LexicalEnvironment to classEnv.
-                // b. NOTE: The running execution context's PrivateEnvironment is outerPrivateEnvironment when evaluating ClassHeritage.
+                // b. NOTE: The running execution context's PrivateEnvironment
+                //    is outerPrivateEnvironment when evaluating ClassHeritage.
                 // c. Let superclassRef be Completion(Evaluation of ClassHeritage).
                 super_class.compile(ctx);
                 // d. Set the running execution context's LexicalEnvironment to env.
@@ -243,6 +248,88 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // Note: We have returned to classEnv if we ever left it.
         // 12. Set the running execution context's LexicalEnvironment to classEnv.
         // 13. Set the running execution context's PrivateEnvironment to classPrivateEnvironment.
+        let private_bound_identifiers = self
+            .body
+            .body
+            .iter()
+            .filter_map(|class_element| {
+                class_element.private_bound_identifiers().map(|p| {
+                    (
+                        p.name.as_str(),
+                        class_element,
+                        PrivateFieldKind::from(class_element.method_definition_kind()),
+                    )
+                })
+            })
+            .collect::<Box<[_]>>();
+        let mut private_name_lookup_map = AHashMap::with_capacity(private_bound_identifiers.len());
+
+        let mut instance_private_fields = vec![];
+        let mut instance_private_methods = vec![];
+        let mut static_private_fields = vec![];
+        let mut static_private_methods = vec![];
+        // OPTIMISATION: do not create a private environment if it is going to be empty.
+        let enter_private_environment = !private_bound_identifiers.is_empty();
+        // 6. If ClassBody is present, then
+        if enter_private_environment {
+            let mut instance_private_field_count = 0;
+            let mut instance_private_method_count = 0;
+            let mut static_private_field_count = 0;
+            let mut static_private_method_count = 0;
+            assert!(u32::try_from(private_bound_identifiers.len()).is_ok());
+            // 4. Let outerPrivateEnvironment be the running execution context's PrivateEnvironment.
+            // 5. Let classPrivateEnvironment be NewPrivateEnvironment(outerPrivateEnvironment).
+            // a. For each String dn of the PrivateBoundIdentifiers of ClassBody, do
+            for (dn, class_element, kind) in private_bound_identifiers.into_iter() {
+                let i: u32;
+                if let ast::ClassElement::PropertyDefinition(prop) = class_element {
+                    if class_element.r#static() {
+                        i = static_private_field_count;
+                        static_private_field_count += 1;
+                        static_private_fields.push((dn, prop.value.as_ref()));
+                    } else {
+                        i = instance_private_field_count;
+                        instance_private_field_count += 1;
+                        instance_private_fields.push((dn, prop.value.as_ref()));
+                    }
+                } else if let ast::ClassElement::MethodDefinition(method) = class_element {
+                    if class_element.r#static() {
+                        i = static_private_method_count;
+                        static_private_method_count += 1;
+                        static_private_methods.push((dn, &**method));
+                    } else {
+                        i = instance_private_method_count;
+                        instance_private_method_count += 1;
+                        instance_private_methods.push((dn, &**method));
+                    }
+                } else {
+                    unreachable!()
+                }
+                // i. If classPrivateEnvironment.[[Names]] contains a Private
+                //    Name pn such that pn.[[Description]] is dn, then
+                match private_name_lookup_map.entry(dn) {
+                    Entry::Occupied(mut pn) => {
+                        // 1. Assert: This is only possible for getter/setter pairs.
+                        let (dup_kind, i) = *pn.get();
+                        assert!(
+                            dup_kind == PrivateFieldKind::Get && kind == PrivateFieldKind::Set
+                                || dup_kind == PrivateFieldKind::Set
+                                    && kind == PrivateFieldKind::Get
+                        );
+                        // Note: this change of kind from Get/Set ot GetSet
+                        // makes the pair checking exclusive.
+                        pn.insert((PrivateFieldKind::GetSet, i));
+                    }
+                    // ii. Else,
+                    Entry::Vacant(slot) => {
+                        // 1. Let name be a new Private Name whose [[Description]] is dn.
+                        // 2. Append name to classPrivateEnvironment.[[Names]].
+                        slot.insert((kind, i));
+                    }
+                }
+            }
+            ctx.enter_private_scope(private_name_lookup_map.len());
+        }
 
         // Before calling CreateDefaultConstructor we need to smuggle the
         // className to the top of the stack.
@@ -286,10 +373,13 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             // d. Perform SetFunctionName(F, className).
         } else {
             // 15. Else,
-            // a. Let defaultConstructor be a new Abstract Closure with no parameters that captures nothing and performs the following steps when called:
+            // a. Let defaultConstructor be a new Abstract Closure with no
+            //    parameters that captures nothing and performs the following
+            //    steps when called:
             // ...
-            // b. Let F be CreateBuiltinFunction(defaultConstructor, 0, className, « [[ConstructorKind]], [[SourceText]] », the current Realm Record, constructorParent).
-
+            // b. Let F be CreateBuiltinFunction(defaultConstructor, 0,
+            //    className, « [[ConstructorKind]], [[SourceText]] », the
+            //    current Realm Record, constructorParent).
             let index = ctx.get_next_class_initializer_index();
             ctx.add_instruction_with_immediate(
                 Instruction::ClassDefineDefaultConstructor,
@@ -303,91 +393,136 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         ctx.add_instruction(Instruction::Load);
         // stack: [constructor, proto]
 
+        let has_instance_private_fields_or_methods =
+            !instance_private_fields.is_empty() || !instance_private_methods.is_empty();
+
         // Note: These steps have been performed by ClassDefineConstructor or
         // ClassDefineDefaultConstructor.
         // 16. Perform MakeConstructor(F, false, proto).
         // 17. If ClassHeritage is present, set F.[[ConstructorKind]] to derived.
         // 18. Perform ! ObjectDefineMethod(proto, "constructor", F, false).
+        for (key, _) in instance_private_fields {
+            let key = ctx.create_identifier(key);
+            ctx.add_instruction_with_identifier_and_immediate(
+                Instruction::ClassDefinePrivateProperty,
+                key,
+                // instance
+                false.into(),
+            );
+        }
+        for (key, method) in instance_private_methods {
+            define_private_method(key, method, false, ctx);
+        }
+        for (key, _) in static_private_fields {
+            let key = ctx.create_identifier(key);
+            ctx.add_instruction_with_identifier_and_immediate(
+                Instruction::ClassDefinePrivateProperty,
+                key,
+                // static
+                true.into(),
+            );
+        }
+        for (key, method) in static_private_methods {
+            define_private_method(key, method, true, ctx);
+        }
 
         // During binding of methods, we need to swap between the proto and
         // the constructor being on top of the stack. This is because the
         // top of the stack is the object that the method is being bound to.
-        let mut proto_is_on_top = false;
-        let swap_to_proto = |ctx: &mut CompileContext, proto_is_on_top: &mut bool| {
-            if !*proto_is_on_top {
+        let proto_is_on_top = Cell::new(false);
+        let swap_to_proto = |ctx: &mut CompileContext| {
+            if !proto_is_on_top.get() {
                 ctx.add_instruction(Instruction::Swap);
-                *proto_is_on_top = true;
+                proto_is_on_top.set(true);
             }
         };
-        let swap_to_constructor = |ctx: &mut CompileContext, proto_is_on_top: &mut bool| {
-            if *proto_is_on_top {
+        let swap_to_constructor = |ctx: &mut CompileContext| {
+            if proto_is_on_top.get() {
                 ctx.add_instruction(Instruction::Swap);
-                *proto_is_on_top = false;
+                proto_is_on_top.set(false);
             }
         };
 
         // 19. If ClassBody is not present, let elements be a new empty List.
         // 20. Else, let elements be the NonConstructorElements of ClassBody.
         // 21. Let instancePrivateMethods be a new empty List.
-        // let mut instance_private_methods = vec![];
         // 22. Let staticPrivateMethods be a new empty List.
-        // let mut static_private_methods = vec![];
         // 23. Let instanceFields be a new empty List.
         let mut instance_fields = vec![];
         // 24. Let staticElements be a new empty List.
         let mut static_elements = vec![];
         // 25. For each ClassElement e of elements, do
+        let mut computed_field_initialiser_count: u32 = 0;
         for e in self.body.body.iter() {
-            match e {
+            let is_static: bool;
+            let element = match e {
                 ast::ClassElement::StaticBlock(static_block) => {
                     // Note: Evaluating a ClassStaticBlockDefinition just
                     // creates a function that will be immediately invoked
                     // later. The function is never visible to JavaScript code
                     // and thus doesn't _actually_ need to get created here.
-                    static_elements.push(static_block.as_ref());
+                    is_static = true;
+                    PropertyInitializerField::StaticBlock(&static_block)
                 }
                 // a. If IsStatic of e is false, then
                 // i. Let element be Completion(ClassElementEvaluation of e with argument proto).
                 // b. Else,
                 // i. Let element be Completion(ClassElementEvaluation of e with argument F).
                 ast::ClassElement::MethodDefinition(method_definition) => {
-                    if method_definition.kind.is_constructor() {
-                        // We already handled this.
+                    if method_definition.kind.is_constructor()
+                        || method_definition.private_bound_identifiers().is_some()
+                    {
+                        // We have already separated and created these earlier.
                         continue;
                     }
                     let is_static = method_definition.r#static;
                     if is_static {
-                        swap_to_constructor(ctx, &mut proto_is_on_top);
+                        swap_to_constructor(ctx);
                     } else {
-                        swap_to_proto(ctx, &mut proto_is_on_top);
+                        swap_to_proto(ctx);
                     }
                     define_method(method_definition, ctx);
+                    continue;
                 }
-                ast::ClassElement::PropertyDefinition(property_definition) => {
-                    if property_definition.computed {
+                ast::ClassElement::PropertyDefinition(prop) => {
+                    is_static = prop.r#static;
+                    if let ast::PropertyKey::StaticIdentifier(key) = &prop.key {
+                        // Fields with static initialisers cannot cause errors
+                        // at this stage: we simply store the key and the value
+                        // expression for later compilation into the
+                        // constructor init code.
+                        PropertyInitializerField::Field((key.name.as_str(), prop.value.as_ref()))
+                    } else if let ast::PropertyKey::PrivateIdentifier(key) = &prop.key {
+                        // Private fields likewise cannot cause errors at this
+                        // stage. Interestingly, we don't need to know the
+                        // [[Description]] string of the  of the private field
+                        // when initialising it, so we get rid of that here.
+                        PropertyInitializerField::Private((
+                            private_name_lookup_map.get(key.name.as_str()).unwrap().1,
+                            prop.value.as_ref(),
+                        ))
+                    } else {
+                        // Computed fields must compute their name immediately
+                        // but the value must be computed later.
+                        let computed_field_id = computed_field_initialiser_count;
+                        computed_field_initialiser_count += 1;
                         compile_computed_field_name(
                             ctx,
-                            &mut instance_fields,
-                            &property_definition.key,
-                            &property_definition.value,
-                        );
-                    } else {
-                        let ast::PropertyKey::StaticIdentifier(key) = &property_definition.key
-                        else {
-                            unreachable!()
-                        };
-                        instance_fields.push(PropertyInitializerField::Static((
-                            key,
-                            &property_definition.value,
-                        )));
+                            computed_field_id,
+                            prop.key.as_expression().unwrap(),
+                            prop.value.as_ref(),
+                        )
                     }
                 }
+                #[cfg(feature = "typescript")]
                 ast::ClassElement::AccessorProperty(_) => todo!(),
+                #[cfg(not(feature = "typescript"))]
+                ast::ClassElement::AccessorProperty(_) => unreachable!(),
                 #[cfg(feature = "typescript")]
                 ast::ClassElement::TSIndexSignature(_) => {}
                 #[cfg(not(feature = "typescript"))]
                 ast::ClassElement::TSIndexSignature(_) => unreachable!(),
-            }
+            };
             // c. If element is an abrupt completion, then
             //     i. Set the running execution context's LexicalEnvironment to env.
             //     ii. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
@@ -411,9 +546,14 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             //     ii. Else, append element to staticElements.
             // g. Else if element is a ClassStaticBlockDefinition Record, then
             //     i. Append element to staticElements.
+            if is_static {
+                static_elements.push(element);
+            } else {
+                instance_fields.push(element);
+            }
         }
         // Drop proto from stack: It is no longer needed.
-        swap_to_proto(ctx, &mut proto_is_on_top);
+        swap_to_proto(ctx);
         ctx.add_instruction(Instruction::Store);
 
         // stack: [constructor]
@@ -439,33 +579,31 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // 29. Set F.[[Fields]] to instanceFields.
         if !instance_fields.is_empty() {
             let mut constructor_ctx = CompileContext::new(ctx.agent, ctx.gc);
+            if has_instance_private_fields_or_methods {
+                constructor_ctx.add_instruction(Instruction::ClassInitializePrivateElements);
+            }
             for ele in instance_fields {
                 match ele {
-                    PropertyInitializerField::Static((property_key, value)) => {
-                        constructor_ctx.compile_class_static_field(property_key, value);
+                    PropertyInitializerField::Field((property_key, value)) => {
+                        compile_class_static_field(property_key, value, &mut constructor_ctx);
                     }
                     PropertyInitializerField::Computed((key_id, value)) => {
-                        constructor_ctx.compile_class_computed_field(key_id, value);
+                        compile_class_computed_field(key_id, value, &mut constructor_ctx);
                     }
+                    PropertyInitializerField::Private((private_identifier, value)) => {
+                        compile_class_private_field(
+                            private_identifier,
+                            value,
+                            &mut constructor_ctx,
+                        );
+                    }
+                    PropertyInitializerField::StaticBlock(_) => unreachable!(),
                 }
             }
             if let Some(constructor) = constructor {
                 let constructor_data = CompileFunctionBodyData {
-                    // SAFETY: The SourceCode that contains this code cannot be garbage collected
-                    // as long as the constructor function we produce here lives.
-                    body: unsafe {
-                        core::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
-                            constructor.value.body.as_ref().unwrap(),
-                        )
-                    },
-                    // SAFETY: The SourceCode that contains this code cannot be garbage collected
-                    // as long as the constructor function we produce here lives.
-                    params: unsafe {
-                        core::mem::transmute::<
-                            &ast::FormalParameters<'_>,
-                            &ast::FormalParameters<'static>,
-                        >(&constructor.value.params)
-                    },
+                    body: constructor.value.body.as_ref().unwrap(),
+                    params: &constructor.value.params,
                     is_concise_body: false,
                     is_lexical: false,
                     // Class code is always strict.
@@ -483,23 +621,40 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         }
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).
+        // Note: this has already been performed by the
+        // ClassInitializePrivateElements instruction earlier.
         // 31. For each element elementRecord of staticElements, do
-        for element_record in static_elements.iter() {
-            // a. If elementRecord is a ClassFieldDefinition Record, then
-            //     i. Let result be Completion(DefineField(F, elementRecord)).
-            // b. Else,
-            //     i. Assert: elementRecord is a ClassStaticBlockDefinition Record.
-            //     ii. Let result be Completion(Call(elementRecord.[[BodyFunction]], F)).
-            element_record.compile(ctx);
+        for element_record in static_elements {
+            match element_record {
+                // a. If elementRecord is a ClassFieldDefinition Record, then
+                PropertyInitializerField::StaticBlock(static_block) => {
+                    // i. Let result be Completion(DefineField(F, elementRecord)).
+                    static_block.compile(ctx);
+                }
+                // b. Else,
+                // i. Assert: elementRecord is a ClassStaticBlockDefinition Record.
+                // ii. Let result be Completion(Call(elementRecord.[[BodyFunction]], F)).
+                PropertyInitializerField::Field((property_key, value)) => {
+                    compile_class_static_field(property_key, value, ctx);
+                }
+                PropertyInitializerField::Computed((key_id, value)) => {
+                    compile_class_computed_field(key_id, value, ctx);
+                }
+                PropertyInitializerField::Private((private_identifier, value)) => {
+                    compile_class_private_field(private_identifier, value, ctx);
+                }
+            }
             // c. If result is an abrupt completion, then
             //     i. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
             //     ii. Return ? result.
         }
         // Note: We finally leave classEnv here. See step 26.
         ctx.exit_lexical_scope();
-
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
+        if enter_private_environment {
+            ctx.exit_private_scope();
+        }
 
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
@@ -520,33 +675,38 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
 
 #[derive(Debug)]
 enum PropertyInitializerField<'a, 'gc> {
-    Static((&'a ast::IdentifierName<'a>, &'a Option<ast::Expression<'a>>)),
-    Computed((String<'gc>, &'a Option<ast::Expression<'a>>)),
+    Field((&'a str, Option<&'a ast::Expression<'a>>)),
+    Private((u32, Option<&'a ast::Expression<'a>>)),
+    Computed((String<'gc>, Option<&'a ast::Expression<'a>>)),
+    StaticBlock(&'a ast::StaticBlock<'a>),
 }
 
+/// Compiles a computed field name and stores the result in a local variable
+/// with an invalid name: as the name is invalid in normal JavaScript, it
+/// cannot be observed by the user.
 fn compile_computed_field_name<'s, 'gc>(
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-    property_fields: &mut Vec<PropertyInitializerField<'s, 'gc>>,
-    key: &'s ast::PropertyKey<'s>,
-    value: &'s Option<ast::Expression<'s>>,
-) {
-    // TODO: Handle lifetime logic.
+    next_computed_key_id: u32,
+    key: &'s ast::Expression<'s>,
+    value: Option<&'s ast::Expression<'s>>,
+) -> PropertyInitializerField<'s, 'gc> {
     let computed_key_id =
-        String::from_string(ctx.agent, format!("^{}", property_fields.len()), ctx.gc);
-    let key = match key {
-        // These should not show up as computed
-        ast::PropertyKey::StaticMemberExpression(_)
-        | ast::PropertyKey::PrivateFieldExpression(_) => unreachable!(),
-        _ => key.as_expression().unwrap(),
-    };
+        String::from_string(ctx.agent, format!("^{}", next_computed_key_id), ctx.gc);
     ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, computed_key_id);
+    // 1. Let name be ? Evaluation of ClassElementName.
+    // ### ComputedPropertyName : [ AssignmentExpression ]
+    // 1. Let exprValue be ? Evaluation of AssignmentExpression.
     key.compile(ctx);
     if is_reference(key) {
+        // 2. Let propName be ? GetValue(exprValue).
         ctx.add_instruction(Instruction::GetValue);
     }
+    // TODO: To be fully compliant, we need to perform ToPropertyKey here as
+    // otherwise we change the order of errors thrown.
+    // 3. Return ? ToPropertyKey(propName).
     ctx.add_instruction_with_identifier(Instruction::ResolveBinding, computed_key_id);
     ctx.add_instruction(Instruction::InitializeReferencedBinding);
-    property_fields.push(PropertyInitializerField::Computed((computed_key_id, value)));
+    PropertyInitializerField::Computed((computed_key_id, value))
 }
 
 /// Creates an ECMAScript constructor for a class.
@@ -609,10 +769,10 @@ fn define_constructor_method(
 fn define_method<'s>(
     class_element: &'s ast::MethodDefinition<'s>,
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-) -> IndexType {
+) {
     // 1. Let propKey be ? Evaluation of ClassElementName.
     if let Some(prop_name) = class_element.prop_name() {
-        let prop_name = String::from_str(ctx.agent, prop_name.0, ctx.gc);
+        let prop_name = ctx.create_identifier(prop_name.0);
         ctx.add_instruction_with_constant(Instruction::LoadConstant, prop_name);
     } else {
         // Computed method name.
@@ -639,8 +799,6 @@ fn define_method<'s>(
         MethodDefinitionKind::Get => Instruction::ObjectDefineGetter,
         MethodDefinitionKind::Set => Instruction::ObjectDefineSetter,
     };
-    // CompileContext holds a name identifier for us if this is NamedEvaluation.
-    let identifier = ctx.name_identifier.take();
 
     // 8. Perform MakeMethod(closure, object).
     // Note: MakeMethod is performed as part of ObjectDefineMethod.
@@ -657,12 +815,94 @@ fn define_method<'s>(
                     &class_element.value,
                 )
             }),
-            identifier,
+            // Note: method name is always found in the result register.
+            identifier: Some(NamedEvaluationParameter::Result),
             compiled_bytecode: None,
         },
         // enumerable: false,
         false.into(),
-    )
+    );
+}
+
+fn define_private_method<'s>(
+    key: &'s str,
+    method: &'s ast::MethodDefinition<'s>,
+    is_static: bool,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    // stack: [constructor, proto]
+
+    // 1. Let propKey be ? Evaluation of ClassElementName.
+    // ###  ClassElementName : PrivateIdentifier
+    // 1. Let privateIdentifier be the StringValue of PrivateIdentifier.
+    // 2. Let privateEnvRec be the running execution context's PrivateEnvironment.
+    // 3. Let names be privateEnvRec.[[Names]].
+    // 4. Assert: Exactly one element of names is a Private Name whose [[Description]] is privateIdentifier.
+    // 5. Let privateName be the Private Name in names whose [[Description]] is privateIdentifier.
+    // 6. Return privateName.
+    let prop_name = ctx.create_identifier(key);
+    ctx.add_instruction_with_constant(Instruction::StoreConstant, prop_name);
+    // result: privateName
+    // stack: [constructor, proto]
+
+    // 2. Let env be the running execution context's LexicalEnvironment.
+    // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+    // 4. If functionPrototype is present, then
+    //     a. Let prototype be functionPrototype.
+    // 5. Else,
+    //     a. Let prototype be %Function.prototype%.
+    // 6. Let sourceText be the source text matched by MethodDefinition.
+    // 7. Let closure be OrdinaryFunctionCreate(
+    //        prototype,
+    //        sourceText,
+    //        UniqueFormalParameters,
+    //        FunctionBody,
+    //        non-lexical-this,
+    //        env,
+    //        privateEnv
+    //     ).
+    let immediate: u8 = match method.kind {
+        MethodDefinitionKind::Constructor => unreachable!(),
+        MethodDefinitionKind::Method => {
+            if is_static {
+                0b100
+            } else {
+                0b000
+            }
+        }
+        MethodDefinitionKind::Get => {
+            if is_static {
+                0b101
+            } else {
+                0b001
+            }
+        }
+        MethodDefinitionKind::Set => {
+            if is_static {
+                0b110
+            } else {
+                0b010
+            }
+        }
+    };
+
+    // 8. Perform MakeMethod(closure, object).
+    // Note: MakeMethod is performed as part of ClassDefinePrivateMethod.
+
+    // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+    ctx.add_instruction_with_function_expression_and_immediate(
+        Instruction::ClassDefinePrivateMethod,
+        FunctionExpression {
+            expression: SendableRef::new(unsafe {
+                core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                    &method.value,
+                )
+            }),
+            identifier: Some(NamedEvaluationParameter::Result),
+            compiled_bytecode: None,
+        },
+        immediate.into(),
+    );
 }
 
 impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
@@ -690,9 +930,22 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         // a. NOTE: Only a single Environment Record is needed for the parameters and top-level vars.
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
+        let var_names = class_static_block_var_declared_names(self);
+        let lex_declarations = class_static_block_lexically_scoped_declarations(self);
+        let enter_var_scope = !functions.is_empty() || !var_names.is_empty();
+        let enter_lexical_scope = !lex_declarations.is_empty();
         // c. For each element n of varNames, do
-        ctx.enter_class_static_block();
-        for n in class_static_block_var_declared_names(self) {
+        if enter_var_scope {
+            // OPTIMISATION: If there are no lexical or variable scoped names
+            // to initialise in the static scope, then we don't need to enter a
+            // scope at all.
+            ctx.enter_class_static_block();
+        } else if enter_lexical_scope {
+            // If there are only lexical names, we can skip the variable
+            // environment creation.
+            ctx.enter_lexical_scope();
+        }
+        for n in var_names {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
                 continue;
@@ -709,7 +962,7 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         }
 
         // 34. For each element d of lexDeclarations, do
-        for d in class_static_block_lexically_scoped_declarations(self) {
+        for d in lex_declarations {
             // a. NOTE: A lexically declared name cannot be the same as a function/generator declaration, formal parameter, or a var name. Lexically declared names are only instantiated here but not initialized.
             // b. For each element dn of the BoundNames of d, do
             match d {
@@ -764,6 +1017,100 @@ impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
         for statement in self.body.iter() {
             statement.compile(ctx);
         }
-        ctx.exit_class_static_block();
+        if enter_var_scope {
+            ctx.exit_class_static_block();
+        } else if enter_lexical_scope {
+            ctx.exit_lexical_scope();
+        }
     }
+}
+
+/// Compile a class static field with an optional initializer.
+fn compile_class_static_field<'s>(
+    identifier_name: &'s str,
+    value: Option<&'s ast::Expression<'s>>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    let identifier = String::from_str(ctx.agent, identifier_name, ctx.gc);
+    // Turn the static name to a 'this' property access.
+    ctx.add_instruction(Instruction::ResolveThisBinding);
+    ctx.add_instruction_with_identifier(
+        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+        identifier,
+    );
+    if let Some(value) = value {
+        // Minor optimisation: We do not need to push and pop the
+        // reference if we know we're not using the reference stack.
+        let is_literal = value.is_literal();
+        if !is_literal {
+            ctx.add_instruction(Instruction::PushReference);
+        }
+        value.compile(ctx);
+        if is_reference(value) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+        if !is_literal {
+            ctx.add_instruction(Instruction::PopReference);
+        }
+    } else {
+        // Same optimisation is unconditionally valid here.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+    }
+    ctx.add_instruction(Instruction::PutValue);
+}
+
+/// Compile a class computed field with an optional initializer.
+fn compile_class_computed_field<'s, 'gc>(
+    property_key_id: String<'gc>,
+    value: Option<&'s ast::Expression<'s>>,
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+) {
+    // Resolve 'this' into the stack.
+    ctx.add_instruction(Instruction::ResolveThisBinding);
+    ctx.add_instruction(Instruction::Load);
+    // Resolve the static computed key ID to the actual computed key value.
+    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, property_key_id);
+    // Store the computed key value as the result.
+    ctx.add_instruction(Instruction::GetValue);
+    // Evaluate access to 'this' with the computed key.
+    ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+    if let Some(value) = value {
+        // Minor optimisation: We do not need to push and pop the
+        // reference if we know we're not using the reference stack.
+        let is_literal = value.is_literal();
+        if !is_literal {
+            ctx.add_instruction(Instruction::PushReference);
+        }
+        value.compile(ctx);
+        if is_reference(value) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+        if !is_literal {
+            ctx.add_instruction(Instruction::PopReference);
+        }
+    } else {
+        // Same optimisation is unconditionally valid here.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+    }
+    ctx.add_instruction(Instruction::PutValue);
+}
+
+/// Compile a class private field with an optional initializer.
+fn compile_class_private_field<'s>(
+    private_name_identifier: u32,
+    value: Option<&'s ast::Expression<'s>>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    if let Some(value) = value {
+        value.compile(ctx);
+        if is_reference(value) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+    } else {
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+    }
+    ctx.add_instruction_with_immediate(
+        Instruction::ClassInitializePrivateValue,
+        private_name_identifier as usize,
+    );
 }

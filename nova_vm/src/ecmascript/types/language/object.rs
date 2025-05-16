@@ -587,16 +587,192 @@ impl Hash for Object<'_> {
 }
 
 impl<'a> InternalSlots<'a> for Object<'a> {
-    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject<'static>> {
-        unreachable!("Object should not try to access its backing object");
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+        match self {
+            Object::Object(data) => data.get_backing_object(agent),
+            Object::Array(data) => data.get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.get_backing_object(agent),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.get_backing_object(agent),
+            Object::Error(data) => data.get_backing_object(agent),
+            Object::BoundFunction(data) => data.get_backing_object(agent),
+            Object::BuiltinFunction(data) => data.get_backing_object(agent),
+            Object::ECMAScriptFunction(data) => data.get_backing_object(agent),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => data.get_backing_object(agent),
+            Object::BuiltinPromiseResolvingFunction(data) => data.get_backing_object(agent),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => data.get_backing_object(agent),
+            Object::Arguments(data) => data.get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.get_backing_object(agent),
+            Object::FinalizationRegistry(data) => data.get_backing_object(agent),
+            Object::Map(data) => data.get_backing_object(agent),
+            Object::Promise(data) => data.get_backing_object(agent),
+            Object::Proxy(data) => data.get_backing_object(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.get_backing_object(agent),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.get_backing_object(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => data.get_backing_object(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.get_backing_object(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.get_backing_object(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => TypedArray::Int8Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).get_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => TypedArray::Int16Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => TypedArray::Uint16Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => TypedArray::Int32Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => TypedArray::Uint32Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).get_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).get_backing_object(agent)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => TypedArray::Float32Array(data).get_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => TypedArray::Float64Array(data).get_backing_object(agent),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.get_backing_object(agent),
+            Object::ArrayIterator(data) => data.get_backing_object(agent),
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.get_backing_object(agent),
+            Object::MapIterator(data) => data.get_backing_object(agent),
+            Object::StringIterator(data) => data.get_backing_object(agent),
+            Object::Generator(data) => data.get_backing_object(agent),
+            Object::Module(data) => data.get_backing_object(agent),
+            Object::EmbedderObject(data) => data.get_backing_object(agent),
+        }
     }
 
     fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
-        unreachable!("Object should not try to create its backing object");
+        unreachable!("Object should not try to set its backing object");
     }
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!("Object should not try to create its backing object");
+    }
+
+    fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
+        match self {
+            Object::Object(data) => data.get_or_create_backing_object(agent),
+            Object::Array(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.get_or_create_backing_object(agent),
+            Object::Error(data) => data.get_or_create_backing_object(agent),
+            Object::BoundFunction(data) => data.get_or_create_backing_object(agent),
+            Object::BuiltinFunction(data) => data.get_or_create_backing_object(agent),
+            Object::ECMAScriptFunction(data) => data.get_or_create_backing_object(agent),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => data.get_or_create_backing_object(agent),
+            Object::BuiltinPromiseResolvingFunction(data) => {
+                data.get_or_create_backing_object(agent)
+            }
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => data.get_or_create_backing_object(agent),
+            Object::Arguments(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.get_or_create_backing_object(agent),
+            Object::FinalizationRegistry(data) => data.get_or_create_backing_object(agent),
+            Object::Map(data) => data.get_or_create_backing_object(agent),
+            Object::Promise(data) => data.get_or_create_backing_object(agent),
+            Object::Proxy(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).get_or_create_backing_object(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).get_or_create_backing_object(agent)
+            }
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.get_or_create_backing_object(agent),
+            Object::ArrayIterator(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.get_or_create_backing_object(agent),
+            Object::MapIterator(data) => data.get_or_create_backing_object(agent),
+            Object::StringIterator(data) => data.get_or_create_backing_object(agent),
+            Object::Generator(data) => data.get_or_create_backing_object(agent),
+            Object::Module(data) => data.get_or_create_backing_object(agent),
+            Object::EmbedderObject(data) => data.get_or_create_backing_object(agent),
+        }
     }
 
     fn internal_extensible(self, agent: &Agent) -> bool {

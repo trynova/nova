@@ -31,9 +31,9 @@ use crate::{
             new_class_field_initializer_environment,
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
-            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, PropertyKeySet,
-            String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
+            PropertyKey, PropertyKeySet, String, Value,
         },
     },
     engine::{
@@ -2342,6 +2342,200 @@ fn copy_data_properties_into_object_slow<'a>(
     // Drop the excluded items set.
     let _ = excluded_items.take(agent);
     Ok(object.get(agent).bind(gc.into_nogc()))
+}
+
+pub(crate) fn throw_no_private_name_error<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "can't access private field or method: object is not the right class",
+        gc,
+    )
+}
+
+fn throw_no_private_name_getter_error<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<'a> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "can't access private field or method: field was defined without a getter",
+        gc,
+    )
+}
+
+/// ### [7.3.30 PrivateGet ( O, P )](https://tc39.es/ecma262/#sec-privateget)
+///
+/// The abstract operation PrivateGet takes arguments O (an Object) and P (a
+/// Private Name) and returns either a normal completion containing an
+/// ECMAScript language value or a throw completion.
+pub(crate) fn private_get<'a>(
+    agent: &mut Agent,
+    o: Object,
+    p: PrivateName,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
+    let Some(backing_object) = o.get_backing_object(agent) else {
+        return Err(throw_no_private_name_error(agent, gc.into_nogc()));
+    };
+    // 1. Let entry be PrivateElementFind(O, P).
+    let entry = backing_object
+        .property_storage()
+        .private_element_find(agent, p);
+    // 2. If entry is empty, throw a TypeError exception.
+    let Some((value, descriptor)) = entry else {
+        return Err(throw_no_private_name_error(agent, gc.into_nogc()));
+    };
+    // 3. If entry.[[Kind]] is either field or method, then
+    if let Some(value) = value {
+        // a. Return entry.[[Value]].
+        // Note: fields and methods both use the value store.
+        // Note: check that either we have no descriptor, ie. field, or we have
+        // an unwritable, unconfigurable (and unenumerable) descriptor, ie.
+        // method.
+        assert!(
+            descriptor.is_none()
+                || descriptor.is_some_and(|d| d.is_data_descriptor()
+                    && !d.is_writable().unwrap()
+                    && !d.is_enumerable()
+                    && !d.is_configurable())
+        );
+        return Ok(value.bind(gc.into_nogc()));
+    }
+    // 4. Assert: entry.[[Kind]] is accessor.
+    let Some(descriptor) = descriptor else {
+        unreachable!()
+    };
+    assert!(descriptor.is_accessor_descriptor());
+    // 5. If entry.[[Get]] is undefined, throw a TypeError exception.
+    // 6. Let getter be entry.[[Get]].
+    let Some(getter) = descriptor.getter_function(gc.nogc()) else {
+        return Err(throw_no_private_name_getter_error(agent, gc.into_nogc()));
+    };
+    // 7. Return ? Call(getter, O).
+    // Note: can't call getters in try-methods.
+    call_function(agent, getter.unbind(), o.into_value(), None, gc)
+}
+
+pub(crate) fn try_private_get<'a>(
+    agent: &mut Agent,
+    o: Object,
+    p: PrivateName,
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<'a, Value<'a>>> {
+    let Some(o) = o.get_backing_object(agent) else {
+        return TryResult::Continue(Err(throw_no_private_name_error(agent, gc)));
+    };
+    // 1. Let entry be PrivateElementFind(O, P).
+    let entry = o.property_storage().private_element_find(agent, p);
+    // 2. If entry is empty, throw a TypeError exception.
+    let Some((value, descriptor)) = entry else {
+        return TryResult::Continue(Err(throw_no_private_name_error(agent, gc)));
+    };
+    // 3. If entry.[[Kind]] is either field or method, then
+    if let Some(value) = value {
+        // a. Return entry.[[Value]].
+        // Note: fields and methods both use the value store.
+        // Note: check that either we have no descriptor, ie. field, or we have
+        // an unwritable, unconfigurable (and unenumerable) descriptor, ie.
+        // method.
+        assert!(
+            descriptor.is_none()
+                || descriptor.is_some_and(|d| d.is_data_descriptor()
+                    && !d.is_writable().unwrap()
+                    && !d.is_enumerable()
+                    && !d.is_configurable())
+        );
+        return TryResult::Continue(Ok(value.bind(gc)));
+    }
+    // 4. Assert: entry.[[Kind]] is accessor.
+    let Some(descriptor) = descriptor else {
+        unreachable!()
+    };
+    assert!(descriptor.is_accessor_descriptor());
+    // 5. If entry.[[Get]] is undefined, throw a TypeError exception.
+    // 6. Let getter be entry.[[Get]].
+    let Some(_getter) = descriptor.getter_function(gc) else {
+        return TryResult::Continue(Err(throw_no_private_name_getter_error(agent, gc)));
+    };
+    // 7. Return ? Call(getter, O).
+    // Note: can't call getters in try-methods.
+    TryResult::Break(())
+}
+
+/// ### [7.3.31 PrivateSet ( O, P, value )](https://tc39.es/ecma262/#sec-privateset)
+///
+/// The abstract operation PrivateSet takes arguments O (an Object), P (a
+/// Private Name), and value (an ECMAScript language value) and returns either
+/// a normal completion containing unused or a throw completion.
+pub(crate) fn private_set<'a>(
+    agent: &mut Agent,
+    o: Object,
+    p: PrivateName,
+    value: Value,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let o = o.bind(gc.nogc());
+    let value = value.bind(gc.nogc());
+    let Some(backing_object) = o.get_backing_object(agent) else {
+        return Err(throw_no_private_name_error(agent, gc.into_nogc()));
+    };
+    // 1. Let entry be PrivateElementFind(O, P).
+    let entry = backing_object
+        .property_storage()
+        .private_element_find_mut(agent, p);
+    // 2. If entry is empty, throw a TypeError exception.
+    let Some((entry_value, descriptor)) = entry else {
+        return Err(throw_no_private_name_error(agent, gc.into_nogc()));
+    };
+    // 3. If entry.[[Kind]] is field, then
+    if let Some(entry_value) = entry_value {
+        // 4. Else if entry.[[Kind]] is method, then
+        if let Some(d) = descriptor {
+            // Note: check that either we have no descriptor, ie. field, or we have
+            // an unwritable, unconfigurable (and unenumerable) descriptor, ie.
+            // method.
+            assert!(
+                d.is_data_descriptor()
+                    && !d.is_writable().unwrap()
+                    && !d.is_enumerable()
+                    && !d.is_configurable()
+            );
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "cannot assign to private method",
+                gc.into_nogc(),
+            ));
+        }
+        // a. Throw a TypeError exception.
+        // a. Set entry.[[Value]] to value.
+        *entry_value = value.unbind();
+    } else {
+        // 5. Else,
+        // a. Assert: entry.[[Kind]] is accessor.
+        let Some(descriptor) = descriptor else {
+            unreachable!()
+        };
+        assert!(descriptor.is_accessor_descriptor());
+        // b. If entry.[[Set]] is undefined, throw a TypeError exception.
+        // c. Let setter be entry.[[Set]].
+        let Some(setter) = descriptor.setter_function(gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "setting getter-only private field",
+                gc.into_nogc(),
+            ));
+        };
+        // d. Perform ? Call(setter, O, « value »).
+        call_function(
+            agent,
+            setter.unbind(),
+            o.into_value().unbind(),
+            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+            gc,
+        )?;
+    }
+    // 6. Return unused.
+    Ok(())
 }
 
 /// [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)

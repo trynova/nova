@@ -10,6 +10,7 @@ pub(crate) mod abstract_operations;
 mod data;
 
 use core::ops::{Index, IndexMut, RangeInclusive};
+use std::collections::hash_map::Entry;
 
 use crate::{
     ecmascript::{
@@ -41,6 +42,7 @@ use crate::{
     },
 };
 
+use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -700,7 +702,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 .heap
                 .elements
                 .get_descriptors_and_values_mut(&elements);
-            if let Some(descriptors) = descriptors {
+            if let Entry::Occupied(mut descriptors) = descriptors {
+                let descriptors = descriptors.get_mut();
                 if let Some(descriptor) = descriptors.get(&index) {
                     if !descriptor.is_configurable() {
                         // Unconfigurable property.
@@ -1040,9 +1043,10 @@ fn mutate_data_descriptor(
     if let Some(descriptor) = elem_descriptor {
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
     } else {
-        let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(elements);
-        slice[index as usize] = descriptor_value.unbind();
-        if let Some(descriptors) = descriptors {
+        let (descriptors, values) = agent.heap.elements.get_descriptors_and_values_mut(elements);
+        values[index as usize] = descriptor_value.unbind();
+        if let Entry::Occupied(mut descriptors) = descriptors {
+            let descriptors = descriptors.get_mut();
             descriptors.remove(&index);
         }
     }
@@ -1057,9 +1061,10 @@ fn mutate_element_descriptor(
 ) {
     if let Some(descriptor) = elem_descriptor {
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
-    } else if let (Some(descriptors), _) =
+    } else if let (Entry::Occupied(mut descriptors), _) =
         agent.heap.elements.get_descriptors_and_values_mut(elements)
     {
+        let descriptors = descriptors.get_mut();
         descriptors.remove(&index);
     }
 }
@@ -1089,17 +1094,20 @@ fn insert_element_descriptor(
 ) {
     let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(elements);
     slice[index as usize] = descriptor_value.unbind();
-    if let Some(descriptors) = descriptors {
-        let inserted = descriptors.insert(index, descriptor.unbind()).is_none();
-        if inserted {
-            agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+    match descriptors {
+        Entry::Occupied(e) => {
+            let descriptors = e.into_mut();
+            let inserted = descriptors.insert(index, descriptor.unbind()).is_none();
+            if inserted {
+                agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+            }
         }
-    } else {
-        agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
-        agent
-            .heap
-            .elements
-            .set_descriptor(elements, index as usize, Some(descriptor))
+        Entry::Vacant(vacant_entry) => {
+            agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+            let mut descriptors = AHashMap::with_capacity(1);
+            descriptors.insert(index, descriptor.unbind());
+            vacant_entry.insert(descriptors);
+        }
     }
 }
 

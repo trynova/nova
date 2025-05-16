@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Agent, Environment, PrivateEnvironment, Realm};
+use super::{Agent, Environment, JsResult, PrivateEnvironment, Realm, get_this_environment};
 use crate::{
     ecmascript::{
         scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
@@ -152,6 +152,22 @@ impl HeapMarkAndSweep for ExecutionContext {
         function.sweep_values(compactions);
         realm.sweep_values(compactions);
         script_or_module.sweep_values(compactions);
+    }
+}
+
+/// ### [9.4.4 ResolveThisBinding ( )]()
+pub(crate) fn resolve_this_binding<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
+    // 1. Let envRec be GetThisEnvironment().
+    let env_rec = get_this_environment(agent, gc);
+    // 2. Return ? envRec.GetThisBinding().
+    match env_rec {
+        Environment::Declarative(_) => unreachable!(),
+        Environment::Function(idx) => idx.unbind().get_this_binding(agent, gc),
+        Environment::Global(idx) => Ok(idx.unbind().get_this_binding(agent, gc).into_value()),
+        Environment::Object(_) => unreachable!(),
     }
 }
 
