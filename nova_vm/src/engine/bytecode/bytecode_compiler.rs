@@ -778,35 +778,59 @@ impl<'s> CompileEvaluation<'s> for ast::MemberExpression<'s> {
     }
 }
 
+/// Compile the baseReference part of a member expression with possible
+/// optional chaining.
+///
+/// ```text
+/// 1. Let baseReference be ? Evaluation of MemberExpression.
+/// 2. Let baseValue be ? GetValue(baseReference).
+/// 3. If baseValue is either undefined or null, then
+///     a. Return undefined.
+/// 4. Return ? ChainEvaluation of OptionalChain with arguments baseValue and baseReference.
+/// ```
+///
+/// After this call, if optional chaining isn't present then the base value is
+/// in the result register. If optional chaining is present, then the base
+/// value is at the top of the stack.
+fn compile_optional_base_reference<'s>(
+    object: &'s ast::Expression<'s>,
+    is_optional: bool,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    // 1. Let baseReference be ? Evaluation of MemberExpression.
+    object.compile(ctx);
+
+    // 2. Let baseValue be ? GetValue(baseReference).
+    if is_reference(object) {
+        ctx.add_instruction(Instruction::GetValue);
+    }
+
+    if is_optional {
+        // Optional Chains
+
+        // Load copy of baseValue to stack.
+        ctx.add_instruction(Instruction::LoadCopy);
+        // 3. If baseValue is either undefined or null, then
+        ctx.add_instruction(Instruction::IsNullOrUndefined);
+        // a. Return undefined
+
+        // To return undefined we jump over the property access.
+        let jump_over_property_access = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+
+        // Register our jump slot to the chain nullish case handling.
+        ctx.optional_chains
+            .as_mut()
+            .unwrap()
+            .push(jump_over_property_access);
+    }
+}
+
 impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        // 1. Let baseReference be ? Evaluation of MemberExpression.
-        self.object.compile(ctx);
-
-        // 2. Let baseValue be ? GetValue(baseReference).
-        if is_reference(&self.object) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
-
-        if self.optional {
-            // Optional Chains
-
-            // Load copy of baseValue to stack.
-            ctx.add_instruction(Instruction::LoadCopy);
-            // 3. If baseValue is either undefined or null, then
-            ctx.add_instruction(Instruction::IsNullOrUndefined);
-            // a. Return undefined
-
-            // To return undefined we jump over the property access.
-            let jump_over_property_access =
-                ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
-
-            // Register our jump slot to the chain nullish case handling.
-            ctx.optional_chains
-                .as_mut()
-                .unwrap()
-                .push(jump_over_property_access);
-        } else {
+        compile_optional_base_reference(&self.object, self.optional, ctx);
+        // If we do not have optional chaining present it means that base value
+        // is currently in the result slot. We need to store it on the stack.
+        if !self.optional {
             ctx.add_instruction(Instruction::Load);
         }
 
@@ -830,34 +854,10 @@ impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::StaticMemberExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        // 1. Let baseReference be ? Evaluation of MemberExpression.
-        self.object.compile(ctx);
-
-        // 2. Let baseValue be ? GetValue(baseReference).
-        if is_reference(&self.object) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
-
+        compile_optional_base_reference(&self.object, self.optional, ctx);
+        // If we are in an optional chain then result will be on the top of the
+        // stack. We need to pop it into the register slot in that case.
         if self.optional {
-            // Optional Chains
-
-            // Load copy of baseValue to stack.
-            ctx.add_instruction(Instruction::LoadCopy);
-            // 3. If baseValue is either undefined or null, then
-            ctx.add_instruction(Instruction::IsNullOrUndefined);
-            // a. Return undefined
-
-            // To return undefined we jump over the property access.
-            let jump_over_property_access =
-                ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
-
-            // Register our jump slot to the chain nullish case handling.
-            ctx.optional_chains
-                .as_mut()
-                .unwrap()
-                .push(jump_over_property_access);
-
-            // Return copy of baseValue from stack if it is not.
             ctx.add_instruction(Instruction::Store);
         }
 
@@ -871,8 +871,21 @@ impl<'s> CompileEvaluation<'s> for ast::StaticMemberExpression<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::PrivateFieldExpression<'s> {
-    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        todo!()
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        compile_optional_base_reference(&self.object, self.optional, ctx);
+        // If we are in an optional chain then result will be on the top of the
+        // stack. We need to pop it into the register slot in that case.
+        if self.optional {
+            ctx.add_instruction(Instruction::Store);
+        }
+
+        //  MemberExpression : MemberExpression . PrivateIdentifier
+        // 3. Let fieldNameString be the StringValue of PrivateIdentifier.
+        // 4. Return MakePrivateReference(baseValue, fieldNameString).
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        let identifier = ctx.create_identifier(&self.field.name);
+        ctx.add_instruction_with_identifier(Instruction::MakePrivateReference, identifier);
     }
 }
 
@@ -1320,7 +1333,7 @@ fn simple_array_pattern<'s, I>(
         };
         match &ele.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBind,
                     identifier_string,
@@ -1347,7 +1360,7 @@ fn simple_array_pattern<'s, I>(
     if let Some(rest) = rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
                     identifier_string,
@@ -1401,7 +1414,7 @@ fn complex_array_pattern<'s, I>(
                     if let ast::BindingPatternKind::BindingIdentifier(identifier) =
                         &pattern.left.kind
                     {
-                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        let identifier_string = ctx.create_identifier(identifier.name.as_str());
                         ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,
@@ -1425,7 +1438,7 @@ fn complex_array_pattern<'s, I>(
 
         match binding_pattern {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
                     ctx.add_instruction(Instruction::PutValue);
@@ -1449,7 +1462,7 @@ fn complex_array_pattern<'s, I>(
         ctx.add_instruction(Instruction::IteratorRestIntoArray);
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
                     ctx.add_instruction(Instruction::PutValue);
@@ -1502,7 +1515,7 @@ fn simple_object_pattern<'s>(
                 &ele.value.kind,
                 ast::BindingPatternKind::BindingIdentifier(_)
             ));
-            let identifier_string = ctx.create_identifier(&identifier.name);
+            let identifier_string = ctx.create_identifier(identifier.name.as_str());
             ctx.add_instruction_with_identifier(Instruction::BindingPatternBind, identifier_string);
         } else {
             let key_string = match &ele.key {
@@ -1533,7 +1546,7 @@ fn simple_object_pattern<'s>(
 
             match &ele.value.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                    let value_identifier_string = ctx.create_identifier(&identifier.name);
+                    let value_identifier_string = ctx.create_identifier(identifier.name.as_str());
                     ctx.add_instruction_with_identifier_and_constant(
                         Instruction::BindingPatternBindNamed,
                         value_identifier_string,
@@ -1568,7 +1581,7 @@ fn simple_object_pattern<'s>(
     if let Some(rest) = &pattern.rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
                     identifier_string,
@@ -1601,7 +1614,7 @@ fn complex_object_pattern<'s>(
             ast::PropertyKey::StaticIdentifier(identifier) => {
                 ctx.add_instruction(Instruction::Store);
                 ctx.add_instruction(Instruction::LoadCopy);
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     identifier_string,
@@ -1631,7 +1644,7 @@ fn complex_object_pattern<'s>(
                     if let ast::BindingPatternKind::BindingIdentifier(identifier) =
                         &pattern.left.kind
                     {
-                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        let identifier_string = ctx.create_identifier(identifier.name.as_str());
                         ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,
@@ -1655,7 +1668,7 @@ fn complex_object_pattern<'s>(
 
         match binding_pattern {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(&identifier.name);
+                let identifier_string = ctx.create_identifier(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
                     ctx.add_instruction(Instruction::PutValue);
@@ -1687,7 +1700,7 @@ fn complex_object_pattern<'s>(
             object_pattern.properties.len(),
         );
 
-        let identifier_string = ctx.create_identifier(&identifier.name);
+        let identifier_string = ctx.create_identifier(identifier.name.as_str());
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
         if !has_environment {
             ctx.add_instruction(Instruction::PutValue);
@@ -2220,7 +2233,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
                     // b. Return ? status.
                     match &exception_param.pattern.kind {
                         ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                            let identifier_string = ctx.create_identifier(&identifier.name);
+                            let identifier_string = ctx.create_identifier(identifier.name.as_str());
                             ctx.add_instruction_with_identifier(
                                 Instruction::ResolveBinding,
                                 identifier_string,

@@ -340,6 +340,7 @@ fn validate_and_apply_property_descriptor(
         // e. Return true.
         return true;
     };
+    println!("{property_key:?}, {descriptor:?}");
 
     // 3. Assert: current is a fully populated Property Descriptor.
     debug_assert!(current.is_fully_populated());

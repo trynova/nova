@@ -277,7 +277,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
             let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
             ctx.add_instruction(Instruction::Store);
             if is_anonymous_function_definition(init) {
-                let identifier_string = ctx.create_identifier(&self.binding.name);
+                let identifier_string = ctx.create_identifier(self.binding.name.as_str());
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
@@ -333,7 +333,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
                     if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
                         &target.binding
                     {
-                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        let identifier_string = ctx.create_identifier(identifier.name.as_str());
                         ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,

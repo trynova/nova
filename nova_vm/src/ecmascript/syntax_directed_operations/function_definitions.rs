@@ -244,14 +244,14 @@ pub(crate) fn instantiate_ordinary_function_expression<'a>(
 }
 
 pub(crate) struct CompileFunctionBodyData<'a> {
-    pub(crate) params: &'a oxc_ast::ast::FormalParameters<'static>,
-    pub(crate) body: &'a oxc_ast::ast::FunctionBody<'static>,
+    pub(crate) params: &'a oxc_ast::ast::FormalParameters<'a>,
+    pub(crate) body: &'a oxc_ast::ast::FunctionBody<'a>,
     pub(crate) is_strict: bool,
     pub(crate) is_lexical: bool,
     pub(crate) is_concise_body: bool,
 }
 
-impl CompileFunctionBodyData<'static> {
+impl CompileFunctionBodyData<'_> {
     fn new(agent: &mut Agent, function: ECMAScriptFunction) -> Self {
         let ecmascript_function = &agent[function].ecmascript_function;
         // SAFETY: We're alive so SourceCode must be too.

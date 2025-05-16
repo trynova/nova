@@ -14,7 +14,10 @@
 //! PrivateSet.
 
 use crate::{
-    ecmascript::{execution::Agent, types::String},
+    ecmascript::{
+        execution::Agent,
+        types::{PropertyKey, String},
+    },
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -47,6 +50,13 @@ impl PrivateName {
     ) -> Option<String<'a>> {
         let env = agent.current_private_environment(gc)?;
         env.resolve_description(agent, self, gc)
+    }
+}
+
+impl From<PrivateName> for PropertyKey<'static> {
+    #[inline(always)]
+    fn from(value: PrivateName) -> Self {
+        Self::PrivateName(value)
     }
 }
 

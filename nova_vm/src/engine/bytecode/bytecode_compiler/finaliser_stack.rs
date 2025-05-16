@@ -48,6 +48,8 @@ pub(super) enum ControlFlowStackEntry<'a> {
     LexicalScope,
     /// A variable scope was entered.
     VariableScope,
+    /// A private environment was scoped.
+    PrivateScope,
     /// A try-catch block was entered.
     CatchBlock,
     /// A try-finally-block was entered.
@@ -213,6 +215,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             }
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
+            | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::CatchBlock { .. } => false,
             // Finally-block needs to intercept every break and continue.
             ControlFlowStackEntry::FinallyBlock { .. } => true,
@@ -242,6 +245,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             }
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
+            | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::CatchBlock { .. }
             | ControlFlowStackEntry::Switch { .. } => false,
             // Finally-block needs to intercept every break and continue.
@@ -271,6 +275,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LabelledStatement { .. }
             | ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
+            | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::CatchBlock { .. }
             | ControlFlowStackEntry::Switch { .. }
             | ControlFlowStackEntry::Loop { .. }
@@ -287,6 +292,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LabelledStatement { .. }
             | ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
+            | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::Loop { .. }
             | ControlFlowStackEntry::Switch { .. } => false,
             // User-controlled finally-blocks, and iterator closes must be
@@ -311,6 +317,9 @@ impl<'a> ControlFlowStackEntry<'a> {
             }
             ControlFlowStackEntry::VariableScope => {
                 instructions.push(Instruction::ExitVariableEnvironment.as_u8());
+            }
+            ControlFlowStackEntry::PrivateScope => {
+                instructions.push(Instruction::ExitPrivateEnvironment.as_u8());
             }
             ControlFlowStackEntry::CatchBlock { .. } => {
                 instructions.push(Instruction::PopExceptionJumpTarget.as_u8());

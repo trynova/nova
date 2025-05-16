@@ -42,7 +42,10 @@ pub(crate) use function_environment::{
 };
 pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
 pub(crate) use object_environment::ObjectEnvironmentRecord;
-pub(crate) use private_environment::PrivateEnvironmentRecord;
+pub(crate) use private_environment::{
+    PrivateEnvironmentRecord, PrivateField, PrivateMethod, new_private_environment,
+    resolve_private_identifier,
+};
 
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
@@ -690,7 +693,7 @@ impl Environment<'_> {
     ///
     /// Determine if an Environment Record establishes a this binding. Return
     /// true if it does and false if it does not.
-    pub(crate) fn has_this_binding(self, agent: &mut Agent) -> bool {
+    pub(crate) fn has_this_binding(self, agent: &Agent) -> bool {
         match self {
             Environment::Declarative(_) => false,
             Environment::Function(idx) => idx.has_this_binding(agent),
@@ -1021,6 +1024,15 @@ impl Environments {
         )
     }
 
+    pub(crate) fn push_private_environment<'a>(
+        &mut self,
+        env: PrivateEnvironmentRecord,
+        _: NoGcScope<'a, '_>,
+    ) -> PrivateEnvironment<'a> {
+        self.private.push(Some(env));
+        PrivateEnvironment::from_u32(self.private.len() as u32)
+    }
+
     pub(crate) fn get_declarative_environment(
         &self,
         index: DeclarativeEnvironment,
@@ -1108,16 +1120,35 @@ impl Environments {
             .as_mut()
             .expect("ObjectEnvironment pointed to a None")
     }
+
+    pub(crate) fn get_private_environment(
+        &self,
+        index: PrivateEnvironment,
+    ) -> &PrivateEnvironmentRecord {
+        self.private
+            .get(index.into_index())
+            .expect("PrivateEnvironment did not match to any vector index")
+            .as_ref()
+            .expect("PrivateEnvironment pointed to a None")
+    }
+
+    pub(crate) fn get_private_environment_mut(
+        &mut self,
+        index: PrivateEnvironment,
+    ) -> &mut PrivateEnvironmentRecord {
+        self.private
+            .get_mut(index.into_index())
+            .expect("PrivateEnvironment did not match to any vector index")
+            .as_mut()
+            .expect("PrivateEnvironment pointed to a None")
+    }
 }
 
 /// ### [9.4.3 GetThisEnvironment ( )](https://tc39.es/ecma262/#sec-getthisenvironment)
 /// The abstract operation GetThisEnvironment takes no arguments and returns an
 /// Environment Record. It finds the Environment Record that currently supplies
 /// the binding of the keyword this.
-pub(crate) fn get_this_environment<'a>(
-    agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
-) -> Environment<'a> {
+pub(crate) fn get_this_environment<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> Environment<'a> {
     // 1. Let env be the running execution context's LexicalEnvironment.
     let mut env = agent.current_lexical_environment(gc);
     // 2. Repeat,

@@ -14,10 +14,10 @@ pub use agent::{Agent, JsResult};
 pub use default_host_hooks::DefaultHostHooks;
 pub(crate) use environments::{
     DeclarativeEnvironment, Environment, Environments, FunctionEnvironment, GlobalEnvironment,
-    ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, ThisBindingStatus,
-    get_this_environment, new_class_field_initializer_environment,
+    ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, PrivateField, PrivateMethod,
+    ThisBindingStatus, get_this_environment, new_class_field_initializer_environment,
     new_class_static_element_environment, new_declarative_environment, new_function_environment,
-    new_global_environment,
+    new_global_environment, new_private_environment, resolve_private_identifier,
 };
 pub(crate) use execution_context::*;
 pub(crate) use realm::{
