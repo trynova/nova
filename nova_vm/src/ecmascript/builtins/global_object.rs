@@ -1308,7 +1308,6 @@ where
         let c = string.utf16_char(agent, k);
 
         // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
-        #[allow(clippy::if_not_else)]
         let s = if c != '%' {
             // i. Let S be the String value containing only the code unit C.
             Vec::from([c as u16])
@@ -1359,7 +1358,6 @@ where
                     // 3. Else,
                     // a. Let S be the substring of string from start to k + 1.
                     (start..=k)
-                        .into_iter()
                         .map(|i| string.utf16_char(agent, i) as u16)
                         .collect()
                 }
