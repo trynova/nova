@@ -1101,7 +1101,9 @@ fn insert_element_descriptor(
                 agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
             }
         }
-        Entry::Vacant(vacant_entry) => todo!(),
+        Entry::Vacant(vacant_entry) => {
+            agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
+        }
     }
     if let Entry::Occupied(descriptors) = descriptors {
     } else {
