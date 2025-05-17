@@ -2077,13 +2077,96 @@ impl TypedArrayPrototype {
         Ok(scope_a.get(agent).into_value())
     }
 
+    /// ### [23.2.3.33 %TypedArray%.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.tosorted)
     fn to_sorted<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("TypedArray.prototype.toSorted", gc.into_nogc()))
+        let this_value = this_value.bind(gc.nogc());
+        let comparator = arguments.get(0).bind(gc.nogc());
+        // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
+        let comparator = if comparator.is_undefined() {
+            None
+        } else if let Some(comparator) = is_callable(comparator, gc.nogc()) {
+            Some(comparator.scope(agent, gc.nogc()))
+        } else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "The comparison function must be either a function or undefined",
+                gc.into_nogc(),
+            ));
+        };
+        // 2. Let O be the this value.
+        let o = this_value;
+        // 3. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 4. Let len be TypedArrayLength(taRecord).
+        // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
+        // 6. NOTE: The following closure performs a numeric comparison rather than the string comparison used in 23.1.3.34.
+        // 7. Let SortCompare be a new Abstract Closure with parameters (x, y) that captures comparator and performs the following steps when called:
+        //    a. Return ? CompareTypedArrayElements(x, y, comparator).
+        // 8. Let sortedList be ? SortIndexedProperties(O, len, SortCompare, read-through-holes).
+        // 9. Let j be 0.
+        // 10. Repeat, while j < len,
+        //     a. Perform ! Set(A, ! ToString(𝔽(j)), sortedList[j], true).
+        //     b. Set j to j + 1.
+        // 11. Return A.
+        if let Some(comparator) = comparator {
+            let obj = ta_record.object;
+            let a = with_typed_array_viewable!(
+                obj,
+                to_sorted_comparator_typed_array::<T>(agent, ta_record.unbind(), comparator, gc)
+            );
+            // 10. Return obj.
+            a.map(|a| a.into_value())
+        } else {
+            let obj = ta_record.object;
+            let a = match obj {
+                TypedArray::Int8Array(_) => {
+                    to_sorted_total_cmp_typed_array::<i8>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Uint8Array(_) => {
+                    to_sorted_total_cmp_typed_array::<u8>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Uint8ClampedArray(_) => {
+                    to_sorted_total_cmp_typed_array::<U8Clamped>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Int16Array(_) => {
+                    to_sorted_total_cmp_typed_array::<i16>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Uint16Array(_) => {
+                    to_sorted_total_cmp_typed_array::<u16>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Int32Array(_) => {
+                    to_sorted_total_cmp_typed_array::<i32>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Uint32Array(_) => {
+                    to_sorted_total_cmp_typed_array::<u32>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::BigInt64Array(_) => {
+                    to_sorted_total_cmp_typed_array::<i64>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::BigUint64Array(_) => {
+                    to_sorted_total_cmp_typed_array::<u64>(agent, ta_record.unbind(), gc)
+                }
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => {
+                    to_sorted_ecmascript_cmp_typed_array::<f16>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Float32Array(_) => {
+                    to_sorted_ecmascript_cmp_typed_array::<f32>(agent, ta_record.unbind(), gc)
+                }
+                TypedArray::Float64Array(_) => {
+                    to_sorted_ecmascript_cmp_typed_array::<f64>(agent, ta_record.unbind(), gc)
+                }
+            };
+            // 10. Return obj.
+            a.map(|a| a.into_value())
+        }
     }
 
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
@@ -2640,6 +2723,28 @@ fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
     Ok(())
 }
 
+fn to_sorted_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords<'a>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let ta_record = ta_record.bind(gc.nogc());
+    let ta = ta_record.object;
+    let scoped_ta = ta.scope(agent, gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let a = typed_array_create_same_type(agent, scoped_ta.get(agent), len, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    let (a_slice, o_slice) =
+        split_typed_array_views::<T>(agent, a, scoped_ta.get(agent), gc.nogc()).unwrap();
+    let len = len as usize;
+    let a_slice = &mut a_slice[..len];
+    let o_slice = &o_slice[..len];
+    a_slice.copy_from_slice(o_slice);
+    a_slice.sort();
+    Ok(a.unbind())
+}
+
 pub trait ECMAScriptOrd {
     fn ecmascript_cmp(&self, other: &Self) -> std::cmp::Ordering;
 }
@@ -2730,6 +2835,27 @@ fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScrip
     Ok(())
 }
 
+fn to_sorted_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScriptOrd>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords<'a>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let ta_record = ta_record.bind(gc.nogc());
+    let ta = ta_record.object;
+    let scoped_ta = ta.scope(agent, gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
+    let a = typed_array_create_same_type(agent, scoped_ta.get(agent), len as i64, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    let (a_slice, o_slice) =
+        split_typed_array_views::<T>(agent, a, scoped_ta.get(agent), gc.nogc()).unwrap();
+    let a_slice = &mut a_slice[..len];
+    let o_slice = &o_slice[..len];
+    a_slice.copy_from_slice(o_slice);
+    a_slice.sort_by(|a, b| a.ecmascript_cmp(b));
+    Ok(a.unbind())
+}
+
 fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
@@ -2788,6 +2914,74 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     let copy_len = items.len().min(len);
     slice[..copy_len].copy_from_slice(&items[..copy_len]);
     Ok(())
+}
+
+fn to_sorted_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords<'a>,
+    comparator: Scoped<Function>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let ta_record = ta_record.bind(gc.nogc());
+    let o = ta_record.object;
+    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
+    let a = typed_array_create_same_type(agent, scoped_o.get(agent), len as i64, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    let scoped_a = a.scope(agent, gc.nogc());
+    let (a_slice, o_slice) =
+        split_typed_array_views::<T>(agent, scoped_a.get(agent), scoped_o.get(agent), gc.nogc())
+            .unwrap();
+    let a_slice = &mut a_slice[..len];
+    let from_slice = &o_slice[..len];
+    a_slice.copy_from_slice(from_slice);
+    let mut items: Vec<T> = a_slice.to_vec();
+    let mut error: Option<JsError> = None;
+    items.sort_by(|a, b| {
+        if error.is_some() {
+            return std::cmp::Ordering::Equal;
+        }
+        let a_val = a.into_ne_value(agent, gc.nogc()).into_value();
+        let b_val = b.into_ne_value(agent, gc.nogc()).into_value();
+        let result = call_function(
+            agent,
+            comparator.get(agent),
+            Value::Undefined,
+            Some(ArgumentsList::from_mut_slice(&mut [
+                a_val.unbind(),
+                b_val.unbind(),
+            ])),
+            gc.reborrow(),
+        )
+        .unbind()
+        .and_then(|v| v.to_number(agent, gc.reborrow()));
+        let num = match result {
+            Ok(n) => n,
+            Err(e) => {
+                error = Some(e.unbind());
+                return std::cmp::Ordering::Equal;
+            }
+        };
+        if num.is_nan(agent) {
+            std::cmp::Ordering::Equal
+        } else if num.is_sign_positive(agent) {
+            std::cmp::Ordering::Greater
+        } else if num.is_sign_negative(agent) {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    });
+    if let Some(error) = error {
+        return Err(error);
+    }
+    let slice = viewable_slice_mut::<T>(agent, scoped_a.get(agent), gc.nogc()).unwrap();
+    let len = len.min(slice.len());
+    let slice = &mut slice[..len];
+    let copy_len = items.len().min(len);
+    slice[..copy_len].copy_from_slice(&items[..copy_len]);
+    Ok(scoped_a.get(agent))
 }
 
 fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
