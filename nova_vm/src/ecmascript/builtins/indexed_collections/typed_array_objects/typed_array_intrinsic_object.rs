@@ -790,10 +790,10 @@ impl TypedArrayPrototype {
                 start.unbind(),
                 end.unbind(),
                 gc,
-            )?
+            )
         );
         // 18. Return O.
-        Ok(o.into_value())
+        o.map(|o| o.into_value())
     }
 
     /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
@@ -954,10 +954,10 @@ impl TypedArrayPrototype {
                 this_arg.unbind(),
                 ta_record.unbind(),
                 gc,
-            )?
+            )
         );
 
-        Ok(a.into_value())
+        a.map(|a| a.into_value())
     }
 
     /// ### 23.2.3.11 %TypedArray%.prototype.find ( predicate [ , thisArg ] )(https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.find)
