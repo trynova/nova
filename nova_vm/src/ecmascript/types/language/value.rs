@@ -6,10 +6,7 @@ use wtf8::Wtf8;
 
 use super::{
     BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringHeapData, Symbol,
-    bigint::{HeapBigInt, SmallBigInt},
-    number::HeapNumber,
-    string::HeapString,
+    StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -57,6 +54,7 @@ use crate::{
         Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

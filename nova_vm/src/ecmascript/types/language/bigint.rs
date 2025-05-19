@@ -16,6 +16,7 @@ use crate::{
     engine::{
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_bigint::SmallBigInt,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
@@ -128,42 +129,6 @@ impl<'a> TryFrom<Primitive<'a>> for HeapBigInt<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(transparent)]
-pub struct SmallBigInt(SmallInteger);
-
-impl SmallBigInt {
-    #[inline(always)]
-    pub(crate) const fn zero() -> Self {
-        Self(SmallInteger::zero())
-    }
-
-    #[inline(always)]
-    pub(crate) fn into_i64(self) -> i64 {
-        self.0.into_i64()
-    }
-
-    pub(crate) const fn into_inner(self) -> SmallInteger {
-        self.0
-    }
-}
-
-impl core::ops::Not for SmallBigInt {
-    type Output = Self;
-    #[inline(always)]
-    fn not(self) -> Self::Output {
-        Self(!self.0)
-    }
-}
-
-impl core::ops::Neg for SmallBigInt {
-    type Output = Self;
-    #[inline(always)]
-    fn neg(self) -> Self::Output {
-        Self(-self.0)
-    }
-}
-
 impl<'a> From<HeapBigInt<'a>> for BigInt<'a> {
     fn from(value: HeapBigInt<'a>) -> Self {
         Self::BigInt(value)
@@ -188,35 +153,12 @@ impl From<SmallBigInt> for Value<'static> {
     }
 }
 
-impl From<SmallInteger> for SmallBigInt {
-    fn from(value: SmallInteger) -> Self {
-        SmallBigInt(value)
-    }
-}
-
-impl TryFrom<i64> for SmallBigInt {
-    type Error = ();
-
-    #[inline(always)]
-    fn try_from(value: i64) -> Result<Self, Self::Error> {
-        Ok(Self(value.try_into()?))
-    }
-}
-
-impl TryFrom<u64> for SmallBigInt {
-    type Error = ();
-
-    #[inline(always)]
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Ok(Self(value.try_into()?))
-    }
-}
-
 impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
     type Error = ();
 
     fn try_from(value: &num_bigint::BigInt) -> Result<Self, Self::Error> {
-        Ok(Self(i64::try_from(value).map_err(|_| ())?.try_into()?))
+        let value = i64::try_from(value).map_err(|_| ())?;
+        SmallBigInt::try_from(value)
     }
 }
 
@@ -356,7 +298,7 @@ impl<'a> BigInt<'a> {
                 // 3. Return base raised to the power exponent.
                 let base = base.into_i64();
                 if base == 0 && exponent == 0 || base == 1 {
-                    return Ok(BigInt::SmallBigInt(SmallBigInt(1.into())));
+                    return Ok(BigInt::SmallBigInt(1.into()));
                 }
                 if let Some(result) = base.checked_pow(exponent) {
                     Ok(Self::from_i64(agent, result))
@@ -863,7 +805,7 @@ macro_rules! impl_value_from_n {
     ($size: ty) => {
         impl From<$size> for BigInt<'static> {
             fn from(value: $size) -> Self {
-                BigInt::SmallBigInt(SmallBigInt(SmallInteger::from(value)))
+                BigInt::SmallBigInt(SmallBigInt::from(value))
             }
         }
     };

@@ -428,7 +428,7 @@ impl ArrayPrototype {
                 let len =
                     length_of_array_like(agent, spreadable_e.unbind(), gc.reborrow()).unbind()?;
                 // ii. If n + len > 2**53 - 1, throw a TypeError exception.
-                if (n + len) > SmallInteger::MAX_NUMBER {
+                if (n + len) > SmallInteger::MAX {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "Array overflow",
@@ -479,7 +479,7 @@ impl ArrayPrototype {
                 // c. Else,
                 // i. NOTE: E is added as a single item rather than spread.
                 // ii. If n ≥ 2**53 - 1, throw a TypeError exception.
-                if n >= SmallInteger::MAX_NUMBER {
+                if n >= SmallInteger::MAX {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "Array overflow",
@@ -2154,7 +2154,7 @@ impl ArrayPrototype {
         // 3. Let argCount be the number of elements in items.
         let arg_count = items.len();
         // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
-        if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
+        if (len + arg_count as i64) > SmallInteger::MAX {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Array length overflow",
@@ -3291,7 +3291,7 @@ impl ArrayPrototype {
             (dc.into_i64().max(0) as usize).min(len as usize - actual_start)
         };
         // 11. If len + itemCount - actualDeleteCount > 2**53 - 1, throw a TypeError exception.
-        if len as usize + item_count - actual_delete_count > SmallInteger::MAX_NUMBER as usize {
+        if len as usize + item_count - actual_delete_count > SmallInteger::MAX as usize {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Target index overflowed",
@@ -3643,7 +3643,7 @@ impl ArrayPrototype {
         };
         // 11. Let newLen be len + insertCount - actualSkipCount.
         let new_len = len + insert_count - actual_skip_count;
-        if new_len > SmallInteger::MAX_NUMBER as usize {
+        if new_len > SmallInteger::MAX as usize {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Target index overflowed",
@@ -3825,7 +3825,7 @@ impl ArrayPrototype {
         // 4. If argCount > 0, then
         if arg_count > 0 {
             // a. If len + argCount > 2**53 - 1, throw a TypeError exception.
-            if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
+            if (len + arg_count as i64) > SmallInteger::MAX {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Array length overflow",
@@ -4398,7 +4398,7 @@ fn flatten_into_array<'a>(
         } else {
             // vi. Else,
             // 1. If targetIndex ≥ 2**53 - 1, throw a TypeError exception.
-            if target_index >= SmallInteger::MAX_NUMBER as usize {
+            if target_index >= SmallInteger::MAX as usize {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Target index overflowed",

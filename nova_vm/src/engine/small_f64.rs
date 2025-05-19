@@ -41,8 +41,7 @@ impl SmallF64 {
                 // Well that's not representable as an integer!
                 true
             } else {
-                let range =
-                    const { (SmallInteger::MIN_NUMBER as f64)..=(SmallInteger::MAX_NUMBER as f64) };
+                let range = const { (SmallInteger::MIN as f64)..=(SmallInteger::MAX as f64) };
                 // If the integer is in the JS SafeInteger range, it should
                 // become a SmallInteger: We don't want it here.
                 !range.contains(&value)

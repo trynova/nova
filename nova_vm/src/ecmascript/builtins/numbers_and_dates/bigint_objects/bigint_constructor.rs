@@ -27,12 +27,12 @@ use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
-use crate::ecmascript::types::bigint::SmallBigInt;
 use crate::ecmascript::types::{String, Value};
 
 use crate::SmallInteger;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
+use crate::engine::small_bigint::SmallBigInt;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 

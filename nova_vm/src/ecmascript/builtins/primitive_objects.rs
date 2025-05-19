@@ -7,6 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::ecmascript::types::{IntoPrimitive, Primitive};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::small_bigint::SmallBigInt;
 use crate::engine::{TryResult, unwrap_try};
 use crate::heap::HeapSweepWeakReference;
 use crate::{
@@ -23,8 +24,7 @@ use crate::{
             InternalSlots, IntoObject, IntoValue, NUMBER_DISCRIMINANT, Number, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT,
             SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, String, Symbol,
-            Value,
-            bigint::{HeapBigInt, SmallBigInt},
+            Value, bigint::HeapBigInt,
         },
     },
     engine::small_f64::SmallF64,

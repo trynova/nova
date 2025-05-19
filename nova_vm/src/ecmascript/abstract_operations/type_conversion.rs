@@ -429,7 +429,7 @@ impl IntegerOrInfinity {
     }
 
     pub(crate) fn is_safe_integer(self) -> bool {
-        SmallInteger::MIN_NUMBER <= self.0 && self.0 <= SmallInteger::MAX_NUMBER
+        SmallInteger::MIN <= self.0 && self.0 <= SmallInteger::MAX
     }
 
     pub(crate) fn is_neg_infinity(self) -> bool {
@@ -1288,9 +1288,12 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
         }
         Value::Symbol(x) => TryResult::Continue(PropertyKey::Symbol(x)),
         Value::SmallBigInt(x)
-            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
+            if (SmallInteger::MIN..=SmallInteger::MAX).contains(&x.into_i64()) =>
         {
-            TryResult::Continue(PropertyKey::Integer(x.into_inner()))
+            TryResult::Continue(PropertyKey::Integer(
+                // SAFETY: Range check performed above.
+                unsafe { SmallInteger::from_small_bigint_unchecked(x) },
+            ))
         }
         Value::Undefined => TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
         Value::Null => TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
@@ -1346,7 +1349,7 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
         && (str.starts_with('-') || (b'1'..=b'9').contains(&str.as_bytes()[0]))
     {
         if let Ok(result) = str.parse::<i64>() {
-            if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&result) {
+            if (SmallInteger::MIN..=SmallInteger::MAX).contains(&result) {
                 return Some(SmallInteger::try_from(result).unwrap().into());
             }
         }
@@ -1371,7 +1374,7 @@ pub(crate) fn to_length<'a>(
     }
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
-    Ok(len.min(SmallInteger::MAX_NUMBER))
+    Ok(len.min(SmallInteger::MAX))
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
@@ -1394,7 +1397,7 @@ pub(crate) fn try_to_length<'a>(
     }
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
-    TryResult::Continue(Ok(len.min(SmallInteger::MAX_NUMBER)))
+    TryResult::Continue(Ok(len.min(SmallInteger::MAX)))
 }
 
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
@@ -1427,7 +1430,7 @@ pub(crate) fn validate_index<'a>(
     value: i64,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, u64> {
-    if !(0..=(SmallInteger::MAX_NUMBER)).contains(&value) {
+    if !(0..=(SmallInteger::MAX)).contains(&value) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "Index is out of range",

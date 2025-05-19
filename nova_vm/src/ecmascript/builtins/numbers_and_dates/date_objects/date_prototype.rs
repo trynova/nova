@@ -308,7 +308,7 @@ impl Builtin for DatePrototypeToPrimitive {
     const WRITABLE: bool = false;
 }
 
-const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
+const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX as u128;
 
 impl DatePrototype {
     /// ### [21.4.4.2 Date.prototype.getDate ( )](https://tc39.es/ecma262/#sec-date.prototype.getdate)
