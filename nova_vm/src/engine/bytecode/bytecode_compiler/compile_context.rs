@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use oxc_ast::ast::{self, LabelIdentifier, Statement};
-use oxc_span::Atom;
+use oxc_ast::ast;
+use oxc_semantic::Semantic;
 
 use crate::{
     ecmascript::{
@@ -78,6 +78,7 @@ pub(crate) struct JumpIndex {
 ///   tracks it.
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
+    pub(crate) semantic: &'gc Semantic<'static>,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
     /// true if the current last instruction is a terminal instruction and no
     /// jumps point past it.
@@ -109,10 +110,12 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
 impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     pub(crate) fn new(
         agent: &'a mut Agent,
+        semantic: &'gc Semantic<'static>,
         gc: NoGcScope<'gc, 'scope>,
     ) -> CompileContext<'a, 's, 'gc, 'scope> {
         CompileContext {
             agent,
+            semantic,
             gc,
             // Note: when no instructions exist, we are indeed terminal.
             last_instruction_is_terminal: true,
@@ -130,7 +133,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     /// Enter a labelled statement.
-    pub(super) fn enter_label(&mut self, label: &'s LabelIdentifier<'s>) {
+    pub(super) fn enter_label(&mut self, label: &'s ast::LabelIdentifier<'s>) {
         self.control_flow_stack
             .push(ControlFlowStackEntry::LabelledStatement {
                 label,
@@ -345,7 +348,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     /// Enter a for, for-in, or while loop.
-    pub(super) fn enter_loop(&mut self, label_set: Option<Vec<&'s LabelIdentifier<'s>>>) {
+    pub(super) fn enter_loop(&mut self, label_set: Option<Vec<&'s ast::LabelIdentifier<'s>>>) {
         self.control_flow_stack.push(ControlFlowStackEntry::Loop {
             label_set,
             incoming_control_flows: None,
@@ -368,7 +371,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     /// Enter a switch block.
-    pub(super) fn enter_switch(&mut self, label_set: Option<Vec<&'s LabelIdentifier<'s>>>) {
+    pub(super) fn enter_switch(&mut self, label_set: Option<Vec<&'s ast::LabelIdentifier<'s>>>) {
         self.control_flow_stack.push(ControlFlowStackEntry::Switch {
             label_set,
             incoming_control_flows: None,
@@ -393,7 +396,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// Enter a for-of loop.
     pub(super) fn enter_iterator(
         &mut self,
-        label_set: Option<Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<Vec<&'s ast::LabelIdentifier<'s>>>,
     ) -> JumpIndex {
         self.control_flow_stack
             .push(ControlFlowStackEntry::Iterator {
@@ -427,7 +430,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// Enter a for-await-of loop.
     pub(super) fn enter_async_iterator(
         &mut self,
-        label_set: Option<Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<Vec<&'s ast::LabelIdentifier<'s>>>,
     ) -> JumpIndex {
         self.control_flow_stack
             .push(ControlFlowStackEntry::AsyncIterator {
@@ -468,7 +471,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// site before jumping to the target. If user-defined finally-blocks are
     /// present in the finaliser stack, the method instead jumps to a
     /// finally-block that ends with a jump to the final target.
-    pub(super) fn compile_break(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
+    pub(super) fn compile_break(&mut self, label: Option<&'s ast::LabelIdentifier<'s>>) {
         for entry in self.control_flow_stack.iter_mut().rev() {
             if entry.is_break_target_for(label) {
                 // Stop iterating the stack when we find our target and push
@@ -502,7 +505,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// site before jumping to the target. If user-defined finally-blocks are
     /// present in the finaliser stack, the method instead jumps to a
     /// finally-block that ends with a jump to the final target.
-    pub(super) fn compile_continue(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
+    pub(super) fn compile_continue(&mut self, label: Option<&'s ast::LabelIdentifier<'s>>) {
         for entry in self.control_flow_stack.iter_mut().rev() {
             if entry.is_continue_target_for(label) {
                 // Stop iterating the stack when we find our target and push
@@ -696,12 +699,13 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
-        let body: &[Statement] = unsafe { core::mem::transmute(data.body.statements.as_slice()) };
+        let body: &[ast::Statement] =
+            unsafe { core::mem::transmute(data.body.statements.as_slice()) };
 
         self.compile_statements(body);
     }
 
-    pub(crate) fn compile_statements(&mut self, body: &'s [Statement<'s>]) {
+    pub(crate) fn compile_statements(&mut self, body: &'s [ast::Statement<'s>]) {
         let iter = body.iter();
 
         for stmt in iter {
@@ -729,7 +733,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         })
     }
 
-    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String<'gc> {
+    pub(crate) fn create_identifier(&mut self, atom: &oxc_span::Atom<'_>) -> String<'gc> {
         let existing = self.constants.iter().find_map(|constant| {
             if let Ok(existing_identifier) = String::try_from(*constant) {
                 if existing_identifier.as_str(self.agent) == atom.as_str() {
@@ -998,7 +1002,7 @@ pub(crate) trait CompileEvaluation<'s> {
 pub(crate) trait CompileLabelledEvaluation<'s> {
     fn compile_labelled(
         &'s self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     );
 }

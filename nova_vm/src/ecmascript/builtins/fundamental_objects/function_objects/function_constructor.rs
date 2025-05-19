@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hint::unreachable_unchecked;
+
 use oxc_span::SourceType;
 
 use crate::{
@@ -14,7 +16,7 @@ use crate::{
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        scripts_and_modules::source_code::{SourceCode, SourceCodeHeapData},
+        scripts_and_modules::source_code::SourceCode,
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
             Value,
@@ -108,14 +110,18 @@ impl DynamicFunctionKind {
             DynamicFunctionKind::AsyncGenerator => "async function*",
         }
     }
-    fn function_matches_kind(&self, function: &oxc_ast::ast::Function) -> bool {
-        let (is_async, is_generator) = match self {
-            DynamicFunctionKind::Normal => (false, false),
-            DynamicFunctionKind::Generator => (false, true),
-            DynamicFunctionKind::Async => (true, false),
-            DynamicFunctionKind::AsyncGenerator => (true, true),
-        };
-        function.r#async == is_async && function.generator == is_generator
+    fn statement_matches_function_kind(&self, function: &oxc_ast::ast::Statement) -> bool {
+        if let oxc_ast::ast::Statement::FunctionDeclaration(function) = function {
+            let (is_async, is_generator) = match self {
+                DynamicFunctionKind::Normal => (false, false),
+                DynamicFunctionKind::Generator => (false, true),
+                DynamicFunctionKind::Async => (true, false),
+                DynamicFunctionKind::AsyncGenerator => (true, true),
+            };
+            function.r#async == is_async && function.generator == is_generator
+        } else {
+            false
+        }
     }
     fn intrinsic_prototype(&self) -> ProtoIntrinsics {
         match self {
@@ -234,75 +240,57 @@ pub(crate) fn create_dynamic_function<'a>(
     // avoid code injection, but oxc doesn't have a public API to do that.
     // Instead, we parse the source string as a script, and throw unless it has
     // exactly one statement which is a function declaration of the right kind.
-    let (function, source_code) = {
-        let mut function = None;
-        let mut source_code = None;
-
+    let source_code = {
         let source_type = SourceType::default().with_script(true);
-        // SAFETY: The safety requirements are that the SourceCode cannot be
-        // GC'd before the program is dropped. If this function returns
-        // successfully, then the program's AST and the SourceCode will both be
-        // kept alive in the returned function object.
-        let parsed_result =
-            unsafe { SourceCode::parse_source(agent, source_string, source_type, gc.nogc()) };
-
-        if let Ok((program, sc)) = parsed_result {
-            source_code = Some(sc);
-            if program.hashbang.is_none()
-                && program.directives.is_empty()
-                && program.body.len() == 1
-            {
-                if let oxc_ast::ast::Statement::FunctionDeclaration(funct) = &program.body[0] {
-                    if kind.function_matches_kind(funct) {
-                        // SAFETY: the Function is inside a oxc_allocator::Box, which will remain
-                        // alive as long as `source_code` is kept alive. Similarly, the inner
-                        // lifetime of Function is also kept alive by `source_code`.`
-                        function = Some(unsafe {
-                            core::mem::transmute::<
-                                &oxc_ast::ast::Function,
-                                &'static oxc_ast::ast::Function,
-                            >(funct)
-                        });
-                    }
+        match SourceCode::parse_source(agent, source_string, source_type, gc.nogc()) {
+            Ok(sc) => {
+                let program = sc.get_program(agent, gc.nogc());
+                if !(program.hashbang.is_none()
+                    && program.directives.is_empty()
+                    && program.body.len() == 1
+                    && kind.statement_matches_function_kind(&program.body[0]))
+                {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::SyntaxError,
+                        "Invalid function source text: Did not form a single function statement",
+                        gc.into_nogc(),
+                    ));
                 }
+                sc
             }
-        }
-
-        if let Some(function) = function {
-            (function, source_code.unwrap())
-        } else {
-            if source_code.is_some() {
-                // In this branch, since we're not returning the function, we
-                // know `source_code` won't be reachable from any heap object,
-                // so we pop it off the heap to help GC along.
-                agent.heap.alloc_counter = agent
-                    .heap
-                    .alloc_counter
-                    .saturating_sub(core::mem::size_of::<Option<SourceCodeHeapData<'static>>>());
-                agent.heap.source_codes.pop();
-                debug_assert_eq!(
-                    source_code.unwrap().get_index(),
-                    agent.heap.source_codes.len()
-                );
+            Err(err) => {
+                let error_message = format!("Invalid function source text: {}", err[0].message);
+                return Err(agent.throw_exception(
+                    ExceptionType::SyntaxError,
+                    error_message,
+                    gc.into_nogc(),
+                ));
             }
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::SyntaxError,
-                "Invalid function source text.",
-                gc.into_nogc(),
-            ));
         }
     };
 
     let source_code = source_code.scope(agent, gc.nogc());
+    let function_prototype = get_prototype_from_constructor(
+        agent,
+        constructor.unbind(),
+        kind.intrinsic_prototype(),
+        gc.reborrow(),
+    )
+    .unbind()?;
+    let gc = gc.into_nogc();
+    let function_prototype = function_prototype.bind(gc);
+    let program = source_code.get(agent).get_program(agent, gc);
+    let Some(oxc_ast::ast::Statement::FunctionDeclaration(function)) = program.body.first() else {
+        // SAFETY: We checked that the function declaration matches our
+        // expectations before the getting the prototype from our constructor.
+        // That action can trigger GC, but we've scoped source_code so our
+        // Program hasn't been GC'd (this we know statically) but most
+        // importantly: there is no way that user code could have manipulated
+        // our AST, so our previous checks still apply.
+        unsafe { unreachable_unchecked() }
+    };
     let params = OrdinaryFunctionCreateParams {
-        function_prototype: get_prototype_from_constructor(
-            agent,
-            constructor.unbind(),
-            kind.intrinsic_prototype(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc()),
+        function_prototype,
         // SAFETY: source_code was not shared.
         source_code: Some(unsafe { source_code.take(agent) }),
         source_text: function.span,
@@ -318,13 +306,11 @@ pub(crate) fn create_dynamic_function<'a>(
                 .global_env
                 .unwrap()
                 .unbind()
-                .bind(gc.nogc()),
+                .bind(gc),
         ),
         private_env: None,
     };
-    let f = ordinary_function_create(agent, params, gc.nogc()).unbind();
-    let gc = gc.into_nogc();
-    let f = f.bind(gc);
+    let f = ordinary_function_create(agent, params, gc);
 
     set_function_name(
         agent,

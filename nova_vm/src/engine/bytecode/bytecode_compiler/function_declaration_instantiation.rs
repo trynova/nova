@@ -5,7 +5,9 @@
 use ahash::{AHashMap, AHashSet};
 use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::BoundNames;
+use oxc_semantic::Semantic;
 use oxc_span::Atom;
+use oxc_span::GetSpan;
 
 use crate::{
     ecmascript::{
@@ -23,6 +25,36 @@ use crate::{
 };
 
 use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
+
+/// Check if there is a global/unresolved reference in some part of the
+/// source code being compiled.
+fn function_has_unresolved_arguments_decl(
+    sema: &Semantic,
+    arguments_span: oxc_span::Span,
+    body_span: oxc_span::Span,
+) -> bool {
+    if arguments_span.is_empty() && body_span.is_empty() {
+        return false;
+    }
+
+    let scoping = sema.scoping();
+    let nodes = sema.nodes();
+
+    let Some(reference_ids) = scoping.root_unresolved_references().get("arguments") else {
+        // No unresolved "arguments" references in the entire script.
+        return false;
+    };
+
+    for reference_id in reference_ids.iter().copied() {
+        let reference = scoping.get_reference(reference_id);
+        let span = nodes.get_node(reference.node_id()).span();
+        if arguments_span.contains_inclusive(span) || body_span.contains_inclusive(span) {
+            return true;
+        }
+    }
+
+    false
+}
 
 pub(crate) fn instantiation<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
@@ -67,21 +99,33 @@ pub(crate) fn instantiation<'s>(
         }
     }
 
-    // 15. Let argumentsObjectNeeded be true.
-    // 16. If func.[[ThisMode]] is lexical, then
-    //   a. NOTE: Arrow functions never have an arguments object.
-    //   b. Set argumentsObjectNeeded to false.
-    // 17. Else if parameterNames contains "arguments", then
-    //   a. Set argumentsObjectNeeded to false.
     // 18. Else if hasParameterExpressions is false, then
-    //   a. If functionNames contains "arguments" or lexicalNames contains "arguments", then
-    //     i. Set argumentsObjectNeeded to false.
-    let arguments_object_needed = !is_lexical
-        && !parameter_names.contains("arguments")
-        && (has_parameter_expressions
-            || (!functions.contains_key("arguments")
-                && !function_body_lexically_declared_names(body)
-                    .contains(&Atom::from("arguments"))));
+
+    // 15. Let argumentsObjectNeeded be true.
+    let arguments_object_needed = if is_lexical {
+        // 16. If func.[[ThisMode]] is lexical, then
+        // a. NOTE: Arrow functions never have an arguments object.
+        // b. Set argumentsObjectNeeded to true.
+        false
+    } else if parameter_names.contains("arguments") {
+        // 17. Else if parameterNames contains "arguments", then
+        // a. Set argumentsObjectNeeded to true.
+        false
+    } else if !has_parameter_expressions {
+        // 18. Else if hasParameterExpressions is false, then
+        if functions.contains_key("arguments")
+            || function_body_lexically_declared_names(body).contains(&Atom::from("arguments"))
+        {
+            false
+        } else {
+            function_has_unresolved_arguments_decl(ctx.semantic, formals.span, body.span)
+        }
+    } else {
+        // OPTIMISATION: if the body does not contain a "free-standing"
+        // reference to the "arguments" name then we don't need to create
+        // an object for it.
+        function_has_unresolved_arguments_decl(ctx.semantic, formals.span, body.span)
+    };
 
     // 19. If strict is true or hasParameterExpressions is false, then
     //   a. NOTE: Only a single Environment Record is needed for the parameters, since calls to eval in strict mode code cannot create new bindings which are visible outside of the eval.

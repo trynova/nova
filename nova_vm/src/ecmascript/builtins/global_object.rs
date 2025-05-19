@@ -5,6 +5,7 @@
 use ahash::AHashSet;
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
+use oxc_semantic::Semantic;
 use oxc_span::SourceType;
 
 use crate::ecmascript::abstract_operations::type_conversion::{
@@ -215,17 +216,10 @@ pub fn perform_eval<'gc>(
     } else {
         SourceType::default().with_script(true)
     };
-    // SAFETY: Script is only kept alive for the duration of this call, and any
-    // references made to it by functions being created in the eval call will
-    // take a copy of the SourceCode. The SourceCode is also kept in the
-    // evaluation context and thus cannot be garbage collected while the eval
-    // call happens.
-    // The Program thus refers to a valid, live Allocator for the duration of
-    // this call.
-    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type, gc.nogc()) };
+    let parse_result = SourceCode::parse_source(agent, x, source_type, gc.nogc());
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    let Ok((script, source_code)) = parse_result else {
+    let Ok(source_code) = parse_result else {
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::SyntaxError,
@@ -233,6 +227,9 @@ pub fn perform_eval<'gc>(
             gc.into_nogc(),
         ));
     };
+
+    let script = source_code.get_program(agent, gc.nogc());
+    let semantic = source_code.get_semantic(agent, gc.nogc());
 
     // c. If script Contains ScriptBody is false, return undefined.
     if script.is_empty() {
@@ -330,10 +327,21 @@ pub fn perform_eval<'gc>(
     // 27. Push evalContext onto the execution context stack; evalContext is now the running execution context.
     agent.push_execution_context(eval_context);
 
+    // SAFETY: We've pushed eval_context onto the execution context stack. The
+    // context holds our SourceCode and keeps it from being GC'd, meaning that
+    // the Program and Semantic will be kept alive for the duration of the
+    // eval_declaration_instantiation call.
+    let (script, semantic) = unsafe {
+        (
+            core::mem::transmute::<&Program, &'static Program<'static>>(script),
+            core::mem::transmute::<&Semantic, &'static Semantic<'static>>(semantic),
+        )
+    };
+
     // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
     let result = eval_declaration_instantiation(
         agent,
-        &script,
+        script,
         ecmascript_code.variable_environment,
         ecmascript_code.lexical_environment,
         ecmascript_code.private_environment,
@@ -346,8 +354,8 @@ pub fn perform_eval<'gc>(
     // 29. If result is a normal completion, then
     let result = match result {
         Ok(_) => {
-            let exe =
-                Executable::compile_eval_body(agent, &script, gc.nogc()).scope(agent, gc.nogc());
+            let exe = Executable::compile_eval_body(agent, script, semantic, gc.nogc())
+                .scope(agent, gc.nogc());
             // a. Set result to Completion(Evaluation of body).
             // 30. If result is a normal completion and result.[[Value]] is empty, then
             // a. Set result to NormalCompletion(undefined).

@@ -9,6 +9,7 @@ use core::{
 
 use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::IsSimpleParameterList;
+use oxc_semantic::Semantic;
 use oxc_span::Span;
 
 use crate::{
@@ -26,7 +27,8 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
         syntax_directed_operations::function_definitions::{
-            evaluate_async_function_body, evaluate_function_body, evaluate_generator_body,
+            CompileFunctionBodyData, evaluate_async_function_body, evaluate_function_body,
+            evaluate_generator_body,
         },
         types::{
             BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
@@ -271,6 +273,39 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData<
 }
 
 impl<'a> ECMAScriptFunction<'a> {
+    pub(crate) fn get_compile_data(
+        self,
+        agent: &Agent,
+        _gc: NoGcScope<'a, '_>,
+    ) -> CompileFunctionBodyData<'a> {
+        let ecmascript_function = &agent[self].ecmascript_function;
+        // SAFETY: We're alive so SourceCode must be too.
+        let (params, body) = unsafe {
+            (
+                ecmascript_function.formal_parameters.as_ref(),
+                ecmascript_function.ecmascript_code.as_ref(),
+            )
+        };
+        CompileFunctionBodyData {
+            params,
+            body,
+            is_strict: ecmascript_function.strict,
+            is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
+            is_concise_body: ecmascript_function.is_concise_arrow_function,
+        }
+    }
+
+    pub(crate) fn get_semantic(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> &'a Semantic<'static> {
+        agent[self]
+            .ecmascript_function
+            .source_code
+            .get_semantic(agent, gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
     }
