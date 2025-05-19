@@ -9,13 +9,14 @@ use crate::{
     engine::{
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
 };
 
 use super::{
     IntoValue, Symbol, Value,
-    bigint::{HeapBigInt, SmallBigInt},
+    bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
     value::{

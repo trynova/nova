@@ -260,7 +260,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.max_safe_integer
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_SAFE_INTEGER.into())
-                    .with_value_readonly(Number::try_from(SmallInteger::MAX_NUMBER).unwrap().into())
+                    .with_value_readonly(Number::try_from(SmallInteger::MAX).unwrap().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -280,7 +280,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.min_safe_integer
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MIN_SAFE_INTEGER.into())
-                    .with_value_readonly(Number::try_from(SmallInteger::MIN_NUMBER).unwrap().into())
+                    .with_value_readonly(Number::try_from(SmallInteger::MIN).unwrap().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::{Bindable, NoGcScope};
+use crate::engine::small_bigint::SmallBigInt;
 use crate::{
     SmallInteger,
     ecmascript::execution::Agent,
@@ -14,7 +15,7 @@ use crate::{
 
 use super::{
     IntoPrimitive, Number, Primitive, Value,
-    bigint::{HeapBigInt, SmallBigInt},
+    bigint::HeapBigInt,
     number::HeapNumber,
     value::{
         BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
