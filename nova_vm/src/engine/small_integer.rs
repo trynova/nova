@@ -53,7 +53,7 @@ impl SmallInteger {
 
     /// Encode an i64 as a SmallInteger without a range check.
     ///
-    /// ## Panics
+    /// ## Safety
     ///
     /// If the value is outside the SmallInteger range, the method panics
     /// in debug mode. In release mode, data may be lost and an invalid
