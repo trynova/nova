@@ -1314,7 +1314,7 @@ impl TypedArrayPrototype {
             )
         );
 
-        Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
+        Ok(result.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
     /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
@@ -1541,11 +1541,7 @@ impl TypedArrayPrototype {
             )
         );
 
-        Ok(result
-            .unbind()?
-            .map_or(-1, |v| v as i64)
-            .try_into()
-            .unwrap())
+        Ok(result.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
     /// ### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
@@ -1813,7 +1809,7 @@ impl TypedArrayPrototype {
             .unbind()?
             .bind(gc);
         let o = ta_record.object;
-        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, ta_record, o, gc)?);
+        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, ta_record, o, gc));
         // 7. Return O.
         Ok(o.into_value())
     }
@@ -1964,41 +1960,41 @@ impl TypedArrayPrototype {
             let obj = ta_record.object;
             match obj {
                 TypedArray::Int8Array(_) => {
-                    sort_total_cmp_typed_array::<i8>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<i8>(agent, ta_record, nogc)
                 }
                 TypedArray::Uint8Array(_) => {
-                    sort_total_cmp_typed_array::<u8>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<u8>(agent, ta_record, nogc)
                 }
                 TypedArray::Uint8ClampedArray(_) => {
-                    sort_total_cmp_typed_array::<U8Clamped>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<U8Clamped>(agent, ta_record, nogc)
                 }
                 TypedArray::Int16Array(_) => {
-                    sort_total_cmp_typed_array::<i16>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<i16>(agent, ta_record, nogc)
                 }
                 TypedArray::Uint16Array(_) => {
-                    sort_total_cmp_typed_array::<u16>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<u16>(agent, ta_record, nogc)
                 }
                 TypedArray::Int32Array(_) => {
-                    sort_total_cmp_typed_array::<i32>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<i32>(agent, ta_record, nogc)
                 }
                 TypedArray::Uint32Array(_) => {
-                    sort_total_cmp_typed_array::<u32>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<u32>(agent, ta_record, nogc)
                 }
                 TypedArray::BigInt64Array(_) => {
-                    sort_total_cmp_typed_array::<i64>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<i64>(agent, ta_record, nogc)
                 }
                 TypedArray::BigUint64Array(_) => {
-                    sort_total_cmp_typed_array::<u64>(agent, ta_record, nogc)?
+                    sort_total_cmp_typed_array::<u64>(agent, ta_record, nogc)
                 }
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => {
-                    sort_ecmascript_cmp_typed_array::<f16>(agent, ta_record, nogc)?
+                    sort_ecmascript_cmp_typed_array::<f16>(agent, ta_record, nogc)
                 }
                 TypedArray::Float32Array(_) => {
-                    sort_ecmascript_cmp_typed_array::<f32>(agent, ta_record, nogc)?
+                    sort_ecmascript_cmp_typed_array::<f32>(agent, ta_record, nogc)
                 }
                 TypedArray::Float64Array(_) => {
-                    sort_ecmascript_cmp_typed_array::<f64>(agent, ta_record, nogc)?
+                    sort_ecmascript_cmp_typed_array::<f64>(agent, ta_record, nogc)
                 }
             };
             Ok(obj.into_value())
@@ -2330,18 +2326,18 @@ fn viewable_slice<'a, T: Viewable>(
     agent: &'a mut Agent,
     ta: TypedArray<'a>,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, &'a [T]> {
+) -> &'a [T] {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
     let byte_slice = array_buffer.as_slice(agent);
     if byte_slice.is_empty() {
-        return Ok(&[]);
+        return &[];
     }
     let byte_slice = if let Some(byte_length) = byte_length {
         let end_index = byte_offset + byte_length;
         if end_index > byte_slice.len() {
-            return Ok(&[]);
+            return &[];
         }
         &byte_slice[byte_offset..end_index]
     } else {
@@ -2354,7 +2350,7 @@ fn viewable_slice<'a, T: Viewable>(
     if !head.is_empty() {
         panic!("TypedArray is not properly aligned");
     }
-    Ok(slice)
+    slice
 }
 
 fn viewable_slice_mut<'a, T: Viewable>(
@@ -2460,12 +2456,12 @@ fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool
     k: usize,
     len: usize,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, Option<usize>> {
+) -> Option<usize> {
     let search_element = T::try_from_value(agent, search_element);
     let Some(search_element) = search_element else {
-        return Ok(None);
+        return None;
     };
-    let slice = viewable_slice::<T>(agent, ta, gc).unwrap();
+    let slice = viewable_slice::<T>(agent, ta, gc);
     // Length of the TypedArray may have changed between when we measured it
     // and here: We'll never try to access past the boundary of the slice if
     // the backing ArrayBuffer shrank.
@@ -2473,17 +2469,17 @@ fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool
 
     if ASCENDING {
         if k >= len {
-            return Ok(None);
+            return None;
         }
-        Ok(slice[k..len]
+        slice[k..len]
             .iter()
             .position(|&r| r == search_element)
-            .map(|pos| pos + k))
+            .map(|pos| pos + k)
     } else {
         if k >= len {
-            return Ok(None);
+            return None;
         }
-        Ok(slice[..=k].iter().rposition(|&r| r == search_element))
+        slice[..=k].iter().rposition(|&r| r == search_element)
     }
 }
 
@@ -2492,7 +2488,7 @@ fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     ta_record: TypedArrayWithBufferWitnessRecords<'_>,
     ta: TypedArray,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ()> {
+) {
     // 3. Let len be TypedArrayLength(taRecord).
     let len = typed_array_length::<T>(agent, &ta_record, gc);
     // 4. Let middle be floor(len / 2).
@@ -2509,7 +2505,6 @@ fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..len];
     slice.reverse();
-    Ok(())
 }
 
 fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
@@ -2703,13 +2698,12 @@ fn sort_total_cmp_typed_array<'a, T: Viewable + Ord>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ()> {
+) {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
     let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..len];
     slice.sort();
-    Ok(())
 }
 
 fn to_sorted_total_cmp_typed_array<'a, T: Viewable + Ord>(
@@ -2829,13 +2823,12 @@ fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ()> {
+) {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
     let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..len];
     slice.sort_by(|a, b| a.ecmascript_cmp(b));
-    Ok(())
 }
 
 fn to_sorted_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
@@ -2881,7 +2874,7 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     let ta_record = ta_record.bind(gc.nogc());
     let local_ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
-    let slice = viewable_slice::<T>(agent, local_ta, gc.nogc()).unwrap();
+    let slice = viewable_slice::<T>(agent, local_ta, gc.nogc());
     let slice = &slice[..len];
     let mut items: Vec<T> = slice.to_vec();
     let mut error: Option<JsError> = None;
@@ -3186,7 +3179,7 @@ fn split_typed_array_views<'a, T: Viewable>(
     let a_slice = viewable_slice_mut::<T>(agent, a, gc);
     let a_ptr = a_slice.as_mut_ptr();
     let a_len = a_slice.len();
-    let o_aligned = viewable_slice::<T>(agent, o, gc).unwrap();
+    let o_aligned = viewable_slice::<T>(agent, o, gc);
     // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
     let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
     (a_aligned, o_aligned)
