@@ -3,8 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::SmallString;
+use crate::ecmascript::abstract_operations::operations_on_objects::get;
+use crate::ecmascript::abstract_operations::operations_on_objects::length_of_array_like;
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_number;
+use crate::ecmascript::abstract_operations::type_conversion::to_object;
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
 use crate::ecmascript::abstract_operations::type_conversion::to_uint16_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
@@ -27,6 +30,7 @@ use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
+use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::engine::context::{Bindable, GcScope};
@@ -286,13 +290,108 @@ impl StringConstructor {
         Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
+    /// ### [22.1.2.4 String.raw ( template, ...substitutions )](https://tc39.es/ecma262/#sec-string.raw)
+    ///
+    /// This function may be called with a variable number of arguments. The
+    /// first argument is template and the remainder of the arguments form the
+    /// List substitutions.
+    ///
+    /// > NOTE: This function is intended for use as a tag function of a Tagged
+    /// > Template (13.3.11). When called as such, the first argument will be a
+    /// > well formed template object and the rest parameter will contain the
+    /// > substitution values.
     fn raw<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        mut arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.raw", gc.into_nogc()))
+        let template = arguments.get(0).bind(gc.nogc());
+        let mut substitutions = if !arguments.is_empty() {
+            ArgumentsList::from_mut_slice(&mut arguments.as_mut_slice()[1..])
+        } else {
+            ArgumentsList::from_mut_slice(&mut [])
+        };
+
+        // 1. Let substitutionCount be the number of elements in substitutions.
+        let substitution_count = substitutions.len() as i64;
+
+        // 2. Let cooked be ? ToObject(template).
+        let cooked = to_object(agent, template, gc.nogc())
+            .unbind()?
+            .scope(agent, gc.nogc());
+
+        substitutions.with_scoped(
+            agent,
+            |agent, substitutions, mut gc| {
+                // 3. Let literals be ? ToObject(? Get(cooked, "raw")).
+                let literals = get(
+                    agent,
+                    cooked.get(agent),
+                    BUILTIN_STRING_MEMORY.raw.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                let literals = to_object(agent, literals, gc.nogc())
+                    .unbind()?
+                    .scope(agent, gc.nogc());
+
+                // 4. Let literalCount be ? LengthOfArrayLike(literals).
+                let literal_count =
+                    length_of_array_like(agent, literals.get(agent), gc.reborrow()).unbind()?;
+
+                // 5. If literalCount ≤ 0, return the empty String.
+                if literal_count <= 0 {
+                    return Ok(String::EMPTY_STRING.into_value());
+                }
+
+                // 6. Let R be the empty String.
+                let mut r = std::string::String::with_capacity(literal_count as usize);
+
+                // 7. Let nextIndex be 0.
+                // 8. Repeat,
+                for next_index in 0..literal_count {
+                    // a. Let nextLiteralVal be ? Get(literals, ! ToString(𝔽(nextIndex))).
+                    let next_literal_val = get(
+                        agent,
+                        literals.get(agent),
+                        PropertyKey::try_from(next_index).unwrap(),
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .scope(agent, gc.nogc());
+
+                    // b. Let nextLiteral be ? ToString(nextLiteralVal).
+                    let next_literal = to_string(agent, next_literal_val.get(agent), gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
+
+                    // c. Set R to the string-concatenation of R and nextLiteral.
+                    r.push_str(next_literal.as_str(agent));
+
+                    // d. If nextIndex + 1 = literalCount, return R.
+                    // Note: this branch is now below the loop.
+
+                    // e. If nextIndex < substitutionCount, then
+                    if next_index + 1 < literal_count && next_index < substitution_count {
+                        // i. Let nextSubVal be substitutions[nextIndex].
+                        let next_sub_val = substitutions.get(agent, next_index as u32, gc.nogc());
+
+                        // ii. Let nextSub be ? ToString(nextSubVal).
+                        let next_sub = to_string(agent, next_sub_val.unbind(), gc.reborrow())
+                            .unbind()?
+                            .bind(gc.nogc());
+
+                        // iii. Set R to the string-concatenation of R and nextSub.
+                        r.push_str(next_sub.as_str(agent));
+                    }
+
+                    // f. Set nextIndex to nextIndex + 1.
+                }
+                Ok(String::from_string(agent, r, gc.into_nogc()).into())
+            },
+            gc,
+        )
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
