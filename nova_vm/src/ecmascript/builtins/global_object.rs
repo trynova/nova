@@ -1284,7 +1284,7 @@ where
     F: Fn(u16) -> bool,
 {
     // 1. Let strLen be the length of string.
-    let str_len = string.len(agent);
+    let str_len = string.utf16_len(agent);
     // 2. Let R be the empty String.
     let mut r = Vec::with_capacity(str_len);
     let mut octets = Vec::with_capacity(4);
