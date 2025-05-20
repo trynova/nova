@@ -17585,7 +17585,6 @@
   "staging/sm/String/match-updates-global-lastIndex.js": "FAIL",
   "staging/sm/String/match.js": "FAIL",
   "staging/sm/String/matchAll.js": "FAIL",
-  "staging/sm/String/raw.js": "CRASH",
   "staging/sm/String/regress-369778.js": "FAIL",
   "staging/sm/String/replace-bad-dollar-single-quote.js": "FAIL",
   "staging/sm/String/replace-flags.js": "FAIL",
