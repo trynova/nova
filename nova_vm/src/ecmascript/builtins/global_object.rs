@@ -1108,18 +1108,18 @@ impl GlobalObject {
             .bind(gc.nogc());
 
         // 2. Let preserveEscapeSet be ";/?:@&=+$,#".
-        let preserve_escape_set = |c: u16| {
-            c == b'#' as u16
-                || c == b';' as u16
-                || c == b'/' as u16
-                || c == b'?' as u16
-                || c == b':' as u16
-                || c == b'@' as u16
-                || c == b'&' as u16
-                || c == b'=' as u16
-                || c == b'+' as u16
-                || c == b'$' as u16
-                || c == b',' as u16
+        let preserve_escape_set = |c: u8| {
+            c == b'#'
+                || c == b';'
+                || c == b'/'
+                || c == b'?'
+                || c == b':'
+                || c == b'@'
+                || c == b'&'
+                || c == b'='
+                || c == b'+'
+                || c == b'$'
+                || c == b','
         };
 
         // 3. Return ? Decode(uriString, preserveEscapeSet).
@@ -1154,7 +1154,7 @@ impl GlobalObject {
             .bind(gc.nogc());
 
         // 2. Let preserveEscapeSet be the empty String.
-        let preserve_escape_set = |_: u16| false;
+        let preserve_escape_set = |_: u8| false;
 
         // 3. Return ? Decode(componentString, preserveEscapeSet).
         decode(
@@ -1281,7 +1281,7 @@ fn decode<'gc, F>(
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>>
 where
-    F: Fn(u16) -> bool,
+    F: Fn(u8) -> bool,
 {
     // 1. Let strLen be the length of string.
     let str_len = string.utf16_len(agent);
@@ -1349,7 +1349,7 @@ where
                 let c = b as u16;
 
                 // 2. If C is not in reservedSet, then
-                if !reserved_set(c) {
+                if !reserved_set(b) {
                     // a. Let S be the String value containing only the code unit C.
                     Vec::from([c])
                 } else {
