@@ -1343,7 +1343,7 @@ pub(crate) fn typed_array_create_same_type<'a>(
     Ok(result.unbind())
 }
 
-fn intrinsic_default_constructor<T: Viewable + 'static>(agent: &Agent) -> BuiltinFunction<'static> {
+fn intrinsic_default_constructor<T: Viewable>(agent: &Agent) -> BuiltinFunction<'static> {
     {
         if TypeId::of::<T>() == TypeId::of::<i8>() {
             agent.current_realm_record().intrinsics().int8_array()
@@ -1380,7 +1380,7 @@ fn intrinsic_default_constructor<T: Viewable + 'static>(agent: &Agent) -> Builti
     }
 }
 
-fn has_matching_content_type<T: Viewable + 'static>(result: TypedArray) -> bool {
+fn has_matching_content_type<T: Viewable>(result: TypedArray) -> bool {
     let is_bigint = T::IS_BIGINT;
     match result {
         TypedArray::Int8Array(_)
@@ -1399,7 +1399,7 @@ fn has_matching_content_type<T: Viewable + 'static>(result: TypedArray) -> bool 
 }
 
 /// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
-pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
+pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
     agent: &mut Agent,
     exemplar: TypedArray,
     length: i64,
@@ -1439,7 +1439,7 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable + 'static>(
     Ok(result.unbind())
 }
 
-pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable + 'static>(
+pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     agent: &mut Agent,
     exemplar: TypedArray,
     array_buffer: ArrayBuffer,
