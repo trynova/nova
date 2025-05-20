@@ -307,7 +307,7 @@ impl StringConstructor {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let template = arguments.get(0).bind(gc.nogc());
-        let mut substitutions = if arguments.len() > 0 {
+        let mut substitutions = if !arguments.is_empty() {
             ArgumentsList::from_mut_slice(&mut arguments.as_mut_slice()[1..])
         } else {
             ArgumentsList::from_mut_slice(&mut [])
