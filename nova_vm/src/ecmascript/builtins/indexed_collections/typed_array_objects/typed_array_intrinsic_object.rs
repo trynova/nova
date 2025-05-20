@@ -2104,17 +2104,6 @@ impl TypedArrayPrototype {
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        // 4. Let len be TypedArrayLength(taRecord).
-        // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
-        // 6. NOTE: The following closure performs a numeric comparison rather than the string comparison used in 23.1.3.34.
-        // 7. Let SortCompare be a new Abstract Closure with parameters (x, y) that captures comparator and performs the following steps when called:
-        //    a. Return ? CompareTypedArrayElements(x, y, comparator).
-        // 8. Let sortedList be ? SortIndexedProperties(O, len, SortCompare, read-through-holes).
-        // 9. Let j be 0.
-        // 10. Repeat, while j < len,
-        //     a. Perform ! Set(A, ! ToString(𝔽(j)), sortedList[j], true).
-        //     b. Set j to j + 1.
-        // 11. Return A.
         if let Some(comparator) = comparator {
             let obj = ta_record.object;
             let a = with_typed_array_viewable!(
@@ -2372,18 +2361,18 @@ fn viewable_slice_mut<'a, T: Viewable>(
     agent: &'a mut Agent,
     ta: TypedArray<'a>,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, &'a mut [T]> {
+) -> &'a mut [T] {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
     let byte_slice = array_buffer.as_mut_slice(agent);
     if byte_slice.is_empty() {
-        return Ok(&mut []);
+        return &mut [];
     }
     let byte_slice = if let Some(byte_length) = byte_length {
         let end_index = byte_offset + byte_length;
         if end_index > byte_slice.len() {
-            return Ok(&mut []);
+            return &mut [];
         }
         &mut byte_slice[byte_offset..end_index]
     } else {
@@ -2396,7 +2385,7 @@ fn viewable_slice_mut<'a, T: Viewable>(
     if !head.is_empty() {
         panic!("TypedArray is not properly aligned");
     }
-    Ok(slice)
+    slice
 }
 
 fn map_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
@@ -2517,7 +2506,7 @@ fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     //    f. Perform ! Set(O, lowerP, upperValue, true).
     //    g. Perform ! Set(O, upperP, lowerValue, true).
     //    h. Set lower to lower + 1.
-    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..len];
     slice.reverse();
     Ok(())
@@ -2602,7 +2591,7 @@ fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
         ));
     }
     let after_len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
-    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..after_len];
     let start_bound = start_index as usize;
     let target_index = target_index as usize;
@@ -2700,7 +2689,7 @@ fn fill_typed_array<'a, T: Viewable>(
     let k = start_index as usize;
     // 19. Repeat, while k < endIndex,
     let value = T::from_ne_value(agent, value);
-    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, ta, gc);
     if k >= end_index {
         return Ok(ta);
     }
@@ -2710,20 +2699,20 @@ fn fill_typed_array<'a, T: Viewable>(
     Ok(ta)
 }
 
-fn sort_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
+fn sort_total_cmp_typed_array<'a, T: Viewable + Ord>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..len];
     slice.sort();
     Ok(())
 }
 
-fn to_sorted_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
+fn to_sorted_total_cmp_typed_array<'a, T: Viewable + Ord>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
     mut gc: GcScope<'a, '_>,
@@ -2731,17 +2720,31 @@ fn to_sorted_total_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + Ord>(
     let ta_record = ta_record.bind(gc.nogc());
     let ta = ta_record.object;
     let scoped_ta = ta.scope(agent, gc.nogc());
+    // 4. Let len be TypedArrayLength(taRecord).
     let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
     let a = typed_array_create_same_type(agent, scoped_ta.get(agent), len, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     let (a_slice, o_slice) =
-        split_typed_array_views::<T>(agent, a, scoped_ta.get(agent), gc.nogc()).unwrap();
+        split_typed_array_views::<T>(agent, a, scoped_ta.get(agent), gc.nogc());
     let len = len as usize;
     let a_slice = &mut a_slice[..len];
     let o_slice = &o_slice[..len];
+    // 9. Let j be 0.
+    // 10. Repeat, while j < len,
+    //     a. Perform ! Set(A, ! ToString(𝔽(j)), sortedList[j], true).
+    //     b. Set j to j + 1.
     a_slice.copy_from_slice(o_slice);
+    // 6. NOTE: The following closure performs a numeric comparison rather than
+    //    the string comparison used in 23.1.3.34.
+    // 7. Let SortCompare be a new Abstract Closure with parameters (x, y) that
+    //    captures comparator and performs the following steps when called:
+    //    a. Return ? CompareTypedArrayElements(x, y, comparator).
+    // 8. Let sortedList be ? SortIndexedProperties(O, len, SortCompare,
+    //    read-through-holes).
     a_slice.sort();
+    // 11. Return A.
     Ok(a.unbind())
 }
 
@@ -2822,37 +2825,49 @@ impl ECMAScriptOrd for f64 {
     }
 }
 
-fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScriptOrd>(
+fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let slice = viewable_slice_mut::<T>(agent, ta, gc).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, ta, gc);
     let slice = &mut slice[..len];
     slice.sort_by(|a, b| a.ecmascript_cmp(b));
     Ok(())
 }
 
-fn to_sorted_ecmascript_cmp_typed_array<'a, T: Viewable + std::fmt::Debug + ECMAScriptOrd>(
+fn to_sorted_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     let ta_record = ta_record.bind(gc.nogc());
-    let ta = ta_record.object;
-    let scoped_ta = ta.scope(agent, gc.nogc());
+    let ta = ta_record.object.scope(agent, gc.nogc());
+    // 4. Let len be TypedArrayLength(taRecord).
     let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
-    let a = typed_array_create_same_type(agent, scoped_ta.get(agent), len as i64, gc.reborrow())
+    // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
+    let a = typed_array_create_same_type(agent, ta.get(agent), len as i64, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
-    let (a_slice, o_slice) =
-        split_typed_array_views::<T>(agent, a, scoped_ta.get(agent), gc.nogc()).unwrap();
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, ta.get(agent), gc.nogc());
     let a_slice = &mut a_slice[..len];
     let o_slice = &o_slice[..len];
+    // 9. Let j be 0.
+    // 10. Repeat, while j < len,
+    //     a. Perform ! Set(A, ! ToString(𝔽(j)), sortedList[j], true).
+    //     b. Set j to j + 1.
     a_slice.copy_from_slice(o_slice);
+    // 6. NOTE: The following closure performs a numeric comparison rather than
+    //    the string comparison used in 23.1.3.34.
+    // 7. Let SortCompare be a new Abstract Closure with parameters (x, y) that
+    //    captures comparator and performs the following steps when called:
+    //    a. Return ? CompareTypedArrayElements(x, y, comparator).
+    // 8. Let sortedList be ? SortIndexedProperties(O, len, SortCompare,
+    //    read-through-holes).
     a_slice.sort_by(|a, b| a.ecmascript_cmp(b));
+    // 11. Return A.
     Ok(a.unbind())
 }
 
@@ -2908,7 +2923,7 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     if let Some(error) = error {
         return Err(error);
     }
-    let slice = viewable_slice_mut::<T>(agent, ta.get(agent), gc.nogc()).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, ta.get(agent), gc.nogc());
     let len = len.min(slice.len());
     let slice = &mut slice[..len];
     let copy_len = items.len().min(len);
@@ -2924,20 +2939,27 @@ fn to_sorted_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
 ) -> JsResult<'a, TypedArray<'a>> {
     let ta_record = ta_record.bind(gc.nogc());
     let o = ta_record.object;
+    // 4. Let len be TypedArrayLength(taRecord).
     let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
     let scoped_o = o.scope(agent, gc.nogc());
-    let a = typed_array_create_same_type(agent, scoped_o.get(agent), len as i64, gc.reborrow())
+    // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
+    let a = typed_array_create_same_type(agent, o.unbind(), len as i64, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     let scoped_a = a.scope(agent, gc.nogc());
-    let (a_slice, o_slice) =
-        split_typed_array_views::<T>(agent, scoped_a.get(agent), scoped_o.get(agent), gc.nogc())
-            .unwrap();
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_o.get(agent), gc.nogc());
     let a_slice = &mut a_slice[..len];
     let from_slice = &o_slice[..len];
     a_slice.copy_from_slice(from_slice);
     let mut items: Vec<T> = a_slice.to_vec();
     let mut error: Option<JsError> = None;
+    // 6. NOTE: The following closure performs a numeric comparison rather than
+    //    the string comparison used in 23.1.3.34.
+    // 7. Let SortCompare be a new Abstract Closure with parameters (x, y) that
+    //    captures comparator and performs the following steps when called:
+    //    a. Return ? CompareTypedArrayElements(x, y, comparator).
+    // 8. Let sortedList be ? SortIndexedProperties(O, len, SortCompare,
+    //    read-through-holes).
     items.sort_by(|a, b| {
         if error.is_some() {
             return std::cmp::Ordering::Equal;
@@ -2976,11 +2998,16 @@ fn to_sorted_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     if let Some(error) = error {
         return Err(error);
     }
-    let slice = viewable_slice_mut::<T>(agent, scoped_a.get(agent), gc.nogc()).unwrap();
+    let slice = viewable_slice_mut::<T>(agent, scoped_a.get(agent), gc.nogc());
     let len = len.min(slice.len());
     let slice = &mut slice[..len];
     let copy_len = items.len().min(len);
+    // 9. Let j be 0.
+    // 10. Repeat, while j < len,
+    //     a. Perform ! Set(A, ! ToString(𝔽(j)), sortedList[j], true).
+    //     b. Set j to j + 1.
     slice[..copy_len].copy_from_slice(&items[..copy_len]);
+    // 11. Return A.
     Ok(scoped_a.get(agent))
 }
 
@@ -3140,28 +3167,29 @@ fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut
     slice.copy_from_slice(kept);
 }
 
-fn split_typed_array_views<'a, T: Viewable + std::fmt::Debug>(
+fn split_typed_array_views<'a, T: Viewable>(
     agent: &'a mut Agent,
     a: TypedArray<'a>,
     o: TypedArray<'a>,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, (&'a mut [T], &'a [T])> {
+) -> (&'a mut [T], &'a [T]) {
     let a_buf = a.get_viewed_array_buffer(agent, gc);
     let o_buf = o.get_viewed_array_buffer(agent, gc);
-    assert!(
-        !std::ptr::eq(
-            a_buf.as_slice(agent).as_ptr(),
-            o_buf.as_slice(agent).as_ptr()
-        ),
-        "Must not point to the same buffer"
-    );
-    let a_slice = viewable_slice_mut::<T>(agent, a, gc).unwrap();
+    let a_buf = a_buf.as_slice(agent);
+    let o_buf = o_buf.as_slice(agent);
+    if !a_buf.is_empty() || !o_buf.is_empty() {
+        assert!(
+            !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
+            "Must not point to the same buffer"
+        );
+    }
+    let a_slice = viewable_slice_mut::<T>(agent, a, gc);
     let a_ptr = a_slice.as_mut_ptr();
     let a_len = a_slice.len();
     let o_aligned = viewable_slice::<T>(agent, o, gc).unwrap();
     // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
     let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
-    Ok((a_aligned, o_aligned))
+    (a_aligned, o_aligned)
 }
 
 fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
@@ -3229,8 +3257,7 @@ fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
     //  c. Else, let fromValue be ! Get(O, Pk).
     //  d. Perform ! Set(A, Pk, fromValue, true).
     //  e. Set k to k + 1.
-    let (a_slice, o_slice) =
-        split_typed_array_views::<T>(agent, a, scoped_o.get(agent), gc.nogc()).unwrap();
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_o.get(agent), gc.nogc());
     let len = len as usize;
     let a_slice = &mut a_slice[..len];
     let from_slice = &o_slice[..len];
