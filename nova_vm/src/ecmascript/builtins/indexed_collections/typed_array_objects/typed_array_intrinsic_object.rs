@@ -2380,7 +2380,7 @@ fn viewable_slice_mut<'a, T: Viewable>(
     slice
 }
 
-fn map_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
+fn map_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     callback_fn: Function,
     this_arg: Value,
@@ -2857,7 +2857,7 @@ fn to_sorted_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
     Ok(a.unbind())
 }
 
-fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+fn sort_comparator_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
     ta: Scoped<TypedArray>,
@@ -2917,7 +2917,7 @@ fn sort_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     Ok(())
 }
 
-fn to_sorted_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+fn to_sorted_comparator_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
     comparator: Scoped<Function>,
@@ -2997,7 +2997,7 @@ fn to_sorted_comparator_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     Ok(scoped_a.get(agent))
 }
 
-fn filter_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
+fn filter_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     callback: Function<'_>,
     this_arg: Value,

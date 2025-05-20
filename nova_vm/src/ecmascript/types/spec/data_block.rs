@@ -131,7 +131,7 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: private::Sealed + Copy + PartialEq {
+pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
