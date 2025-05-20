@@ -2322,11 +2322,7 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     })
 }
 
-fn viewable_slice<'a, T: Viewable>(
-    agent: &'a mut Agent,
-    ta: TypedArray<'a>,
-    gc: NoGcScope<'a, '_>,
-) -> &'a [T] {
+fn viewable_slice<'a, T: Viewable>(agent: &'a mut Agent, ta: TypedArray, gc: NoGcScope) -> &'a [T] {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
@@ -2355,8 +2351,8 @@ fn viewable_slice<'a, T: Viewable>(
 
 fn viewable_slice_mut<'a, T: Viewable>(
     agent: &'a mut Agent,
-    ta: TypedArray<'a>,
-    gc: NoGcScope<'a, '_>,
+    ta: TypedArray,
+    gc: NoGcScope,
 ) -> &'a mut [T] {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
@@ -2449,18 +2445,15 @@ fn map_typed_array<'a, T: Viewable + 'static + std::fmt::Debug>(
     Ok(a.get(agent).unbind())
 }
 
-fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
+fn search_typed_element<T: Viewable, const ASCENDING: bool>(
     agent: &mut Agent,
     ta: TypedArray,
     search_element: Value,
     k: usize,
     len: usize,
-    gc: NoGcScope<'a, '_>,
+    gc: NoGcScope,
 ) -> Option<usize> {
-    let search_element = T::try_from_value(agent, search_element);
-    let Some(search_element) = search_element else {
-        return None;
-    };
+    let search_element = T::try_from_value(agent, search_element)?;
     let slice = viewable_slice::<T>(agent, ta, gc);
     // Length of the TypedArray may have changed between when we measured it
     // and here: We'll never try to access past the boundary of the slice if
@@ -2483,11 +2476,11 @@ fn search_typed_element<'a, T: Viewable + std::fmt::Debug, const ASCENDING: bool
     }
 }
 
-fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
+fn reverse_typed_array<T: Viewable>(
     agent: &mut Agent,
-    ta_record: TypedArrayWithBufferWitnessRecords<'_>,
+    ta_record: TypedArrayWithBufferWitnessRecords,
     ta: TypedArray,
-    gc: NoGcScope<'a, '_>,
+    gc: NoGcScope,
 ) {
     // 3. Let len be TypedArrayLength(taRecord).
     let len = typed_array_length::<T>(agent, &ta_record, gc);
@@ -2507,7 +2500,7 @@ fn reverse_typed_array<'a, T: Viewable + Copy + std::fmt::Debug>(
     slice.reverse();
 }
 
-fn copy_within_typed_array<'a, T: Viewable + std::fmt::Debug>(
+fn copy_within_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     target: Value,
@@ -2819,10 +2812,10 @@ impl ECMAScriptOrd for f64 {
     }
 }
 
-fn sort_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
+fn sort_ecmascript_cmp_typed_array<T: Viewable + ECMAScriptOrd>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
-    gc: NoGcScope<'a, '_>,
+    gc: NoGcScope,
 ) {
     let ta = ta_record.object;
     let len = typed_array_length::<T>(agent, &ta_record, gc);
@@ -3185,7 +3178,7 @@ fn split_typed_array_views<'a, T: Viewable>(
     (a_aligned, o_aligned)
 }
 
-fn with_typed_array<'a, T: Viewable + std::fmt::Debug>(
+fn with_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     index: Value,
