@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::str;
+
 use ahash::AHashSet;
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
@@ -11,7 +13,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::{Bindable, GcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
@@ -1085,38 +1087,139 @@ impl GlobalObject {
         }
     }
 
+    /// ### [19.2.6.1 decodeURI ( encodedURI )](https://tc39.es/ecma262/#sec-decodeuri-encodeduri)
+    ///
+    /// This function computes a new version of a URI in which each escape
+    /// sequence and UTF-8 encoding of the sort that might be introduced by the
+    /// encodeURI function is replaced with the UTF-16 encoding of the code
+    /// point that it represents. Escape sequences that could not have been
+    /// introduced by encodeURI are not replaced.
+    ///
+    /// It is the %decodeURI% intrinsic object.
     fn decode_uri<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("decodeURI", gc.into_nogc()))
+        let encoded_uri = arguments.get(0).bind(gc.nogc());
+
+        // 1. Let uriString be ? ToString(encodedURI).
+        let uri_string = to_string(agent, encoded_uri.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        // 2. Let preserveEscapeSet be ";/?:@&=+$,#".
+        let preserve_escape_set = |c: u8| {
+            c == b'#'
+                || c == b';'
+                || c == b'/'
+                || c == b'?'
+                || c == b':'
+                || c == b'@'
+                || c == b'&'
+                || c == b'='
+                || c == b'+'
+                || c == b'$'
+                || c == b','
+        };
+
+        // 3. Return ? Decode(uriString, preserveEscapeSet).
+        decode(
+            agent,
+            uri_string.unbind(),
+            preserve_escape_set,
+            gc.into_nogc(),
+        )
+        .map(IntoValue::into_value)
     }
+
+    /// ### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
+    ///
+    /// This function computes a new version of a URI in which each escape
+    /// sequence and UTF-8 encoding of the sort that might be introduced by the
+    /// encodeURIComponent function is replaced with the UTF-16 encoding of the
+    /// code point that it represents.
+    ///
+    /// It is the %decodeURIComponent% intrinsic object.
     fn decode_uri_component<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("decodeURIComponent", gc.into_nogc()))
+        let encoded_uri_component = arguments.get(0).bind(gc.nogc());
+
+        // 1. Let componentString be ? ToString(encodedURIComponent).
+        let uri_string = to_string(agent, encoded_uri_component.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        // 2. Let preserveEscapeSet be the empty String.
+        let preserve_escape_set = |_: u8| false;
+
+        // 3. Return ? Decode(componentString, preserveEscapeSet).
+        decode(
+            agent,
+            uri_string.unbind(),
+            preserve_escape_set,
+            gc.into_nogc(),
+        )
+        .map(IntoValue::into_value)
     }
+
+    /// ### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
+    ///
+    /// This function computes a new version of a UTF-16 encoded (6.1.4) URI in
+    /// which each instance of certain code points is replaced by one, two,
+    /// three, or four escape sequences representing the UTF-8 encoding of the
+    /// code point.
+    ///
+    /// It is the %encodeURI% intrinsic object.
     fn encode_uri<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let uri = arguments.get(0).bind(gc.nogc());
+
+        // 1. Let uriString be ? ToString(uri).
+        let _uri_string = to_string(agent, uri.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        // 2. Let extraUnescaped be ";/?:@&=+$,#".
+        // 3. Return ? Encode(uriString, extraUnescaped).
         Err(agent.todo("encodeURI", gc.into_nogc()))
     }
+
+    /// ### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
+    ///
+    /// This function computes a new version of a UTF-16 encoded (6.1.4) URI in
+    /// which each instance of certain code points is replaced by one, two,
+    /// three, or four escape sequences representing the UTF-8 encoding of the
+    /// code point.
+    ///
+    /// It is the %encodeURIComponent% intrinsic object.
     fn encode_uri_component<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let uri_component = arguments.get(0).bind(gc.nogc());
+
+        // 1. Let componentString be ? ToString(uriComponent).
+        let _component_string = to_string(agent, uri_component.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        // 2. Let extraUnescaped be the empty String.
+        // 3. Return ? Encode(componentString, extraUnescaped).
         Err(agent.todo("encodeURIComponent", gc.into_nogc()))
     }
+
     fn escape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -1125,6 +1228,7 @@ impl GlobalObject {
     ) -> JsResult<'gc, Value<'gc>> {
         Err(agent.todo("escape", gc.into_nogc()))
     }
+
     fn unescape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -1158,5 +1262,204 @@ impl GlobalObject {
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectEscape>(agent, realm).build();
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectUnescape>(agent, realm)
             .build();
+    }
+}
+
+/// ### [19.2.6.6 Decode ( string, preserveEscapeSet )](https://tc39.es/ecma262/#sec-decode)
+///
+/// The abstract operation Decode takes arguments string (a String) and
+/// preserveEscapeSet (a String) and returns either a normal completion
+/// containing a String or a throw completion. It performs URI unescaping and
+/// decoding, preserving any escape sequences that correspond to Basic Latin
+/// characters in preserveEscapeSet.
+///
+/// Adapted from Boa JS engine. Source https://github.com/boa-dev/boa/blob/ced222fdbabacc695f8f081c5b009afc9be6b8d0/core/engine/src/builtins/uri/mod.rs#L366
+///
+/// Copyright (c) 2019 Jason Williams
+fn decode<'gc, F>(
+    agent: &mut Agent,
+    string: String,
+    reserved_set: F,
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, String<'gc>>
+where
+    F: Fn(u8) -> bool,
+{
+    // 1. Let strLen be the length of string.
+    let str_len = string.utf16_len(agent);
+    // 2. Let R be the empty String.
+    let mut r = std::string::String::with_capacity(string.len(agent));
+    let mut octets = Vec::with_capacity(4);
+
+    // 3. Let k be 0.
+    let mut k = 0;
+    // 4. Repeat,
+    loop {
+        // a. If k = strLen, return R.
+        if k == str_len {
+            return Ok(String::from_string(agent, r, gc));
+        }
+
+        // b. Let C be the code unit at index k within string.
+        let c = string.utf16_char(agent, k);
+
+        // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
+        if c != '%' {
+            // i. Let S be the String value containing only the code unit C.
+            r.push(c);
+        } else {
+            // d. Else,
+            // i. Let start be k.
+            let start = k;
+
+            // ii. If k + 2 ≥ strLen, throw a URIError exception.
+            if k + 2 >= str_len {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::UriError,
+                    "invalid escape character found",
+                    gc,
+                ));
+            }
+
+            // iii. If the code units at index (k + 1) and (k + 2) within string do not represent
+            // hexadecimal digits, throw a URIError exception.
+            // iv. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
+            let Some(b) = decode_hex_byte(
+                string.utf16_char(agent, k + 1),
+                string.utf16_char(agent, k + 2),
+            ) else {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::UriError,
+                    "invalid hexadecimal digit found",
+                    gc,
+                ));
+            };
+
+            // v. Set k to k + 2.
+            k += 2;
+
+            // vi. Let n be the number of leading 1 bits in B.
+            let n = b.leading_ones() as usize;
+
+            // vii. If n = 0, then
+            if n == 0 {
+                // 1. Let C be the code unit whose value is B.
+
+                // 2. If C is not in reservedSet, then
+                if !reserved_set(b) {
+                    // a. Let S be the String value containing only the code unit C.
+                    r.push_str(str::from_utf8(&[b]).unwrap());
+                } else {
+                    // 3. Else,
+                    // a. Let S be the substring of string from start to k + 1.
+                    let start = string.utf8_index(agent, start).unwrap();
+                    let k = string.utf8_index(agent, k).unwrap();
+                    r.push_str(&string.as_str(agent)[start..=k])
+                }
+            } else {
+                // viii. Else,
+                // 1. If n = 1 or n > 4, throw a URIError exception.
+                if n == 1 || n > 4 {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::UriError,
+                        "invalid escaped character found",
+                        gc,
+                    ));
+                }
+
+                // 2. If k + (3 × (n - 1)) ≥ strLen, throw a URIError exception.
+                if k + (3 * (n - 1)) > str_len {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::UriError,
+                        "non-terminated escape character found",
+                        gc,
+                    ));
+                }
+
+                // 3. Let Octets be « B ».
+                octets.push(b);
+
+                // 4. Let j be 1.
+                // 5. Repeat, while j < n,
+                for _j in 1..n {
+                    // a. Set k to k + 1.
+                    k += 1;
+
+                    // b. If the code unit at index k within string is not the code unit 0x0025 (PERCENT SIGN), throw a URIError exception.
+                    if string.utf16_char(agent, k) != '%' {
+                        return Err(agent.throw_exception_with_static_message(
+                            ExceptionType::UriError,
+                            "escape characters must be preceded with a % sign",
+                            gc,
+                        ));
+                    }
+
+                    // c. If the code units at index (k + 1) and (k + 2) within string do not represent hexadecimal digits, throw a URIError exception.
+                    // d. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
+                    let Some(b) = decode_hex_byte(
+                        string.utf16_char(agent, k + 1),
+                        string.utf16_char(agent, k + 2),
+                    ) else {
+                        return Err(agent.throw_exception_with_static_message(
+                            ExceptionType::UriError,
+                            "invalid hexadecimal digit found",
+                            gc,
+                        ));
+                    };
+
+                    // e. Set k to k + 2.
+                    k += 2;
+
+                    // f. Append B to Octets.
+                    octets.push(b);
+
+                    // g. Set j to j + 1.
+                }
+
+                // 6. Assert: The length of Octets is n.
+                assert_eq!(octets.len(), n);
+
+                // 7. If Octets does not contain a valid UTF-8 encoding of a Unicode code point, throw a URIError exception.
+                match std::str::from_utf8(&octets) {
+                    Err(_) => {
+                        return Err(agent.throw_exception_with_static_message(
+                            ExceptionType::UriError,
+                            "invalid UTF-8 encoding found",
+                            gc,
+                        ));
+                    }
+                    Ok(v) => {
+                        // 8. Let V be the code point obtained by applying the UTF-8 transformation to Octets, that is, from a List of octets into a 21-bit value.
+                        // 9. Let S be UTF16EncodeCodePoint(V).
+                        // utf16_encode_codepoint(v)
+                        r.push_str(v);
+                        octets.clear();
+                    }
+                }
+            }
+        };
+
+        // e. Set R to the string-concatenation of R and S.
+
+        // f. Set k to k + 1.
+        k += 1;
+    }
+}
+
+/// Decodes a byte from two unicode code units.
+///
+/// Adapted from Boa JS engine. Source https://github.com/boa-dev/boa/blob/ced222fdbabacc695f8f081c5b009afc9be6b8d0/core/engine/src/builtins/uri/mod.rs#L514
+///
+/// Copyright (c) 2019 Jason Williams
+fn decode_hex_byte(high: char, low: char) -> Option<u8> {
+    match (
+        char::from_u32(u32::from(high)),
+        char::from_u32(u32::from(low)),
+    ) {
+        (Some(high), Some(low)) => match (high.to_digit(16), low.to_digit(16)) {
+            (Some(high), Some(low)) => Some(((high as u8) << 4) + low as u8),
+            _ => None,
+        },
+        _ => None,
     }
 }
