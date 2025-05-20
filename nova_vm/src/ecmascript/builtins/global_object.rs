@@ -11,7 +11,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::{Bindable, GcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
@@ -1105,7 +1105,7 @@ impl GlobalObject {
         // 1. Let uriString be ? ToString(encodedURI).
         let uri_string = to_string(agent, encoded_uri.unbind(), gc.reborrow())
             .unbind()?
-            .scope(agent, gc.nogc());
+            .bind(gc.nogc());
 
         // 2. Let preserveEscapeSet be ";/?:@&=+$,#".
         let preserve_escape_set = |c: u16| {
@@ -1125,11 +1125,10 @@ impl GlobalObject {
         // 3. Return ? Decode(uriString, preserveEscapeSet).
         decode(
             agent,
-            uri_string.get(agent),
+            uri_string.unbind(),
             preserve_escape_set,
-            gc.reborrow(),
+            gc.into_nogc(),
         )
-        .unbind()
         .map(IntoValue::into_value)
     }
 
@@ -1162,9 +1161,8 @@ impl GlobalObject {
             agent,
             uri_string.unbind(),
             preserve_escape_set,
-            gc.reborrow(),
+            gc.into_nogc(),
         )
-        .unbind()
         .map(IntoValue::into_value)
     }
 
@@ -1280,7 +1278,7 @@ fn decode<'gc, F>(
     agent: &mut Agent,
     string: String,
     reserved_set: F,
-    gc: GcScope<'gc, '_>,
+    gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>>
 where
     F: Fn(u16) -> bool,
@@ -1300,7 +1298,7 @@ where
             return Ok(String::from_string(
                 agent,
                 std::string::String::from_utf16(&r[..]).unwrap(),
-                gc.into_nogc(),
+                gc,
             ));
         }
 
@@ -1321,7 +1319,7 @@ where
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::UriError,
                     "invalid escape character found",
-                    gc.into_nogc(),
+                    gc,
                 ));
             }
 
@@ -1335,7 +1333,7 @@ where
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::UriError,
                     "invalid hexadecimal digit found",
-                    gc.into_nogc(),
+                    gc,
                 ));
             };
 
@@ -1368,7 +1366,7 @@ where
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::UriError,
                         "invalid escaped character found",
-                        gc.into_nogc(),
+                        gc,
                     ));
                 }
 
@@ -1377,7 +1375,7 @@ where
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::UriError,
                         "non-terminated escape character found",
-                        gc.into_nogc(),
+                        gc,
                     ));
                 }
 
@@ -1395,7 +1393,7 @@ where
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "escape characters must be preceded with a % sign",
-                            gc.into_nogc(),
+                            gc,
                         ));
                     }
 
@@ -1408,7 +1406,7 @@ where
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "invalid hexadecimal digit found",
-                            gc.into_nogc(),
+                            gc,
                         ));
                     };
 
@@ -1430,7 +1428,7 @@ where
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "invalid UTF-8 encoding found",
-                            gc.into_nogc(),
+                            gc,
                         ));
                     }
                     Ok(v) => {
