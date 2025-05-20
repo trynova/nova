@@ -303,14 +303,15 @@ impl StringConstructor {
     fn raw<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        mut arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let template = arguments.get(0).bind(gc.nogc());
-        let substitutions = arguments[1..]
-            .iter()
-            .map(|a| a.scope(agent, gc.nogc()))
-            .collect::<Vec<_>>();
+        let mut substitutions = if arguments.len() > 0 {
+            ArgumentsList::from_mut_slice(&mut arguments.as_mut_slice()[1..])
+        } else {
+            ArgumentsList::from_mut_slice(&mut [])
+        };
 
         // 1. Let substitutionCount be the number of elements in substitutions.
         let substitution_count = substitutions.len() as i64;
@@ -320,75 +321,77 @@ impl StringConstructor {
             .unbind()?
             .scope(agent, gc.nogc());
 
-        // 3. Let literals be ? ToObject(? Get(cooked, "raw")).
-        let cooked_raw = get(
+        substitutions.with_scoped(
             agent,
-            cooked.get(agent),
-            BUILTIN_STRING_MEMORY.raw.to_property_key(),
-            gc.reborrow(),
-        )
-        .unbind()?;
-        let literals = to_object(agent, cooked_raw, gc.nogc())
-            .unbind()?
-            .scope(agent, gc.nogc());
-
-        // 4. Let literalCount be ? LengthOfArrayLike(literals).
-        let literal_count =
-            length_of_array_like(agent, literals.get(agent), gc.reborrow()).unbind()?;
-
-        // 5. If literalCount ≤ 0, return the empty String.
-        if literal_count <= 0 {
-            return Ok(String::EMPTY_STRING.into_value());
-        }
-
-        // 6. Let R be the empty String.
-        let mut r = std::string::String::with_capacity(literal_count as usize);
-
-        // 7. Let nextIndex be 0.
-        let mut next_index: i64 = 0;
-
-        // 8. Repeat,
-        loop {
-            // a. Let nextLiteralVal be ? Get(literals, ! ToString(𝔽(nextIndex))).
-            let next_literal_val = get(
-                agent,
-                literals.get(agent),
-                PropertyKey::try_from(next_index).unwrap(),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .scope(agent, gc.nogc());
-
-            // b. Let nextLiteral be ? ToString(nextLiteralVal).
-            let next_literal = to_string(agent, next_literal_val.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-
-            // c. Set R to the string-concatenation of R and nextLiteral.
-            r.push_str(next_literal.as_str(agent));
-
-            // d. If nextIndex + 1 = literalCount, return R.
-            if next_index + 1 == literal_count {
-                return Ok(String::from_string(agent, r, gc.into_nogc()).into());
-            }
-
-            // e. If nextIndex < substitutionCount, then
-            if next_index < substitution_count {
-                // i. Let nextSubVal be substitutions[nextIndex].
-                let next_sub_val = substitutions.get(next_index as usize).unwrap();
-
-                // ii. Let nextSub be ? ToString(nextSubVal).
-                let next_sub = to_string(agent, next_sub_val.get(agent), gc.reborrow())
+            |agent, substitutions, mut gc| {
+                // 3. Let literals be ? ToObject(? Get(cooked, "raw")).
+                let literals = get(
+                    agent,
+                    cooked.get(agent),
+                    BUILTIN_STRING_MEMORY.raw.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                let literals = to_object(agent, literals, gc.nogc())
                     .unbind()?
-                    .bind(gc.nogc());
+                    .scope(agent, gc.nogc());
 
-                // iii. Set R to the string-concatenation of R and nextSub.
-                r.push_str(next_sub.as_str(agent));
-            }
+                // 4. Let literalCount be ? LengthOfArrayLike(literals).
+                let literal_count =
+                    length_of_array_like(agent, literals.get(agent), gc.reborrow()).unbind()?;
 
-            // f. Set nextIndex to nextIndex + 1.
-            next_index += 1;
-        }
+                // 5. If literalCount ≤ 0, return the empty String.
+                if literal_count <= 0 {
+                    return Ok(String::EMPTY_STRING.into_value());
+                }
+
+                // 6. Let R be the empty String.
+                let mut r = std::string::String::with_capacity(literal_count as usize);
+
+                // 7. Let nextIndex be 0.
+                // 8. Repeat,
+                for next_index in 0..literal_count {
+                    // a. Let nextLiteralVal be ? Get(literals, ! ToString(𝔽(nextIndex))).
+                    let next_literal_val = get(
+                        agent,
+                        literals.get(agent),
+                        PropertyKey::try_from(next_index).unwrap(),
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .scope(agent, gc.nogc());
+
+                    // b. Let nextLiteral be ? ToString(nextLiteralVal).
+                    let next_literal = to_string(agent, next_literal_val.get(agent), gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
+
+                    // c. Set R to the string-concatenation of R and nextLiteral.
+                    r.push_str(next_literal.as_str(agent));
+
+                    // d. If nextIndex + 1 = literalCount, return R.
+                    // Note: this branch is now below the loop.
+
+                    // e. If nextIndex < substitutionCount, then
+                    if next_index + 1 < literal_count && next_index < substitution_count {
+                        // i. Let nextSubVal be substitutions[nextIndex].
+                        let next_sub_val = substitutions.get(agent, next_index as u32, gc.nogc());
+
+                        // ii. Let nextSub be ? ToString(nextSubVal).
+                        let next_sub = to_string(agent, next_sub_val.unbind(), gc.reborrow())
+                            .unbind()?
+                            .bind(gc.nogc());
+
+                        // iii. Set R to the string-concatenation of R and nextSub.
+                        r.push_str(next_sub.as_str(agent));
+                    }
+
+                    // f. Set nextIndex to nextIndex + 1.
+                }
+                Ok(String::from_string(agent, r, gc.into_nogc()).into())
+            },
+            gc,
+        )
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
