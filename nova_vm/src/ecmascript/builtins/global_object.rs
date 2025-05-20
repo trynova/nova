@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::str;
+
 use ahash::AHashSet;
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
@@ -1286,7 +1288,7 @@ where
     // 1. Let strLen be the length of string.
     let str_len = string.utf16_len(agent);
     // 2. Let R be the empty String.
-    let mut r = Vec::with_capacity(str_len);
+    let mut r = std::string::String::with_capacity(string.len(agent));
     let mut octets = Vec::with_capacity(4);
 
     // 3. Let k be 0.
@@ -1295,20 +1297,16 @@ where
     loop {
         // a. If k = strLen, return R.
         if k == str_len {
-            return Ok(String::from_string(
-                agent,
-                std::string::String::from_utf16(&r[..]).unwrap(),
-                gc,
-            ));
+            return Ok(String::from_string(agent, r, gc));
         }
 
         // b. Let C be the code unit at index k within string.
         let c = string.utf16_char(agent, k);
 
         // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
-        let s = if c != '%' {
+        if c != '%' {
             // i. Let S be the String value containing only the code unit C.
-            Vec::from([c as u16])
+            r.push(c);
         } else {
             // d. Else,
             // i. Let start be k.
@@ -1346,18 +1344,17 @@ where
             // vii. If n = 0, then
             if n == 0 {
                 // 1. Let C be the code unit whose value is B.
-                let c = b as u16;
 
                 // 2. If C is not in reservedSet, then
                 if !reserved_set(b) {
                     // a. Let S be the String value containing only the code unit C.
-                    Vec::from([c])
+                    r.push_str(str::from_utf8(&[b]).unwrap());
                 } else {
                     // 3. Else,
                     // a. Let S be the substring of string from start to k + 1.
-                    (start..=k)
-                        .map(|i| string.utf16_char(agent, i) as u16)
-                        .collect()
+                    let start = string.utf8_index(agent, start).unwrap();
+                    let k = string.utf8_index(agent, k).unwrap();
+                    r.push_str(&string.as_str(agent)[start..=k])
                 }
             } else {
                 // viii. Else,
@@ -1435,16 +1432,14 @@ where
                         // 8. Let V be the code point obtained by applying the UTF-8 transformation to Octets, that is, from a List of octets into a 21-bit value.
                         // 9. Let S be UTF16EncodeCodePoint(V).
                         // utf16_encode_codepoint(v)
-                        let s = v.encode_utf16().collect::<Vec<_>>();
+                        r.push_str(v);
                         octets.clear();
-                        s
                     }
                 }
             }
         };
 
         // e. Set R to the string-concatenation of R and S.
-        r.extend_from_slice(&s);
 
         // f. Set k to k + 1.
         k += 1;
