@@ -1,11 +1,11 @@
-const exepctationResultKeys = Object.keys(
+const expectationResultKeys = Object.keys(
   JSON.parse(readTextFile("./tests/expectations.json")),
 );
 
 const baseMap = new Map();
 const baseKeys = [];
 
-for (const key of exepctationResultKeys) {
+for (const key of expectationResultKeys) {
   const lastIndex = key.lastIndexOf("/");
   const baseKey = key.substring(0, lastIndex);
   const entry = baseMap.get(baseKey);
