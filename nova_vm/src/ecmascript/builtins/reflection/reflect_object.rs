@@ -547,7 +547,7 @@ impl ReflectObject {
             .internal_own_property_keys(agent, gc.reborrow())
             .unbind()?
             .into_iter()
-            .map(|key| key.convert_to_value(agent, gc.nogc()))
+            .map(|key| key.convert_to_value(agent, gc.nogc()).into_value())
             .collect();
         // 3. Return CreateArrayFromList(keys).
         Ok(create_array_from_list(agent, &keys.unbind(), gc.into_nogc()).into_value())

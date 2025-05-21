@@ -36,7 +36,7 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
-            OrdinaryFunctionCreateParams, ScopedArgumentsList, array_create,
+            OrdinaryFunctionCreateParams, ScopedArgumentsList, SetFunctionNamePrefix, array_create,
             create_builtin_constructor, create_unmapped_arguments_object,
             global_object::perform_eval, make_constructor, make_method,
             ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
@@ -867,7 +867,7 @@ impl Vm {
                     agent,
                     closure,
                     prop_key,
-                    Some(BUILTIN_STRING_MEMORY.get),
+                    Some(SetFunctionNamePrefix::Get),
                     gc.nogc(),
                 );
                 // 9. If propKey is a Private Name, then
@@ -946,7 +946,7 @@ impl Vm {
                     agent,
                     closure,
                     prop_key,
-                    Some(BUILTIN_STRING_MEMORY.set),
+                    Some(SetFunctionNamePrefix::Set),
                     gc.nogc(),
                 );
                 // 8. If propKey is a Private Name, then
@@ -1331,6 +1331,11 @@ impl Vm {
                 vm.result = Some(function.into_value().unbind());
             }
             Instruction::ClassDefineConstructor => {
+                let name = vm.stack.pop().unwrap();
+                let class_name = set_class_name(agent, vm, name, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+
                 let FunctionExpression {
                     expression,
                     compiled_bytecode,
@@ -1340,7 +1345,6 @@ impl Vm {
                 let compiled_bytecode = *compiled_bytecode;
                 let has_constructor_parent = instr.get_second_bool();
 
-                let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
                 let function_prototype = if has_constructor_parent {
                     Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
                 } else {
@@ -1397,6 +1401,11 @@ impl Vm {
                 vm.result = Some(function.into_value().unbind());
             }
             Instruction::ClassDefineDefaultConstructor => {
+                let name = vm.stack.pop().unwrap();
+                let class_name = set_class_name(agent, vm, name, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+
                 let class_initializer_bytecode_index = instr.get_first_index();
                 let (compiled_initializer_bytecode, has_constructor_parent) = executable
                     .fetch_class_initializer_bytecode(
@@ -1404,8 +1413,6 @@ impl Vm {
                         class_initializer_bytecode_index,
                         gc.nogc(),
                     );
-
-                let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
                 let function_prototype = if has_constructor_parent {
                     Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
                 } else {
@@ -1513,9 +1520,9 @@ impl Vm {
                     // non-numeric PropertyKey.
                     function_name.into(),
                     if is_getter {
-                        Some(BUILTIN_STRING_MEMORY.get)
+                        Some(SetFunctionNamePrefix::Get)
                     } else if is_setter {
-                        Some(BUILTIN_STRING_MEMORY.set)
+                        Some(SetFunctionNamePrefix::Set)
                     } else {
                         None
                     },
@@ -2778,8 +2785,7 @@ impl Vm {
                 vm.result = Some(
                     env_rec
                         .get_new_target(agent, gc.nogc())
-                        .unwrap()
-                        .into_value()
+                        .map_or(Value::Undefined, |v| v.into_value())
                         .unbind(),
                 );
             }
@@ -3334,5 +3340,46 @@ impl HeapMarkAndSweep for SuspendedVm {
         reference_stack.sweep_values(compactions);
         iterator_stack.sweep_values(compactions);
         exception_jump_target_stack.sweep_values(compactions);
+    }
+}
+
+/// SetFunctionName version for class constructors, only calculates the correct
+/// function name and returns it.
+fn set_class_name<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    name: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, String<'a>> {
+    if let Ok(name) = String::try_from(name) {
+        Ok(name.bind(gc.into_nogc()))
+    } else if let Value::Symbol(name) = name {
+        // OPTIMISATION: Specification wise, we should go to the
+        // below else-branch and perform ToPropertyKey, but that'd
+        // just return our Symbol at the cost of some scoping.
+        // Symbols are the most likely non-String value here, so
+        // we'll check them separately first.
+        Ok(name
+            .unbind()
+            .get_symbol_function_name(agent, gc.into_nogc()))
+    } else {
+        // ## 13.2.5.5 Runtime Semantics: PropertyDefinitionEvaluation
+        // ### PropertyDefinition : PropertyName : AssignmentExpression
+        // 1. Let propKey be ? Evaluation of PropertyName.
+        // 3. Return ? ToPropertyKey(propName).
+        let prop_key = {
+            let name = name.unbind();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| to_property_key(agent, name, gc),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc())
+        };
+
+        let name = prop_key.convert_to_value(agent, gc.nogc());
+        set_class_name(agent, vm, name.into_value().unbind(), gc)
     }
 }

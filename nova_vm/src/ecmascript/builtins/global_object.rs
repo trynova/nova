@@ -197,11 +197,12 @@ pub fn perform_eval<'gc>(
             _in_method = this_env_rec.has_super_binding(agent);
             // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to true.
             _in_derived_constructor = match f {
-                Function::ECMAScriptFunction(idx) => agent[idx]
+                Function::ECMAScriptFunction(f) => agent[f]
                     .ecmascript_function
                     .constructor_status
                     .is_derived_class(),
-                _ => todo!(),
+                Function::BuiltinConstructorFunction(f) => agent[f].is_derived,
+                _ => false,
             };
 
             // TODO:

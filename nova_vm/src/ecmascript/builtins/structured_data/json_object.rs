@@ -608,7 +608,7 @@ fn internalize_json_property<'a>(
         reviver.get(agent),
         holder.get(agent).into_value(),
         Some(ArgumentsList::from_mut_slice(&mut [
-            name.unbind(),
+            name.into_value().unbind(),
             val.unbind(),
         ])),
         gc,
@@ -691,7 +691,9 @@ fn get_serializable_json_property_value<'a>(
                 agent,
                 to_json.unbind(),
                 scoped_value.get(agent),
-                Some(ArgumentsList::from_mut_value(&mut key.unbind())),
+                Some(ArgumentsList::from_mut_value(
+                    &mut key.into_value().unbind(),
+                )),
                 gc.reborrow(),
             )
             .unbind()?
@@ -716,7 +718,7 @@ fn get_serializable_json_property_value<'a>(
             // SAFETY: scoped_holder is not shared.
             unsafe { scoped_holder.unwrap().take(agent).into_value().unbind() },
             Some(ArgumentsList::from_mut_slice(&mut [
-                key.unbind(),
+                key.into_value().unbind(),
                 value.unbind(),
             ])),
             gc.reborrow(),

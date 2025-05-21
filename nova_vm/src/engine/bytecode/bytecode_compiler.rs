@@ -396,36 +396,9 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
                     let mut is_proto_setter = false;
                     match &prop.key {
-                        ast::PropertyKey::ArrayExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::ArrowFunctionExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::AssignmentExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::AwaitExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::BigIntLiteral(init) => init.compile(ctx),
-                        ast::PropertyKey::BinaryExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::BooleanLiteral(init) => init.compile(ctx),
-                        ast::PropertyKey::CallExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::ChainExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::ClassExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::ComputedMemberExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::ConditionalExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::FunctionExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::Identifier(init) => init.compile(ctx),
-                        ast::PropertyKey::ImportExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::LogicalExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::MetaProperty(init) => init.compile(ctx),
-                        ast::PropertyKey::NewExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::NullLiteral(init) => init.compile(ctx),
-                        ast::PropertyKey::NumericLiteral(init) => init.compile(ctx),
-                        ast::PropertyKey::ObjectExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::ParenthesizedExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::PrivateFieldExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::PrivateIdentifier(_init) => todo!(),
-                        ast::PropertyKey::PrivateInExpression(init) => init.compile(ctx),
-                        #[cfg(feature = "regexp")]
-                        ast::PropertyKey::RegExpLiteral(init) => init.compile(ctx),
-                        #[cfg(not(feature = "regexp"))]
-                        ast::PropertyKey::RegExpLiteral(_) => todo!(),
-                        ast::PropertyKey::SequenceExpression(init) => init.compile(ctx),
+                        // It shouldn't be possible for objects to be created
+                        // with private identifiers as keys.
+                        ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
                         ast::PropertyKey::StaticIdentifier(id) => {
                             if id.name == "__proto__" {
                                 if prop.kind == ast::PropertyKind::Init && !prop.shorthand {
@@ -446,35 +419,13 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                                 );
                             }
                         }
-                        ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::StringLiteral(init) => {
-                            let identifier = PropertyKey::from_str(ctx.agent, &init.value, ctx.gc);
-                            ctx.add_instruction_with_constant(
-                                Instruction::StoreConstant,
-                                identifier,
-                            );
-                        }
-                        ast::PropertyKey::Super(_) => unreachable!(),
-                        ast::PropertyKey::TaggedTemplateExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::TemplateLiteral(init) => init.compile(ctx),
-                        ast::PropertyKey::ThisExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::UnaryExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::UpdateExpression(init) => init.compile(ctx),
-                        ast::PropertyKey::YieldExpression(init) => init.compile(ctx),
-                        // TODO: Implement this expression.
-                        ast::PropertyKey::V8IntrinsicExpression(_) => todo!(),
-                        ast::PropertyKey::JSXElement(_)
-                        | ast::PropertyKey::JSXFragment(_)
-                        | ast::PropertyKey::TSAsExpression(_)
-                        | ast::PropertyKey::TSSatisfiesExpression(_)
-                        | ast::PropertyKey::TSTypeAssertion(_)
-                        | ast::PropertyKey::TSNonNullExpression(_)
-                        | ast::PropertyKey::TSInstantiationExpression(_) => unreachable!(),
-                    }
-                    if let Some(prop_key_expression) = prop.key.as_expression() {
-                        if is_reference(prop_key_expression) {
-                            assert!(!is_proto_setter);
-                            ctx.add_instruction(Instruction::GetValue);
+                        _ => {
+                            let prop_key = prop.key.as_expression().unwrap();
+                            prop_key.compile(ctx);
+                            if is_reference(prop_key) {
+                                assert!(!is_proto_setter);
+                                ctx.add_instruction(Instruction::GetValue);
+                            }
                         }
                     }
                     if !is_proto_setter {

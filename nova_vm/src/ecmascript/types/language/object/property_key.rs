@@ -13,7 +13,7 @@ use crate::{
         abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
-            PrivateName, String, Symbol, Value,
+            IntoPrimitive, Primitive, PrivateName, String, Symbol, Value,
             language::{
                 string::HeapString,
                 value::{
@@ -79,14 +79,19 @@ impl<'a> PropertyKey<'a> {
     ///
     /// This converts any integer keys into strings. This matches what the
     /// ECMAScript specification expects.
-    pub fn convert_to_value<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+    pub fn convert_to_value<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Primitive<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                Value::from_string(agent, small_integer.into_i64().to_string(), gc)
+                String::from_string(agent, small_integer.into_i64().to_string(), gc)
+                    .into_primitive()
             }
-            PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
-            PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
-            PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
+            PropertyKey::SmallString(small_string) => Primitive::SmallString(small_string),
+            PropertyKey::String(heap_string) => Primitive::String(heap_string.unbind()),
+            PropertyKey::Symbol(symbol) => Primitive::Symbol(symbol.unbind()),
             PropertyKey::PrivateName(_) => unreachable!(),
         }
     }

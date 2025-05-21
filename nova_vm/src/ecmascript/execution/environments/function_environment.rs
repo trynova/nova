@@ -454,18 +454,13 @@ impl FunctionEnvironment<'_> {
             return false;
         }
 
-        // 2. If envRec.[[FunctionObject]].[[HomeObject]] is undefined, return false; otherwise, return true.
+        // 2. If envRec.[[FunctionObject]].[[HomeObject]] is undefined, return
+        //    false; otherwise, return true.
         match env_rec.function_object {
-            Function::BoundFunction(_) => todo!(),
-            Function::BuiltinFunction(_) => unreachable!(),
             Function::ECMAScriptFunction(func) => {
                 agent[func].ecmascript_function.home_object.is_some()
             }
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(_) => unreachable!(),
-            Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
+            _ => false,
         }
     }
 
@@ -483,15 +478,11 @@ impl FunctionEnvironment<'_> {
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
-            Function::BoundFunction(_) => todo!(),
-            Function::BuiltinFunction(_) => unreachable!(),
             // 2. If home is undefined, return undefined.
             Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object?,
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(_) => unreachable!(),
-            Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
+            _ => {
+                return None;
+            }
         };
         // 3. Assert: home is an ordinary object.
         let home = OrdinaryObject::try_from(home).unwrap();
