@@ -611,7 +611,7 @@ impl<'a> Value<'a> {
             Ok(result) => result,
             Err(_) => {
                 debug_assert!(self.is_object());
-                BUILTIN_STRING_MEMORY.Object
+                BUILTIN_STRING_MEMORY._object_Object_
             }
         }
     }
@@ -628,7 +628,7 @@ impl<'a> Value<'a> {
             TryResult::Continue(result) => result.unwrap(),
             _ => {
                 debug_assert!(self.is_object());
-                BUILTIN_STRING_MEMORY.Object
+                BUILTIN_STRING_MEMORY._object_Object_
             }
         }
     }

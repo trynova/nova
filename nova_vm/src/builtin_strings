@@ -8,6 +8,7 @@
 [object Function]
 [object Null]
 [object Number]
+[object Object]
 [object RegExp]
 [object String]
 [object Undefined]

@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     private_get, private_set, throw_no_private_name_error, try_private_get, try_set,
 };
+use crate::ecmascript::execution::agent::JsError;
 use crate::ecmascript::types::IntoValue;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
@@ -189,19 +190,15 @@ fn handle_primitive_get_value<'a>(
         return Err(throw_no_private_name_error(agent, gc.into_nogc()));
     }
     match value {
-        Value::Undefined => {
-            let error_message = format!(
-                "Cannot read property '{}' of undefined.",
-                referenced_name.as_display(agent)
-            );
-            Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()))
-        }
-        Value::Null => {
-            let error_message = format!(
-                "Cannot read property '{}' of null.",
-                referenced_name.as_display(agent)
-            );
-            Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()))
+        Value::Undefined | Value::Null => {
+            Err(throw_read_undefined_or_null_error(
+                agent,
+                // SAFETY: We do not care about the conversion validity in
+                // error message logging.
+                unsafe { referenced_name.into_value_unchecked() },
+                value,
+                gc.into_nogc(),
+            ))
         }
         Value::Boolean(_) => agent
             .current_realm_record()
@@ -239,6 +236,24 @@ fn handle_primitive_get_value<'a>(
     }
 }
 
+pub(crate) fn throw_read_undefined_or_null_error<'a>(
+    agent: &mut Agent,
+    referenced_value: Value,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    let error_message = format!(
+        "Cannot read property '{}' of {}.",
+        referenced_value.try_string_repr(agent, gc).as_str(agent),
+        if value.is_undefined() {
+            "undefined"
+        } else {
+            "null"
+        }
+    );
+    agent.throw_exception(ExceptionType::TypeError, error_message, gc)
+}
+
 fn try_handle_primitive_get_value<'a>(
     agent: &mut Agent,
     referenced_name: PropertyKey,
@@ -252,25 +267,13 @@ fn try_handle_primitive_get_value<'a>(
     }
     // Primitive value. annoying stuff.
     match value {
-        Value::Undefined => {
-            let error_message = format!(
-                "Cannot read property '{}' of undefined.",
-                referenced_name.as_display(agent)
-            );
-            TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                error_message,
-                gc,
-            )))
-        }
-        Value::Null => {
-            let error_message = format!(
-                "Cannot read property '{}' of null.",
-                referenced_name.as_display(agent)
-            );
-            TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                error_message,
+        Value::Undefined | Value::Null => {
+            TryResult::Continue(Err(throw_read_undefined_or_null_error(
+                agent,
+                // SAFETY: We do not care about the conversion validity in
+                // error message logging.
+                unsafe { referenced_name.into_value_unchecked() },
+                value,
                 gc,
             )))
         }

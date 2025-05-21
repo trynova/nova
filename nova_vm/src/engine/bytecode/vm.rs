@@ -54,7 +54,8 @@ use crate::{
             IntoFunction, IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject,
             Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, try_get_value, try_initialize_referenced_binding,
+            is_super_reference, put_value, throw_read_undefined_or_null_error, try_get_value,
+            try_initialize_referenced_binding,
         },
     },
     engine::{
@@ -1872,6 +1873,16 @@ impl Vm {
             }
             Instruction::EvaluatePropertyAccessWithExpressionKey => {
                 let property_name_value = vm.result.take().unwrap().bind(gc.nogc());
+                let mut base_value = vm.stack.pop().unwrap().bind(gc.nogc());
+
+                if base_value.is_undefined() || base_value.is_null() {
+                    return Err(throw_read_undefined_or_null_error(
+                        agent,
+                        property_name_value.unbind(),
+                        base_value.unbind(),
+                        gc.into_nogc(),
+                    ));
+                }
 
                 let strict = agent
                     .running_execution_context()
@@ -1887,17 +1898,20 @@ impl Vm {
                             gc.nogc(),
                         ))
                     } else {
+                        let scoped_base_value = base_value.scope(agent, gc.nogc());
                         let property_name_value = property_name_value.unbind();
-                        with_vm_gc(
+                        let property_key = with_vm_gc(
                             agent,
                             vm,
                             |agent, gc| to_property_key(agent, property_name_value, gc),
                             gc.reborrow(),
                         )
                         .unbind()?
-                        .bind(gc.nogc())
+                        .bind(gc.nogc());
+                        // SAFETY: not shared
+                        base_value = unsafe { scoped_base_value.take(agent) }.bind(gc.nogc());
+                        property_key
                     };
-                let base_value = vm.stack.pop().unwrap().bind(gc.nogc());
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value.unbind()),
