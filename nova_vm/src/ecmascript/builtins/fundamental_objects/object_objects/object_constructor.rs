@@ -993,7 +993,7 @@ impl ObjectConstructor {
         let key_list = enumerable_own_keys(agent, obj.unbind(), gc.reborrow())
             .unbind()?
             .iter()
-            .map(|p| p.convert_to_value(agent, gc.nogc()))
+            .map(|p| p.convert_to_value(agent, gc.nogc()).into_value())
             .collect::<Vec<_>>();
         // 3. Return CreateArrayFromList(keyList).
         Ok(create_array_from_list(agent, &key_list.unbind(), gc.nogc())

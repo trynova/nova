@@ -588,7 +588,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 target.unbind().into_value(),
-                p.unbind(),
+                p.unbind().into_value(),
             ])),
             gc.reborrow(),
         )
@@ -781,7 +781,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             scoped_handler.get(agent).into_value(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 scoped_target.get(agent).into_value(),
-                p.unbind(),
+                p.into_value().unbind(),
                 desc_obj.map_or(Value::Null, |d| d.into_value().unbind()),
             ])),
             gc.reborrow(),
@@ -954,7 +954,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 target.into_value().unbind(),
-                p.unbind(),
+                p.into_value().unbind(),
             ])),
             gc.reborrow(),
         )
@@ -1096,7 +1096,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 target.into_value().unbind(),
-                p.unbind(),
+                p.into_value().unbind(),
                 receiver.unbind(),
             ])),
             gc.reborrow(),
@@ -1231,7 +1231,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 target.into_value().unbind(),
-                p.unbind(),
+                p.into_value().unbind(),
                 value.unbind(),
                 receiver.unbind(),
             ])),
@@ -1354,7 +1354,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 target.into_value().unbind(),
-                p.unbind(),
+                p.into_value().unbind(),
             ])),
             gc.reborrow(),
         )

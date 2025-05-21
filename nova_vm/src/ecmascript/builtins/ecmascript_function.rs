@@ -1080,6 +1080,29 @@ pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object:
     // 3. Return unused.
 }
 
+pub(crate) enum SetFunctionNamePrefix {
+    Get,
+    Set,
+    Bound,
+}
+
+impl SetFunctionNamePrefix {
+    fn into_str(self) -> &'static str {
+        match self {
+            SetFunctionNamePrefix::Get => "get ",
+            SetFunctionNamePrefix::Set => "set ",
+            SetFunctionNamePrefix::Bound => "bound ",
+        }
+    }
+}
+
+fn prefix_into_str(prefix: Option<SetFunctionNamePrefix>) -> &'static str {
+    match prefix {
+        Some(p) => p.into_str(),
+        None => "",
+    }
+}
+
 /// ### [10.2.9 SetFunctionName ( F, name \[ , prefix \] )](https://tc39.es/ecma262/#sec-setfunctionname)
 /// The abstract operation SetFunctionName takes arguments F (a function
 /// object) and name (a property key or Private Name) and optional argument
@@ -1088,10 +1111,12 @@ pub(crate) fn set_function_name<'a>(
     agent: &mut Agent,
     function: impl IntoFunction<'a>,
     name: PropertyKey,
-    _prefix: Option<String>,
+    prefix: Option<SetFunctionNamePrefix>,
     gc: NoGcScope,
 ) {
     // 2. If name is a Symbol, then
+    // 5. If prefix is present, then
+    // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
     let name: String = match name {
         PropertyKey::Symbol(idx) => {
             // a. Let description be name's [[Description]] value.
@@ -1102,24 +1127,43 @@ pub(crate) fn set_function_name<'a>(
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.as_str(agent);
-                    String::from_string(agent, format!("[{descriptor}]"), gc)
+                    String::from_string(
+                        agent,
+                        format!("{}[{descriptor}]", prefix_into_str(prefix)),
+                        gc,
+                    )
                 })
         }
 
-        PropertyKey::Integer(integer) => {
-            String::from_string(agent, integer.into_i64().to_string(), gc)
+        PropertyKey::Integer(integer) => String::from_string(
+            agent,
+            format!("{}{}", prefix_into_str(prefix), integer.into_i64()),
+            gc,
+        ),
+        PropertyKey::SmallString(str) => {
+            if let Some(prefix) = prefix {
+                String::from_string(agent, format!("{}{}", prefix.into_str(), str.as_str()), gc)
+            } else {
+                str.into()
+            }
         }
-        PropertyKey::SmallString(str) => str.into(),
-        PropertyKey::String(str) => str.into(),
+        PropertyKey::String(str) => {
+            if let Some(prefix) = prefix {
+                String::from_string(
+                    agent,
+                    format!("{}{}", prefix.into_str(), str.as_str(agent)),
+                    gc,
+                )
+            } else {
+                str.into()
+            }
+        }
         // 3. Else if name is a Private Name, then
         // a. Set name to name.[[Description]].
         PropertyKey::PrivateName(p) => p
             .get_description(agent, gc)
             .expect("Should always find PrivateName in scope when calling SetFunctionName"),
     };
-    // 5. If prefix is present, then
-    // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
-    // TODO: Handle prefixing
 
     match function.into_function() {
         Function::BoundFunction(idx) => {

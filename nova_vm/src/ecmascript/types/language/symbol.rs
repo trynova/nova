@@ -48,6 +48,35 @@ impl<'a> Symbol<'a> {
         self.0.into_index()
     }
 
+    /// Return the name for functions created using NamedEvaluation with a
+    /// Symbol property key.
+    ///
+    /// ### [10.2.9 SetFunctionName ( F, name \[ , prefix \] )](https://tc39.es/ecma262/#sec-setfunctionname)
+    /// ```text
+    /// 2. If name is a Symbol, then
+    /// a. Let description be name's [[Description]] value.
+    /// c. Else, set name to the string-concatenation of "[", description, and
+    ///    "]".
+    /// b. If description is undefined, set name to the empty String.
+    /// ```
+    pub(crate) fn get_symbol_function_name(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> String<'a> {
+        // a. Let description be name's [[Description]] value.
+        if let Some(descriptor) = agent[self].descriptor {
+            // c. Else, set name to the string-concatenation of
+            //    "[", description, and "]".
+            let description = descriptor.as_str(agent);
+            String::from_string(agent, format!("[{description}]"), gc)
+        } else {
+            // b. If description is undefined, set name to the
+            //    empty String.
+            String::EMPTY_STRING
+        }
+    }
+
     /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
     pub fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
         if let Some(descriptor) = agent[self].descriptor {
