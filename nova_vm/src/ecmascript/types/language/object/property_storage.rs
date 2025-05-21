@@ -15,7 +15,10 @@ use crate::{
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
-        element_array::{ElementArrays, ElementDescriptor, PropertyStorageVector},
+        element_array::{
+            ElementArrays, ElementDescriptor, PropertyStorageMut, PropertyStorageRef,
+            PropertyStorageUninit, PropertyStorageVector,
+        },
         indexes::ElementIndex,
     },
 };
@@ -111,7 +114,11 @@ impl<'a> PropertyStorage<'a> {
         *alloc_counter +=
             core::mem::size_of::<Option<Value>>().saturating_mul(private_fields.len());
         props.reserve(elements, len + private_fields.len() as u32);
-        let (keys, values, mut descriptors) = props.get_storage_uninit(elements);
+        let PropertyStorageUninit {
+            keys,
+            values,
+            mut descriptors,
+        } = props.get_storage_uninit(elements);
 
         let start_index = if len == 0 {
             // Property storage is currently empty: We don't need to do any
@@ -195,7 +202,12 @@ impl<'a> PropertyStorage<'a> {
             elements, objects, ..
         } = &mut agent.heap;
         let props = &objects[object].property_storage;
-        let Some((keys, values, descriptors)) = props.get_storage_mut(elements) else {
+        let Some(PropertyStorageMut {
+            keys,
+            values,
+            descriptors,
+        }) = props.get_storage_mut(elements)
+        else {
             // If the storage is empty, we cannot set a private field value.
             return false;
         };
@@ -238,7 +250,11 @@ impl<'a> PropertyStorage<'a> {
             elements, objects, ..
         } = &agent.heap;
         let props = &objects[object].property_storage;
-        let (keys, values, descriptors) = props.get_storage(elements);
+        let PropertyStorageRef {
+            keys,
+            values,
+            descriptors,
+        } = props.get_storage(elements);
         let key = private_name.into();
         let index = keys
             .iter()
@@ -275,7 +291,11 @@ impl<'a> PropertyStorage<'a> {
         } = &mut agent.heap;
         let props = &objects[object].property_storage;
         // If the storage is empty, no entry for the PrivateName can exist.
-        let (keys, values, descriptors) = props.get_storage_mut(elements)?;
+        let PropertyStorageMut {
+            keys,
+            values,
+            descriptors,
+        } = props.get_storage_mut(elements)?;
         let key = private_name.into();
         let index = keys
             .iter()

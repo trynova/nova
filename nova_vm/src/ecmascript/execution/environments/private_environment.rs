@@ -383,7 +383,7 @@ impl PrivateEnvironment<'_> {
         // just need to find it to get its name.
         for (description, private_name) in data.names.iter() {
             if name == *private_name {
-                return Some(*description);
+                return Some(description.bind(gc));
             }
         }
         unreachable!()

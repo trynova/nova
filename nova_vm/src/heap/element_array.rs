@@ -24,6 +24,71 @@ use core::{
 };
 use std::collections::hash_map::Entry;
 
+/// Shared access to an element storage.
+pub(crate) struct ElementStorageRef<'a, 'gc> {
+    pub values: &'a [Option<Value<'gc>>],
+    pub descriptors: Option<&'a AHashMap<u32, ElementDescriptor<'gc>>>,
+}
+
+impl ElementStorageRef<'_, '_> {
+    const EMPTY: Self = Self {
+        values: &[],
+        descriptors: None,
+    };
+}
+
+/// Exclusive access to an element storage.
+pub(crate) struct ElementStorageMut<'a> {
+    pub values: &'a mut [Option<Value<'static>>],
+    pub descriptors: Entry<'a, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+}
+/// Exclusive access to a full element storage, including uninitialised
+/// elements.
+pub(crate) struct ElementStorageUninit<'a> {
+    pub values: &'a mut [Option<Value<'static>>],
+    pub descriptors: Entry<'a, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+}
+
+/// Shared access to an object's property storage.
+pub(crate) struct PropertyStorageRef<'a, 'gc> {
+    pub keys: &'a [PropertyKey<'gc>],
+    pub values: &'a [Option<Value<'gc>>],
+    pub descriptors: Option<&'a AHashMap<u32, ElementDescriptor<'gc>>>,
+}
+
+impl<'a, 'gc> PropertyStorageRef<'a, 'gc> {
+    const EMPTY: Self = Self {
+        keys: &[],
+        values: &[],
+        descriptors: None,
+    };
+
+    const fn from_keys_and_elements(
+        keys: &'a [PropertyKey<'gc>],
+        element_storage_ref: ElementStorageRef<'a, 'gc>,
+    ) -> Self {
+        Self {
+            keys,
+            values: element_storage_ref.values,
+            descriptors: element_storage_ref.descriptors,
+        }
+    }
+}
+
+/// Exclusive access to an object's property storage.
+pub(crate) struct PropertyStorageMut<'a, 'gc> {
+    pub keys: &'a [PropertyKey<'gc>],
+    pub values: &'a mut [Option<Value<'static>>],
+    pub descriptors: Entry<'a, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+}
+/// Exclusive access to an object's full property storage, including
+/// uninitialised property storage.
+pub(crate) struct PropertyStorageUninit<'a> {
+    pub keys: &'a mut [Option<PropertyKey<'static>>],
+    pub values: &'a mut [Option<Value<'static>>],
+    pub descriptors: Entry<'a, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ElementArrayKey {
     #[default]
@@ -173,7 +238,7 @@ impl Default for ElementsVector<'static> {
     }
 }
 
-impl ElementsVector<'_> {
+impl<'gc> ElementsVector<'gc> {
     pub(crate) fn cap(&self) -> u32 {
         self.cap.cap()
     }
@@ -194,10 +259,45 @@ impl ElementsVector<'_> {
         self.len_writable
     }
 
+    /// Get shared access to the elements storage of an array.
+    ///
+    /// Value slots with None are either array holes, or accessor properties.
+    /// For accessor properties a descriptor for the same index exists.
+    pub(crate) fn get_storage<'a>(
+        &self,
+        arena: &'a impl AsRef<ElementArrays>,
+    ) -> ElementStorageRef<'a, 'gc> {
+        arena.as_ref().get_element_storage(self)
+    }
+
+    /// Get exclusive access to the elements storage of an array.
+    ///
+    /// Value slots with None are either array holes, or accessor properties.
+    /// For accessor properties a descriptor for the same index exists.
+    pub(crate) fn get_storage_mut<'a>(
+        &self,
+        arena: &'a mut impl AsMut<ElementArrays>,
+    ) -> ElementStorageMut<'a> {
+        arena.as_mut().get_element_storage_mut(self)
+    }
+
+    /// Get exclusive access to the full elements storage of an array,
+    /// including uninitialised elements.
+    ///
+    /// Value slots with None are either uninitialised, array holes, or
+    /// accessor properties. For accessor properties a descriptor for the same
+    /// index exists.
+    pub(crate) fn get_storage_uninit<'a>(
+        &self,
+        arena: &'a mut impl AsMut<ElementArrays>,
+    ) -> ElementStorageUninit<'a> {
+        arena.as_mut().get_element_storage_uninit(self)
+    }
+
     /// An elements vector is simple if it contains no accessor descriptors.
     pub(crate) fn is_simple(&self, arena: &impl AsRef<ElementArrays>) -> bool {
-        let backing_store = arena.as_ref().get_descriptors_and_values(self);
-        backing_store.0.is_none_or(|hashmap| {
+        let storage = arena.as_ref().get_element_storage(self);
+        storage.descriptors.is_none_or(|hashmap| {
             !hashmap
                 .iter()
                 .any(|desc| desc.1.has_getter() || desc.1.has_setter())
@@ -206,15 +306,18 @@ impl ElementsVector<'_> {
 
     /// An elements vector is trivial if it contains no descriptors.
     pub(crate) fn is_trivial(&self, arena: &impl AsRef<ElementArrays>) -> bool {
-        let backing_store = arena.as_ref().get_descriptors_and_values(self);
-        backing_store.0.is_none()
+        let ElementStorageRef { descriptors, .. } = arena.as_ref().get_element_storage(self);
+        descriptors.is_none()
     }
 
     /// An elements vector is dense if it contains no holes or getters.
     pub(crate) fn is_dense(&self, arena: &impl AsRef<ElementArrays>) -> bool {
-        let (descriptors, elements) = arena.as_ref().get_descriptors_and_values(self);
+        let ElementStorageRef {
+            descriptors,
+            values,
+        } = arena.as_ref().get_element_storage(self);
         if let Some(descriptors) = descriptors {
-            for (index, ele) in elements.iter().enumerate() {
+            for (index, ele) in values.iter().enumerate() {
                 let index = index as u32;
                 if ele.is_none() {
                     let ele_descriptor = descriptors.get(&index);
@@ -231,7 +334,7 @@ impl ElementsVector<'_> {
             true
         } else {
             // No descriptors, no value: That's a hole.
-            elements.iter().all(|e| e.is_some())
+            values.iter().all(|e| e.is_some())
         }
     }
 
@@ -241,7 +344,7 @@ impl ElementsVector<'_> {
             return;
         }
 
-        elements.reserve_values(self, new_len);
+        elements.reserve_elements(self, new_len);
     }
 
     pub(crate) fn push(
@@ -426,7 +529,7 @@ impl<'a> PropertyStorageVector<'a> {
             return;
         }
 
-        elements.as_mut().reserve_keys_and_values(self, new_len);
+        elements.as_mut().reserve_properties(self, new_len);
     }
 
     /// Access the currently allocated keys of this property storage vector as
@@ -461,29 +564,12 @@ impl<'a> PropertyStorageVector<'a> {
         elements.as_mut().get_values_mut(self)
     }
 
-    pub(crate) fn descriptors_and_values_uninit<'b>(
-        &self,
-        elements: &'b mut impl AsMut<ElementArrays>,
-    ) -> (
-        Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-        &'b mut [Option<Value<'static>>],
-    ) {
-        elements.as_mut().get_descriptors_and_values_uninit(self)
-    }
-
     /// Get the currently allocated keys, values, and descriptors as shared.
     pub(crate) fn get_storage<'b>(
         &self,
         elements: &'b impl AsRef<ElementArrays>,
-    ) -> (
-        // keys
-        &'b [PropertyKey<'a>],
-        // values
-        &'b [Option<Value<'static>>],
-        // descriptors
-        Option<&'b AHashMap<u32, ElementDescriptor<'static>>>,
-    ) {
-        elements.as_ref().get_storage(self)
+    ) -> PropertyStorageRef<'b, 'a> {
+        elements.as_ref().get_property_storage(self)
     }
 
     /// Get the currently allocated keys, values, and descriptors as mutable.
@@ -494,30 +580,16 @@ impl<'a> PropertyStorageVector<'a> {
     pub(crate) fn get_storage_mut<'b>(
         &self,
         elements: &'b mut impl AsMut<ElementArrays>,
-    ) -> Option<(
-        // keys
-        &'b [PropertyKey<'a>],
-        // values
-        &'b mut [Option<Value<'static>>],
-        // descriptors
-        Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-    )> {
-        elements.as_mut().get_storage_mut(self)
+    ) -> Option<PropertyStorageMut<'b, 'a>> {
+        elements.as_mut().get_property_storage_mut(self)
     }
 
     /// Get the currently reserved keys, values, and descriptors as mutable.
     pub(crate) fn get_storage_uninit<'b>(
         &self,
         elements: &'b mut impl AsMut<ElementArrays>,
-    ) -> (
-        // keys
-        &'b mut [Option<PropertyKey<'static>>],
-        // values
-        &'b mut [Option<Value<'static>>],
-        // descriptors
-        Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-    ) {
-        elements.as_mut().get_storage_uninit(self)
+    ) -> PropertyStorageUninit<'b> {
+        elements.as_mut().get_property_storage_uninit(self)
     }
 
     pub(crate) fn push(
@@ -529,7 +601,7 @@ impl<'a> PropertyStorageVector<'a> {
     ) {
         let elements = elements.as_mut();
         if self.is_full() {
-            elements.reserve_keys_and_values(self, self.len + 1);
+            elements.reserve_properties(self, self.len + 1);
         }
         let (next_key_over_end, next_value_over_end, descriptors_map) = match self.cap {
             ElementArrayKey::Empty => unreachable!(),
@@ -1400,39 +1472,33 @@ impl<const N: usize> ElementArray<N> {
     fn get_descriptors_and_values(
         &self,
         vector: &impl ElementsIndexable,
-    ) -> (
-        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-        &[Option<Value<'static>>],
-    ) {
-        (
-            self.descriptors.get(&vector.elements_index()),
-            &self
+    ) -> ElementStorageRef<'_, 'static> {
+        ElementStorageRef {
+            values: &self
                 .values
                 .get(vector.index())
                 .unwrap()
                 .as_ref()
                 .unwrap()
                 .as_slice()[0..vector.len() as usize],
-        )
+            descriptors: self.descriptors.get(&vector.elements_index()),
+        }
     }
 
     fn get_descriptors_and_values_mut(
         &mut self,
         vector: &impl ElementsIndexable,
-    ) -> (
-        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-        &mut [Option<Value<'static>>],
-    ) {
-        (
-            self.descriptors.entry(vector.elements_index()),
-            &mut self
+    ) -> ElementStorageMut {
+        ElementStorageMut {
+            values: &mut self
                 .values
                 .get_mut(vector.index())
                 .unwrap()
                 .as_mut()
                 .unwrap()
                 .as_mut_slice()[0..vector.len() as usize],
-        )
+            descriptors: self.descriptors.entry(vector.elements_index()),
+        }
     }
 
     /// Get the currently reserved values storage and any possible descriptors
@@ -1440,25 +1506,23 @@ impl<const N: usize> ElementArray<N> {
     fn get_descriptors_and_values_uninit(
         &mut self,
         vector: &impl ElementsIndexable,
-    ) -> (
-        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-        &mut [Option<Value<'static>>],
-    ) {
-        (
-            self.descriptors.entry(vector.elements_index()),
-            self.values
+    ) -> ElementStorageUninit {
+        ElementStorageUninit {
+            values: self
+                .values
                 .get_mut(vector.index())
                 .unwrap()
                 .as_mut()
                 .unwrap()
                 .as_mut_slice(),
-        )
+            descriptors: self.descriptors.entry(vector.elements_index()),
+        }
     }
 
     fn push(
         &mut self,
         source: &[Option<Value>],
-        descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
+        descriptors: Option<AHashMap<u32, ElementDescriptor>>,
     ) -> ElementIndex<'static> {
         let length = source.len();
         self.values.reserve(1);
@@ -1494,6 +1558,15 @@ impl<const N: usize> ElementArray<N> {
         assert!(self.values.last().unwrap().is_some());
         let index = ElementIndex::last_element_index(&self.values);
         if let Some(descriptors) = descriptors {
+            // SAFETY: We can transmute the lifetime out of ElementDescriptors;
+            // it doesn't affect the layout and we're inside the heap so GC is
+            // not an issue.
+            let descriptors = unsafe {
+                core::mem::transmute::<
+                    AHashMap<u32, ElementDescriptor>,
+                    AHashMap<u32, ElementDescriptor<'static>>,
+                >(descriptors)
+            };
             self.descriptors.insert(index, descriptors);
         }
         index
@@ -1791,7 +1864,7 @@ impl ElementArrays {
         }
     }
 
-    fn reserve_keys_and_values(&mut self, props: &mut PropertyStorageVector, new_len: u32) {
+    fn reserve_properties(&mut self, props: &mut PropertyStorageVector, new_len: u32) {
         if new_len <= props.cap() {
             // Already big enough, no need to grow
             return;
@@ -1816,43 +1889,27 @@ impl ElementArrays {
             k2pow24,
             k2pow32,
         } = self;
-        /// Helper type for rustc to understand what Deref calls we expect to
-        /// happen in the below match arms.
-        ///
-        /// "Keys-values-decorators"
-        type Kvd<'a, 'b> = (
-            &'a [PropertyKey<'b>],
-            (
-                Option<&'a AHashMap<u32, ElementDescriptor<'static>>>,
-                &'a [Option<Value<'static>>],
-            ),
-        );
         let (new_keys_index, new_values_index) = match new_key {
             ElementArrayKey::Empty => {
                 // 0 <= elements_vector.cap() for all possible values.
                 unreachable!();
             }
             ElementArrayKey::E4 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    // Note: Only Empty is smaller than E4.
-                    ElementArrayKey::E4
-                    | ElementArrayKey::E6
-                    | ElementArrayKey::E8
-                    | ElementArrayKey::E10
-                    | ElementArrayKey::E12
-                    | ElementArrayKey::E16
-                    | ElementArrayKey::E24
-                    | ElementArrayKey::E32 => unreachable!(),
-                };
-                (k2pow4.push(keys), e2pow4.push(source, descriptors.cloned()))
+                // Note: Only Empty is smaller than E4.
+                assert!(props.cap == ElementArrayKey::Empty);
+                (k2pow4.push(&[]), e2pow4.push(&[], None))
             }
             ElementArrayKey::E6 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
+                let PropertyStorageRef {
+                    keys,
+                    values: source,
+                    descriptors,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
                     ElementArrayKey::E6
                     | ElementArrayKey::E8
                     | ElementArrayKey::E10
@@ -1864,14 +1921,20 @@ impl ElementArrays {
                 (k2pow6.push(keys), e2pow6.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E8 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E6 => {
-                        (k2pow6.get(props), e2pow6.get_descriptors_and_values(props))
-                    }
+                let PropertyStorageRef {
+                    keys,
+                    values: source,
+                    descriptors,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E6 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow6.get(props),
+                        e2pow6.get_descriptors_and_values(props),
+                    ),
                     ElementArrayKey::E8
                     | ElementArrayKey::E10
                     | ElementArrayKey::E12
@@ -1882,17 +1945,24 @@ impl ElementArrays {
                 (k2pow8.push(keys), e2pow8.push(source, descriptors.cloned()))
             }
             ElementArrayKey::E10 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E6 => {
-                        (k2pow6.get(props), e2pow6.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E8 => {
-                        (k2pow8.get(props), e2pow8.get_descriptors_and_values(props))
-                    }
+                let PropertyStorageRef {
+                    keys,
+                    values: source,
+                    descriptors,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E6 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow6.get(props),
+                        e2pow6.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E8 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow8.get(props),
+                        e2pow8.get_descriptors_and_values(props),
+                    ),
                     ElementArrayKey::E10
                     | ElementArrayKey::E12
                     | ElementArrayKey::E16
@@ -1905,18 +1975,25 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E12 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E6 => {
-                        (k2pow6.get(props), e2pow6.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E8 => {
-                        (k2pow8.get(props), e2pow8.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E10 => (
+                let PropertyStorageRef {
+                    keys,
+                    descriptors,
+                    values: source,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E6 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow6.get(props),
+                        e2pow6.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E8 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow8.get(props),
+                        e2pow8.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E10 => PropertyStorageRef::from_keys_and_elements(
                         k2pow10.get(props),
                         e2pow10.get_descriptors_and_values(props),
                     ),
@@ -1931,22 +2008,29 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E16 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E6 => {
-                        (k2pow6.get(props), e2pow6.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E8 => {
-                        (k2pow8.get(props), e2pow8.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E10 => (
+                let PropertyStorageRef {
+                    keys,
+                    values: source,
+                    descriptors,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E6 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow6.get(props),
+                        e2pow6.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E8 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow8.get(props),
+                        e2pow8.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E10 => PropertyStorageRef::from_keys_and_elements(
                         k2pow10.get(props),
                         e2pow10.get_descriptors_and_values(props),
                     ),
-                    ElementArrayKey::E12 => (
+                    ElementArrayKey::E12 => PropertyStorageRef::from_keys_and_elements(
                         k2pow12.get(props),
                         e2pow12.get_descriptors_and_values(props),
                     ),
@@ -1960,26 +2044,33 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E24 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E6 => {
-                        (k2pow6.get(props), e2pow6.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E8 => {
-                        (k2pow8.get(props), e2pow8.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E10 => (
+                let PropertyStorageRef {
+                    keys,
+                    values: source,
+                    descriptors,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E6 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow6.get(props),
+                        e2pow6.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E8 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow8.get(props),
+                        e2pow8.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E10 => PropertyStorageRef::from_keys_and_elements(
                         k2pow10.get(props),
                         e2pow10.get_descriptors_and_values(props),
                     ),
-                    ElementArrayKey::E12 => (
+                    ElementArrayKey::E12 => PropertyStorageRef::from_keys_and_elements(
                         k2pow12.get(props),
                         e2pow12.get_descriptors_and_values(props),
                     ),
-                    ElementArrayKey::E16 => (
+                    ElementArrayKey::E16 => PropertyStorageRef::from_keys_and_elements(
                         k2pow16.get(props),
                         e2pow16.get_descriptors_and_values(props),
                     ),
@@ -1991,30 +2082,37 @@ impl ElementArrays {
                 )
             }
             ElementArrayKey::E32 => {
-                let (keys, (descriptors, source)): Kvd = match props.cap {
-                    ElementArrayKey::Empty => (&[], (None, &[])),
-                    ElementArrayKey::E4 => {
-                        (k2pow4.get(props), e2pow4.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E6 => {
-                        (k2pow6.get(props), e2pow6.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E8 => {
-                        (k2pow8.get(props), e2pow8.get_descriptors_and_values(props))
-                    }
-                    ElementArrayKey::E10 => (
+                let PropertyStorageRef {
+                    keys,
+                    values: source,
+                    descriptors,
+                } = match props.cap {
+                    ElementArrayKey::Empty => PropertyStorageRef::EMPTY,
+                    ElementArrayKey::E4 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow4.get(props),
+                        e2pow4.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E6 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow6.get(props),
+                        e2pow6.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E8 => PropertyStorageRef::from_keys_and_elements(
+                        k2pow8.get(props),
+                        e2pow8.get_descriptors_and_values(props),
+                    ),
+                    ElementArrayKey::E10 => PropertyStorageRef::from_keys_and_elements(
                         k2pow10.get(props),
                         e2pow10.get_descriptors_and_values(props),
                     ),
-                    ElementArrayKey::E12 => (
+                    ElementArrayKey::E12 => PropertyStorageRef::from_keys_and_elements(
                         k2pow12.get(props),
                         e2pow12.get_descriptors_and_values(props),
                     ),
-                    ElementArrayKey::E16 => (
+                    ElementArrayKey::E16 => PropertyStorageRef::from_keys_and_elements(
                         k2pow16.get(props),
                         e2pow16.get_descriptors_and_values(props),
                     ),
-                    ElementArrayKey::E24 => (
+                    ElementArrayKey::E24 => PropertyStorageRef::from_keys_and_elements(
                         k2pow24.get(props),
                         e2pow24.get_descriptors_and_values(props),
                     ),
@@ -2031,7 +2129,7 @@ impl ElementArrays {
         props.values_index = new_values_index;
     }
 
-    fn reserve_values(&mut self, elements_vector: &mut ElementsVector, new_len: u32) {
+    fn reserve_elements(&mut self, elements_vector: &mut ElementsVector, new_len: u32) {
         if new_len <= elements_vector.cap() {
             // Already big enough, no need to grow
             return;
@@ -2055,11 +2153,11 @@ impl ElementArrays {
                 unreachable!();
             }
             ElementArrayKey::E4 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => {
                         unreachable!()
                     }
@@ -2074,11 +2172,11 @@ impl ElementArrays {
                 e2pow4.push(source, descriptors.cloned())
             }
             ElementArrayKey::E6 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => {
                         unreachable!()
@@ -2093,11 +2191,11 @@ impl ElementArrays {
                 e2pow6.push(source, descriptors.cloned())
             }
             ElementArrayKey::E8 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E8 => {
@@ -2112,11 +2210,11 @@ impl ElementArrays {
                 e2pow8.push(source, descriptors.cloned())
             }
             ElementArrayKey::E10 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values(elements_vector),
@@ -2131,11 +2229,11 @@ impl ElementArrays {
                 e2pow10.push(source, descriptors.cloned())
             }
             ElementArrayKey::E12 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values(elements_vector),
@@ -2150,11 +2248,11 @@ impl ElementArrays {
                 e2pow12.push(source, descriptors.cloned())
             }
             ElementArrayKey::E16 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values(elements_vector),
@@ -2169,10 +2267,10 @@ impl ElementArrays {
                 e2pow16.push(source, descriptors.cloned())
             }
             ElementArrayKey::E24 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values(elements_vector),
@@ -2183,16 +2281,16 @@ impl ElementArrays {
                         unreachable!()
                     }
                     ElementArrayKey::E32 => e2pow32.get_descriptors_and_values(elements_vector),
-                    ElementArrayKey::Empty => (None, &[]),
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                 };
                 e2pow24.push(source, descriptors.cloned())
             }
             ElementArrayKey::E32 => {
-                let (descriptors, source): (
-                    Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-                    &[Option<Value<'static>>],
-                ) = match elements_vector.cap {
-                    ElementArrayKey::Empty => (None, &[]),
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match elements_vector.cap {
+                    ElementArrayKey::Empty => ElementStorageRef::EMPTY,
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values(elements_vector),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values(elements_vector),
@@ -2385,15 +2483,16 @@ impl ElementArrays {
         }
     }
 
-    pub(crate) fn get_descriptors_and_values(
+    /// Get shared access to the elements storage of an object or an array.
+    ///
+    /// Value slots with None are either array holes, or accessor properties.
+    /// For accessor properties a descriptor for the same index exists.
+    pub(crate) fn get_element_storage(
         &self,
         vector: &impl ElementsIndexable,
-    ) -> (
-        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-        &[Option<Value<'static>>],
-    ) {
+    ) -> ElementStorageRef<'_, 'static> {
         match vector.cap() {
-            ElementArrayKey::Empty => (None, &[]),
+            ElementArrayKey::Empty => ElementStorageRef::EMPTY,
             ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values(vector),
             ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values(vector),
             ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values(vector),
@@ -2405,13 +2504,14 @@ impl ElementArrays {
         }
     }
 
-    pub(crate) fn get_descriptors_and_values_mut(
+    /// Get exclusive access to the elements storage of an object or an array.
+    ///
+    /// Value slots with None are either array holes, or accessor properties.
+    /// For accessor properties a descriptor for the same index exists.
+    pub(crate) fn get_element_storage_mut(
         &mut self,
         vector: &impl ElementsIndexable,
-    ) -> (
-        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-        &mut [Option<Value<'static>>],
-    ) {
+    ) -> ElementStorageMut {
         match vector.cap() {
             ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_mut(vector),
@@ -2425,17 +2525,16 @@ impl ElementArrays {
         }
     }
 
-    /// Get the currently reserved values storage and any possible descriptors
-    /// as mutable. None values in the slice may or may not be empty slots;
-    /// they may also be getters or setters, in which case a descriptor for
-    /// those slots exists.
-    pub(crate) fn get_descriptors_and_values_uninit(
+    /// Get exclusive access to the full elements storage of an object or an
+    /// array, including uninitialised elements.
+    ///
+    /// Value slots with None are either uninitialised, array holes, or
+    /// accessor properties. For accessor properties a descriptor for the same
+    /// index exists.
+    pub(crate) fn get_element_storage_uninit(
         &mut self,
         vector: &impl ElementsIndexable,
-    ) -> (
-        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-        &mut [Option<Value<'static>>],
-    ) {
+    ) -> ElementStorageUninit {
         match vector.cap() {
             ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_uninit(vector),
@@ -2450,58 +2549,111 @@ impl ElementArrays {
     }
 
     /// Get the currently allocated keys, values, and descriptors as shared.
-    pub(crate) fn get_storage<'a>(
+    pub(crate) fn get_property_storage<'a>(
         &self,
         props: &PropertyStorageVector<'a>,
-    ) -> (
-        // keys
-        &[PropertyKey<'a>],
-        // values
-        &[Option<Value<'static>>],
-        // descriptors
-        Option<&AHashMap<u32, ElementDescriptor<'static>>>,
-    ) {
+    ) -> PropertyStorageRef<'_, 'a> {
         match props.cap {
-            ElementArrayKey::Empty => (&[], &[], None),
+            ElementArrayKey::Empty => PropertyStorageRef {
+                keys: &[],
+                values: &[],
+                descriptors: None,
+            },
             ElementArrayKey::E4 => {
                 let keys = self.k2pow4.get(props);
-                let (descs, values) = self.e2pow4.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow4.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E6 => {
                 let keys = self.k2pow6.get(props);
-                let (descs, values) = self.e2pow6.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow6.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E8 => {
                 let keys = self.k2pow8.get(props);
-                let (descs, values) = self.e2pow8.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow8.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E10 => {
                 let keys = self.k2pow10.get(props);
-                let (descs, values) = self.e2pow10.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow10.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E12 => {
                 let keys = self.k2pow12.get(props);
-                let (descs, values) = self.e2pow12.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow12.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E16 => {
                 let keys = self.k2pow16.get(props);
-                let (descs, values) = self.e2pow16.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow16.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E24 => {
                 let keys = self.k2pow24.get(props);
-                let (descs, values) = self.e2pow24.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow24.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E32 => {
                 let keys = self.k2pow32.get(props);
-                let (descs, values) = self.e2pow32.get_descriptors_and_values(props);
-                (keys, values, descs)
+                let ElementStorageRef {
+                    values,
+                    descriptors,
+                } = self.e2pow32.get_descriptors_and_values(props);
+                PropertyStorageRef {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
         }
     }
@@ -2511,116 +2663,214 @@ impl ElementArrays {
     ///
     /// Note: keys are not given out as mutable, since mutating keys is never
     /// correct.
-    pub(crate) fn get_storage_mut<'a>(
+    pub(crate) fn get_property_storage_mut<'gc>(
         &mut self,
-        props: &PropertyStorageVector<'a>,
-    ) -> Option<(
-        // keys
-        &[PropertyKey<'a>],
-        // values
-        &mut [Option<Value<'static>>],
-        // descriptors
-        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-    )> {
+        props: &PropertyStorageVector<'gc>,
+    ) -> Option<PropertyStorageMut<'_, 'gc>> {
         match props.cap {
             ElementArrayKey::Empty => None,
             ElementArrayKey::E4 => {
                 let keys = self.k2pow4.get(props);
-                let (descs, values) = self.e2pow4.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow4.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E6 => {
                 let keys = self.k2pow6.get(props);
-                let (descs, values) = self.e2pow6.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow6.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E8 => {
                 let keys = self.k2pow8.get(props);
-                let (descs, values) = self.e2pow8.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow8.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E10 => {
                 let keys = self.k2pow10.get(props);
-                let (descs, values) = self.e2pow10.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow10.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E12 => {
                 let keys = self.k2pow12.get(props);
-                let (descs, values) = self.e2pow12.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow12.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E16 => {
                 let keys = self.k2pow16.get(props);
-                let (descs, values) = self.e2pow16.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow16.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E24 => {
                 let keys = self.k2pow24.get(props);
-                let (descs, values) = self.e2pow24.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow24.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
             ElementArrayKey::E32 => {
                 let keys = self.k2pow32.get(props);
-                let (descs, values) = self.e2pow32.get_descriptors_and_values_mut(props);
-                Some((keys, values, descs))
+                let ElementStorageMut {
+                    values,
+                    descriptors,
+                } = self.e2pow32.get_descriptors_and_values_mut(props);
+                Some(PropertyStorageMut {
+                    keys,
+                    values,
+                    descriptors,
+                })
             }
         }
     }
 
     /// Get the currently reserved keys, values, and descriptors as mutable.
-    pub(crate) fn get_storage_uninit(
+    pub(crate) fn get_property_storage_uninit(
         &mut self,
         props: &PropertyStorageVector,
-    ) -> (
-        // keys
-        &mut [Option<PropertyKey<'static>>],
-        // values
-        &mut [Option<Value<'static>>],
-        // descriptors
-        Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-    ) {
+    ) -> PropertyStorageUninit {
         match props.cap {
             // It doesn't make sense to try access an empty storage.
             ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => {
                 let keys = self.k2pow4.get_uninit(props);
-                let (descs, values) = self.e2pow4.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow4.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E6 => {
                 let keys = self.k2pow6.get_uninit(props);
-                let (descs, values) = self.e2pow6.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow6.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E8 => {
                 let keys = self.k2pow8.get_uninit(props);
-                let (descs, values) = self.e2pow8.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow8.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E10 => {
                 let keys = self.k2pow10.get_uninit(props);
-                let (descs, values) = self.e2pow10.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow10.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E12 => {
                 let keys = self.k2pow12.get_uninit(props);
-                let (descs, values) = self.e2pow12.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow12.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E16 => {
                 let keys = self.k2pow16.get_uninit(props);
-                let (descs, values) = self.e2pow16.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow16.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E24 => {
                 let keys = self.k2pow24.get_uninit(props);
-                let (descs, values) = self.e2pow24.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow24.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
             ElementArrayKey::E32 => {
                 let keys = self.k2pow32.get_uninit(props);
-                let (descs, values) = self.e2pow32.get_descriptors_and_values_uninit(props);
-                (keys, values, descs)
+                let ElementStorageUninit {
+                    values,
+                    descriptors,
+                } = self.e2pow32.get_descriptors_and_values_uninit(props);
+                PropertyStorageUninit {
+                    keys,
+                    values,
+                    descriptors,
+                }
             }
         }
     }

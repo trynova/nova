@@ -15,7 +15,7 @@ use crate::{
         rootable::Scopable,
         unwrap_try,
     },
-    heap::HeapSweepWeakReference,
+    heap::{Heap, HeapSweepWeakReference, element_array::PropertyStorageMut},
 };
 use crate::{
     ecmascript::{
@@ -1727,18 +1727,22 @@ pub(crate) fn try_set_ordinary_object_value(
     name: PropertyKey,
     value: Value,
 ) -> Option<bool> {
-    let props = agent[binding_object].property_storage;
-    let found = props
-        .keys(agent)
+    let Heap {
+        objects, elements, ..
+    } = &mut agent.heap;
+    let PropertyStorageMut {
+        keys,
+        values,
+        descriptors,
+    } = objects[binding_object]
+        .property_storage
+        .get_storage_mut(elements)?;
+    let index = keys
         .iter()
         .enumerate()
         .find(|(_, k)| **k == name)
-        .map(|(i, _)| i);
-    let Some(index) = found else {
-        return None;
-    };
-    let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(&props);
-    let slot = &mut slice[index];
+        .map(|(i, _)| i)?;
+    let slot = &mut values[index];
     let Some(slot) = slot else {
         return None;
     };

@@ -37,7 +37,9 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WellKnownSymbolIndexes, WorkQueues,
-        element_array::{ElementArrays, ElementDescriptor, ElementsVector},
+        element_array::{
+            ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
+        },
         indexes::ArrayIndex,
     },
 };
@@ -600,7 +602,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(element) = element {
                 TryResult::Continue(element)
             } else {
-                let (descriptors, _) = agent.heap.elements.get_descriptors_and_values(&elements);
+                let ElementStorageRef { descriptors, .. } =
+                    agent.heap.elements.get_element_storage(&elements);
                 if let Some(descriptors) = descriptors {
                     if let Some(descriptor) = descriptors.get(&index) {
                         if let Some(_getter) = descriptor.getter_function(gc) {
@@ -654,7 +657,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(element) = element {
                 Ok(element)
             } else {
-                let (descriptors, _) = agent.heap.elements.get_descriptors_and_values(&elements);
+                let ElementStorageRef { descriptors, .. } =
+                    agent.heap.elements.get_element_storage(&elements);
                 if let Some(descriptors) = descriptors {
                     if let Some(descriptor) = descriptors.get(&index) {
                         if let Some(getter) = descriptor.getter_function(gc.nogc()) {
@@ -698,10 +702,10 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if index >= elements.len() {
                 return TryResult::Continue(true);
             }
-            let (descriptors, slice) = agent
-                .heap
-                .elements
-                .get_descriptors_and_values_mut(&elements);
+            let ElementStorageMut {
+                values,
+                descriptors,
+            } = agent.heap.elements.get_element_storage_mut(&elements);
             if let Entry::Occupied(mut descriptors) = descriptors {
                 let descriptors = descriptors.get_mut();
                 if let Some(descriptor) = descriptors.get(&index) {
@@ -713,7 +717,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 }
             }
             // Index has been checked to be between 0 <= idx < len; indexing should never fail.
-            slice[index as usize] = None;
+            values[index as usize] = None;
             TryResult::Continue(true)
         } else {
             TryResult::Continue(
@@ -843,8 +847,11 @@ fn ordinary_define_own_property_for_array(
 ) -> bool {
     let descriptor_value = descriptor.value;
 
-    let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values(&elements);
-    let current_value = slice[index as usize];
+    let ElementStorageRef {
+        values,
+        descriptors,
+    } = agent.heap.elements.get_element_storage(&elements);
+    let current_value = values[index as usize];
     let current_descriptor = {
         let descriptor = descriptors.and_then(|descriptors| descriptors.get(&index).copied());
         if current_value.is_some() && descriptor.is_none() {
@@ -1043,7 +1050,10 @@ fn mutate_data_descriptor(
     if let Some(descriptor) = elem_descriptor {
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
     } else {
-        let (descriptors, values) = agent.heap.elements.get_descriptors_and_values_mut(elements);
+        let ElementStorageMut {
+            values,
+            descriptors,
+        } = agent.heap.elements.get_element_storage_mut(elements);
         values[index as usize] = descriptor_value.unbind();
         if let Entry::Occupied(mut descriptors) = descriptors {
             let descriptors = descriptors.get_mut();
@@ -1061,8 +1071,10 @@ fn mutate_element_descriptor(
 ) {
     if let Some(descriptor) = elem_descriptor {
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
-    } else if let (Entry::Occupied(mut descriptors), _) =
-        agent.heap.elements.get_descriptors_and_values_mut(elements)
+    } else if let ElementStorageMut {
+        descriptors: Entry::Occupied(mut descriptors),
+        ..
+    } = agent.heap.elements.get_element_storage_mut(elements)
     {
         let descriptors = descriptors.get_mut();
         descriptors.remove(&index);
@@ -1092,8 +1104,11 @@ fn insert_element_descriptor(
     descriptor_value: Option<Value>,
     descriptor: ElementDescriptor,
 ) {
-    let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(elements);
-    slice[index as usize] = descriptor_value.unbind();
+    let ElementStorageMut {
+        values,
+        descriptors,
+    } = agent.heap.elements.get_element_storage_mut(elements);
+    values[index as usize] = descriptor_value.unbind();
     match descriptors {
         Entry::Occupied(e) => {
             let descriptors = e.into_mut();

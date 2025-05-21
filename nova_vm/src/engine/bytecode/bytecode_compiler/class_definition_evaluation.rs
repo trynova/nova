@@ -456,7 +456,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                     // later. The function is never visible to JavaScript code
                     // and thus doesn't _actually_ need to get created here.
                     is_static = true;
-                    PropertyInitializerField::StaticBlock(&static_block)
+                    PropertyInitializerField::StaticBlock(static_block)
                 }
                 // a. If IsStatic of e is false, then
                 // i. Let element be Completion(ClassElementEvaluation of e with argument proto).
@@ -514,7 +514,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 #[cfg(not(feature = "typescript"))]
                 ast::ClassElement::AccessorProperty(_) => unreachable!(),
                 #[cfg(feature = "typescript")]
-                ast::ClassElement::TSIndexSignature(_) => {}
+                ast::ClassElement::TSIndexSignature(_) => todo!(),
                 #[cfg(not(feature = "typescript"))]
                 ast::ClassElement::TSIndexSignature(_) => unreachable!(),
             };
@@ -697,7 +697,7 @@ fn compile_computed_field_name<'s, 'gc>(
     value: Option<&'s ast::Expression<'s>>,
 ) -> PropertyInitializerField<'s, 'gc> {
     let computed_key_id =
-        String::from_string(ctx.agent, format!("^{}", next_computed_key_id), ctx.gc);
+        String::from_string(ctx.agent, format!("^{next_computed_key_id}"), ctx.gc);
     ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, computed_key_id);
     // 1. Let name be ? Evaluation of ClassElementName.
     // ### ComputedPropertyName : [ AssignmentExpression ]
