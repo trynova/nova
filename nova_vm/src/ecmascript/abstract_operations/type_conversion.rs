@@ -357,7 +357,7 @@ pub(crate) fn string_to_number<'gc>(
         "-Infinity" => {
             return Number::neg_inf();
         }
-        "0" | "+0" | "0.0" | "+0.0" => {
+        "" | "0" | "+0" | "0.0" | "+0.0" => {
             return Number::pos_zero();
         }
         "-0" | "-0.0" => {
