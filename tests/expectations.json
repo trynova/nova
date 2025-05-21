@@ -151,7 +151,6 @@
   "built-ins/Array/prototype/forEach/15.4.4.18-7-b-16.js": "FAIL",
   "built-ins/Array/prototype/forEach/15.4.4.18-7-c-i-20.js": "FAIL",
   "built-ins/Array/prototype/indexOf/15.4.4.14-1-12.js": "FAIL",
-  "built-ins/Array/prototype/indexOf/15.4.4.14-6-1.js": "CRASH",
   "built-ins/Array/prototype/indexOf/15.4.4.14-9-a-19.js": "FAIL",
   "built-ins/Array/prototype/indexOf/15.4.4.14-9-b-i-19.js": "FAIL",
   "built-ins/Array/prototype/join/S15.4.4.5_A3.1_T2.js": "FAIL",
