@@ -789,9 +789,12 @@ pub(crate) fn evaluate_body<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
-    let function_heap_data = &agent[function_object].ecmascript_function;
-    let heap_data = function_heap_data;
-    match (heap_data.is_generator, heap_data.is_async) {
+    let function_heap_data = &agent[function_object];
+    let ecmascript_function_object = &function_heap_data.ecmascript_function;
+    match (
+        ecmascript_function_object.is_generator,
+        ecmascript_function_object.is_async,
+    ) {
         (false, true) => {
             // AsyncFunctionBody : FunctionBody
             // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
@@ -806,10 +809,12 @@ pub(crate) fn evaluate_body<'gc>(
             // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
             // SourceCode must be as well. Thus the Allocator is live as well, and no
             // other references to it can exist.
-            if unsafe { heap_data.ecmascript_code.as_ref() }
-                .statements
-                .is_empty()
-                && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
+            if function_heap_data.compiled_bytecode.is_none()
+                && unsafe { ecmascript_function_object.ecmascript_code.as_ref() }
+                    .statements
+                    .is_empty()
+                && unsafe { ecmascript_function_object.formal_parameters.as_ref() }
+                    .is_simple_parameter_list()
             {
                 // Optimisation: Empty body and only simple parameters means no code will effectively run.
                 return Ok(Value::Undefined);

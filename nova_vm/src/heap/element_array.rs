@@ -471,6 +471,7 @@ impl<'a> PropertyStorageVector<'a> {
         elements.as_mut().get_descriptors_and_values_uninit(self)
     }
 
+    /// Get the currently allocated keys, values, and descriptors as shared.
     pub(crate) fn get_storage<'b>(
         &self,
         elements: &'b impl AsRef<ElementArrays>,
@@ -485,20 +486,26 @@ impl<'a> PropertyStorageVector<'a> {
         elements.as_ref().get_storage(self)
     }
 
+    /// Get the currently allocated keys, values, and descriptors as mutable.
+    /// If no storage exists, None is returned.
+    ///
+    /// Note: keys are not given out as mutable, since mutating keys is never
+    /// correct.
     pub(crate) fn get_storage_mut<'b>(
         &self,
         elements: &'b mut impl AsMut<ElementArrays>,
-    ) -> (
+    ) -> Option<(
         // keys
         &'b [PropertyKey<'a>],
         // values
         &'b mut [Option<Value<'static>>],
         // descriptors
         Entry<'b, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-    ) {
+    )> {
         elements.as_mut().get_storage_mut(self)
     }
 
+    /// Get the currently reserved keys, values, and descriptors as mutable.
     pub(crate) fn get_storage_uninit<'b>(
         &self,
         elements: &'b mut impl AsMut<ElementArrays>,
@@ -2500,62 +2507,62 @@ impl ElementArrays {
     }
 
     /// Get the currently allocated keys, values, and descriptors as mutable.
+    /// If no storage exists, None is returned.
     ///
     /// Note: keys are not given out as mutable, since mutating keys is never
     /// correct.
     pub(crate) fn get_storage_mut<'a>(
         &mut self,
         props: &PropertyStorageVector<'a>,
-    ) -> (
+    ) -> Option<(
         // keys
         &[PropertyKey<'a>],
         // values
         &mut [Option<Value<'static>>],
         // descriptors
         Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
-    ) {
+    )> {
         match props.cap {
-            // It doesn't make sense to try access an empty storage.
-            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::Empty => None,
             ElementArrayKey::E4 => {
                 let keys = self.k2pow4.get(props);
                 let (descs, values) = self.e2pow4.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E6 => {
                 let keys = self.k2pow6.get(props);
                 let (descs, values) = self.e2pow6.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E8 => {
                 let keys = self.k2pow8.get(props);
                 let (descs, values) = self.e2pow8.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E10 => {
                 let keys = self.k2pow10.get(props);
                 let (descs, values) = self.e2pow10.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E12 => {
                 let keys = self.k2pow12.get(props);
                 let (descs, values) = self.e2pow12.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E16 => {
                 let keys = self.k2pow16.get(props);
                 let (descs, values) = self.e2pow16.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E24 => {
                 let keys = self.k2pow24.get(props);
                 let (descs, values) = self.e2pow24.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
             ElementArrayKey::E32 => {
                 let keys = self.k2pow32.get(props);
                 let (descs, values) = self.e2pow32.get_descriptors_and_values_mut(props);
-                (keys, values, descs)
+                Some((keys, values, descs))
             }
         }
     }

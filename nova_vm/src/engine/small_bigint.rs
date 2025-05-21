@@ -26,6 +26,14 @@ impl SmallBigInt {
     pub const MIN: i64 = -(2i64.pow(55));
     pub const MAX: i64 = 2i64.pow(55) - 1;
 
+    // Returns true if SmallBigInt equals zero.
+    pub const fn is_zero(self) -> bool {
+        let Self {
+            data: [a, b, c, d, e, f, g],
+        } = self;
+        a == 0 && b == 0 && c == 0 && d == 0 && e == 0 && f == 0 && g == 0
+    }
+
     #[inline]
     pub const fn into_i64(self) -> i64 {
         let SmallBigInt { data } = self;

@@ -126,12 +126,13 @@ pub enum Instruction {
     ClassDefineDefaultConstructor,
     /// Define a private method on class constructor or instances.
     ///
-    /// The method's PrivateName's `[[Description]]` String is the current
-    /// result value, the method's function expression is provided as the first
-    /// immediate, and the method's static/getter/setter metadata is provided
-    /// as the second immediate. The last bit in the metadata is the Get flag,
-    /// the second last bit is the Set flag, and the third last bit is the
-    /// Static flag.
+    /// The target object is at the top or second from the top of the stack,
+    /// and the method's PrivateName's `[[Description]]` String is the
+    /// current result value, the method's function expression is provided as
+    /// the first immediate, and the method's getter/setter metadata is
+    /// provided as the second immediate. The last bit in the metadata is the
+    /// Get flag, the second last bit is the Set flag, and the third last bit
+    /// is the Static flag.
     ClassDefinePrivateMethod,
     /// Define a private property field on class constructor or instances.
     ///
@@ -143,11 +144,15 @@ pub enum Instruction {
     /// fields in the backing object, and copies all private methods to the
     /// backing object.
     ///
-    /// The target object is the `this` binding value.
+    /// The target object is at the top of the stack; it should be the `this`
+    /// value. The target is not popped off the stack.
     ClassInitializePrivateElements,
     /// Put the current result value at the next PrivateName's slot in the
     /// target object. The PrivateName is calculated based on the offset
     /// provided as an immediate, and the current PrivateEnvironment.
+    ///
+    /// The target object is at the top of the stack. the target is not popped
+    /// off the stack.
     ClassInitializePrivateValue,
     /// Store IsLooselyEqual() as the result value.
     IsLooselyEqual,

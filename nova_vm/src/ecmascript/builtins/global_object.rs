@@ -227,13 +227,15 @@ pub fn perform_eval<'gc>(
     let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type, gc.nogc()) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    let Ok((script, source_code)) = parse_result else {
-        // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "Invalid eval source text.",
-            gc.into_nogc(),
-        ));
+    let (script, source_code) = match parse_result {
+        Ok(result) => result,
+        Err(errors) => {
+            let message = format!(
+                "Invalid eval source text: {}",
+                errors.first().unwrap().message
+            );
+            return Err(agent.throw_exception(ExceptionType::SyntaxError, message, gc.into_nogc()));
+        }
     };
 
     // c. If script Contains ScriptBody is false, return undefined.

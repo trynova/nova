@@ -1172,8 +1172,6 @@ pub(crate) fn ordinary_own_property_keys<'a>(
         keys.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
     }
 
-    debug_assert_eq!(keys.len() as u32, props.len());
-
     // 5. Return keys.
     keys
 }

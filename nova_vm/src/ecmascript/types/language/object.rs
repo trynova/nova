@@ -193,6 +193,13 @@ pub enum Object<'a> {
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
+impl Object<'_> {
+    /// Returns true if this Object is a Proxy.
+    pub fn is_proxy(self) -> bool {
+        matches!(self, Object::Proxy(_))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
 

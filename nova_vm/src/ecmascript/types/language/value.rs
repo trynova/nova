@@ -478,15 +478,12 @@ impl<'a> Value<'a> {
     }
 
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self)
-            .map(|n| n.is_pos_zero(agent))
-            .unwrap_or(false)
+        Number::try_from(self).map_or(false, |n| n.is_pos_zero(agent))
+            || BigInt::try_from(self).map_or(false, |n| n.is_zero(agent))
     }
 
     pub fn is_neg_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self)
-            .map(|n| n.is_neg_zero(agent))
-            .unwrap_or(false)
+        Number::try_from(self).map_or(false, |n| n.is_neg_zero(agent))
     }
 
     pub fn is_pos_infinity(self, agent: &Agent) -> bool {

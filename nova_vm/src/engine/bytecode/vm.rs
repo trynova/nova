@@ -22,8 +22,8 @@ use crate::{
                 call, call_function, construct, copy_data_properties,
                 copy_data_properties_into_object, create_data_property_or_throw,
                 define_property_or_throw, get_method, has_property, ordinary_has_instance, set,
-                try_copy_data_properties_into_object, try_create_data_property,
-                try_create_data_property_or_throw, try_define_property_or_throw, try_has_property,
+                throw_no_proxy_private_names, try_copy_data_properties_into_object,
+                try_create_data_property, try_define_property_or_throw, try_has_property,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -694,14 +694,13 @@ impl Vm {
                 let object = vm.stack.last().unwrap().bind(gc.nogc());
                 let object = Object::try_from(object).unwrap();
 
-                unwrap_try(try_create_data_property_or_throw(
+                create_data_property_or_throw(
                     agent,
-                    object,
+                    object.unbind(),
                     key.unbind(),
-                    value,
-                    gc.nogc(),
-                ))
-                .unwrap();
+                    value.unbind(),
+                    gc,
+                )?;
             }
             Instruction::ObjectDefineMethod => {
                 let FunctionExpression { expression, .. } =
@@ -1158,7 +1157,7 @@ impl Vm {
                 let name = if let Some(parameter) = &identifier {
                     let pk_result = match parameter {
                         NamedEvaluationParameter::Result => {
-                            let value = vm.result.unwrap().bind(gc.nogc());
+                            let value = vm.result.take().unwrap().bind(gc.nogc());
                             if let TryResult::Continue(pk) =
                                 to_property_key_simple(agent, value, gc.nogc())
                             {
@@ -1177,18 +1176,6 @@ impl Vm {
                                 Err(value)
                             }
                         }
-                        NamedEvaluationParameter::Reference => Ok(vm
-                            .reference
-                            .as_ref()
-                            .unwrap()
-                            .referenced_name
-                            .bind(gc.nogc())),
-                        NamedEvaluationParameter::ReferenceStack => Ok(vm
-                            .reference_stack
-                            .last()
-                            .unwrap()
-                            .referenced_name
-                            .bind(gc.nogc())),
                     };
 
                     match pk_result {
@@ -1228,22 +1215,13 @@ impl Vm {
                 let (name, env, init_binding) = if let Some(parameter) = identifier {
                     debug_assert!(function_expression.id.is_none());
                     let pk = match parameter {
-                        NamedEvaluationParameter::Result => Ok(vm.result.unwrap()),
-                        NamedEvaluationParameter::Stack => Ok(*vm.stack.last().unwrap()),
-                        NamedEvaluationParameter::Reference => {
-                            Err(vm.reference.as_ref().unwrap().referenced_name)
-                        }
-                        NamedEvaluationParameter::ReferenceStack => {
-                            Err(vm.reference_stack.last().unwrap().referenced_name)
-                        }
+                        NamedEvaluationParameter::Result => vm.result.take().unwrap(),
+                        NamedEvaluationParameter::Stack => *vm.stack.last().unwrap(),
                     };
                     let name = with_vm_gc(
                         agent,
                         vm,
-                        |agent, gc| match pk {
-                            Ok(value) => to_property_key(agent, value, gc),
-                            Err(pk) => Ok(pk.bind(gc.into_nogc())),
-                        },
+                        |agent, gc| to_property_key(agent, pk, gc),
                         gc.reborrow(),
                     )
                     .unbind()?
@@ -1525,12 +1503,14 @@ impl Vm {
                 // 7. Perform MakeMethod(closure, object).
                 make_method(agent, closure, object.into_object());
                 // 8. Perform SetFunctionName(closure, propKey).
+                let function_name = format!("#{}", description.as_str(agent));
+                let function_name = String::from_string(agent, function_name, gc.nogc());
                 set_function_name(
                     agent,
                     closure,
                     // Note: it should be guaranteed that description is a
                     // non-numeric PropertyKey.
-                    description.into(),
+                    function_name.into(),
                     if is_getter {
                         Some(BUILTIN_STRING_MEMORY.get)
                     } else if is_setter {
@@ -1563,7 +1543,7 @@ impl Vm {
                             None
                         },
                         enumerable: Some(false),
-                        configurable: Some(false),
+                        configurable: Some(true),
                     };
                     // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
                     let private_name = private_env.add_static_private_method(agent, description);
@@ -1616,21 +1596,19 @@ impl Vm {
             }
             Instruction::ClassInitializePrivateElements => {
                 let gc = gc.into_nogc();
-                let class_instance = Object::try_from(
-                    resolve_this_binding(agent, gc)
-                        .expect("Invalid private elements initialize call"),
-                )
-                .unwrap();
-                class_instance
+                let target = Object::try_from(vm.stack.last().unwrap().bind(gc)).unwrap();
+                target
                     .get_or_create_backing_object(agent)
                     .property_storage()
                     .initialize_private_elements(agent, gc);
             }
             Instruction::ClassInitializePrivateValue => {
                 let gc = gc.into_nogc();
-                let this =
-                    Object::try_from(resolve_this_binding(agent, gc).unbind()?.bind(gc)).unwrap();
+                let target = Object::try_from(vm.stack.last().unwrap().bind(gc)).unwrap();
                 let value = vm.result.take().unwrap().bind(gc);
+                if target.is_proxy() {
+                    return Err(throw_no_proxy_private_names(agent, gc));
+                }
                 let offset = instr.get_first_index();
                 let private_env = agent
                     .current_private_environment(gc)
@@ -1640,7 +1618,8 @@ impl Vm {
                 // PrivateEnvironment.
                 let private_name = unsafe { private_env.get_private_name(agent, offset) };
                 assert!(
-                    this.get_or_create_backing_object(agent)
+                    target
+                        .get_or_create_backing_object(agent)
                         .property_storage()
                         .set_private_field_value(agent, private_name, offset, value)
                 );

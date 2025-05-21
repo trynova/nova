@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use oxc_ast::ast::{self, AssignmentOperator};
+use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
 use crate::ecmascript::types::String;
 use crate::engine::Instruction;
@@ -38,7 +38,9 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 ctx.add_instruction(Instruction::Store);
                 return;
             }
-            ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::AssignmentTarget::PrivateFieldExpression(expression) => {
+                expression.compile(ctx);
+            }
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
                 expression.compile(ctx);
             }
@@ -48,7 +50,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
             | ast::AssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         };
 
-        if self.operator == AssignmentOperator::Assign {
+        if self.operator.is_assign() {
             let is_rhs_literal = self.right.is_literal();
 
             if !is_rhs_literal {
@@ -71,12 +73,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
 
             // ... Return rval.
             ctx.add_instruction(Instruction::Store);
-        } else if matches!(
-            self.operator,
-            AssignmentOperator::LogicalAnd
-                | AssignmentOperator::LogicalNullish
-                | AssignmentOperator::LogicalOr
-        ) {
+        } else if let Some(operator) = self.operator.to_logical_operator() {
             // 2. Let lval be ? GetValue(lref).
             ctx.add_instruction(Instruction::GetValueKeepReference);
             ctx.add_instruction(Instruction::PushReference);
@@ -84,23 +81,22 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
             // restore it later.
             ctx.add_instruction(Instruction::LoadCopy);
 
-            match self.operator {
-                AssignmentOperator::LogicalAnd => {
+            match operator {
+                LogicalOperator::And => {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is false, return lval.
                 }
-                AssignmentOperator::LogicalOr => {
+                LogicalOperator::Or => {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is true, return lval.
                     ctx.add_instruction(Instruction::LogicalNot);
                 }
-                AssignmentOperator::LogicalNullish => {
+                LogicalOperator::Coalesce => {
                     // 3. If lval is neither undefined nor null, return lval.
                     ctx.add_instruction(Instruction::IsNullOrUndefined);
                 }
-                _ => unreachable!(),
             };
 
             let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
@@ -112,22 +108,25 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
             // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
             // is true and IsIdentifierRef of LeftHandSideExpression is true,
             // then
-            if matches!(
-                self.left,
-                ast::AssignmentTarget::AssignmentTargetIdentifier(_)
-            ) && is_anonymous_function_definition(&self.right)
-            {
-                // a. Let lhs be the StringValue of LeftHandSideExpression.
-                // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
-                ctx.name_identifier = Some(NamedEvaluationParameter::ReferenceStack);
-                self.right.compile(ctx);
-            } else {
-                // 6. Else
-                // a. Let rref be ? Evaluation of AssignmentExpression.
-                self.right.compile(ctx);
-                // b. Let rval be ? GetValue(rref).
-                if is_reference(&self.right) {
-                    ctx.add_instruction(Instruction::GetValue);
+            match &self.left {
+                ast::AssignmentTarget::AssignmentTargetIdentifier(left)
+                    if is_anonymous_function_definition(&self.right) =>
+                {
+                    // a. Let lhs be the StringValue of LeftHandSideExpression.
+                    let lhs = String::from_str(ctx.agent, left.name.as_str(), ctx.gc);
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, lhs);
+                    // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
+                    ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                    self.right.compile(ctx);
+                }
+                _ => {
+                    // 6. Else
+                    // a. Let rref be ? Evaluation of AssignmentExpression.
+                    self.right.compile(ctx);
+                    // b. Let rval be ? GetValue(rref).
+                    if is_reference(&self.right) {
+                        ctx.add_instruction(Instruction::GetValue);
+                    }
                 }
             }
 
@@ -191,7 +190,12 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
             ast::AssignmentTarget::ObjectAssignmentTarget(object) => {
                 object.compile(ctx);
             }
-            ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::AssignmentTarget::PrivateFieldExpression(expression) => {
+                ctx.add_instruction(Instruction::Load);
+                expression.compile(ctx);
+                ctx.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::PutValue);
+            }
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
                 ctx.add_instruction(Instruction::Load);
                 expression.compile(ctx);

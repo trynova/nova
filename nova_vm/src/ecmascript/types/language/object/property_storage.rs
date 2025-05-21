@@ -121,14 +121,14 @@ impl<'a> PropertyStorage<'a> {
             let first_normal_property_index = keys[..len as usize]
                 .binary_search_by(|k| {
                     if k.is_some_and(|k| k.is_private_name()) {
-                        Ordering::Greater
+                        Ordering::Less
                     } else {
                         // Nones appear at the end of the keys list. Our PrivateName
                         // should be inserted before the first normal property.
-                        Ordering::Less
+                        Ordering::Greater
                     }
                 })
-                .unwrap();
+                .unwrap_err();
             // Shift keys over by necessary amount.
             let end_index = first_normal_property_index + private_fields.len();
             keys.copy_within(first_normal_property_index..len as usize, end_index);
@@ -195,7 +195,10 @@ impl<'a> PropertyStorage<'a> {
             elements, objects, ..
         } = &mut agent.heap;
         let props = &objects[object].property_storage;
-        let (keys, values, descriptors) = props.get_storage_mut(elements);
+        let Some((keys, values, descriptors)) = props.get_storage_mut(elements) else {
+            // If the storage is empty, we cannot set a private field value.
+            return false;
+        };
         let offset = if keys.get(offset_hint) == Some(&private_name.into()) {
             offset_hint
         } else {
@@ -247,7 +250,7 @@ impl<'a> PropertyStorage<'a> {
             return None;
         };
         let value = values[index];
-        let descriptor = descriptors?.get(&(index as u32));
+        let descriptor = descriptors.and_then(|d| d.get(&(index as u32)));
         // a. Return pe.
         Some((value, descriptor))
     }
@@ -271,7 +274,8 @@ impl<'a> PropertyStorage<'a> {
             elements, objects, ..
         } = &mut agent.heap;
         let props = &objects[object].property_storage;
-        let (keys, values, descriptors) = props.get_storage_mut(elements);
+        // If the storage is empty, no entry for the PrivateName can exist.
+        let (keys, values, descriptors) = props.get_storage_mut(elements)?;
         let key = private_name.into();
         let index = keys
             .iter()

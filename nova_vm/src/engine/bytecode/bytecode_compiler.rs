@@ -1036,9 +1036,37 @@ impl<'s> CompileEvaluation<'s> for ast::RegExpLiteral<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::SequenceExpression<'s> {
+    /// ### [13.16.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-comma-operator-runtime-semantics-evaluation)
+    ///
+    /// ```text
+    /// Expression : Expression , AssignmentExpression
+    /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        for expr in &self.expressions {
+        // 1. Let lRef be ? Evaluation of Expression.
+        // 2. Perform ? GetValue(lRef).
+        // 3. Let rRef be ? Evaluation of AssignmentExpression.
+        // 4. Return ? GetValue(rRef).
+
+        // Note
+        // GetValue must be called even though its value is not used because it
+        // may have observable side-effects.
+
+        let (last, rest) = self.expressions.split_last().unwrap();
+        for expr in rest {
+            if expr.is_literal() {
+                // Literals do not have observable side-effects when compiled,
+                // we can skip these when they're not the last expression.
+                continue;
+            }
             expr.compile(ctx);
+            if is_reference(expr) {
+                // Note: GetValue must be called as mentioned above.
+                ctx.add_instruction(Instruction::GetValue);
+            }
+        }
+        last.compile(ctx);
+        if is_reference(last) {
+            ctx.add_instruction(Instruction::GetValue);
         }
     }
 }
@@ -1190,7 +1218,7 @@ impl<'s> CompileEvaluation<'s> for ast::UpdateExpression<'s> {
         match &self.argument {
             ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => x.compile(ctx),
-            ast::SimpleAssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::SimpleAssignmentTarget::PrivateFieldExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::TSAsExpression(_)
             | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
@@ -1758,7 +1786,7 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
                         ctx.add_instruction_with_immediate(Instruction::LoadConstant, identifier);
-                        // a. Let value be ? NamedEvaluation of Initializer with argument StackgId.
+                        // a. Let value be ? NamedEvaluation of Initializer with argument StackId.
                         ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                         init.compile(ctx);
                     } else {

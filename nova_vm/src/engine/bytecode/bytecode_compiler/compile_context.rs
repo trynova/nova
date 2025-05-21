@@ -27,14 +27,14 @@ pub type IndexType = u16;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum NamedEvaluationParameter {
-    /// Name is in the result register
+    /// Name is in the result register.
+    ///
+    /// The name can be clobbered by the named evaluation.
     Result,
-    /// Name is at the top of the stack
+    /// Name is at the top of the stack.
+    ///
+    /// The name must not be clobbered by the named evaluation.
     Stack,
-    /// Name is in the reference register
-    Reference,
-    /// Name is at the top of the reference stack
-    ReferenceStack,
 }
 
 pub(crate) struct JumpTarget {

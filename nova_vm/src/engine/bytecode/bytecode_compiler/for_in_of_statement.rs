@@ -224,13 +224,8 @@ fn for_in_of_body_evaluation<'s>(
                             identifier,
                         );
                     }
-                    ast::ForStatementLeft::AssignmentTargetIdentifier(identifier_reference) => {
-                        let identifier =
-                            String::from_str(ctx.agent, identifier_reference.name.as_str(), ctx.gc);
-                        ctx.add_instruction_with_identifier(
-                            Instruction::ResolveBinding,
-                            identifier,
-                        );
+                    ast::ForStatementLeft::AssignmentTargetIdentifier(id) => {
+                        id.compile(ctx);
                     }
                     ForStatementLeft::ComputedMemberExpression(expr) => {
                         ctx.add_instruction(Instruction::Load);
@@ -242,8 +237,10 @@ fn for_in_of_body_evaluation<'s>(
                         expr.compile(ctx);
                         ctx.add_instruction(Instruction::Store);
                     }
-                    ForStatementLeft::PrivateFieldExpression(_expr) => {
-                        todo!("PrivateFieldExpression")
+                    ForStatementLeft::PrivateFieldExpression(expr) => {
+                        ctx.add_instruction(Instruction::Load);
+                        expr.compile(ctx);
+                        ctx.add_instruction(Instruction::Store);
                     }
                     // Note: Assignments are handled above so these are
                     // unreachable.
