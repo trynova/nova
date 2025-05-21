@@ -471,7 +471,7 @@ impl Vm {
                     lexical_environment,
                 } => {
                     if agent.options.print_internals {
-                        println!("Error: {:?}", err.value());
+                        eprintln!("Error: {:?}", err.value());
                         eprintln!("Jumping to catch block in {ip}\n");
                     }
                     self.ip = ip as usize;
