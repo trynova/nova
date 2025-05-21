@@ -2778,8 +2778,7 @@ impl Vm {
                 vm.result = Some(
                     env_rec
                         .get_new_target(agent, gc.nogc())
-                        .unwrap()
-                        .into_value()
+                        .map_or(Value::Undefined, |v| v.into_value())
                         .unbind(),
                 );
             }
