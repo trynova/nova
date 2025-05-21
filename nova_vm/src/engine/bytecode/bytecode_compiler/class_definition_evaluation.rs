@@ -310,7 +310,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                                 || dup_kind == PrivateFieldKind::Set
                                     && kind == PrivateFieldKind::Get
                         );
-                        // Note: this change of kind from Get/Set ot GetSet
+                        // Note: this change of kind from Get/Set to GetSet
                         // makes the pair checking exclusive.
                         pn.insert((PrivateFieldKind::GetSet, i));
                     }
@@ -643,7 +643,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 }
                 PropertyInitializerField::Private((description, private_identifier, value)) => {
                     // Note: Static private fields follow third after private
-                    // fields and methods, so their identifers are offset.
+                    // fields and methods, so their identifiers are offset.
                     let private_identifier = instance_private_field_count
                         + instance_private_method_count
                         + private_identifier;
