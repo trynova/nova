@@ -1463,8 +1463,14 @@ impl ArrayPrototype {
             if len == 0 {
                 return Ok(false.into());
             }
+
             let k = if let Value::Integer(n) = from_index {
                 let n = n.into_i64();
+
+                if n >= len as i64 {
+                    return Ok(false.into());
+                }
+
                 if n >= 0 {
                     n as usize
                 } else {
