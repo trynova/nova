@@ -5,7 +5,8 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::iterator_close_with_value, operations_on_objects::get,
+            operations_on_iterator_objects::iterator_close_with_value,
+            operations_on_objects::{get, try_create_data_property_or_throw},
         },
         execution::{Agent, JsResult},
         types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
@@ -15,7 +16,7 @@ use crate::{
         bytecode::vm::{
             Environment, Executable, Instruction, Vm, VmIteratorRecord, array_create,
             copy_data_properties_into_object, initialize_referenced_binding, put_value,
-            resolve_binding, to_object, try_create_data_property_or_throw,
+            resolve_binding, to_object,
         },
         context::{Bindable, GcScope},
         iterator::ActiveIterator,

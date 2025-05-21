@@ -1467,6 +1467,7 @@ fn get_own_string_property_keys<'gc>(
             PropertyKey::SmallString(next_key) => name_list.push(Value::SmallString(next_key)),
             PropertyKey::String(next_key) => name_list.push(Value::String(next_key.unbind())),
             PropertyKey::Symbol(_) => {}
+            PropertyKey::PrivateName(_) => {}
         }
     }
     // 5. Return nameList.

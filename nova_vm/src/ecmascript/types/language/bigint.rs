@@ -185,6 +185,17 @@ pub enum BigIntRootRepr {
 }
 
 impl<'a> BigInt<'a> {
+    pub fn is_zero(self, agent: &Agent) -> bool {
+        match self {
+            BigInt::BigInt(b) => {
+                // Zero BigInts should never be heap allocated.
+                debug_assert!(agent[b].data.bits() != 0);
+                false
+            }
+            BigInt::SmallBigInt(b) => b.is_zero(),
+        }
+    }
+
     pub const fn zero() -> Self {
         Self::SmallBigInt(SmallBigInt::zero())
     }

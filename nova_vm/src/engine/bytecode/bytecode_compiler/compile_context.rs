@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ast::ast::{self, LabelIdentifier, Statement};
-use oxc_span::Atom;
 
 use crate::{
     ecmascript::{
@@ -21,21 +20,21 @@ use crate::{
 
 use super::{
     finaliser_stack::{ControlFlowFinallyEntry, ControlFlowStackEntry},
-    function_declaration_instantiation, is_reference,
+    function_declaration_instantiation,
 };
 
 pub type IndexType = u16;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum NamedEvaluationParameter {
-    /// Name is in the result register
+    /// Name is in the result register.
+    ///
+    /// The name can be clobbered by the named evaluation.
     Result,
-    /// Name is at the top of the stack
+    /// Name is at the top of the stack.
+    ///
+    /// The name must not be clobbered by the named evaluation.
     Stack,
-    /// Name is in the reference register
-    Reference,
-    /// Name is at the top of the reference stack
-    ReferenceStack,
 }
 
 pub(crate) struct JumpTarget {
@@ -175,6 +174,25 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::LexicalScope)
         );
+    }
+
+    /// Enter a private environment scope.
+    pub(super) fn enter_private_scope(&mut self, private_name_count: usize) {
+        self.add_instruction_with_immediate(
+            Instruction::EnterPrivateEnvironment,
+            private_name_count,
+        );
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::PrivateScope);
+    }
+
+    /// Enter a private environment scope.
+    pub(super) fn exit_private_scope(&mut self) {
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::PrivateScope)
+        );
+        self.add_instruction(Instruction::ExitPrivateEnvironment);
     }
 
     /// Enter a class static initialiser.
@@ -602,78 +620,6 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         self.last_instruction_is_terminal
     }
 
-    /// Compile a class static field with an optional initializer into the
-    /// current context.
-    pub(crate) fn compile_class_static_field(
-        &mut self,
-        identifier_name: &'s ast::IdentifierName<'s>,
-        value: &'s Option<ast::Expression<'s>>,
-    ) {
-        let identifier = String::from_str(self.agent, identifier_name.name.as_str(), self.gc);
-        // Turn the static name to a 'this' property access.
-        self.add_instruction(Instruction::ResolveThisBinding);
-        self.add_instruction_with_identifier(
-            Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            identifier,
-        );
-        if let Some(value) = value {
-            // Minor optimisation: We do not need to push and pop the
-            // reference if we know we're not using the reference stack.
-            let is_literal = value.is_literal();
-            if !is_literal {
-                self.add_instruction(Instruction::PushReference);
-            }
-            value.compile(self);
-            if is_reference(value) {
-                self.add_instruction(Instruction::GetValue);
-            }
-            if !is_literal {
-                self.add_instruction(Instruction::PopReference);
-            }
-        } else {
-            // Same optimisation is unconditionally valid here.
-            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        }
-        self.add_instruction(Instruction::PutValue);
-    }
-
-    /// Compile a class computed field with an optional initializer into the
-    /// current context.
-    pub(crate) fn compile_class_computed_field(
-        &mut self,
-        property_key_id: String<'gc>,
-        value: &'s Option<ast::Expression<'s>>,
-    ) {
-        // Resolve 'this' into the stack.
-        self.add_instruction(Instruction::ResolveThisBinding);
-        self.add_instruction(Instruction::Load);
-        // Resolve the static computed key ID to the actual computed key value.
-        self.add_instruction_with_identifier(Instruction::ResolveBinding, property_key_id);
-        // Store the computed key value as the result.
-        self.add_instruction(Instruction::GetValue);
-        // Evaluate access to 'this' with the computed key.
-        self.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-        if let Some(value) = value {
-            // Minor optimisation: We do not need to push and pop the
-            // reference if we know we're not using the reference stack.
-            let is_literal = value.is_literal();
-            if !is_literal {
-                self.add_instruction(Instruction::PushReference);
-            }
-            value.compile(self);
-            if is_reference(value) {
-                self.add_instruction(Instruction::GetValue);
-            }
-            if !is_literal {
-                self.add_instruction(Instruction::PopReference);
-            }
-        } else {
-            // Same optimisation is unconditionally valid here.
-            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        }
-        self.add_instruction(Instruction::PutValue);
-    }
-
     /// Compile a function body into the current context.
     ///
     /// This is useful when the function body is part of a larger whole, namely
@@ -729,23 +675,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         })
     }
 
-    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String<'gc> {
-        let existing = self.constants.iter().find_map(|constant| {
-            if let Ok(existing_identifier) = String::try_from(*constant) {
-                if existing_identifier.as_str(self.agent) == atom.as_str() {
-                    Some(existing_identifier)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
-        if let Some(existing) = existing {
-            existing
-        } else {
-            String::from_str(self.agent, atom.as_str(), self.gc)
-        }
+    pub(crate) fn create_identifier(&mut self, atom: &str) -> String<'gc> {
+        String::from_str(self.agent, atom, self.gc)
     }
 
     fn _push_instruction(&mut self, instruction: Instruction) {
@@ -867,6 +798,20 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         self.add_index(constant);
     }
 
+    pub(super) fn add_instruction_with_identifier_and_immediate(
+        &mut self,
+        instruction: Instruction,
+        identifier: String<'gc>,
+        immediate: usize,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_identifier_index());
+        self._push_instruction(instruction);
+        let identifier = self.add_identifier(identifier);
+        self.add_index(identifier);
+        self.add_index(immediate);
+    }
+
     pub(super) fn add_instruction_with_immediate_and_immediate(
         &mut self,
         instruction: Instruction,
@@ -917,8 +862,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_function_expression_index());
         self._push_instruction(instruction);
+        let index = self.function_expressions.len();
         self.function_expressions.push(function_expression);
-        let index = self.function_expressions.len() - 1;
         self.add_index(index);
         self.add_index(immediate);
         // Note: add_index would have panicked if this was not a lossless

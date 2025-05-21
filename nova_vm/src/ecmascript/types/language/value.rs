@@ -478,15 +478,12 @@ impl<'a> Value<'a> {
     }
 
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self)
-            .map(|n| n.is_pos_zero(agent))
-            .unwrap_or(false)
+        Number::try_from(self).is_ok_and(|n| n.is_pos_zero(agent))
+            || BigInt::try_from(self).is_ok_and(|n| n.is_zero(agent))
     }
 
     pub fn is_neg_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self)
-            .map(|n| n.is_neg_zero(agent))
-            .unwrap_or(false)
+        Number::try_from(self).is_ok_and(|n| n.is_neg_zero(agent))
     }
 
     pub fn is_pos_infinity(self, agent: &Agent) -> bool {
@@ -614,7 +611,7 @@ impl<'a> Value<'a> {
             Ok(result) => result,
             Err(_) => {
                 debug_assert!(self.is_object());
-                BUILTIN_STRING_MEMORY.Object
+                BUILTIN_STRING_MEMORY._object_Object_
             }
         }
     }
@@ -631,7 +628,7 @@ impl<'a> Value<'a> {
             TryResult::Continue(result) => result.unwrap(),
             _ => {
                 debug_assert!(self.is_object());
-                BUILTIN_STRING_MEMORY.Object
+                BUILTIN_STRING_MEMORY._object_Object_
             }
         }
     }

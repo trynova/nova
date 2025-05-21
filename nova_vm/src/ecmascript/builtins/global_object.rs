@@ -227,13 +227,15 @@ pub fn perform_eval<'gc>(
     let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type, gc.nogc()) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    let Ok((script, source_code)) = parse_result else {
-        // TODO: Include error messages in the exception.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "Invalid eval source text.",
-            gc.into_nogc(),
-        ));
+    let (script, source_code) = match parse_result {
+        Ok(result) => result,
+        Err(errors) => {
+            let message = format!(
+                "Invalid eval source text: {}",
+                errors.first().unwrap().message
+            );
+            return Err(agent.throw_exception(ExceptionType::SyntaxError, message, gc.into_nogc()));
+        }
     };
 
     // c. If script Contains ScriptBody is false, return undefined.
@@ -467,27 +469,19 @@ pub fn eval_declaration_instantiation<'a>(
     }
 
     // 4. Let privateIdentifiers be a new empty List.
-    let mut private_identifiers = vec![];
+    let _private_identifiers = ();
 
     // 5. Let pointer be privateEnv.
     let mut pointer = private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc()));
 
     // 6. Repeat, while pointer is not null,
-    while let Some(index) = pointer {
-        let env = &agent[index];
-
+    while let Some(p) = pointer {
         // a. For each Private Name binding of pointer.[[Names]], do
-        for name in env.names.values() {
-            // i. If privateIdentifiers does not contain
-            //    binding.[[Description]], append binding.[[Description]] to
-            //    privateIdentifiers.
-            if private_identifiers.contains(&name.description()) {
-                private_identifiers.push(name.description());
-            }
-        }
-
+        // i. If privateIdentifiers does not contain
+        //    binding.[[Description]], append binding.[[Description]] to
+        //    privateIdentifiers.
         // b. Set pointer to pointer.[[OuterPrivateEnvironment]].
-        pointer = env.outer_private_environment.bind(gc.nogc());
+        pointer = p.get_outer_env(agent, gc.nogc());
     }
 
     // TODO:

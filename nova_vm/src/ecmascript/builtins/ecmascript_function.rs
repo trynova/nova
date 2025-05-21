@@ -789,9 +789,12 @@ pub(crate) fn evaluate_body<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
-    let function_heap_data = &agent[function_object].ecmascript_function;
-    let heap_data = function_heap_data;
-    match (heap_data.is_generator, heap_data.is_async) {
+    let function_heap_data = &agent[function_object];
+    let ecmascript_function_object = &function_heap_data.ecmascript_function;
+    match (
+        ecmascript_function_object.is_generator,
+        ecmascript_function_object.is_async,
+    ) {
         (false, true) => {
             // AsyncFunctionBody : FunctionBody
             // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
@@ -806,10 +809,12 @@ pub(crate) fn evaluate_body<'gc>(
             // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
             // SourceCode must be as well. Thus the Allocator is live as well, and no
             // other references to it can exist.
-            if unsafe { heap_data.ecmascript_code.as_ref() }
-                .statements
-                .is_empty()
-                && unsafe { heap_data.formal_parameters.as_ref() }.is_simple_parameter_list()
+            if function_heap_data.compiled_bytecode.is_none()
+                && unsafe { ecmascript_function_object.ecmascript_code.as_ref() }
+                    .statements
+                    .is_empty()
+                && unsafe { ecmascript_function_object.formal_parameters.as_ref() }
+                    .is_simple_parameter_list()
             {
                 // Optimisation: Empty body and only simple parameters means no code will effectively run.
                 return Ok(Value::Undefined);
@@ -1100,14 +1105,17 @@ pub(crate) fn set_function_name<'a>(
                     String::from_string(agent, format!("[{descriptor}]"), gc)
                 })
         }
-        // TODO: Private Name
-        // 3. Else if name is a Private Name, then
-        // a. Set name to name.[[Description]].
+
         PropertyKey::Integer(integer) => {
             String::from_string(agent, integer.into_i64().to_string(), gc)
         }
         PropertyKey::SmallString(str) => str.into(),
         PropertyKey::String(str) => str.into(),
+        // 3. Else if name is a Private Name, then
+        // a. Set name to name.[[Description]].
+        PropertyKey::PrivateName(p) => p
+            .get_description(agent, gc)
+            .expect("Should always find PrivateName in scope when calling SetFunctionName"),
     };
     // 5. If prefix is present, then
     // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.

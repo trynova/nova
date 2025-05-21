@@ -28,8 +28,6 @@ pub enum Instruction {
     ArrayCreate,
     /// Push a value into an array
     ArrayPush,
-    /// Set an array's value at the given index.
-    ArraySetValue,
     /// Push a hole into an array
     ArrayElision,
     /// Performs Await() on the result value, and after resuming, stores the
@@ -37,9 +35,6 @@ pub enum Instruction {
     Await,
     /// Performs steps 2-4 from the [UnaryExpression ~ Runtime Semantics](https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation).
     BitwiseNot,
-    /// Create a catch binding for the given name and populate it with the
-    /// stored exception.
-    CreateCatchBinding,
     /// Performs CreateUnmappedArgumentsObject() on the arguments list present
     /// in the iterator stack, and stores the created arguments object as the
     /// result value.
@@ -82,10 +77,18 @@ pub enum Instruction {
     /// This instruction has the number of argument values that need to be
     /// popped from the stack (last to first) as an argument.
     EvaluateSuper,
-    /// Store EvaluatePropertyAccessWithExpressionKey() as the result value.
+    /// Perform EvaluatePropertyAccessWithExpressionKey with the `baseValue` at
+    /// the top of the stack and the `propertyNameValue` in result register,
+    /// and store the result in the reference register.
     EvaluatePropertyAccessWithExpressionKey,
-    /// Store EvaluatePropertyAccessWithIdentifierKey() as the result value.
+    /// Perform EvaluatePropertyAccessWithIdentifierKey with the `baseValue` in
+    /// the result register and the `propertyNameString` given as the first
+    /// immediate argument, and store the result in the reference register.
     EvaluatePropertyAccessWithIdentifierKey,
+    /// Perform MakePrivateReference with the `baseValue` in the result
+    /// register and the `privateIdentifier` given as the first immediate
+    /// argument, and store the result in the reference register.
+    MakePrivateReference,
     /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
     /// value.
     ///
@@ -121,6 +124,36 @@ pub enum Instruction {
     /// Store CreateBuiltinFunction(defaultConstructor, 0, className) as the
     /// result value.
     ClassDefineDefaultConstructor,
+    /// Define a private method on class constructor or instances.
+    ///
+    /// The target object is at the top or second from the top of the stack,
+    /// and the method's PrivateName's `[[Description]]` String is the
+    /// current result value, the method's function expression is provided as
+    /// the first immediate, and the method's getter/setter metadata is
+    /// provided as the second immediate. The last bit in the metadata is the
+    /// Get flag, the second last bit is the Set flag, and the third last bit
+    /// is the Static flag.
+    ClassDefinePrivateMethod,
+    /// Define a private property field on class constructor or instances.
+    ///
+    /// The field's PrivateName's `[[Description]]` String is provided as an
+    /// identifier, and the staticness of the field is provided as an
+    /// immediate.
+    ClassDefinePrivateProperty,
+    /// Reserves enough room for all of a class instance's PrivateElements
+    /// fields in the backing object, and copies all private methods to the
+    /// backing object.
+    ///
+    /// The target object is at the top of the stack; it should be the `this`
+    /// value. The target is not popped off the stack.
+    ClassInitializePrivateElements,
+    /// Put the current result value at the next PrivateName's slot in the
+    /// target object. The PrivateName is calculated based on the offset
+    /// provided as an immediate, and the current PrivateEnvironment.
+    ///
+    /// The target object is at the top of the stack. the target is not popped
+    /// off the stack.
+    ClassInitializePrivateValue,
     /// Store IsLooselyEqual() as the result value.
     IsLooselyEqual,
     /// Take the result value and the top stack value, compare them using
@@ -162,9 +195,6 @@ pub enum Instruction {
     LoadConstant,
     /// Swaps the last value in the stack and the result value.
     LoadStoreSwap,
-    /// Determine the this value for an upcoming evaluate_call instruction and
-    /// add it to the stack.
-    LoadThisValue,
     /// Swap the last two values on the stack.
     Swap,
     /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
@@ -199,8 +229,6 @@ pub enum Instruction {
     ResolveBinding,
     /// Store ResolveThisBinding() as the result value.
     ResolveThisBinding,
-    /// Rethrow the stored exception, if any.
-    RethrowExceptionIfAny,
     /// Stop bytecode execution, indicating a return from the current function.
     Return,
     /// Store the last value from the stack as the result value.
@@ -224,8 +252,6 @@ pub enum Instruction {
     ToNumeric,
     /// Store ToObject() as the result value.
     ToObject,
-    /// Store ToString() as the result value.
-    ToString,
     /// Apply the typeof operation to the evaluated expression and set it as
     /// the result value.
     Typeof,
@@ -261,13 +287,23 @@ pub enum Instruction {
     /// first. This is immaterial because creating the bindings cannot fail.
     EnterDeclarativeEnvironment,
     /// Enter a new FunctionEnvironment with the top of the stack as the this
-    /// binding and \[\[FunctionObject]]. This is used for class static
+    /// binding and `[[FunctionObject]]`. This is used for class static
     /// initializers.
     EnterClassStaticElementEnvironment,
+    /// Perform NewPrivateEnvironment with the running execution context's
+    /// PrivateEnvironment and enter it.
+    ///
+    /// The number of private names in the environment is given
+    EnterPrivateEnvironment,
     /// Reset the running execution context's LexicalEnvironment to its current
-    /// value's \[\[OuterEnv]].
+    /// value's `[[OuterEnv]]`.
     ExitDeclarativeEnvironment,
+    /// Reset the running execution context's VariableEnvironment to its
+    /// current value's `[[OuterEnv]]`.
     ExitVariableEnvironment,
+    /// Reset the running execution context's PrivateEnvironment to its current
+    /// value's `[[OuterPrivateEnvironment]]`.
+    ExitPrivateEnvironment,
     /// Begin binding values using destructuring
     BeginSimpleObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
@@ -394,6 +430,8 @@ impl Instruction {
             Self::BeginSimpleArrayBindingPattern
             | Self::BindingPatternBindNamed
             | Self::ClassDefineConstructor
+            | Self::ClassDefinePrivateMethod
+            | Self::ClassDefinePrivateProperty
             | Self::InitializeVariableEnvironment
             | Self::IteratorStepValue
             | Self::Jump
@@ -404,24 +442,25 @@ impl Instruction {
             | Self::ObjectDefineSetter
             | Self::PushExceptionJumpTarget => 2,
             Self::ArrayCreate
-            | Self::ArraySetValue
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindRest
             | Self::BindingPatternGetValueNamed
             | Self::ClassDefineDefaultConstructor
             | Self::CopyDataPropertiesIntoObject
-            | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
             | Self::DirectEvalCall
+            | Self::EnterPrivateEnvironment
             | Self::EvaluateCall
             | Self::EvaluateNew
-            | Self::EvaluateSuper
             | Self::EvaluatePropertyAccessWithIdentifierKey
+            | Self::EvaluateSuper
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::LoadConstant
+            | Self::MakePrivateReference
+            | Self::ClassInitializePrivateValue
             | Self::ResolveBinding
             | Self::StoreConstant
             | Self::StringConcat
@@ -445,24 +484,26 @@ impl Instruction {
     pub fn has_constant_index(self) -> bool {
         matches!(
             self,
-            Self::LoadConstant
-                | Self::StoreConstant
-                | Self::BindingPatternBindNamed
+            Self::BindingPatternBindNamed
                 | Self::BindingPatternGetValueNamed
+                | Self::LoadConstant
+                | Self::StoreConstant
         )
     }
 
     pub fn has_identifier_index(self) -> bool {
         matches!(
             self,
-            Self::CreateCatchBinding
-                | Self::EvaluatePropertyAccessWithIdentifierKey
-                | Self::ResolveBinding
-                | Self::CreateImmutableBinding
-                | Self::CreateMutableBinding
-                | Self::BindingPatternBind
+            Self::BindingPatternBind
                 | Self::BindingPatternBindNamed
                 | Self::BindingPatternBindRest
+                | Self::ClassDefinePrivateMethod
+                | Self::ClassDefinePrivateProperty
+                | Self::CreateImmutableBinding
+                | Self::CreateMutableBinding
+                | Self::EvaluatePropertyAccessWithIdentifierKey
+                | Self::MakePrivateReference
+                | Self::ResolveBinding
         )
     }
 
@@ -470,6 +511,7 @@ impl Instruction {
         matches!(
             self,
             Self::ClassDefineConstructor
+                | Self::ClassDefinePrivateMethod
                 | Self::InstantiateArrowFunctionExpression
                 | Self::InstantiateOrdinaryFunctionExpression
                 | Self::ObjectDefineGetter
@@ -489,12 +531,8 @@ impl Instruction {
         )
     }
 
-    pub fn as_u8(self) -> u8 {
-        const {
-            // Check statically that Instruction hasn't overflowed u8.
-            assert!(std::mem::size_of::<Self>() == std::mem::size_of::<u8>());
-            assert!(std::mem::align_of::<Self>() == std::mem::align_of::<u8>());
-        }
+    pub const fn as_u8(self) -> u8 {
+        // SAFETY: Transmute checks that Self is same size as u8.
         unsafe { core::mem::transmute::<Self, u8>(self) }
     }
 }
@@ -791,13 +829,33 @@ impl Instr {
                     "constructor()".to_string()
                 }
             }
+            Instruction::ClassDefinePrivateMethod => {
+                let is_static = arg1 & 0b100 == 0b100;
+                let static_prefix = if is_static { "static " } else { "" };
+                let is_get = arg1 & 0b1 == 0b1;
+                let is_set = arg1 & 0b10 == 0b10;
+                let accessor_prefix = if is_get {
+                    "get "
+                } else if is_set {
+                    "set "
+                } else {
+                    ""
+                };
+                format!("{static_prefix}{accessor_prefix} #function() {{}}")
+            }
+            Instruction::ClassDefinePrivateProperty => {
+                let key = debug_print_identifier(agent, exe, arg0 as usize, gc);
+                let is_static = arg1 != 0;
+                let static_prefix = if is_static { "static " } else { "" };
+                format!("{static_prefix}#{key}")
+            }
             Instruction::InitializeVariableEnvironment => {
                 format!("{{ var count: {}, strict: {} }}", arg0, arg1 == 1)
             }
             Instruction::ObjectDefineGetter => "get function() {}".to_string(),
             Instruction::ObjectDefineMethod => "function() {}".to_string(),
             Instruction::ObjectDefineSetter => "set function() {}".to_string(),
-            _ => unreachable!(),
+            _ => unreachable!("{kind:?}"),
         }
     }
 }
@@ -933,290 +991,171 @@ impl TryFrom<u8> for Instruction {
     type Error = ();
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        const ADDITION: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Addition,
-            ))
-        };
-        const BITWISEAND: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseAnd,
-            ))
-        };
-        const BITWISEOR: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseOR,
-            ))
-        };
-        const BITWISEXOR: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseXOR,
-            ))
-        };
-        const DIVISION: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Division,
-            ))
-        };
-        const EQUALITY: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Equality,
-            ))
-        };
-        const EXPONENTIAL: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Exponential,
-            ))
-        };
-        const GREATEREQUALTHAN: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::GreaterEqualThan,
-            ))
-        };
-        const GREATERTHAN_UNUSED: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::GreaterThan,
-            ))
-        };
-        const LESSEQUALTHAN: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::LessEqualThan,
-            ))
-        };
-        const LESSTHAN_UNUSED: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::LessThan,
-            ))
-        };
-        const MULTIPLICATION: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Multiplication,
-            ))
-        };
-        const IN: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::In,
-            ))
-        };
-        const INEQUALITY: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Inequality,
-            ))
-        };
-        const INSTANCEOF: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Instanceof,
-            ))
-        };
-        const REMAINDER: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Remainder,
-            ))
-        };
-        const SHIFTLEFT: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftLeft,
-            ))
-        };
-        const SHIFTRIGHT: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftRight,
-            ))
-        };
-        const SHIFTRIGHTZEROFILL: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftRightZeroFill,
-            ))
-        };
-        const STRICTEQUALITY: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::StrictEquality,
-            ))
-        };
-        const STRICTINEQUALITY: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::StrictInequality,
-            ))
-        };
-        const SUBTRACTION: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Subtraction,
-            ))
-        };
-        const DEBUG: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Debug) };
-        const ARRAYCREATE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ArrayCreate) };
-        const ARRAYPUSH: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ArrayPush) };
-        const ARRAYSETVALUE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ArraySetValue) };
-        const ARRAYELISION: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ArrayElision) };
-        const AWAIT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Await) };
-        const BITWISENOT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::BitwiseNot) };
-        const CREATECATCHBINDING: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateCatchBinding) };
+        const ADDITION: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Addition).as_u8();
+        const BITWISEAND: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseAnd).as_u8();
+        const BITWISEOR: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseOR).as_u8();
+        const BITWISEXOR: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseXOR).as_u8();
+        const DIVISION: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Division).as_u8();
+        const EQUALITY: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Equality).as_u8();
+        const EXPONENTIAL: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Exponential).as_u8();
+        const GREATEREQUALTHAN: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::GreaterEqualThan)
+                .as_u8();
+        const GREATERTHAN_UNUSED: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::GreaterThan).as_u8();
+        const LESSEQUALTHAN: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::LessEqualThan).as_u8();
+        const LESSTHAN_UNUSED: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::LessThan).as_u8();
+        const MULTIPLICATION: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Multiplication).as_u8();
+        const IN: u8 = Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::In).as_u8();
+        const INEQUALITY: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Inequality).as_u8();
+        const INSTANCEOF: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Instanceof).as_u8();
+        const REMAINDER: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Remainder).as_u8();
+        const SHIFTLEFT: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftLeft).as_u8();
+        const SHIFTRIGHT: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftRight).as_u8();
+        const SHIFTRIGHTZEROFILL: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftRightZeroFill)
+                .as_u8();
+        const STRICTEQUALITY: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::StrictEquality).as_u8();
+        const STRICTINEQUALITY: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::StrictInequality)
+                .as_u8();
+        const SUBTRACTION: u8 =
+            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Subtraction).as_u8();
+        const DEBUG: u8 = Instruction::Debug.as_u8();
+        const ARRAYCREATE: u8 = Instruction::ArrayCreate.as_u8();
+        const ARRAYPUSH: u8 = Instruction::ArrayPush.as_u8();
+        const ARRAYELISION: u8 = Instruction::ArrayElision.as_u8();
+        const AWAIT: u8 = Instruction::Await.as_u8();
+        const BITWISENOT: u8 = Instruction::BitwiseNot.as_u8();
         const CREATEUNMAPPEDARGUMENTSOBJECT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateUnmappedArgumentsObject) };
-        const COPYDATAPROPERTIES: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::CopyDataProperties) };
-        const COPYDATAPROPERTIESINTOOBJECT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::CopyDataPropertiesIntoObject) };
-        const DELETE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Delete) };
-        const DIRECTEVALCALL: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::DirectEvalCall) };
-        const EVALUATECALL: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::EvaluateCall) };
-        const EVALUATENEW: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::EvaluateNew) };
-        const EVALUATESUPER: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::EvaluateSuper) };
-        const EVALUATEPROPERTYACCESSWITHEXPRESSIONKEY: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::EvaluatePropertyAccessWithExpressionKey)
-        };
-        const EVALUATEPROPERTYACCESSWITHIDENTIFIERKEY: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::EvaluatePropertyAccessWithIdentifierKey)
-        };
-        const GETVALUE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GetValue) };
-        const GETVALUEKEEPREFERENCE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::GetValueKeepReference) };
-        const GREATERTHAN: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GreaterThan) };
-        const GREATERTHANEQUALS: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::GreaterThanEquals) };
-        const HASPROPERTY: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::HasProperty) };
-        const INCREMENT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Increment) };
-        const DECREMENT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Decrement) };
-        const INSTANCEOFOPERATOR: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::InstanceofOperator) };
-        const INSTANTIATEARROWFUNCTIONEXPRESSION: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::InstantiateArrowFunctionExpression)
-        };
-        const INSTANTIATEORDINARYFUNCTIONEXPRESSION: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::InstantiateOrdinaryFunctionExpression)
-        };
-        const CLASSDEFINECONSTRUCTOR: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ClassDefineConstructor) };
+            Instruction::CreateUnmappedArgumentsObject.as_u8();
+        const COPYDATAPROPERTIES: u8 = Instruction::CopyDataProperties.as_u8();
+        const COPYDATAPROPERTIESINTOOBJECT: u8 = Instruction::CopyDataPropertiesIntoObject.as_u8();
+        const DELETE: u8 = Instruction::Delete.as_u8();
+        const DIRECTEVALCALL: u8 = Instruction::DirectEvalCall.as_u8();
+        const EVALUATECALL: u8 = Instruction::EvaluateCall.as_u8();
+        const EVALUATENEW: u8 = Instruction::EvaluateNew.as_u8();
+        const EVALUATESUPER: u8 = Instruction::EvaluateSuper.as_u8();
+        const EVALUATEPROPERTYACCESSWITHEXPRESSIONKEY: u8 =
+            Instruction::EvaluatePropertyAccessWithExpressionKey.as_u8();
+        const EVALUATEPROPERTYACCESSWITHIDENTIFIERKEY: u8 =
+            Instruction::EvaluatePropertyAccessWithIdentifierKey.as_u8();
+        const MAKEPRIVATEREFERENCE: u8 = Instruction::MakePrivateReference.as_u8();
+        const GETVALUE: u8 = Instruction::GetValue.as_u8();
+        const GETVALUEKEEPREFERENCE: u8 = Instruction::GetValueKeepReference.as_u8();
+        const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
+        const GREATERTHANEQUALS: u8 = Instruction::GreaterThanEquals.as_u8();
+        const HASPROPERTY: u8 = Instruction::HasProperty.as_u8();
+        const INCREMENT: u8 = Instruction::Increment.as_u8();
+        const DECREMENT: u8 = Instruction::Decrement.as_u8();
+        const INSTANCEOFOPERATOR: u8 = Instruction::InstanceofOperator.as_u8();
+        const INSTANTIATEARROWFUNCTIONEXPRESSION: u8 =
+            Instruction::InstantiateArrowFunctionExpression.as_u8();
+        const INSTANTIATEORDINARYFUNCTIONEXPRESSION: u8 =
+            Instruction::InstantiateOrdinaryFunctionExpression.as_u8();
+        const CLASSDEFINECONSTRUCTOR: u8 = Instruction::ClassDefineConstructor.as_u8();
         const CLASSDEFINEDEFAULTCONSTRUCTOR: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ClassDefineDefaultConstructor) };
-        const ISLOOSELYEQUAL: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IsLooselyEqual) };
-        const ISSTRICTLYEQUAL: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IsStrictlyEqual) };
-        const ISNULLORUNDEFINED: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IsNullOrUndefined) };
-        const ISNULL: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::IsNull) };
-        const ISUNDEFINED: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::IsUndefined) };
-        const ISOBJECT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::IsObject) };
-        const ISCONSTRUCTOR: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IsConstructor) };
-        const JUMP: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Jump) };
-        const JUMPIFNOT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::JumpIfNot) };
-        const JUMPIFTRUE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::JumpIfTrue) };
-        const LESSTHAN: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LessThan) };
-        const LESSTHANEQUALS: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::LessThanEquals) };
-        const LOAD: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Load) };
-        const LOADCOPY: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LoadCopy) };
-        const LOADCONSTANT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LoadConstant) };
-        const LOADSTORESWAP: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::LoadStoreSwap) };
-        const LOADTHISVALUE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::LoadThisValue) };
-        const SWAP: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Swap) };
-        const LOGICALNOT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::LogicalNot) };
-        const OBJECTCREATE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectCreate) };
-        const OBJECTDEFINEPROPERTY: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineProperty) };
-        const OBJECTDEFINEMETHOD: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineMethod) };
-        const OBJECTDEFINEGETTER: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineGetter) };
-        const OBJECTDEFINESETTER: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectDefineSetter) };
-        const OBJECTSETPROTOTYPE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ObjectSetPrototype) };
-        const POPEXCEPTIONJUMPTARGET: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::PopExceptionJumpTarget) };
-        const POPREFERENCE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::PopReference) };
-        const PUSHEXCEPTIONJUMPTARGET: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::PushExceptionJumpTarget) };
-        const PUSHREFERENCE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::PushReference) };
-        const PUTVALUE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::PutValue) };
-        const RESOLVEBINDING: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ResolveBinding) };
-        const RESOLVETHISBINDING: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ResolveThisBinding) };
-        const RETHROWEXCEPTIONIFANY: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::RethrowExceptionIfAny) };
-        const RETURN: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Return) };
-        const STORE: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Store) };
-        const STORECOPY: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::StoreCopy) };
-        const STORECONSTANT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::StoreConstant) };
-        const STRINGCONCAT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::StringConcat) };
-        const THROW: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Throw) };
-        const THROWERROR: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ThrowError) };
-        const TONUMBER: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToNumber) };
-        const TONUMERIC: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToNumeric) };
-        const TOOBJECT: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToObject) };
-        const TOSTRING: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::ToString) };
-        const TYPEOF: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Typeof) };
-        const UNARYMINUS: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::UnaryMinus) };
-        const YIELD: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::Yield) };
-        const CREATEIMMUTABLEBINDING: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateImmutableBinding) };
-        const CREATEMUTABLEBINDING: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::CreateMutableBinding) };
-        const INITIALIZEREFERENCEDBINDING: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::InitializeReferencedBinding) };
+            Instruction::ClassDefineDefaultConstructor.as_u8();
+        const CLASSDEFINEPRIVATEMETHOD: u8 = Instruction::ClassDefinePrivateMethod.as_u8();
+        const CLASSDEFINEPRIVATEPROPERTY: u8 = Instruction::ClassDefinePrivateProperty.as_u8();
+        const CLASSINITIALIZEPRIVATEELEMENTS: u8 =
+            Instruction::ClassInitializePrivateElements.as_u8();
+        const PUTPRIVATEVALUE: u8 = Instruction::ClassInitializePrivateValue.as_u8();
+        const ISLOOSELYEQUAL: u8 = Instruction::IsLooselyEqual.as_u8();
+        const ISSTRICTLYEQUAL: u8 = Instruction::IsStrictlyEqual.as_u8();
+        const ISNULLORUNDEFINED: u8 = Instruction::IsNullOrUndefined.as_u8();
+        const ISNULL: u8 = Instruction::IsNull.as_u8();
+        const ISUNDEFINED: u8 = Instruction::IsUndefined.as_u8();
+        const ISOBJECT: u8 = Instruction::IsObject.as_u8();
+        const ISCONSTRUCTOR: u8 = Instruction::IsConstructor.as_u8();
+        const JUMP: u8 = Instruction::Jump.as_u8();
+        const JUMPIFNOT: u8 = Instruction::JumpIfNot.as_u8();
+        const JUMPIFTRUE: u8 = Instruction::JumpIfTrue.as_u8();
+        const LESSTHAN: u8 = Instruction::LessThan.as_u8();
+        const LESSTHANEQUALS: u8 = Instruction::LessThanEquals.as_u8();
+        const LOAD: u8 = Instruction::Load.as_u8();
+        const LOADCOPY: u8 = Instruction::LoadCopy.as_u8();
+        const LOADCONSTANT: u8 = Instruction::LoadConstant.as_u8();
+        const LOADSTORESWAP: u8 = Instruction::LoadStoreSwap.as_u8();
+        const SWAP: u8 = Instruction::Swap.as_u8();
+        const LOGICALNOT: u8 = Instruction::LogicalNot.as_u8();
+        const OBJECTCREATE: u8 = Instruction::ObjectCreate.as_u8();
+        const OBJECTDEFINEPROPERTY: u8 = Instruction::ObjectDefineProperty.as_u8();
+        const OBJECTDEFINEMETHOD: u8 = Instruction::ObjectDefineMethod.as_u8();
+        const OBJECTDEFINEGETTER: u8 = Instruction::ObjectDefineGetter.as_u8();
+        const OBJECTDEFINESETTER: u8 = Instruction::ObjectDefineSetter.as_u8();
+        const OBJECTSETPROTOTYPE: u8 = Instruction::ObjectSetPrototype.as_u8();
+        const POPEXCEPTIONJUMPTARGET: u8 = Instruction::PopExceptionJumpTarget.as_u8();
+        const POPREFERENCE: u8 = Instruction::PopReference.as_u8();
+        const PUSHEXCEPTIONJUMPTARGET: u8 = Instruction::PushExceptionJumpTarget.as_u8();
+        const PUSHREFERENCE: u8 = Instruction::PushReference.as_u8();
+        const PUTVALUE: u8 = Instruction::PutValue.as_u8();
+        const RESOLVEBINDING: u8 = Instruction::ResolveBinding.as_u8();
+        const RESOLVETHISBINDING: u8 = Instruction::ResolveThisBinding.as_u8();
+        const RETURN: u8 = Instruction::Return.as_u8();
+        const STORE: u8 = Instruction::Store.as_u8();
+        const STORECOPY: u8 = Instruction::StoreCopy.as_u8();
+        const STORECONSTANT: u8 = Instruction::StoreConstant.as_u8();
+        const STRINGCONCAT: u8 = Instruction::StringConcat.as_u8();
+        const THROW: u8 = Instruction::Throw.as_u8();
+        const THROWERROR: u8 = Instruction::ThrowError.as_u8();
+        const TONUMBER: u8 = Instruction::ToNumber.as_u8();
+        const TONUMERIC: u8 = Instruction::ToNumeric.as_u8();
+        const TOOBJECT: u8 = Instruction::ToObject.as_u8();
+        const TYPEOF: u8 = Instruction::Typeof.as_u8();
+        const UNARYMINUS: u8 = Instruction::UnaryMinus.as_u8();
+        const YIELD: u8 = Instruction::Yield.as_u8();
+        const CREATEIMMUTABLEBINDING: u8 = Instruction::CreateImmutableBinding.as_u8();
+        const CREATEMUTABLEBINDING: u8 = Instruction::CreateMutableBinding.as_u8();
+        const INITIALIZEREFERENCEDBINDING: u8 = Instruction::InitializeReferencedBinding.as_u8();
         const INITIALIZEVARIABLEENVIRONMENT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::InitializeVariableEnvironment) };
-        const ENTERDECLARATIVEENVIRONMENT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::EnterDeclarativeEnvironment) };
-        const ENTERCLASSSTATICELEMENTENVIRONMENT: u8 = unsafe {
-            std::mem::transmute::<_, u8>(Instruction::EnterClassStaticElementEnvironment)
-        };
-        const EXITDECLARATIVEENVIRONMENT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ExitDeclarativeEnvironment) };
-        const EXITVARIABLEENVIRONMENT: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::ExitVariableEnvironment) };
+            Instruction::InitializeVariableEnvironment.as_u8();
+        const ENTERDECLARATIVEENVIRONMENT: u8 = Instruction::EnterDeclarativeEnvironment.as_u8();
+        const ENTERCLASSSTATICELEMENTENVIRONMENT: u8 =
+            Instruction::EnterClassStaticElementEnvironment.as_u8();
+        const ENTERPRIVATEENVIRONMENT: u8 = Instruction::EnterPrivateEnvironment.as_u8();
+        const EXITDECLARATIVEENVIRONMENT: u8 = Instruction::ExitDeclarativeEnvironment.as_u8();
+        const EXITVARIABLEENVIRONMENT: u8 = Instruction::ExitVariableEnvironment.as_u8();
+        const EXITPRIVATEENVIRONMENT: u8 = Instruction::ExitPrivateEnvironment.as_u8();
         const BEGINSIMPLEOBJECTBINDINGPATTERN: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BeginSimpleObjectBindingPattern) };
+            Instruction::BeginSimpleObjectBindingPattern.as_u8();
         const BEGINSIMPLEARRAYBINDINGPATTERN: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BeginSimpleArrayBindingPattern) };
-        const BINDINGPATTERNBIND: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternBind) };
-        const BINDINGPATTERNBINDNAMED: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternBindNamed) };
-        const BINDINGPATTERNBINDREST: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternBindRest) };
-        const BINDINGPATTERNSKIP: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternSkip) };
-        const BINDINGPATTERNGETVALUE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternGetValue) };
-        const BINDINGPATTERNGETVALUENAMED: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternGetValueNamed) };
-        const BINDINGPATTERNGETRESTVALUE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::BindingPatternGetRestValue) };
-        const FINISHBINDINGPATTERN: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::FinishBindingPattern) };
-        const ENUMERATEOBJECTPROPERTIES: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::EnumerateObjectProperties) };
-        const GETITERATORSYNC: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::GetIteratorSync) };
-        const GETITERATORASYNC: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::GetIteratorAsync) };
-        const ITERATORSTEPVALUE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorStepValue) };
-        const ITERATORSTEPVALUEORUNDEFINED: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorStepValueOrUndefined) };
-        const ITERATORRESTINTOARRAY: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorRestIntoArray) };
-        const ITERATORCLOSE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorClose) };
-        const ASYNCITERATORCLOSE: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::AsyncIteratorClose) };
-        const ITERATORCLOSEWITHERROR: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::IteratorCloseWithError) };
-        const ASYNCITERATORCLOSEWITHERROR: u8 =
-            unsafe { std::mem::transmute::<_, u8>(Instruction::AsyncIteratorCloseWithError) };
-        const GETNEWTARGET: u8 = unsafe { std::mem::transmute::<_, u8>(Instruction::GetNewTarget) };
+            Instruction::BeginSimpleArrayBindingPattern.as_u8();
+        const BINDINGPATTERNBIND: u8 = Instruction::BindingPatternBind.as_u8();
+        const BINDINGPATTERNBINDNAMED: u8 = Instruction::BindingPatternBindNamed.as_u8();
+        const BINDINGPATTERNBINDREST: u8 = Instruction::BindingPatternBindRest.as_u8();
+        const BINDINGPATTERNSKIP: u8 = Instruction::BindingPatternSkip.as_u8();
+        const BINDINGPATTERNGETVALUE: u8 = Instruction::BindingPatternGetValue.as_u8();
+        const BINDINGPATTERNGETVALUENAMED: u8 = Instruction::BindingPatternGetValueNamed.as_u8();
+        const BINDINGPATTERNGETRESTVALUE: u8 = Instruction::BindingPatternGetRestValue.as_u8();
+        const FINISHBINDINGPATTERN: u8 = Instruction::FinishBindingPattern.as_u8();
+        const ENUMERATEOBJECTPROPERTIES: u8 = Instruction::EnumerateObjectProperties.as_u8();
+        const GETITERATORSYNC: u8 = Instruction::GetIteratorSync.as_u8();
+        const GETITERATORASYNC: u8 = Instruction::GetIteratorAsync.as_u8();
+        const ITERATORSTEPVALUE: u8 = Instruction::IteratorStepValue.as_u8();
+        const ITERATORSTEPVALUEORUNDEFINED: u8 = Instruction::IteratorStepValueOrUndefined.as_u8();
+        const ITERATORRESTINTOARRAY: u8 = Instruction::IteratorRestIntoArray.as_u8();
+        const ITERATORCLOSE: u8 = Instruction::IteratorClose.as_u8();
+        const ASYNCITERATORCLOSE: u8 = Instruction::AsyncIteratorClose.as_u8();
+        const ITERATORCLOSEWITHERROR: u8 = Instruction::IteratorCloseWithError.as_u8();
+        const ASYNCITERATORCLOSEWITHERROR: u8 = Instruction::AsyncIteratorCloseWithError.as_u8();
+        const GETNEWTARGET: u8 = Instruction::GetNewTarget.as_u8();
         match value {
             ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
                 BinaryOperator::Addition,
@@ -1287,11 +1226,9 @@ impl TryFrom<u8> for Instruction {
             DEBUG => Ok(Instruction::Debug),
             ARRAYCREATE => Ok(Instruction::ArrayCreate),
             ARRAYPUSH => Ok(Instruction::ArrayPush),
-            ARRAYSETVALUE => Ok(Instruction::ArraySetValue),
             ARRAYELISION => Ok(Instruction::ArrayElision),
             AWAIT => Ok(Instruction::Await),
             BITWISENOT => Ok(Instruction::BitwiseNot),
-            CREATECATCHBINDING => Ok(Instruction::CreateCatchBinding),
             CREATEUNMAPPEDARGUMENTSOBJECT => Ok(Instruction::CreateUnmappedArgumentsObject),
             COPYDATAPROPERTIES => Ok(Instruction::CopyDataProperties),
             COPYDATAPROPERTIESINTOOBJECT => Ok(Instruction::CopyDataPropertiesIntoObject),
@@ -1306,6 +1243,7 @@ impl TryFrom<u8> for Instruction {
             EVALUATEPROPERTYACCESSWITHIDENTIFIERKEY => {
                 Ok(Instruction::EvaluatePropertyAccessWithIdentifierKey)
             }
+            MAKEPRIVATEREFERENCE => Ok(Instruction::MakePrivateReference),
             GETVALUE => Ok(Instruction::GetValue),
             GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
             GREATERTHAN => Ok(Instruction::GreaterThan),
@@ -1322,6 +1260,10 @@ impl TryFrom<u8> for Instruction {
             }
             CLASSDEFINECONSTRUCTOR => Ok(Instruction::ClassDefineConstructor),
             CLASSDEFINEDEFAULTCONSTRUCTOR => Ok(Instruction::ClassDefineDefaultConstructor),
+            CLASSDEFINEPRIVATEMETHOD => Ok(Instruction::ClassDefinePrivateMethod),
+            CLASSDEFINEPRIVATEPROPERTY => Ok(Instruction::ClassDefinePrivateProperty),
+            CLASSINITIALIZEPRIVATEELEMENTS => Ok(Instruction::ClassInitializePrivateElements),
+            PUTPRIVATEVALUE => Ok(Instruction::ClassInitializePrivateValue),
             ISLOOSELYEQUAL => Ok(Instruction::IsLooselyEqual),
             ISSTRICTLYEQUAL => Ok(Instruction::IsStrictlyEqual),
             ISNULLORUNDEFINED => Ok(Instruction::IsNullOrUndefined),
@@ -1338,7 +1280,6 @@ impl TryFrom<u8> for Instruction {
             LOADCOPY => Ok(Instruction::LoadCopy),
             LOADCONSTANT => Ok(Instruction::LoadConstant),
             LOADSTORESWAP => Ok(Instruction::LoadStoreSwap),
-            LOADTHISVALUE => Ok(Instruction::LoadThisValue),
             SWAP => Ok(Instruction::Swap),
             LOGICALNOT => Ok(Instruction::LogicalNot),
             OBJECTCREATE => Ok(Instruction::ObjectCreate),
@@ -1354,7 +1295,6 @@ impl TryFrom<u8> for Instruction {
             PUTVALUE => Ok(Instruction::PutValue),
             RESOLVEBINDING => Ok(Instruction::ResolveBinding),
             RESOLVETHISBINDING => Ok(Instruction::ResolveThisBinding),
-            RETHROWEXCEPTIONIFANY => Ok(Instruction::RethrowExceptionIfAny),
             RETURN => Ok(Instruction::Return),
             STORE => Ok(Instruction::Store),
             STORECOPY => Ok(Instruction::StoreCopy),
@@ -1365,7 +1305,6 @@ impl TryFrom<u8> for Instruction {
             TONUMBER => Ok(Instruction::ToNumber),
             TONUMERIC => Ok(Instruction::ToNumeric),
             TOOBJECT => Ok(Instruction::ToObject),
-            TOSTRING => Ok(Instruction::ToString),
             TYPEOF => Ok(Instruction::Typeof),
             UNARYMINUS => Ok(Instruction::UnaryMinus),
             YIELD => Ok(Instruction::Yield),
@@ -1377,8 +1316,10 @@ impl TryFrom<u8> for Instruction {
             ENTERCLASSSTATICELEMENTENVIRONMENT => {
                 Ok(Instruction::EnterClassStaticElementEnvironment)
             }
+            ENTERPRIVATEENVIRONMENT => Ok(Instruction::EnterPrivateEnvironment),
             EXITDECLARATIVEENVIRONMENT => Ok(Instruction::ExitDeclarativeEnvironment),
             EXITVARIABLEENVIRONMENT => Ok(Instruction::ExitVariableEnvironment),
+            EXITPRIVATEENVIRONMENT => Ok(Instruction::ExitPrivateEnvironment),
             BEGINSIMPLEOBJECTBINDINGPATTERN => Ok(Instruction::BeginSimpleObjectBindingPattern),
             BEGINSIMPLEARRAYBINDINGPATTERN => Ok(Instruction::BeginSimpleArrayBindingPattern),
             BINDINGPATTERNBIND => Ok(Instruction::BindingPatternBind),

@@ -46,6 +46,13 @@ where
         backing_object
     }
 
+    /// Helper method that gets an existing backing object or creates it if not
+    /// yet created.
+    fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
+        self.get_backing_object(agent)
+            .unwrap_or_else(|| self.create_backing_object(agent))
+    }
+
     /// #### \[\[Extensible\]\]
     ///
     /// Every ordinary object has a Boolean-valued \[\[Extensible\]\] internal

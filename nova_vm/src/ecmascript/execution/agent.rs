@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, Reference, String, Symbol, Value, ValueRootRepr}
+        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
@@ -332,6 +332,8 @@ pub struct Agent {
     /// > Note: instead of storing objects in a list here, we only store a
     /// > boolean to clear weak references as needed.
     pub(super) kept_alive: bool,
+    /// Global counter for PrivateNames. This only ever grows.
+    private_names_counter: u32,
 }
 
 impl Agent {
@@ -347,6 +349,7 @@ impl Agent {
             stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
             vm_stack: Vec::with_capacity(16),
             kept_alive: false,
+            private_names_counter: 0,
         }
     }
 
@@ -664,14 +667,26 @@ impl Agent {
     }
 
     /// Sets the running execution context's PrivateEnvironment.
-    pub(crate) fn set_current_private_environment(&mut self, env: PrivateEnvironment) {
+    pub(crate) fn set_current_private_environment(&mut self, env: Option<PrivateEnvironment>) {
         self.execution_context_stack
             .last_mut()
             .unwrap()
             .ecmascript_code
             .as_mut()
             .unwrap()
-            .private_environment = Some(env.unbind());
+            .private_environment = env.unbind();
+    }
+
+    /// Allocates a range of PrivateName identifiers and returns the first in
+    /// the range.
+    pub(crate) fn create_private_names(&mut self, count: usize) -> PrivateName {
+        let count = u32::try_from(count).expect("Unreasonable amount of PrivateNames");
+        let first = self.private_names_counter;
+        let next_free_name = first
+            .checked_add(count)
+            .expect("PrivateName counter overflowed");
+        self.private_names_counter = next_free_name;
+        PrivateName::from_u32(first)
     }
 
     pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
@@ -853,6 +868,7 @@ impl HeapMarkAndSweep for Agent {
             global_symbol_registry: _,
             host_hooks: _,
             kept_alive: _,
+            private_names_counter: _,
         } = self;
 
         execution_context_stack.iter().for_each(|ctx| {
@@ -900,6 +916,7 @@ impl HeapMarkAndSweep for Agent {
             global_symbol_registry: _,
             host_hooks: _,
             kept_alive: _,
+            private_names_counter: _,
         } = self;
 
         execution_context_stack

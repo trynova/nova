@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::vec;
+use std::{collections::hash_map::Entry, vec};
 
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::{
@@ -15,7 +15,7 @@ use crate::{
         rootable::Scopable,
         unwrap_try,
     },
-    heap::HeapSweepWeakReference,
+    heap::{Heap, HeapSweepWeakReference, element_array::PropertyStorageMut},
 };
 use crate::{
     ecmascript::{
@@ -1150,6 +1150,8 @@ pub(crate) fn ordinary_own_property_keys<'a>(
                 }
             }
             PropertyKey::Symbol(symbol) => symbol_keys.push(symbol.bind(gc)),
+            // Note: PrivateName keys are always invisible.
+            PropertyKey::PrivateName(_) => {}
             // a. Append P to keys.
             _ => keys.push(key.bind(gc)),
         }
@@ -1169,8 +1171,6 @@ pub(crate) fn ordinary_own_property_keys<'a>(
         // a. Append P to keys.
         keys.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
     }
-
-    debug_assert_eq!(keys.len() as u32, props.len());
 
     // 5. Return keys.
     keys
@@ -1717,8 +1717,8 @@ pub(crate) fn try_get_ordinary_object_value<'a>(
 
 /// Fast path try-function for setting a Value on an OrdinaryObject.
 ///
-/// Returns Ok(bool) if the Value was attempted to be set, the boolean telling
-/// if the Value was set or not. Returns Err if the Value could not be set
+/// Returns Some(bool) if the Value was attempted to be set, the boolean telling
+/// if the Value was set or not. Returns None if the Value could not be set
 /// because the property was not found or a non-ordinary prototype object was
 /// encountered.
 pub(crate) fn try_set_ordinary_object_value(
@@ -1727,27 +1727,38 @@ pub(crate) fn try_set_ordinary_object_value(
     name: PropertyKey,
     value: Value,
 ) -> Option<bool> {
-    let props = agent[binding_object].property_storage;
-    let found = props
-        .keys(agent)
+    let Heap {
+        objects, elements, ..
+    } = &mut agent.heap;
+    let PropertyStorageMut {
+        keys,
+        values,
+        descriptors,
+    } = objects[binding_object]
+        .property_storage
+        .get_storage_mut(elements)?;
+    let index = keys
         .iter()
         .enumerate()
         .find(|(_, k)| **k == name)
-        .map(|(i, _)| i);
-    if let Some(index) = found {
-        let (descriptors, slice) = agent.heap.elements.get_descriptors_and_values_mut(&props);
-        let slot = &mut slice[index];
-        if let Some(slot) = slot {
-            if descriptors.is_some_and(|descriptors| {
-                descriptors
-                    .get(&(index as u32))
-                    .is_some_and(|d| !d.is_writable().unwrap())
-            }) {
-                return Some(false);
-            }
-            *slot = value.unbind();
-            return Some(true);
-        }
+        .map(|(i, _)| i)?;
+    let slot = &mut values[index];
+    let Some(slot) = slot else {
+        return None;
+    };
+    // Note: Slot contains Some, so this is a data property.
+    let writable = if let Entry::Occupied(e) = descriptors {
+        let descriptors = &*e.into_mut();
+        descriptors
+            .get(&(index as u32))
+            .is_none_or(|d| d.is_writable().unwrap())
+    } else {
+        // No descriptors on this object, so all properties are plain
+        // data properties.
+        true
+    };
+    if writable {
+        *slot = value.unbind();
     }
-    None
+    Some(writable)
 }
