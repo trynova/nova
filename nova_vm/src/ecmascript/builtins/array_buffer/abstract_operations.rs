@@ -65,6 +65,13 @@ pub(crate) fn allocate_array_buffer<'a>(
     //      a. If it is not possible to create a Data Block block consisting of maxByteLength bytes, throw a RangeError exception.
     //      b. NOTE: Resizable ArrayBuffers are designed to be implementable with in-place growth. Implementations may throw if, for example, virtual memory cannot be reserved up front.
     //      c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
+    if byte_length > u32::MAX as u64 {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Byte length is too large",
+            gc,
+        ));
+    }
     let block = DataBlock::create_byte_data_block(agent, byte_length, gc)?;
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
