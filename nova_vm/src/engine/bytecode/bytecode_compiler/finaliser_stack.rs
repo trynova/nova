@@ -17,7 +17,7 @@ use oxc_ast::ast::LabelIdentifier;
 
 use crate::engine::Instruction;
 
-use super::{CompileContext, JumpIndex};
+use super::{JumpIndex, executable_context::ExecutableContext};
 
 #[derive(Debug, Clone)]
 pub(super) struct ControlFlowFinallyEntry<'a> {
@@ -307,22 +307,22 @@ impl<'a> ControlFlowStackEntry<'a> {
         }
     }
 
-    pub(super) fn compile_exit(&self, instructions: &mut Vec<u8>) {
+    pub(super) fn compile_exit<'gc>(&self, executable: &mut ExecutableContext) {
         match self {
             ControlFlowStackEntry::LabelledStatement { .. } => {
                 // Labelled statements don't need finalisation.
             }
             ControlFlowStackEntry::LexicalScope => {
-                instructions.push(Instruction::ExitDeclarativeEnvironment.as_u8());
+                executable.add_instruction(Instruction::ExitDeclarativeEnvironment);
             }
             ControlFlowStackEntry::VariableScope => {
-                instructions.push(Instruction::ExitVariableEnvironment.as_u8());
+                executable.add_instruction(Instruction::ExitVariableEnvironment);
             }
             ControlFlowStackEntry::PrivateScope => {
-                instructions.push(Instruction::ExitPrivateEnvironment.as_u8());
+                executable.add_instruction(Instruction::ExitPrivateEnvironment);
             }
             ControlFlowStackEntry::CatchBlock { .. } => {
-                instructions.push(Instruction::PopExceptionJumpTarget.as_u8());
+                executable.add_instruction(Instruction::PopExceptionJumpTarget);
             }
             ControlFlowStackEntry::FinallyBlock { .. } => {
                 // Finally-blocks should always intercept incoming work.
@@ -333,28 +333,35 @@ impl<'a> ControlFlowStackEntry<'a> {
             }
             ControlFlowStackEntry::Iterator { .. } => {
                 // Iterators have to be closed and their catch handler popped.
-                instructions.extend_from_slice(&[
-                    Instruction::PopExceptionJumpTarget.as_u8(),
-                    Instruction::IteratorClose.as_u8(),
-                ]);
+                executable.add_instruction(Instruction::PopExceptionJumpTarget);
+                executable.add_instruction(Instruction::IteratorClose);
             }
             ControlFlowStackEntry::AsyncIterator { .. } => {
-                // Async iterators have to be closed and the "return" function
-                // result, if any, awaited.
-                instructions.extend_from_slice(&[
-                    Instruction::PopExceptionJumpTarget.as_u8(),
-                    Instruction::AsyncIteratorClose.as_u8(),
-                    Instruction::Await.as_u8(),
-                    Instruction::PopExceptionJumpTarget.as_u8(),
-                    Instruction::Store.as_u8(),
-                ]);
+                compile_async_iterator_exit(executable);
             }
         }
     }
 }
 
+/// Helper method to compile async iterator exit handling.
+///
+/// Async iterators have to be closed and the "return" function result, if any,
+/// awaited. Any errors thrown during this process are immediately rethrown,
+/// and if the process finishes successfully then the original result will be
+/// restored as the result value.
+pub(super) fn compile_async_iterator_exit(executable: &mut ExecutableContext) {
+    let error_message = executable.create_string("iterator.return() returned a non-object value");
+    executable.add_instruction(Instruction::PopExceptionJumpTarget);
+    executable.add_instruction(Instruction::AsyncIteratorClose);
+    // If async iterator close returned a Value, then it'll push the previous
+    // result value into the stack. We should await the returned value, verify
+    // that it is an object, and then return the original result.
+    executable.add_instruction_with_identifier(Instruction::VerifyIsObject, error_message);
+    executable.add_instruction(Instruction::Store);
+}
+
 impl ControlFlowSwitchEntry {
-    pub(super) fn compile(self, break_target: JumpIndex, ctx: &mut CompileContext) {
+    pub(super) fn compile(self, break_target: JumpIndex, ctx: &mut ExecutableContext) {
         for break_source in self.breaks {
             ctx.set_jump_target(break_source, break_target.clone());
         }
@@ -366,7 +373,7 @@ impl ControlFlowLoopEntry {
         self,
         continue_target: JumpIndex,
         break_target: JumpIndex,
-        ctx: &mut CompileContext,
+        ctx: &mut ExecutableContext,
     ) {
         for break_source in self.breaks {
             ctx.set_jump_target(break_source, break_target.clone());

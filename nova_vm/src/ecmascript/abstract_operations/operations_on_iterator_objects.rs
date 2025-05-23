@@ -589,25 +589,76 @@ pub(crate) use if_abrupt_close_iterator;
 /// Completion Record. It is used to notify an async iterator that it should
 /// perform any actions it would normally perform when it has reached its
 /// completed state.
-pub(crate) fn async_iterator_close<'a>(
+pub(crate) fn async_iterator_close_with_value<'a>(
     agent: &mut Agent,
-    _iterator_record: &IteratorRecord,
-    _completion: JsResult<Value>,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
+    iterator: Object,
+    // completion: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Option<Value<'a>>> {
+    // let completion = completion.bind(gc.nogc());
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
+    let mut iterator = iterator.bind(gc.nogc());
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
+    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
+        agent,
+        iterator,
+        BUILTIN_STRING_MEMORY.r#return.into(),
+        gc.nogc(),
+    ) {
+        // Note: completion.[[Type]] is known to not be throw, so if
+        // innerResult.[[Type]] is throw then the following steps mean that
+        // "rethrow innerResult immediately". Hence we can use the ? operator
+        // below.
+        // 4. If innerResult.[[Type]] is normal, then
+        // 5. If completion.[[Type]] is throw, return ? completion.
+        // 6. If innerResult.[[Type]] is throw, return ? innerResult.
+        inner_result.unbind()?.bind(gc.nogc())
+    } else {
+        let scoped_iterator = iterator.scope(agent, gc.nogc());
+        let inner_result = get_object_method(
+            agent,
+            iterator.unbind(),
+            BUILTIN_STRING_MEMORY.r#return.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: scoped_iterator is not shared.
+        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+        inner_result
+    };
     // 4. If innerResult.[[Type]] is normal, then
+    // Note: we statically know it is normal here.
     // a. Let return be innerResult.[[Value]].
+    let r#return = inner_result;
     // b. If return is undefined, return ? completion.
+    let Some(r#return) = r#return else {
+        // Note: we return None to signal that completion value should be used.
+        return Ok(None);
+    };
     // c. Set innerResult to Completion(Call(return, iterator)).
-    // d. If innerResult.[[Type]] is normal, set innerResult to Completion(Await(innerResult.[[Value]])).
+    let inner_result = call_function(
+        agent,
+        r#return.unbind(),
+        iterator.into_value().unbind(),
+        None,
+        gc,
+    );
+    // d. If innerResult.[[Type]] is normal, set innerResult to
+    //    Completion(Await(innerResult.[[Value]])).
+    return match inner_result {
+        Ok(value) => {
+            // Note: we return Some to signal that an Await is required.
+            Ok(Some(value))
+        }
+        // 6. If innerResult.[[Type]] is throw, return ? innerResult.
+        Err(err) => Err(err),
+    };
     // 5. If completion.[[Type]] is throw, return ? completion.
     // 6. If innerResult.[[Type]] is throw, return ? innerResult.
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     // 8. Return ? completion.
-    Err(agent.todo("AsyncIteratorClose", gc.into_nogc()))
 }
 
 /// ### [7.4.13 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)

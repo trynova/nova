@@ -217,8 +217,7 @@ fn for_in_of_body_evaluation<'s>(
                         else {
                             unreachable!()
                         };
-                        let identifier =
-                            String::from_str(ctx.agent, binding_identifier.name.as_str(), ctx.gc);
+                        let identifier = ctx.create_string(binding_identifier.name.as_str());
                         ctx.add_instruction_with_identifier(
                             Instruction::ResolveBinding,
                             identifier,
@@ -280,8 +279,7 @@ fn for_in_of_body_evaluation<'s>(
 
                         entered_declarative_environment = true;
                     }
-                    let identifier =
-                        String::from_str(ctx.agent, binding_identifier.name.as_str(), ctx.gc);
+                    let identifier = ctx.create_string(binding_identifier.name.as_str());
                     ctx.add_instruction_with_identifier(
                         if lhs.kind.is_const() {
                             Instruction::CreateImmutableBinding
@@ -310,8 +308,7 @@ fn for_in_of_body_evaluation<'s>(
                     entered_declarative_environment = true;
 
                     // 2. Let lhsName be the sole element of the BoundNames of lhs.
-                    let lhs_name =
-                        String::from_str(ctx.agent, binding_identifier.name.as_str(), ctx.gc);
+                    let lhs_name = ctx.create_string(binding_identifier.name.as_str());
                     ctx.add_instruction_with_identifier(
                         if lhs.kind.is_const() {
                             Instruction::CreateImmutableBinding
@@ -409,11 +406,8 @@ fn get_for_statement_left_hand_side_kind<'gc>(
         ast::ForStatementLeft::VariableDeclaration(var_decl) => {
             if var_decl.kind.is_lexical() {
                 var_decl.bound_names(&mut |binding_identifier| {
-                    uninitialized_bound_names.push(String::from_str(
-                        ctx.agent,
-                        binding_identifier.name.as_str(),
-                        ctx.gc,
-                    ));
+                    uninitialized_bound_names
+                        .push(ctx.create_string(binding_identifier.name.as_str()));
                 });
                 LeftHandSideKind::LexicalBinding
             } else {

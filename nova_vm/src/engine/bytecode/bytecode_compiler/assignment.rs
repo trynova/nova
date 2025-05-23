@@ -4,7 +4,6 @@
 
 use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
-use crate::ecmascript::types::String;
 use crate::engine::Instruction;
 
 use super::{
@@ -113,7 +112,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                     if is_anonymous_function_definition(&self.right) =>
                 {
                     // a. Let lhs be the StringValue of LeftHandSideExpression.
-                    let lhs = String::from_str(ctx.agent, left.name.as_str(), ctx.gc);
+                    let lhs = ctx.create_string(left.name.as_str());
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, lhs);
                     // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
                     ctx.name_identifier = Some(NamedEvaluationParameter::Result);
@@ -269,7 +268,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetProperty<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let key = String::from_str(ctx.agent, self.binding.name.as_str(), ctx.gc);
+        let key = ctx.create_string(self.binding.name.as_str());
         ctx.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             key,
@@ -281,7 +280,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
             let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
             ctx.add_instruction(Instruction::Store);
             if is_anonymous_function_definition(init) {
-                let identifier_string = ctx.create_identifier(self.binding.name.as_str());
+                let identifier_string = ctx.create_string(self.binding.name.as_str());
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
@@ -303,7 +302,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyProperty<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match &self.name {
             ast::PropertyKey::StaticIdentifier(identifier) => {
-                let key = String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
+                let key = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     key,
@@ -337,7 +336,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
                     if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
                         &target.binding
                     {
-                        let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                        let identifier_string = ctx.create_string(identifier.name.as_str());
                         ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,

@@ -407,6 +407,10 @@ pub enum Instruction {
     AsyncIteratorCloseWithError,
     /// Store GetNewTarget() as the result value.
     GetNewTarget,
+    /// Throw a TypeError if the result register does not contain an Object.
+    ///
+    /// The error message is provided as an identifier.
+    VerifyIsObject,
 }
 
 impl Instruction {
@@ -464,7 +468,8 @@ impl Instruction {
             | Self::ResolveBinding
             | Self::StoreConstant
             | Self::StringConcat
-            | Self::ThrowError => 1,
+            | Self::ThrowError
+            | Self::VerifyIsObject => 1,
             _ => 0,
         }
     }
@@ -504,6 +509,7 @@ impl Instruction {
                 | Self::EvaluatePropertyAccessWithIdentifierKey
                 | Self::MakePrivateReference
                 | Self::ResolveBinding
+                | Self::VerifyIsObject
         )
     }
 
@@ -1156,6 +1162,7 @@ impl TryFrom<u8> for Instruction {
         const ITERATORCLOSEWITHERROR: u8 = Instruction::IteratorCloseWithError.as_u8();
         const ASYNCITERATORCLOSEWITHERROR: u8 = Instruction::AsyncIteratorCloseWithError.as_u8();
         const GETNEWTARGET: u8 = Instruction::GetNewTarget.as_u8();
+        const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
         match value {
             ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
                 BinaryOperator::Addition,
@@ -1341,6 +1348,7 @@ impl TryFrom<u8> for Instruction {
             ITERATORCLOSEWITHERROR => Ok(Instruction::IteratorCloseWithError),
             ASYNCITERATORCLOSEWITHERROR => Ok(Instruction::AsyncIteratorCloseWithError),
             GETNEWTARGET => Ok(Instruction::GetNewTarget),
+            VERIFYISOBJECT => Ok(Instruction::VerifyIsObject),
             _ => Err(()),
         }
     }
