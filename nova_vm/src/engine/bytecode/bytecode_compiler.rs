@@ -1747,7 +1747,10 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     let identifier_string = ctx.create_string(identifier.name.as_str());
                     let identifier = ctx.add_identifier(identifier_string);
                     ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
-                    ctx.add_instruction(Instruction::PushReference);
+                    let is_literal = init.is_literal();
+                    if !is_literal {
+                        ctx.add_instruction(Instruction::PushReference);
+                    }
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
@@ -1761,11 +1764,14 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                         init.compile(ctx);
                         // b. Let value be ? GetValue(rhs).
                         if is_reference(init) {
+                            debug_assert!(!is_literal);
                             ctx.add_instruction(Instruction::GetValue);
                         }
                     }
                     // 5. Perform ? PutValue(lhs, value).
-                    ctx.add_instruction(Instruction::PopReference);
+                    if !is_literal {
+                        ctx.add_instruction(Instruction::PopReference);
+                    }
                     ctx.add_instruction(Instruction::PutValue);
 
                     // 6. Return EMPTY.
