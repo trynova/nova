@@ -398,12 +398,33 @@ pub enum Instruction {
     AsyncIteratorClose,
     /// Perform CloseIterator on the current iterator with the current result
     /// as a thrown value.
+    ///
+    /// This will call the `return` method of the current iterator, ignoring
+    /// all errors, and then rethrows the current result.
     IteratorCloseWithError,
     /// Perform AsyncCloseIterator on the current iterator with the current
     /// result as a thrown value.
     ///
-    /// This handling will store the error on the stack and perform an Await if
-    /// needed, otherwise it will rethrows the error.
+    /// This will call the `return` method of the current iterator. If the
+    /// method is found and returns a value, then the current result is stored
+    /// onto the stack, a special "ignore thrown error and next instruction"
+    /// exception jump target handler is installed, and then execution is
+    /// continued. If an error is thrown or no method exists, then the current
+    /// result is rethrown immediately.
+    ///
+    /// This instruction should always be followed by the following bytecode
+    /// snippet:
+    /// ```rust
+    /// // Perform the await if needed.
+    /// Instruction::Await;
+    /// // Pop the special exception jump target handler if await didn't throw.
+    /// // Note: this is skipped by the special handler if Await did throw.
+    /// Instruction::PopExceptionJumpTarget;
+    /// // Return the current result into the result register.
+    /// Instruction::Store;
+    /// // Rethrow the current result.
+    /// Instruction::Throw;
+    /// ```
     AsyncIteratorCloseWithError,
     /// Store GetNewTarget() as the result value.
     GetNewTarget,

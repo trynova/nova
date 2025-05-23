@@ -1093,6 +1093,11 @@ impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
         }
         // 3. Return ? Yield(value).
         ctx.add_instruction(Instruction::Yield);
+        // Note: generators can be resumed with a Return instruction. For those
+        // cases we need to generate Return handling here.
+        let jump_over_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.compile_return();
+        ctx.set_jump_target_here(jump_over_return);
     }
 }
 
@@ -1248,14 +1253,26 @@ impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
+    /// ## [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
+    /// ### BindingPattern : ArrayBindingPattern
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.elements.is_empty() && self.rest.is_none() {
+            // ArrayAssignmentPattern : [ ]
+            // 1. Let iteratorRecord be ? GetIterator(value, sync).
+            // 2. Return ? IteratorClose(iteratorRecord, NormalCompletion(unused)).
+            ctx.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::GetIteratorSync);
+            ctx.add_instruction(Instruction::IteratorClose);
             return;
         }
 
         ctx.add_instruction(Instruction::Store);
+        // 1. Let iteratorRecord be ? GetIterator(value, sync).
         ctx.add_instruction(Instruction::GetIteratorSync);
-
+        let jump_to_catch = ctx.enter_iterator(None);
+        // 2. Let result be Completion(IteratorBindingInitialization of
+        //    ArrayBindingPattern with arguments iteratorRecord and
+        //    environment).
         if !self.contains_expression() {
             simple_array_pattern(
                 ctx,
@@ -1272,6 +1289,21 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
                 ctx.lexical_binding_state,
             );
         }
+        // 3. If iteratorRecord.[[Done]] is false, return
+        //    ? IteratorClose(iteratorRecord, result).
+        // Note: simple array binding handles IteratorClose at runtime, while
+        // complex array binding injects it on its own. We don't need to do
+        // anything special here.
+        // 4. Return ? result.
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        {
+            // catch handling, we have to call IteratorClose with the error.
+            ctx.set_jump_target_here(jump_to_catch);
+            ctx.add_instruction(Instruction::IteratorCloseWithError);
+        }
+        ctx.set_jump_target_here(jump_over_catch);
+        ctx.exit_iterator(None);
     }
 }
 

@@ -238,44 +238,27 @@ impl SuspendedVm {
     }
 
     pub(crate) fn resume_return<'gc>(
-        self,
+        mut self,
         agent: &mut Agent,
-        // Note: This will become necessary with finally-blocks since they can
-        // actually resume execution of the bytecode executable.
-        _executable: Scoped<Executable>,
+        executable: Scoped<Executable>,
         result: Value,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
-        let mut result = result.bind(gc.nogc());
         if agent.options.print_internals {
             eprintln!("Resuming function with return\n");
         }
-        // Optimisation: Until we support finally-blocks, the only thing return
-        // can do is close iterators.
-        if !self.iterator_stack.is_empty() {
-            let scoped_result = result.scope(agent, gc.nogc());
-            let mut vm = Vm::from_suspended(self);
-            while let Some(iter) = vm.iterator_stack.pop() {
-                if iter.requires_return_call(agent, gc.nogc()) {
-                    let close_result = with_vm_gc(
-                        agent,
-                        &mut vm,
-                        |agent, gc| iter.close_iterator(agent, scoped_result.get(agent), gc),
-                        gc.reborrow(),
-                    );
-                    // Note: we should do actual error handling here but
-                    // joining the iterator stack and error handling stack is
-                    // pretty devilish.
-                    if let Err(close_result) = close_result {
-                        return ExecutionResult::Throw(close_result.unbind());
-                    }
-                }
-            }
-            // SAFETY: not shared.
-            result = unsafe { scoped_result.take(agent) }.bind(gc.nogc());
+        // Following a yield point, the next instruction is a Jump over our
+        // Return handling. We need to ignore that.
+        let next_instruction = executable.get_instruction(agent, &mut self.ip);
+        assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
+        let peek_next_instruction = executable.get_instructions(agent).get(self.ip).copied();
+        if peek_next_instruction == Some(Instruction::Return.as_u8()) {
+            // Our return handling is to just return; we can do that without
+            // unsuspending the VM.
+            return ExecutionResult::Return(result.bind(gc.into_nogc()));
         }
-        // Best guess: I think we should be return the result we got.
-        ExecutionResult::Return(result.unbind())
+        let vm = Vm::from_suspended(self);
+        vm.resume(agent, executable, result, gc)
     }
 }
 
@@ -2346,8 +2329,8 @@ impl Vm {
                     // Var binding, var [] = a;
                     None
                 };
-                execute_simple_array_binding(agent, vm, executable, env, gc)?;
-                vm.iterator_stack.pop().unwrap();
+                execute_simple_array_binding(agent, vm, executable, env, gc.reborrow()).unbind()?;
+                vm.pop_iterator(gc.nogc());
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.get_first_bool();
@@ -2575,25 +2558,30 @@ impl Vm {
                     agent,
                     vm,
                     |agent, gc| ActiveIterator::new(agent, gc.nogc()).step_value(agent, gc),
-                    gc,
-                );
-                if let Ok(result) = result {
-                    vm.result = result.map(Value::unbind);
-                    if result.is_none() {
-                        // Iterator finished: pop the iterator from the stack
-                        // and jump to escape the iterator loop.
-                        vm.iterator_stack.pop();
-                        let ip = instr.get_jump_slot();
-                        if agent.options.print_internals {
-                            eprintln!("Iterator finished, jumping to {ip}");
+                    gc.reborrow(),
+                )
+                .unbind()
+                .bind(gc.nogc());
+                match result {
+                    Ok(result) => {
+                        vm.result = result.unbind();
+                        if result.is_none() {
+                            // Iterator finished: pop the iterator from the stack
+                            // and jump to escape the iterator loop.
+                            vm.pop_iterator(gc.nogc());
+                            let ip = instr.get_jump_slot();
+                            if agent.options.print_internals {
+                                eprintln!("Iterator finished, jumping to {ip}");
+                            }
+                            vm.ip = ip;
                         }
-                        vm.ip = ip;
                     }
-                } else {
-                    // Iterator threw an error: pop the iterator from the stack
-                    // and rethrow the error.
-                    vm.iterator_stack.pop();
-                    result?;
+                    Err(err) => {
+                        // Iterator threw an error: pop the iterator from the stack
+                        // and rethrow the error.
+                        vm.pop_iterator(gc.nogc());
+                        return Err(err.unbind());
+                    }
                 }
             }
             Instruction::IteratorStepValueOrUndefined => {
@@ -2603,20 +2591,13 @@ impl Vm {
                     |agent, gc| ActiveIterator::new(agent, gc.nogc()).step_value(agent, gc),
                     gc,
                 );
-                if let Ok(result) = result {
-                    vm.result = Some(result.unwrap_or(Value::Undefined).unbind());
-                    if result.is_none() {
-                        // We have exhausted the iterator; replace the top
-                        // iterator with an empty slice iterator so further
-                        // instructions aren't observable.
-                        *vm.get_active_iterator_mut() = VmIteratorRecord::EmptySliceIterator;
-                    }
-                } else {
-                    // The iterator threw an error: pop the iterator from the stack
-                    // and rethrow the error.
-                    vm.iterator_stack.pop();
-                    result?;
+                if result.map_or(true, |r| r.is_none()) {
+                    // We have exhausted the iterator or it threw an error;
+                    // replace the top iterator with an empty slice iterator so
+                    // further instructions aren't observable.
+                    *vm.get_active_iterator_mut() = VmIteratorRecord::EmptySliceIterator;
                 }
+                vm.result = Some(result?.unwrap_or(Value::Undefined).unbind());
             }
             Instruction::IteratorRestIntoArray => {
                 let capacity = vm
@@ -2651,41 +2632,51 @@ impl Vm {
                     },
                     gc,
                 );
-                // Iterator was exhausted or threw an error: time to pop it off
-                // the stack.
-                vm.iterator_stack.pop().unwrap();
-                // Rethrow possible error.
+                // We have exhausted the iterator or it threw an error; replace
+                // the top iterator with an empty slice iterator so further
+                // instructions aren't observable.
+                *vm.get_active_iterator_mut() = VmIteratorRecord::EmptySliceIterator;
+                // Now we're ready to throw the possible error.;
                 result?;
-                vm.result = Some(array.get(agent).into_value());
+
+                // Store the array as the result.
+                // SAFETY: not shared.
+                vm.result = Some(unsafe { array.take(agent).into_value() });
             }
             Instruction::IteratorClose => {
-                let iterator = vm.iterator_stack.pop().unwrap();
-                if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
+                let iter = vm.pop_iterator(gc.nogc());
+                if let VmIteratorRecord::GenericIterator(iterator_record) = iter {
                     let result = vm.result.take().unwrap_or(Value::Undefined);
-                    let result = with_vm_gc(
-                        agent,
-                        vm,
-                        |agent, gc| {
-                            iterator_close_with_value(agent, iterator_record.iterator, result, gc)
-                        },
-                        gc,
-                    )?;
+                    let result = {
+                        let iterator = iterator_record.iterator.unbind();
+                        // Drop iterator so we can move gc.
+                        drop(iter);
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| iterator_close_with_value(agent, iterator, result, gc),
+                            gc,
+                        )?
+                    };
                     vm.result = Some(result.unbind());
                 }
             }
             Instruction::AsyncIteratorClose => {
-                let iterator = vm.iterator_stack.pop().unwrap();
+                let iter = vm.pop_iterator(gc.nogc());
                 if let VmIteratorRecord::GenericIterator(iterator_record)
-                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iterator
+                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iter
                 {
-                    let result = with_vm_gc(
-                        agent,
-                        vm,
-                        |agent, gc| {
-                            async_iterator_close_with_value(agent, iterator_record.iterator, gc)
-                        },
-                        gc,
-                    )?;
+                    let result = {
+                        let iterator = iterator_record.iterator.unbind();
+                        // Drop iterator so we can move gc.
+                        drop(iter);
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| async_iterator_close_with_value(agent, iterator, gc),
+                            gc,
+                        )?
+                    };
                     if let Some(result) = result {
                         // AsyncIteratorClose
                         let result = vm.result.replace(result.unbind());
@@ -2697,19 +2688,17 @@ impl Vm {
                 }
             }
             Instruction::IteratorCloseWithError => {
-                let iterator = vm.iterator_stack.pop().unwrap();
-                if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
+                let iter = vm.pop_iterator(gc.nogc());
+                if let VmIteratorRecord::GenericIterator(iterator_record) = iter {
                     let result = vm.result.take().unwrap();
+                    let iterator = iterator_record.iterator.unbind();
+                    // Drop iterator so we can move gc.
+                    drop(iter);
                     return Err(with_vm_gc(
                         agent,
                         vm,
                         |agent, gc| {
-                            iterator_close_with_error(
-                                agent,
-                                iterator_record.iterator,
-                                JsError::new(result),
-                                gc,
-                            )
+                            iterator_close_with_error(agent, iterator, JsError::new(result), gc)
                         },
                         gc,
                     ));
@@ -2717,18 +2706,21 @@ impl Vm {
                 return Err(JsError::new(vm.result.take().unwrap()));
             }
             Instruction::AsyncIteratorCloseWithError => {
-                let iterator = vm.iterator_stack.pop().unwrap();
+                let iter = vm.pop_iterator(gc.nogc());
                 if let VmIteratorRecord::GenericIterator(iterator_record)
-                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iterator
+                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iter
                 {
-                    let inner_result_value = with_vm_gc(
-                        agent,
-                        vm,
-                        |agent, gc| {
-                            async_vm_iterator_close_with_error(agent, iterator_record.iterator, gc)
-                        },
-                        gc,
-                    );
+                    let inner_result_value = {
+                        let iterator = iterator_record.iterator.unbind();
+                        // Drop iterator so we can move gc.
+                        drop(iter);
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| async_vm_iterator_close_with_error(agent, iterator, gc),
+                            gc,
+                        )
+                    };
                     if let Some(value) = inner_result_value {
                         // ### 7.4.13 AsyncIteratorClose
                         // 4.d. If innerResult is a normal completion, set
@@ -2823,6 +2815,18 @@ impl Vm {
 
         assert!(self.stack.len() >= arg_count);
         self.stack.split_off(self.stack.len() - arg_count)
+    }
+
+    /// Pop the active (top-most) iterator from the iterator stack.
+    ///
+    /// ### Panics
+    ///
+    /// Panics if the iterator stack is empty.
+    pub(super) fn pop_iterator<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> VmIteratorRecord<'gc> {
+        self.iterator_stack
+            .pop()
+            .expect("Iterator stack is empty")
+            .bind(gc)
     }
 
     /// Get the active (top-most) iterator from the iterator stack.
