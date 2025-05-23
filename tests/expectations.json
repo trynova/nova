@@ -14766,7 +14766,6 @@
   "staging/explicit-resource-management/await-using-throws-suppressed-error-from-try-and-disposal.js": "FAIL",
   "staging/explicit-resource-management/await-using-throws-suppressed-error-of-undefined.js": "FAIL",
   "staging/explicit-resource-management/await-using-user-code-throws-after.js": "CRASH",
-  "staging/explicit-resource-management/await-using-user-code-throws-before.js": "CRASH",
   "staging/explicit-resource-management/await-using-with-no-async-dispose-method.js": "CRASH",
   "staging/explicit-resource-management/await-using-with-sync-dispose-method.js": "CRASH",
   "staging/explicit-resource-management/call-dispose-methods.js": "CRASH",
