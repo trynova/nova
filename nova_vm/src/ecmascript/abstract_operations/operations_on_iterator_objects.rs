@@ -589,6 +589,11 @@ pub(crate) use if_abrupt_close_iterator;
 /// Completion Record. It is used to notify an async iterator that it should
 /// perform any actions it would normally perform when it has reached its
 /// completed state.
+///
+/// Note: this is used to perform a "return" function call on async VM iterator
+/// close and returns Some(value) if the return function did not throw. If the
+/// return function threw an error, the error is returned directly. None is
+/// returned if no "return" function existed.
 pub(crate) fn async_iterator_close_with_value<'a>(
     agent: &mut Agent,
     iterator: Object,
@@ -638,23 +643,17 @@ pub(crate) fn async_iterator_close_with_value<'a>(
         return Ok(None);
     };
     // c. Set innerResult to Completion(Call(return, iterator)).
-    let inner_result = call_function(
+    let value = call_function(
         agent,
         r#return.unbind(),
         iterator.into_value().unbind(),
         None,
         gc,
-    );
+    )?;
     // d. If innerResult.[[Type]] is normal, set innerResult to
     //    Completion(Await(innerResult.[[Value]])).
-    return match inner_result {
-        Ok(value) => {
-            // Note: we return Some to signal that an Await is required.
-            Ok(Some(value))
-        }
-        // 6. If innerResult.[[Type]] is throw, return ? innerResult.
-        Err(err) => Err(err),
-    };
+    // Note: we return Some to signal that an Await is required.
+    Ok(Some(value))
     // 5. If completion.[[Type]] is throw, return ? completion.
     // 6. If innerResult.[[Type]] is throw, return ? innerResult.
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.

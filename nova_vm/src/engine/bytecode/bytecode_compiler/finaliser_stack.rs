@@ -307,7 +307,7 @@ impl<'a> ControlFlowStackEntry<'a> {
         }
     }
 
-    pub(super) fn compile_exit<'gc>(&self, executable: &mut ExecutableContext) {
+    pub(super) fn compile_exit(&self, executable: &mut ExecutableContext) {
         match self {
             ControlFlowStackEntry::LabelledStatement { .. } => {
                 // Labelled statements don't need finalisation.
