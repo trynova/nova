@@ -43,14 +43,14 @@ impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
 }
 
 pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
-    match expression.get_inner_expression() {
+    matches!(
+        expression.get_inner_expression(),
         ast::Expression::Identifier(_)
-        | ast::Expression::ComputedMemberExpression(_)
-        | ast::Expression::StaticMemberExpression(_)
-        | ast::Expression::PrivateFieldExpression(_)
-        | ast::Expression::Super(_) => true,
-        _ => false,
-    }
+            | ast::Expression::ComputedMemberExpression(_)
+            | ast::Expression::StaticMemberExpression(_)
+            | ast::Expression::PrivateFieldExpression(_)
+            | ast::Expression::Super(_)
+    )
 }
 
 pub(crate) fn is_boolean_literal_true(expression: &ast::Expression) -> bool {
