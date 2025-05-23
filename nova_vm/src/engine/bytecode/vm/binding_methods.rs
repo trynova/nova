@@ -53,21 +53,20 @@ pub(super) fn execute_simple_array_binding<'a>(
                     |agent, gc| ActiveIterator::new(agent, gc.nogc()).step_value(agent, gc),
                     gc.reborrow(),
                 )
-                .unbind()?
+                .unbind()
                 .bind(gc.nogc());
-                iterator_is_done = result.is_none();
 
-                if instr.kind == Instruction::BindingPatternSkip {
-                    continue;
-                }
-                result.unwrap_or(Value::Undefined).unbind().bind(gc.nogc())
+                result.map(|r| {
+                    iterator_is_done = r.is_none();
+                    r.unwrap_or(Value::Undefined)
+                })
             }
             Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
                 break_after_bind = true;
                 if iterator_is_done {
-                    array_create(agent, 0, 0, None, gc.nogc())
+                    Ok(array_create(agent, 0, 0, None, gc.nogc())
                         .unwrap()
-                        .into_value()
+                        .into_value())
                 } else {
                     with_vm_gc(
                         agent,
@@ -100,14 +99,32 @@ pub(super) fn execute_simple_array_binding<'a>(
                         },
                         gc.reborrow(),
                     )
-                    .unbind()?
+                    .unbind()
+                    .bind(gc.nogc())
                 }
             }
             Instruction::FinishBindingPattern => break,
             _ => unreachable!(),
         };
 
+        let value = match value {
+            Ok(value) => value,
+            Err(err) => {
+                // IteratorStep threw an error: this means that the iterator is
+                // immediately marked as closed and IteratorClose should not be
+                // observably called by our error handler. To ensure that, we
+                // replace the iterator with the empty slice iterator that will
+                // simply ignore a return call.
+                *vm.get_active_iterator_mut() = VmIteratorRecord::EmptySliceIterator;
+                // Now we're ready to rethrow the error.
+                return Err(err.unbind());
+            }
+        };
+
         match instr.kind {
+            Instruction::BindingPatternSkip => {
+                continue;
+            }
             Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
                 let value = value.unbind();
                 with_vm_gc(
@@ -165,7 +182,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                 .bind(gc.nogc());
             }
             _ => unreachable!(),
-        }
+        };
 
         if break_after_bind {
             break;
@@ -174,8 +191,10 @@ pub(super) fn execute_simple_array_binding<'a>(
 
     // 8.6.2 Runtime Semantics: BindingInitialization
     // BindingPattern : ArrayBindingPattern
-    // 3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
-    // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
+    // 3. If iteratorRecord.[[Done]] is false, return
+    //    ? IteratorClose(iteratorRecord, result).
+    // NOTE: `result` here is always UNUSED. We use `undefined` as a stand-in
+    // since that way we don't need to implement a separate iterator_close.
     if !iterator_is_done {
         if let VmIteratorRecord::GenericIterator(iterator_record) = vm.get_active_iterator() {
             let iterator = iterator_record.iterator.unbind();

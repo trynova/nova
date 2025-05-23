@@ -437,7 +437,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         }
     }
 
-    /// Enter a for-of loop.
+    /// Enter a for-of loop or array destructuring.
     pub(super) fn enter_iterator(
         &mut self,
         label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
@@ -450,14 +450,20 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
     }
 
-    /// Exit a for-of loop.
-    pub(super) fn exit_iterator(&mut self, continue_target: JumpIndex) {
+    /// Exit a for-of loop or an array destructuring. For array destructuring,
+    /// the continue target should be None.
+    pub(super) fn exit_iterator(&mut self, continue_target: Option<JumpIndex>) {
         let Some(ControlFlowStackEntry::Iterator {
             label_set: _,
             incoming_control_flows,
         }) = self.control_flow_stack.pop()
         else {
             unreachable!()
+        };
+        let Some(continue_target) = continue_target else {
+            // Array destructuring.
+            assert!(incoming_control_flows.is_none());
+            return;
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
             let break_target = self.get_jump_index_to_here();

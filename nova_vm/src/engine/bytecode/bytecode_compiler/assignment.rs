@@ -209,9 +209,36 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
     }
 }
 
+impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPattern<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        match self {
+            ast::AssignmentTargetPattern::ArrayAssignmentTarget(t) => t.compile(ctx),
+            ast::AssignmentTargetPattern::ObjectAssignmentTarget(t) => {
+                t.compile(ctx);
+            }
+        }
+    }
+}
+
+impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        match self {
+            ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(t) => t.compile(ctx),
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => t.compile(ctx),
+            ast::SimpleAssignmentTarget::StaticMemberExpression(t) => t.compile(ctx),
+            ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => t.compile(ctx),
+            ast::SimpleAssignmentTarget::TSAsExpression(_)
+            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
+            | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
+            | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
+        }
+    }
+}
+
 impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         ctx.add_instruction(Instruction::GetIteratorSync);
+        let jump_to_iterator_error_handler = ctx.enter_iterator(None);
         for element in &self.elements {
             ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
             if let Some(element) = element {
@@ -219,11 +246,40 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
             }
         }
         if let Some(rest) = &self.rest {
+            // 1. If DestructuringAssignmentTarget is neither an ObjectLiteral
+            //    nor an ArrayLiteral, then
+            // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
+            if let Some(target) = rest.target.as_simple_assignment_target() {
+                target.compile(ctx);
+            }
             ctx.add_instruction(Instruction::IteratorRestIntoArray);
-            rest.target.compile(ctx);
-        } else {
-            ctx.add_instruction(Instruction::IteratorClose);
+            // 5. If DestructuringAssignmentTarget is neither an ObjectLiteral
+            //    nor an ArrayLiteral, then
+            if let Some(target) = rest.target.as_assignment_target_pattern() {
+                // 6. Let nestedAssignmentPattern be the AssignmentPattern that
+                //    is covered by DestructuringAssignmentTarget.
+                // 7. Return ? DestructuringAssignmentEvaluation of
+                //    nestedAssignmentPattern with argument A.
+                target.compile(ctx);
+            } else {
+                // a. Return ? PutValue(lRef, A).
+                ctx.add_instruction(Instruction::PutValue);
+            }
         }
+        // Note: An error during IteratorClose should not jump into
+        // IteratorCloseWithError, hence we pop exception jump target here.
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        ctx.add_instruction(Instruction::IteratorClose);
+        let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        // 3. If status is an abrupt completion, then
+        {
+            ctx.set_jump_target_here(jump_to_iterator_error_handler);
+            // a. If iteratorRecord.[[Done]] is false, return
+            //    ? IteratorClose(iteratorRecord, status).
+            ctx.add_instruction(Instruction::IteratorCloseWithError);
+        }
+        ctx.set_jump_target_here(jump_over_catch);
+        ctx.exit_iterator(None);
     }
 }
 
