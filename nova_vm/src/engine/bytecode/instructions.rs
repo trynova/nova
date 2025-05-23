@@ -414,7 +414,7 @@ pub enum Instruction {
     ///
     /// This instruction should always be followed by the following bytecode
     /// snippet:
-    /// ```rust
+    /// ```rust,ignore
     /// // Perform the await if needed.
     /// Instruction::Await;
     /// // Pop the special exception jump target handler if await didn't throw.
