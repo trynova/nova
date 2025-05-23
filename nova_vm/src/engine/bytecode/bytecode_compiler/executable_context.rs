@@ -46,8 +46,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         Self {
             agent,
             gc,
-            // Note: when no instructions exist, we are indeed terminal.
-            last_instruction_is_terminal: true,
+            last_instruction_is_terminal: false,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),

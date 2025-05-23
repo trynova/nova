@@ -2359,6 +2359,11 @@ impl<'s> CompileEvaluation<'s> for ast::ContinueStatement<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        if ctx.is_terminal() {
+            // OPTIMISATION: If the previous statement was terminal, then later
+            // statements cannot be executed and do not need to be compiled.
+            return;
+        }
         match self {
             ast::Statement::ExpressionStatement(x) => x.compile(ctx),
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
