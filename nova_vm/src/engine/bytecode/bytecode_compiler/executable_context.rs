@@ -315,6 +315,18 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     }
 
     pub(super) fn set_jump_target_here(&mut self, jump: JumpIndex) {
+        if self.current_instruction_pointer_is_unreachable
+            && jump.index == self.instructions.len().saturating_sub(4)
+        {
+            // OPTIMISATION: An unconditional jump to next instruction
+            // can be popped from the bytecode stream.
+            self.instructions
+                .truncate(self.instructions.len().saturating_sub(5));
+            // After popping the Jump off, we're no longer on unreachable
+            // ground.
+            self.current_instruction_pointer_is_unreachable = false;
+            return;
+        }
         self.set_jump_target(
             jump,
             JumpIndex {
@@ -368,7 +380,6 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     }
 
     fn add_jump_index(&mut self) -> JumpIndex {
-        self.current_instruction_pointer_is_unreachable = false;
         self.add_double_index(0);
         JumpIndex {
             index: self.instructions.len() - core::mem::size_of::<u32>(),

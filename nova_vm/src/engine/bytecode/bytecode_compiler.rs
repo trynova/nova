@@ -1221,7 +1221,7 @@ impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
         // jump over consequent if test fails
         let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.consequent.compile(ctx);
-        let mut jump_over_else: Option<JumpIndex> = None;
+        let mut jump_over_else = None;
         if let Some(alternate) = &self.alternate {
             // Optimisation: If the an else branch exists, the consequent
             // branch needs to end in a jump over it. But if the consequent

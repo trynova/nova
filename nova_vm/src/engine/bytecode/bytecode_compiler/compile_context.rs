@@ -363,6 +363,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         jump_to_catch: JumpIndex,
         incoming_control_flows: Option<Box<ControlFlowFinallyEntry<'script>>>,
     ) {
+        // TODO: there's a possible optimisation here to find an incoming
+        // control flow from a directly preceding Jump instruction, and
+        // generating that control flow block here directly.
         // A catch-version of finally stores the caught error and rethrows
         // it after performing the finally-work.
         self.set_jump_target_here(jump_to_catch);
