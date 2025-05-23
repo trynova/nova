@@ -1102,7 +1102,6 @@ impl DataBlock {
     ) -> JsResult<'a, Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
-            // TODO: throw a RangeError exception
             Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Not a safe integer",
