@@ -172,8 +172,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         else {
             unreachable!()
         };
-        let break_target = self.get_jump_index_to_here();
         if let Some(incoming_control_flows) = incoming_control_flows {
+            let break_target = self.get_jump_index_to_here();
             incoming_control_flows.compile(break_target, &mut self.executable);
         }
     }
@@ -191,15 +191,12 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::LexicalScope)
         );
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
         self.add_instruction(Instruction::ExitDeclarativeEnvironment);
-    }
-
-    /// Exit a lexical scope without performing the instruction.
-    pub(super) fn pop_lexical_scope(&mut self) {
-        matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::LexicalScope)
-        );
     }
 
     /// Enter a private environment scope.
@@ -218,6 +215,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::PrivateScope)
         );
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
         self.add_instruction(Instruction::ExitPrivateEnvironment);
     }
 
@@ -236,11 +238,16 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::VariableScope)
         );
-        self.add_instruction(Instruction::ExitVariableEnvironment);
         matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::LexicalScope)
         );
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        self.add_instruction(Instruction::ExitVariableEnvironment);
         self.add_instruction(Instruction::ExitDeclarativeEnvironment);
     }
 
@@ -258,6 +265,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         let Some(ControlFlowStackEntry::CatchBlock) = self.control_flow_stack.pop() else {
             unreachable!()
         };
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
         self.add_instruction(Instruction::PopExceptionJumpTarget);
     }
 
@@ -277,7 +289,6 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         &mut self,
         block: &'script ast::BlockStatement<'script>,
         jump_over_catch_blocks: Option<JumpIndex>,
-        catch_block_is_terminal: bool,
     ) {
         let Some(ControlFlowStackEntry::FinallyBlock {
             jump_to_catch,
@@ -287,14 +298,15 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             unreachable!()
         };
         // Compile all finally-block variants here.
-        // If we have a preceding catch block then we'll put all of our
-        // abrupt completion paths after it to make sure the normal control
-        // flow only jumps once.
+        // If we have a jump coming from the end of our try block, jumping over
+        // the catch block then we'll put all of our abrupt completion paths
+        // here, after the catch block, to make sure the normal control flow
+        // only jumps once.
         if let Some(jump_over_catch_blocks) = jump_over_catch_blocks {
-            let jump_to_finally_from_catch_end = if !catch_block_is_terminal {
-                // If the preceding catch doesn't end in a terminal
-                // instruction, we have to make sure that any fallthrough from
-                // it goes into the normal finally-flow.
+            let jump_to_finally_from_catch_end = if !self.is_unreachable() {
+                // If the preceding catch block's end isn't unreachable, we
+                // have to make sure that any fallthrough from it goes into the
+                // normal finally-flow.
                 Some(self.add_instruction_with_jump_slot(Instruction::Jump))
             } else {
                 None
@@ -303,26 +315,38 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             // Then compile the normal version: we jump over the catch blocks
             // and other abrupt completions, landing here to perform the
             // finally-work before continuing from the try-catch-finally block.
-            // First we have to pop off the special finally-exception target.
             self.set_jump_target_here(jump_over_catch_blocks);
             if let Some(jump_to_finally_from_catch_end) = jump_to_finally_from_catch_end {
                 self.set_jump_target_here(jump_to_finally_from_catch_end);
             }
+            // First we have to pop off the special finally-exception target.
             self.add_instruction(Instruction::PopExceptionJumpTarget);
             // Then we compile the finally-block.
             block.compile(self);
             // And continue on our merry way!
         } else {
-            // No preceding catch-block exists: this means that the normal
-            // code flow is right here, right now. We should first compile the
-            // normal version of the finally-block and then make it jump
-            self.add_instruction(Instruction::PopExceptionJumpTarget);
-            block.compile(self);
-            // We need to jump over the abrupt completion handling blocks,
-            // unless our finally block ends in a terminal instruction.
-            let jump_over_abrupt_completions = if !self.is_terminal() {
-                Some(self.add_instruction_with_jump_slot(Instruction::Jump))
+            // No preceding catch-block exists or the try-block's end is
+            // unreachable: this means that the normal code flow is right here,
+            // right now, coming from either the lonely try-block or from the
+            // end of the catch-block. If we're currently sitting in an
+            // unreachable location then it means the normal version of the
+            // finally block is not needed at all! Let's check for that.
+            let jump_over_abrupt_completions = if !self.is_unreachable() {
+                // We are reachable, so let's compile the normal finally-block
+                // version here.
+                self.add_instruction(Instruction::PopExceptionJumpTarget);
+                block.compile(self);
+                // We need to jump over the abrupt completion handling blocks,
+                // unless of course we're now unreachable here!
+                if !self.is_unreachable() {
+                    Some(self.add_instruction_with_jump_slot(Instruction::Jump))
+                } else {
+                    None
+                }
             } else {
+                // We are unreachable indeed! Since there is no control flow
+                // coming here, we don't need to add any control flow going out
+                // of here either.
                 None
             };
 
@@ -345,9 +369,12 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.add_instruction(Instruction::Load);
         // Compile the finally-block.
         block.compile(self);
-        // Take the error back from the stack and rethrow.
-        self.add_instruction(Instruction::Store);
-        self.add_instruction(Instruction::Throw);
+        let end_of_finally_block_is_unreachable = self.is_unreachable();
+        if !end_of_finally_block_is_unreachable {
+            // Take the error back from the stack and rethrow.
+            self.add_instruction(Instruction::Store);
+            self.add_instruction(Instruction::Throw);
+        }
         // Then, for each incoming control flow (break or continue), we need to
         // generate a finally block for them as well.
         if let Some(incoming_control_flows) = incoming_control_flows {
@@ -358,8 +385,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
                 // Compile the finally-block.
                 block.compile(self);
-                // Then send the break on to its real target.
-                self.compile_break(label);
+                if !end_of_finally_block_is_unreachable {
+                    // Then send the break on to its real target.
+                    self.compile_break(label);
+                }
             }
 
             for (continue_source, label) in incoming_control_flows.continues {
@@ -369,8 +398,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
                 // Compile the finally-block.
                 block.compile(self);
-                // Then send the continue on to its real target.
-                self.compile_continue(label);
+                if !end_of_finally_block_is_unreachable {
+                    // Then send the continue on to its real target.
+                    self.compile_continue(label);
+                }
             }
 
             if !incoming_control_flows.returns.is_empty() {
@@ -381,9 +412,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 // Load the return result onto the stack.
                 self.add_instruction(Instruction::Load);
                 block.compile(self);
-                // Store the return result back into the result register.
-                self.add_instruction(Instruction::Store);
-                self.compile_return();
+                if !end_of_finally_block_is_unreachable {
+                    // Store the return result back into the result register.
+                    self.add_instruction(Instruction::Store);
+                    self.compile_return();
+                }
             }
         }
     }
@@ -405,8 +438,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         else {
             unreachable!()
         };
-        let break_target = self.get_jump_index_to_here();
         if let Some(incoming_control_flows) = incoming_control_flows {
+            let break_target = self.get_jump_index_to_here();
             incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
         }
     }
@@ -431,8 +464,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         else {
             unreachable!()
         };
-        let break_target = self.get_jump_index_to_here();
         if let Some(incoming_control_flows) = incoming_control_flows {
+            let break_target = self.get_jump_index_to_here();
             incoming_control_flows.compile(break_target, &mut self.executable);
         }
     }
@@ -616,10 +649,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         unreachable!()
     }
 
-    /// Returns true if the last instruction is a terminal instruction and no
-    /// jumps point past it.
-    pub(crate) fn is_terminal(&self) -> bool {
-        self.executable.is_terminal()
+    /// Returns true if the current instruction pointer is unreachable.
+    pub(crate) fn is_unreachable(&self) -> bool {
+        self.executable.is_unreachable()
     }
 
     /// Compile a function body into the current context.
@@ -658,7 +690,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     pub(crate) fn do_implicit_return(&mut self) {
-        if !self.is_terminal() {
+        if !self.is_unreachable() {
             self.add_instruction(Instruction::Return);
         }
     }

@@ -43,35 +43,29 @@ impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
 }
 
 pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
-    match expression {
+    match expression.get_inner_expression() {
         ast::Expression::Identifier(_)
         | ast::Expression::ComputedMemberExpression(_)
         | ast::Expression::StaticMemberExpression(_)
         | ast::Expression::PrivateFieldExpression(_)
         | ast::Expression::Super(_) => true,
-        ast::Expression::ParenthesizedExpression(parenthesized) => {
-            is_reference(&parenthesized.expression)
-        }
         _ => false,
     }
 }
 
 pub(crate) fn is_boolean_literal_true(expression: &ast::Expression) -> bool {
-    matches!(expression, ast::Expression::BooleanLiteral(lit) if lit.value)
+    matches!(expression.get_inner_expression(), ast::Expression::BooleanLiteral(lit) if lit.value)
 }
 
 pub(crate) fn is_boolean_literal_false(expression: &ast::Expression) -> bool {
-    matches!(expression, ast::Expression::BooleanLiteral(lit) if !lit.value)
+    matches!(expression.get_inner_expression(), ast::Expression::BooleanLiteral(lit) if !lit.value)
 }
 
 fn is_chain_expression(expression: &ast::Expression) -> bool {
-    match expression {
-        ast::Expression::ChainExpression(_) => true,
-        ast::Expression::ParenthesizedExpression(parenthesized) => {
-            is_chain_expression(&parenthesized.expression)
-        }
-        _ => false,
-    }
+    matches!(
+        expression.get_inner_expression(),
+        ast::Expression::ChainExpression(_)
+    )
 }
 
 impl<'s> CompileEvaluation<'s> for ast::NumericLiteral<'s> {
@@ -1232,7 +1226,7 @@ impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
             // Optimisation: If the an else branch exists, the consequent
             // branch needs to end in a jump over it. But if the consequent
             // branch ends in a terminal statement that jump becomes unnecessary.
-            if !ctx.is_terminal() {
+            if !ctx.is_unreachable() {
                 jump_over_else = Some(ctx.add_instruction_with_jump_slot(Instruction::Jump));
             }
 
@@ -1891,43 +1885,6 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
 
         if let Some(init) = &self.init {
             match init {
-                ast::ForStatementInit::ArrayExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::ArrowFunctionExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::AssignmentExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::AwaitExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::BigIntLiteral(init) => init.compile(ctx),
-                ast::ForStatementInit::BinaryExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::BooleanLiteral(init) => init.compile(ctx),
-                ast::ForStatementInit::CallExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::ChainExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::ClassExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::ComputedMemberExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::ConditionalExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::FunctionExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::Identifier(init) => init.compile(ctx),
-                ast::ForStatementInit::ImportExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::LogicalExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::MetaProperty(init) => init.compile(ctx),
-                ast::ForStatementInit::NewExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::NullLiteral(init) => init.compile(ctx),
-                ast::ForStatementInit::NumericLiteral(init) => init.compile(ctx),
-                ast::ForStatementInit::ObjectExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::ParenthesizedExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::PrivateFieldExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::PrivateInExpression(init) => init.compile(ctx),
-                #[cfg(feature = "regexp")]
-                ast::ForStatementInit::RegExpLiteral(init) => init.compile(ctx),
-                #[cfg(not(feature = "regexp"))]
-                ast::ForStatementInit::RegExpLiteral(_) => unreachable!(),
-                ast::ForStatementInit::SequenceExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::StaticMemberExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::StringLiteral(init) => init.compile(ctx),
-                ast::ForStatementInit::Super(init) => init.compile(ctx),
-                ast::ForStatementInit::TaggedTemplateExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::TemplateLiteral(init) => init.compile(ctx),
-                ast::ForStatementInit::ThisExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::UnaryExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::UpdateExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::VariableDeclaration(init) => {
                     is_lexical = init.kind.is_lexical();
                     if is_lexical {
@@ -1967,16 +1924,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                     }
                     init.compile(ctx);
                 }
-                ast::ForStatementInit::YieldExpression(init) => init.compile(ctx),
-                // TODO: determine how to handle this case
-                ast::ForStatementInit::V8IntrinsicExpression(_) => todo!(),
-                ast::ForStatementInit::JSXElement(_)
-                | ast::ForStatementInit::JSXFragment(_)
-                | ast::ForStatementInit::TSAsExpression(_)
-                | ast::ForStatementInit::TSSatisfiesExpression(_)
-                | ast::ForStatementInit::TSTypeAssertion(_)
-                | ast::ForStatementInit::TSNonNullExpression(_)
-                | ast::ForStatementInit::TSInstantiationExpression(_) => unreachable!(),
+                _ => init.as_expression().unwrap().compile(ctx),
             }
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
@@ -2200,78 +2148,75 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
         self.block.compile(ctx);
         // 2. If B is a throw completion, let C be
         //    Completion(CatchClauseEvaluation of Catch with argument B.[[Value]]).
-        let (jump_over_catch_blocks, catch_block_is_terminal) =
-            if let Some(catch_clause) = &self.handler {
-                ctx.exit_try_catch_block();
-                let jump_over_catch_blocks = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-                ctx.set_jump_target_here(jump_to_catch.unwrap());
-
-                // 14.15.2 Runtime Semantics: CatchClauseEvaluation
-                if let Some(exception_param) = &catch_clause.param {
-                    // 1. Let oldEnv be the running execution context's LexicalEnvironment.
-                    // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
-                    // 4. Set the running execution context's LexicalEnvironment to catchEnv.
-                    // Note: We skip the declarative environment if there is no catch
-                    // param as it's not observable.
-                    ctx.enter_lexical_scope();
-
-                    // 3. For each element argName of the BoundNames of CatchParameter, do
-                    // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
-                    exception_param.pattern.bound_names(&mut |arg_name| {
-                        let arg_name = ctx.create_string(arg_name.name.as_str());
-                        ctx.add_instruction_with_identifier(
-                            Instruction::CreateMutableBinding,
-                            arg_name,
-                        );
-                    });
-                    // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
-                    // 6. If status is an abrupt completion, then
-                    // a. Set the running execution context's LexicalEnvironment to oldEnv.
-                    // b. Return ? status.
-                    match &exception_param.pattern.kind {
-                        ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                            let identifier_string = ctx.create_string(identifier.name.as_str());
-                            ctx.add_instruction_with_identifier(
-                                Instruction::ResolveBinding,
-                                identifier_string,
-                            );
-                            ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                        }
-                        ast::BindingPatternKind::ObjectPattern(pattern) => {
-                            ctx.add_instruction(Instruction::Load);
-                            ctx.lexical_binding_state = true;
-                            pattern.compile(ctx);
-                        }
-                        ast::BindingPatternKind::ArrayPattern(pattern) => {
-                            ctx.add_instruction(Instruction::Load);
-                            ctx.lexical_binding_state = true;
-                            pattern.compile(ctx);
-                        }
-                        ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-                    }
-                }
-                // 7. Let B be Completion(Evaluation of Block).
-                catch_clause.body.compile(ctx);
-                let catch_block_is_terminal = ctx.is_terminal();
-                // 8. Set the running execution context's LexicalEnvironment to oldEnv.
-                if catch_clause.param.is_some() {
-                    if catch_block_is_terminal {
-                        // If the catch block is terminal, it means that we don't
-                        // need to add the lexical scope exit instruction here as
-                        // it'd just be skipped over anyhow.
-                        ctx.pop_lexical_scope();
-                    } else {
-                        ctx.exit_lexical_scope();
-                    }
-                }
-                // 9. Return ? B.
-                (Some(jump_over_catch_blocks), catch_block_is_terminal)
+        let jump_over_catch_blocks = if let Some(catch_clause) = &self.handler {
+            ctx.exit_try_catch_block();
+            // OPTIMISATION: If the end of the try-block is unreachable, we
+            // don't need a jump over the catch blocks.
+            let jump_over_catch_blocks = if !ctx.is_unreachable() {
+                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
             } else {
-                assert!(jump_to_catch.is_none());
-                (None, true)
+                None
             };
+            ctx.set_jump_target_here(jump_to_catch.unwrap());
+
+            // 14.15.2 Runtime Semantics: CatchClauseEvaluation
+            if let Some(exception_param) = &catch_clause.param {
+                // 1. Let oldEnv be the running execution context's LexicalEnvironment.
+                // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
+                // 4. Set the running execution context's LexicalEnvironment to catchEnv.
+                // Note: We skip the declarative environment if there is no catch
+                // param as it's not observable.
+                ctx.enter_lexical_scope();
+
+                // 3. For each element argName of the BoundNames of CatchParameter, do
+                // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
+                exception_param.pattern.bound_names(&mut |arg_name| {
+                    let arg_name = ctx.create_string(arg_name.name.as_str());
+                    ctx.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        arg_name,
+                    );
+                });
+                // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
+                // 6. If status is an abrupt completion, then
+                // a. Set the running execution context's LexicalEnvironment to oldEnv.
+                // b. Return ? status.
+                match &exception_param.pattern.kind {
+                    ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                        let identifier_string = ctx.create_string(identifier.name.as_str());
+                        ctx.add_instruction_with_identifier(
+                            Instruction::ResolveBinding,
+                            identifier_string,
+                        );
+                        ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                    }
+                    ast::BindingPatternKind::ObjectPattern(pattern) => {
+                        ctx.add_instruction(Instruction::Load);
+                        ctx.lexical_binding_state = true;
+                        pattern.compile(ctx);
+                    }
+                    ast::BindingPatternKind::ArrayPattern(pattern) => {
+                        ctx.add_instruction(Instruction::Load);
+                        ctx.lexical_binding_state = true;
+                        pattern.compile(ctx);
+                    }
+                    ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+                }
+            }
+            // 7. Let B be Completion(Evaluation of Block).
+            catch_clause.body.compile(ctx);
+            // 8. Set the running execution context's LexicalEnvironment to oldEnv.
+            if catch_clause.param.is_some() {
+                ctx.exit_lexical_scope();
+            }
+            // 9. Return ? B.
+            jump_over_catch_blocks
+        } else {
+            assert!(jump_to_catch.is_none());
+            None
+        };
         if let Some(finalizer) = &self.finalizer {
-            ctx.exit_try_finally_block(finalizer, jump_over_catch_blocks, catch_block_is_terminal);
+            ctx.exit_try_finally_block(finalizer, jump_over_catch_blocks);
         } else if let Some(jump_over_catch_blocks) = jump_over_catch_blocks {
             // If we have a catch block following the normal execution but no
             // finally block then we'll have to handle the jump out ourselves.
@@ -2333,14 +2278,23 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
 
         let continue_target = ctx.get_jump_index_to_here();
 
-        self.test.compile(ctx);
-        if is_reference(&self.test) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
         // jump over loop jump if test fails
-        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        // OPTIMISATION: do {} while(true) loops are still somewhat common,
+        // skip the test.
+        let end_jump = if !is_boolean_literal_true(&self.test) {
+            self.test.compile(ctx);
+            if is_reference(&self.test) {
+                ctx.add_instruction(Instruction::GetValue);
+            }
+
+            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+        } else {
+            None
+        };
         ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
-        ctx.set_jump_target_here(end_jump);
+        if let Some(end_jump) = end_jump {
+            ctx.set_jump_target_here(end_jump);
+        }
         ctx.exit_loop(continue_target);
     }
 }
@@ -2359,7 +2313,7 @@ impl<'s> CompileEvaluation<'s> for ast::ContinueStatement<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        if ctx.is_terminal() {
+        if ctx.is_unreachable() {
             // OPTIMISATION: If the previous statement was terminal, then later
             // statements cannot be executed and do not need to be compiled.
             return;

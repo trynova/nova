@@ -29,7 +29,7 @@ pub(super) struct ExecutableContext<'agent, 'gc, 'scope> {
     pub(crate) gc: NoGcScope<'gc, 'scope>,
     /// true if the current last instruction is a terminal instruction and no
     /// jumps point past it.
-    last_instruction_is_terminal: bool,
+    current_instruction_pointer_is_unreachable: bool,
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
@@ -46,7 +46,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         Self {
             agent,
             gc,
-            last_instruction_is_terminal: false,
+            current_instruction_pointer_is_unreachable: false,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),
@@ -100,10 +100,9 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         String::from_string(self.agent, owned, self.gc)
     }
 
-    /// Returns true if the last instruction is a terminal instruction and no
-    /// jumps point past it.
-    pub(super) fn is_terminal(&self) -> bool {
-        self.last_instruction_is_terminal
+    /// Returns true if the current instruction pointer is a unreachable.
+    pub(super) fn is_unreachable(&self) -> bool {
+        self.current_instruction_pointer_is_unreachable
     }
 
     pub(super) fn finish(self) -> Executable<'gc> {
@@ -149,7 +148,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     }
 
     pub(super) fn get_jump_index_to_here(&mut self) -> JumpIndex {
-        self.last_instruction_is_terminal = false;
+        self.current_instruction_pointer_is_unreachable = false;
         JumpIndex {
             index: self.instructions.len(),
         }
@@ -322,7 +321,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
                 index: self.instructions.len(),
             },
         );
-        self.last_instruction_is_terminal = false;
+        self.current_instruction_pointer_is_unreachable = false;
     }
 
     pub(super) fn get_next_class_initializer_index(&self) -> IndexType {
@@ -353,7 +352,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
 
     fn push_instruction(&mut self, instruction: Instruction) {
         self.instructions.push(instruction.as_u8());
-        self.last_instruction_is_terminal = instruction.is_terminal();
+        self.current_instruction_pointer_is_unreachable = instruction.is_terminal();
     }
 
     fn add_index(&mut self, index: usize) {
@@ -369,7 +368,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     }
 
     fn add_jump_index(&mut self) -> JumpIndex {
-        self.last_instruction_is_terminal = false;
+        self.current_instruction_pointer_is_unreachable = false;
         self.add_double_index(0);
         JumpIndex {
             index: self.instructions.len() - core::mem::size_of::<u32>(),
