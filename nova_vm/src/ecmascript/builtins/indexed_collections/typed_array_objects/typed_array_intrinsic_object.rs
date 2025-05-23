@@ -24,7 +24,7 @@ use crate::{
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
+            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor,
             array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
             indexed_collections::array_objects::{
@@ -56,7 +56,8 @@ use super::abstract_operations::{
     TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds, is_valid_integer_index,
     make_typed_array_with_buffer_witness_record, typed_array_byte_length,
     typed_array_create_from_constructor_with_length, typed_array_create_same_type,
-    typed_array_length, typed_array_species_create_with_length, validate_typed_array,
+    typed_array_length, typed_array_species_create_with_buffer,
+    typed_array_species_create_with_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -2001,13 +2002,42 @@ impl TypedArrayPrototype {
         }
     }
 
+    /// ### [23.2.3.30 %TypedArray%.prototype.subarray ( start, end )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.subarray)
+    /// This method returns a new TypedArray whose element type is the element type of
+    /// this TypedArray and whose ArrayBuffer is the ArrayBuffer of this TypedArray,
+    /// referencing the elements in the interval from start (inclusive) to end (exclusive).
+    /// If either start or end is negative, it refers to an index from the end of the array,
+    /// as opposed to from the beginning.
     fn subarray<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("TypedArray.prototype.subarray", gc.into_nogc()))
+        let start = arguments.get(0).bind(gc.nogc());
+        let end = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        let o = require_internal_slot_typed_array(agent, o, gc.nogc()).unbind()?;
+        // 4. Let buffer be O.[[ViewedArrayBuffer]].
+        let buffer = o.get_viewed_array_buffer(agent, gc.nogc());
+        // 5. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+        let src_record =
+            make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc.nogc());
+        let res = with_typed_array_viewable!(
+            src_record.object,
+            subarray_typed_array::<T>(
+                agent,
+                src_record.unbind(),
+                start.unbind(),
+                end.unbind(),
+                buffer.unbind(),
+                gc
+            )
+        );
+        res.map(|v| v.into_value())
     }
 
     fn to_locale_string<'gc>(
@@ -3253,4 +3283,89 @@ fn with_typed_array<'a, T: Viewable>(
     }
     // 13. Return A.
     Ok(a.unbind())
+}
+
+fn subarray_typed_array<'a, T: Viewable>(
+    agent: &mut Agent,
+    src_record: TypedArrayWithBufferWitnessRecords,
+    start: Value,
+    end: Value,
+    buffer: ArrayBuffer<'_>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, TypedArray<'a>> {
+    let src_record = src_record.bind(gc.nogc());
+    let start = start.bind(gc.nogc());
+    let end = end.bind(gc.nogc());
+    let scoped_o = src_record.object.scope(agent, gc.nogc());
+    let start = start.scope(agent, gc.nogc());
+    let end = end.scope(agent, gc.nogc());
+    // 6. If IsTypedArrayOutOfBounds(srcRecord) is true, then
+    let src_length = if is_typed_array_out_of_bounds::<T>(agent, &src_record, gc.nogc()) {
+        // a. Let srcLength be 0.
+        0
+    } else {
+        // 7. Else,
+        //  a. Let srcLength be TypedArrayLength(srcRecord).
+        typed_array_length::<T>(agent, &src_record, gc.nogc())
+    } as i64;
+    // 8. Let relativeStart be ? ToIntegerOrInfinity(start).
+    let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    // 9. If relativeStart = -∞, let startIndex be 0.
+    let start_index = if relative_start.is_neg_infinity() {
+        0
+    } else if relative_start.is_negative() {
+        // 10. Else if relativeStart < 0, let startIndex be max(srcLength + relativeStart, 0).
+        (src_length + relative_start.into_i64()).max(0)
+    } else {
+        // 11. Else, let startIndex be min(relativeStart, srcLength).
+        relative_start.into_i64().min(src_length)
+    };
+    // 12. Let elementSize be TypedArrayElementSize(O).
+    let element_size = core::mem::size_of::<T>() as i64;
+    // 13. Let srcByteOffset be O.[[ByteOffset]].
+    let src_byte_offset = scoped_o.get(agent).byte_offset(agent) as i64;
+    // 14. Let beginByteOffset be srcByteOffset + (startIndex × elementSize).
+    let begin_byte_offset = src_byte_offset + (start_index * element_size);
+    // 15. If O.[[ArrayLength]] is auto and end is undefined, then
+    let (array_buffer, byte_offset, length) = if scoped_o.get(agent).array_length(agent).is_none()
+        && end.get(agent).is_undefined()
+    {
+        // a. Let argumentsList be « buffer, 𝔽(beginByteOffset) ».
+        (buffer, begin_byte_offset, None)
+    } else {
+        // 16. Else,
+        // a. If end is undefined, let relativeEnd be srcLength; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        let end_index = if end.get(agent).is_undefined() {
+            src_length
+        } else {
+            let integer_or_infinity = to_integer_or_infinity(agent, end.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            if integer_or_infinity.is_neg_infinity() {
+                // b. If relativeEnd = -∞, let endIndex be 0.
+                0
+            } else if integer_or_infinity.is_negative() {
+                // c. Else if relativeEnd < 0, let endIndex be max(srcLength + relativeEnd, 0).
+                (src_length + integer_or_infinity.into_i64()).max(0)
+            } else {
+                // d. Else, let endIndex be min(relativeEnd, srcLength).
+                integer_or_infinity.into_i64().min(src_length)
+            }
+        };
+        // e. Let newLength be max(endIndex - startIndex, 0).
+        let new_length = (end_index - start_index).max(0);
+        // f. Let argumentsList be « buffer, 𝔽(beginByteOffset), 𝔽(newLength) ».
+        (buffer, begin_byte_offset, Some(new_length))
+    };
+    // 17. Return ? TypedArraySpeciesCreate(O, argumentsList).
+    typed_array_species_create_with_buffer::<T>(
+        agent,
+        scoped_o.get(agent),
+        array_buffer,
+        byte_offset,
+        length,
+        gc,
+    )
 }
