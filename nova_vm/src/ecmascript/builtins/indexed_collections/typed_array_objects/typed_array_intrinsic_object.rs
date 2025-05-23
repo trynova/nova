@@ -3340,18 +3340,18 @@ fn subarray_typed_array<'a, T: Viewable>(
         let end_index = if end.get(agent).is_undefined() {
             src_length
         } else {
-            let interger_or_infinity = to_integer_or_infinity(agent, end.get(agent), gc.reborrow())
+            let integer_or_infinity = to_integer_or_infinity(agent, end.get(agent), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
-            if interger_or_infinity.is_neg_infinity() {
+            if integer_or_infinity.is_neg_infinity() {
                 // b. If relativeEnd = -∞, let endIndex be 0.
                 0
-            } else if interger_or_infinity.is_negative() {
+            } else if integer_or_infinity.is_negative() {
                 // c. Else if relativeEnd < 0, let endIndex be max(srcLength + relativeEnd, 0).
-                (src_length + interger_or_infinity.into_i64()).max(0)
+                (src_length + integer_or_infinity.into_i64()).max(0)
             } else {
                 // d. Else, let endIndex be min(relativeEnd, srcLength).
-                interger_or_infinity.into_i64().min(src_length)
+                integer_or_infinity.into_i64().min(src_length)
             }
         };
         // e. Let newLength be max(endIndex - startIndex, 0).
