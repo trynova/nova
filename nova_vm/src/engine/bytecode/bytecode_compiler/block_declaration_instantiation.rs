@@ -4,8 +4,6 @@
 
 use oxc_ecmascript::BoundNames;
 
-use crate::ecmascript::types::String;
-
 use super::{
     CompileContext, CompileEvaluation, Instruction, LexicallyScopedDeclaration,
     LexicallyScopedDeclarations,
@@ -53,7 +51,7 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
             // i. If IsConstantDeclaration of d is true, then
             decl.id.bound_names(&mut |identifier| {
-                let dn = String::from_str(ctx.agent, &identifier.name, ctx.gc);
+                let dn = ctx.create_string(&identifier.name);
                 // 1. Perform ! env.CreateImmutableBinding(dn, true).
                 ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, dn);
             })
@@ -62,7 +60,7 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
             // 1. Perform ! env.CreateMutableBinding(dn, false).
             // NOTE: This step is replaced in section B.3.2.6.
-            let dn = String::from_str(ctx.agent, &identifier.name, ctx.gc);
+            let dn = ctx.create_string(&identifier.name);
             ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
         }),
         LexicallyScopedDeclaration::Function(decl) => {
@@ -71,7 +69,7 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
             // or an AsyncGeneratorDeclaration, then
             // i. Let fn be the sole element of the BoundNames of d.
             let Some(r#fn) = &decl.id else { unreachable!() };
-            let dn = String::from_str(ctx.agent, &r#fn.name, ctx.gc);
+            let dn = ctx.create_string(&r#fn.name);
             // 1. Perform ! env.CreateMutableBinding(dn, false).
             // NOTE: This step is replaced in section B.3.2.6.
             ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
@@ -86,7 +84,7 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
             decl.bound_names(&mut |identifier| {
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
-                let dn = String::from_str(ctx.agent, &identifier.name, ctx.gc);
+                let dn = ctx.create_string(&identifier.name);
                 ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             });
         }

@@ -6,6 +6,7 @@ mod assignment;
 mod block_declaration_instantiation;
 mod class_definition_evaluation;
 mod compile_context;
+mod executable_context;
 mod finaliser_stack;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
@@ -13,22 +14,17 @@ mod labelled_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::reg_exp_create_literal;
-use crate::{
-    ecmascript::{
-        syntax_directed_operations::{
-            function_definitions::ContainsExpression,
-            scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
-        },
-        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, PropertyKey, String, Value},
+use crate::ecmascript::{
+    syntax_directed_operations::{
+        function_definitions::ContainsExpression,
+        scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
     },
-    heap::CreateHeapData,
+    types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, IndexType, JumpIndex,
     NamedEvaluationParameter,
 };
-use num_traits::Num;
 use oxc_ast::ast::{
     self, BindingPattern, BindingRestElement, CallExpression, LabelIdentifier, NewExpression,
     Statement,
@@ -80,7 +76,7 @@ fn is_chain_expression(expression: &ast::Expression) -> bool {
 
 impl<'s> CompileEvaluation<'s> for ast::NumericLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let constant = ctx.agent.heap.create(self.value);
+        let constant = ctx.create_number(self.value);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
@@ -95,16 +91,13 @@ impl<'s> CompileEvaluation<'s> for ast::BigIntLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Drop out the trailing 'n' from BigInt literals.
         let last_index = self.raw.len() - 1;
-        let (big_int_str, radix) = match self.base {
+        let (literal, radix) = match self.base {
             oxc_syntax::number::BigintBase::Decimal => (&self.raw.as_str()[..last_index], 10),
             oxc_syntax::number::BigintBase::Binary => (&self.raw.as_str()[2..last_index], 2),
             oxc_syntax::number::BigintBase::Octal => (&self.raw.as_str()[2..last_index], 8),
             oxc_syntax::number::BigintBase::Hex => (&self.raw.as_str()[2..last_index], 16),
         };
-        let constant = BigInt::from_num_bigint(
-            ctx.agent,
-            num_bigint::BigInt::from_str_radix(big_int_str, radix).unwrap(),
-        );
+        let constant = ctx.create_bigint(literal, radix);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
@@ -117,21 +110,21 @@ impl<'s> CompileEvaluation<'s> for ast::NullLiteral {
 
 impl<'s> CompileEvaluation<'s> for ast::StringLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let constant = String::from_str(ctx.agent, self.value.as_str(), ctx.gc);
+        let constant = ctx.create_string(self.value.as_str());
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::IdentifierReference<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let identifier = String::from_str(ctx.agent, self.name.as_str(), ctx.gc);
+        let identifier = ctx.create_string(self.name.as_str());
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::BindingIdentifier<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let identifier = String::from_str(ctx.agent, self.name.as_str(), ctx.gc);
+        let identifier = ctx.create_string(self.name.as_str());
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
@@ -412,7 +405,7 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                                     );
                                 }
                             } else {
-                                let identifier = PropertyKey::from_str(ctx.agent, &id.name, ctx.gc);
+                                let identifier = ctx.create_property_key(&id.name);
                                 ctx.add_instruction_with_constant(
                                     Instruction::StoreConstant,
                                     identifier,
@@ -813,7 +806,7 @@ impl<'s> CompileEvaluation<'s> for ast::StaticMemberExpression<'s> {
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
-        let identifier = String::from_str(ctx.agent, self.property.name.as_str(), ctx.gc);
+        let identifier = ctx.create_string(self.property.name.as_str());
         ctx.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             identifier,
@@ -835,7 +828,7 @@ impl<'s> CompileEvaluation<'s> for ast::PrivateFieldExpression<'s> {
         // 4. Return MakePrivateReference(baseValue, fieldNameString).
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
-        let identifier = ctx.create_identifier(&self.field.name);
+        let identifier = ctx.create_string(&self.field.name);
         ctx.add_instruction_with_identifier(Instruction::MakePrivateReference, identifier);
     }
 }
@@ -980,8 +973,7 @@ impl<'s> CompileEvaluation<'s> for ast::RegExpLiteral<'s> {
             // We probably shouldn't be getting parsed RegExps?
             ast::RegExpPattern::Pattern(_) => unreachable!(),
         };
-        let pattern = String::from_str(ctx.agent, pattern, ctx.gc);
-        let regexp = reg_exp_create_literal(ctx.agent, pattern, Some(self.regex.flags), ctx.gc);
+        let regexp = ctx.create_regexp(pattern, self.regex.flags);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }
 }
@@ -1037,13 +1029,11 @@ impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
 impl<'s> CompileEvaluation<'s> for ast::TemplateLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.is_no_substitution_template() {
-            let constant = String::from_str(
-                ctx.agent,
+            let constant = ctx.create_string(
                 self.quasi()
                     .as_ref()
                     .expect("Invalid escape sequence in template literal")
                     .as_str(),
-                ctx.gc,
             );
             ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
         } else {
@@ -1053,11 +1043,7 @@ impl<'s> CompileEvaluation<'s> for ast::TemplateLiteral<'s> {
             while let Some((head, rest)) = quasis.split_first() {
                 quasis = rest;
                 // 1. Let head be the TV of TemplateHead as defined in 12.9.6.
-                let head = String::from_str(
-                    ctx.agent,
-                    head.value.cooked.as_ref().unwrap().as_str(),
-                    ctx.gc,
-                );
+                let head = ctx.create_string(head.value.cooked.as_ref().unwrap().as_str());
                 ctx.add_instruction_with_constant(Instruction::LoadConstant, head);
                 count += 1;
                 if let Some((expression, rest)) = expressions.split_first() {
@@ -1312,7 +1298,7 @@ fn simple_array_pattern<'s, I>(
         };
         match &ele.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBind,
                     identifier_string,
@@ -1339,7 +1325,7 @@ fn simple_array_pattern<'s, I>(
     if let Some(rest) = rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
                     identifier_string,
@@ -1393,7 +1379,7 @@ fn complex_array_pattern<'s, I>(
                     if let ast::BindingPatternKind::BindingIdentifier(identifier) =
                         &pattern.left.kind
                     {
-                        let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                        let identifier_string = ctx.create_string(identifier.name.as_str());
                         ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,
@@ -1417,7 +1403,7 @@ fn complex_array_pattern<'s, I>(
 
         match binding_pattern {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
                     ctx.add_instruction(Instruction::PutValue);
@@ -1441,7 +1427,7 @@ fn complex_array_pattern<'s, I>(
         ctx.add_instruction(Instruction::IteratorRestIntoArray);
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
                     ctx.add_instruction(Instruction::PutValue);
@@ -1494,29 +1480,33 @@ fn simple_object_pattern<'s>(
                 &ele.value.kind,
                 ast::BindingPatternKind::BindingIdentifier(_)
             ));
-            let identifier_string = ctx.create_identifier(identifier.name.as_str());
+            let identifier_string = ctx.create_string(identifier.name.as_str());
             ctx.add_instruction_with_identifier(Instruction::BindingPatternBind, identifier_string);
         } else {
             let key_string = match &ele.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
                     // SAFETY: We'll use this value as a PropertyKey directly later.
                     unsafe {
-                        PropertyKey::from_str(ctx.agent, &identifier.name, ctx.gc)
+                        ctx.create_property_key(&identifier.name)
                             .into_value_unchecked()
                     }
                 }
                 ast::PropertyKey::NumericLiteral(literal) => {
-                    let numeric_value = Number::from_f64(ctx.agent, literal.value, ctx.gc);
-                    if let Number::Integer(_) = numeric_value {
-                        numeric_value.into_value()
+                    if let Ok(Number::Integer(integer)) = Number::try_from(literal.value) {
+                        // Literal is an integer, just drop it in as a
+                        // PropertyKey integer directly.
+                        Value::Integer(integer)
                     } else {
-                        Number::to_string_radix_10(ctx.agent, numeric_value, ctx.gc).into_value()
+                        // Literal is a float: it needs to be converted into a
+                        // String.
+                        let mut buffer = ryu_js::Buffer::new();
+                        ctx.create_string(buffer.format(literal.value)).into_value()
                     }
                 }
                 ast::PropertyKey::StringLiteral(literal) => {
                     // SAFETY: We'll use this value as a PropertyKey directly later.
                     unsafe {
-                        PropertyKey::from_str(ctx.agent, &literal.value, ctx.gc)
+                        ctx.create_property_key(&literal.value)
                             .into_value_unchecked()
                     }
                 }
@@ -1525,7 +1515,7 @@ fn simple_object_pattern<'s>(
 
             match &ele.value.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                    let value_identifier_string = ctx.create_identifier(identifier.name.as_str());
+                    let value_identifier_string = ctx.create_string(identifier.name.as_str());
                     ctx.add_instruction_with_identifier_and_constant(
                         Instruction::BindingPatternBindNamed,
                         value_identifier_string,
@@ -1560,7 +1550,7 @@ fn simple_object_pattern<'s>(
     if let Some(rest) = &pattern.rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
                     identifier_string,
@@ -1593,7 +1583,7 @@ fn complex_object_pattern<'s>(
             ast::PropertyKey::StaticIdentifier(identifier) => {
                 ctx.add_instruction(Instruction::Store);
                 ctx.add_instruction(Instruction::LoadCopy);
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     identifier_string,
@@ -1623,7 +1613,7 @@ fn complex_object_pattern<'s>(
                     if let ast::BindingPatternKind::BindingIdentifier(identifier) =
                         &pattern.left.kind
                     {
-                        let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                        let identifier_string = ctx.create_string(identifier.name.as_str());
                         ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,
@@ -1647,7 +1637,7 @@ fn complex_object_pattern<'s>(
 
         match binding_pattern {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
                     ctx.add_instruction(Instruction::PutValue);
@@ -1679,7 +1669,7 @@ fn complex_object_pattern<'s>(
             object_pattern.properties.len(),
         );
 
-        let identifier_string = ctx.create_identifier(identifier.name.as_str());
+        let identifier_string = ctx.create_string(identifier.name.as_str());
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
         if !has_environment {
             ctx.add_instruction(Instruction::PutValue);
@@ -1728,8 +1718,7 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
-                    let identifier_string =
-                        String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
+                    let identifier_string = ctx.create_string(identifier.name.as_str());
                     let identifier = ctx.add_identifier(identifier_string);
                     ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
                     ctx.add_instruction(Instruction::PushReference);
@@ -1785,8 +1774,7 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
-                    let identifier_string =
-                        String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
+                    let identifier_string = ctx.create_string(identifier.name.as_str());
                     let identifier = ctx.add_identifier(identifier_string);
                     ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
 
@@ -1922,8 +1910,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                         if is_const {
                             init.bound_names(&mut |dn| {
                                 // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
-                                let identifier =
-                                    String::from_str(ctx.agent, dn.name.as_str(), ctx.gc);
+                                let identifier = ctx.create_string(dn.name.as_str());
                                 ctx.add_instruction_with_identifier(
                                     Instruction::CreateImmutableBinding,
                                     identifier,
@@ -1933,8 +1920,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
                             // b. Else,
                             // i. Perform ! loopEnv.CreateMutableBinding(dn, false).
                             init.bound_names(&mut |dn| {
-                                let identifier =
-                                    String::from_str(ctx.agent, dn.name.as_str(), ctx.gc);
+                                let identifier = ctx.create_string(dn.name.as_str());
                                 // 9. If isConst is false, let perIterationLets
                                 // be boundNames; otherwise let perIterationLets
                                 // be a new empty List.
@@ -2200,7 +2186,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
                     // 3. For each element argName of the BoundNames of CatchParameter, do
                     // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
                     exception_param.pattern.bound_names(&mut |arg_name| {
-                        let arg_name = String::from_str(ctx.agent, arg_name.name.as_str(), ctx.gc);
+                        let arg_name = ctx.create_string(arg_name.name.as_str());
                         ctx.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
                             arg_name,
@@ -2212,7 +2198,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
                     // b. Return ? status.
                     match &exception_param.pattern.kind {
                         ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                            let identifier_string = ctx.create_identifier(identifier.name.as_str());
+                            let identifier_string = ctx.create_string(identifier.name.as_str());
                             ctx.add_instruction_with_identifier(
                                 Instruction::ResolveBinding,
                                 identifier_string,

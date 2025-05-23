@@ -2,24 +2,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use oxc_ast::ast::{self, LabelIdentifier, Statement};
+use oxc_ast::ast::{self, LabelIdentifier, RegExpFlags, Statement};
 
 use crate::{
     ecmascript::{
+        builtins::regexp::RegExp,
         execution::Agent,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
-        types::{IntoValue, String, Value},
+        types::{BigInt, Number, PropertyKey, String, Value},
     },
     engine::{
-        Executable, ExecutableHeapData, FunctionExpression, Instruction,
-        bytecode::executable::ArrowFunctionExpression,
-        context::{Bindable, NoGcScope},
+        Executable, FunctionExpression, Instruction, bytecode::executable::ArrowFunctionExpression,
+        context::NoGcScope,
     },
-    heap::CreateHeapData,
 };
 
 use super::{
-    finaliser_stack::{ControlFlowFinallyEntry, ControlFlowStackEntry},
+    executable_context::ExecutableContext,
+    finaliser_stack::{
+        ControlFlowFinallyEntry, ControlFlowStackEntry, compile_async_iterator_exit,
+    },
     function_declaration_instantiation,
 };
 
@@ -76,20 +78,7 @@ pub(crate) struct JumpIndex {
 /// - `'scope`: The Javascript scope marker lifetime, only here because `gc`
 ///   tracks it.
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
-    pub(crate) agent: &'agent mut Agent,
-    pub(crate) gc: NoGcScope<'gc, 'scope>,
-    /// true if the current last instruction is a terminal instruction and no
-    /// jumps point past it.
-    last_instruction_is_terminal: bool,
-    /// Instructions being built
-    instructions: Vec<u8>,
-    /// Constants being built
-    constants: Vec<Value<'gc>>,
-    /// Function expressions being built
-    function_expressions: Vec<FunctionExpression<'gc>>,
-    /// Arrow function expressions being built
-    arrow_function_expressions: Vec<ArrowFunctionExpression>,
-    class_initializer_bytecodes: Vec<(Option<Executable<'gc>>, bool)>,
+    executable: ExecutableContext<'agent, 'gc, 'scope>,
     /// NamedEvaluation name parameter
     pub(super) name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -105,21 +94,13 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     control_flow_stack: Vec<ControlFlowStackEntry<'script>>,
 }
 
-impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
+impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) fn new(
-        agent: &'a mut Agent,
+        agent: &'agent mut Agent,
         gc: NoGcScope<'gc, 'scope>,
-    ) -> CompileContext<'a, 's, 'gc, 'scope> {
+    ) -> CompileContext<'agent, 'script, 'gc, 'scope> {
         CompileContext {
-            agent,
-            gc,
-            // Note: when no instructions exist, we are indeed terminal.
-            last_instruction_is_terminal: true,
-            instructions: Vec::new(),
-            constants: Vec::new(),
-            function_expressions: Vec::new(),
-            arrow_function_expressions: Vec::new(),
-            class_initializer_bytecodes: Vec::new(),
+            executable: ExecutableContext::new(agent, gc),
             name_identifier: None,
             lexical_binding_state: false,
             optional_chains: None,
@@ -128,8 +109,53 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         }
     }
 
+    /// Get exclusive access to the Agent, and the GC scope, through the context.
+    pub(crate) fn get_agent_and_gc(&mut self) -> (&mut Agent, NoGcScope<'gc, 'scope>) {
+        self.executable.get_agent_and_gc()
+    }
+
+    /// Get shared access to the Agent through the context.
+    pub(crate) fn get_agent(&self) -> &Agent {
+        self.executable.get_agent()
+    }
+
+    /// Get exclusive access to the Agent through the context as mutable.
+    pub(crate) fn get_agent_mut(&mut self) -> &mut Agent {
+        self.executable.get_agent_mut()
+    }
+
+    /// Create a new JavaScript BigInt from a bigint literal and radix.
+    pub(crate) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
+        self.executable.create_bigint(literal, radix)
+    }
+
+    /// Create a new JavaScript Number from an f64.
+    pub(crate) fn create_number(&mut self, value: f64) -> Number<'gc> {
+        self.executable.create_number(value)
+    }
+
+    /// Create a new JavaScript PropertyKey from a string literal.
+    pub(crate) fn create_property_key(&mut self, literal: &str) -> PropertyKey<'gc> {
+        self.executable.create_property_key(literal)
+    }
+
+    /// Create a new JavaScript RegExp from a RegExp literal and flags.
+    pub(crate) fn create_regexp(&mut self, literal: &str, flags: RegExpFlags) -> RegExp<'gc> {
+        self.executable.create_regexp(literal, flags)
+    }
+
+    /// Create a new JavaScript String from a string literal.
+    pub(crate) fn create_string(&mut self, literal: &str) -> String<'gc> {
+        self.executable.create_string(literal)
+    }
+
+    /// Create a new JavaScript String from an owned string.
+    pub(super) fn create_string_from_owned(&mut self, owned: std::string::String) -> String<'gc> {
+        self.executable.create_string_from_owned(owned)
+    }
+
     /// Enter a labelled statement.
-    pub(super) fn enter_label(&mut self, label: &'s LabelIdentifier<'s>) {
+    pub(super) fn enter_label(&mut self, label: &'script LabelIdentifier<'script>) {
         self.control_flow_stack
             .push(ControlFlowStackEntry::LabelledStatement {
                 label,
@@ -148,7 +174,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         };
         let break_target = self.get_jump_index_to_here();
         if let Some(incoming_control_flows) = incoming_control_flows {
-            incoming_control_flows.compile(break_target, self);
+            incoming_control_flows.compile(break_target, &mut self.executable);
         }
     }
 
@@ -249,7 +275,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// Exit a try-finally block.
     pub(super) fn exit_try_finally_block(
         &mut self,
-        block: &'s ast::BlockStatement<'s>,
+        block: &'script ast::BlockStatement<'script>,
         jump_over_catch_blocks: Option<JumpIndex>,
         catch_block_is_terminal: bool,
     ) {
@@ -309,9 +335,9 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
 
     fn compile_abrupt_finally_blocks(
         &mut self,
-        block: &'s ast::BlockStatement<'s>,
+        block: &'script ast::BlockStatement<'script>,
         jump_to_catch: JumpIndex,
-        incoming_control_flows: Option<Box<ControlFlowFinallyEntry<'s>>>,
+        incoming_control_flows: Option<Box<ControlFlowFinallyEntry<'script>>>,
     ) {
         // A catch-version of finally stores the caught error and rethrows
         // it after performing the finally-work.
@@ -363,7 +389,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     /// Enter a for, for-in, or while loop.
-    pub(super) fn enter_loop(&mut self, label_set: Option<Vec<&'s LabelIdentifier<'s>>>) {
+    pub(super) fn enter_loop(&mut self, label_set: Option<Vec<&'script LabelIdentifier<'script>>>) {
         self.control_flow_stack.push(ControlFlowStackEntry::Loop {
             label_set,
             incoming_control_flows: None,
@@ -381,12 +407,15 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         };
         let break_target = self.get_jump_index_to_here();
         if let Some(incoming_control_flows) = incoming_control_flows {
-            incoming_control_flows.compile(continue_target, break_target, self);
+            incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
         }
     }
 
     /// Enter a switch block.
-    pub(super) fn enter_switch(&mut self, label_set: Option<Vec<&'s LabelIdentifier<'s>>>) {
+    pub(super) fn enter_switch(
+        &mut self,
+        label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
+    ) {
         self.control_flow_stack.push(ControlFlowStackEntry::Switch {
             label_set,
             incoming_control_flows: None,
@@ -404,14 +433,14 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         };
         let break_target = self.get_jump_index_to_here();
         if let Some(incoming_control_flows) = incoming_control_flows {
-            incoming_control_flows.compile(break_target, self);
+            incoming_control_flows.compile(break_target, &mut self.executable);
         }
     }
 
     /// Enter a for-of loop.
     pub(super) fn enter_iterator(
         &mut self,
-        label_set: Option<Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
     ) -> JumpIndex {
         self.control_flow_stack
             .push(ControlFlowStackEntry::Iterator {
@@ -438,14 +467,14 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
                 self.add_instruction(Instruction::IteratorClose);
             }
-            incoming_control_flows.compile(continue_target, break_target, self);
+            incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
         }
     }
 
     /// Enter a for-await-of loop.
     pub(super) fn enter_async_iterator(
         &mut self,
-        label_set: Option<Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
     ) -> JumpIndex {
         self.control_flow_stack
             .push(ControlFlowStackEntry::AsyncIterator {
@@ -466,17 +495,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
             let break_target = self.get_jump_index_to_here();
-            // When breaking out of AsyncIterator, we need to close the iterator
-            // and await the "return" function result, if any.
-            self.add_instruction(Instruction::PopExceptionJumpTarget);
-            self.add_instruction(Instruction::AsyncIteratorClose);
-            // If async iterator close returned a Value, then it'll push the
-            // previous result value into the stack, add an "ignore" exception
-            // handler, and put the received Value
-            self.add_instruction(Instruction::Await);
-            self.add_instruction(Instruction::PopExceptionJumpTarget);
-            self.add_instruction(Instruction::Store);
-            incoming_control_flows.compile(continue_target, break_target, self);
+            compile_async_iterator_exit(&mut self.executable);
+            incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
         }
     }
 
@@ -486,32 +506,22 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// site before jumping to the target. If user-defined finally-blocks are
     /// present in the finaliser stack, the method instead jumps to a
     /// finally-block that ends with a jump to the final target.
-    pub(super) fn compile_break(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
+    pub(super) fn compile_break(&mut self, label: Option<&'script LabelIdentifier<'script>>) {
         for entry in self.control_flow_stack.iter_mut().rev() {
             if entry.is_break_target_for(label) {
                 // Stop iterating the stack when we find our target and push
                 // the current instruction pointer as a break source for our
                 // target. Label is pushed in as well because finally-blocks
                 // need to know about labelled breaks and continues.
-                // Jump
-                self.instructions.push(Instruction::Jump.as_u8());
-                self.last_instruction_is_terminal = true;
-                entry.add_break_source(
-                    label,
-                    JumpIndex {
-                        index: self.instructions.len(),
-                    },
-                );
-                // JumpSlot
-                self.instructions.extend_from_slice(&[0, 0, 0, 0]);
+                let break_source = self
+                    .executable
+                    .add_instruction_with_jump_slot(Instruction::Jump);
+                entry.add_break_source(label, break_source);
                 return;
             }
             // Compile the exit of each intermediate control flow stack entry.
-            entry.compile_exit(&mut self.instructions);
+            entry.compile_exit(&mut self.executable);
         }
-        // Note: if we got here then we're at the end of a loop to do teardown
-        // for a break. The teardown instructions are not terminal.
-        self.last_instruction_is_terminal = false;
     }
 
     /// Compile a continue statement targeting optional label.
@@ -520,7 +530,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// site before jumping to the target. If user-defined finally-blocks are
     /// present in the finaliser stack, the method instead jumps to a
     /// finally-block that ends with a jump to the final target.
-    pub(super) fn compile_continue(&mut self, label: Option<&'s LabelIdentifier<'s>>) {
+    pub(super) fn compile_continue(&mut self, label: Option<&'script LabelIdentifier<'script>>) {
         for entry in self.control_flow_stack.iter_mut().rev() {
             if entry.is_continue_target_for(label) {
                 // Stop iterating the stack when we find our target and push
@@ -528,25 +538,15 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
                 // target. Label is pushed in as well because finally-blocks
                 // need to know about labelled breaks and continues.
 
-                // Jump
-                self.instructions.push(Instruction::Jump.as_u8());
-                self.last_instruction_is_terminal = true;
-                entry.add_continue_source(
-                    label,
-                    JumpIndex {
-                        index: self.instructions.len(),
-                    },
-                );
-                // JumpSlot
-                self.instructions.extend_from_slice(&[0, 0, 0, 0]);
+                let continue_source = self
+                    .executable
+                    .add_instruction_with_jump_slot(Instruction::Jump);
+                entry.add_continue_source(label, continue_source);
                 break;
             }
             // Compile the exit of each intermediate control flow stack entry.
-            entry.compile_exit(&mut self.instructions);
+            entry.compile_exit(&mut self.executable);
         }
-        // Note: if we got here then we're at the end of a loop to do teardown
-        // for a continue. The teardown instructions are not terminal.
-        self.last_instruction_is_terminal = false;
     }
 
     /// Compile a return statement.
@@ -580,7 +580,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             self.add_instruction(Instruction::Load);
             for entry in self.control_flow_stack.iter().rev() {
                 if entry.requires_return_finalisation(true) {
-                    entry.compile_exit(&mut self.instructions);
+                    entry.compile_exit(&mut self.executable);
                 }
             }
             // Before returning we need to store the return result back from
@@ -598,18 +598,14 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
             if entry.is_return_target() {
                 // Before continuing our unwind jump we need to take the return
                 // result from the stack.
-                self.instructions.push(Instruction::Store.as_u8());
-                // Jump
-                self.instructions.push(Instruction::Jump.as_u8());
-                self.last_instruction_is_terminal = true;
-                entry.add_return_source(JumpIndex {
-                    index: self.instructions.len(),
-                });
-                // JumpSlot
-                self.instructions.extend_from_slice(&[0, 0, 0, 0]);
+                self.executable.add_instruction(Instruction::Store);
+                let return_source = self
+                    .executable
+                    .add_instruction_with_jump_slot(Instruction::Jump);
+                entry.add_return_source(return_source);
                 return;
             }
-            entry.compile_exit(&mut self.instructions);
+            entry.compile_exit(&mut self.executable);
         }
         unreachable!()
     }
@@ -617,15 +613,15 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     /// Returns true if the last instruction is a terminal instruction and no
     /// jumps point past it.
     pub(crate) fn is_terminal(&self) -> bool {
-        self.last_instruction_is_terminal
+        self.executable.is_terminal()
     }
 
     /// Compile a function body into the current context.
     ///
     /// This is useful when the function body is part of a larger whole, namely
     /// with class constructors.
-    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'s>) {
-        if self.agent.options.print_internals {
+    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'script>) {
+        if self.executable.agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Function ===");
             eprintln!();
@@ -647,7 +643,7 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         self.compile_statements(body);
     }
 
-    pub(crate) fn compile_statements(&mut self, body: &'s [Statement<'s>]) {
+    pub(crate) fn compile_statements(&mut self, body: &'script [Statement<'script>]) {
         let iter = body.iter();
 
         for stmt in iter {
@@ -662,43 +658,15 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
     }
 
     pub(crate) fn finish(self) -> Executable<'gc> {
-        self.agent.heap.create(ExecutableHeapData {
-            instructions: self.instructions.into_boxed_slice(),
-            constants: self.constants.unbind().into_boxed_slice(),
-            function_expressions: self.function_expressions.unbind().into_boxed_slice(),
-            arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
-            class_initializer_bytecodes: self
-                .class_initializer_bytecodes
-                .into_iter()
-                .map(|(exe, b)| (exe.unbind(), b))
-                .collect(),
-        })
-    }
-
-    pub(crate) fn create_identifier(&mut self, atom: &str) -> String<'gc> {
-        String::from_str(self.agent, atom, self.gc)
-    }
-
-    fn _push_instruction(&mut self, instruction: Instruction) {
-        self.instructions.push(instruction.as_u8());
-        self.last_instruction_is_terminal = instruction.is_terminal();
+        self.executable.finish()
     }
 
     pub(super) fn add_instruction(&mut self, instruction: Instruction) {
-        debug_assert_eq!(instruction.argument_count(), 0);
-        debug_assert!(
-            !instruction.has_constant_index()
-                && !instruction.has_function_expression_index()
-                && !instruction.has_identifier_index()
-        );
-        self._push_instruction(instruction);
+        self.executable.add_instruction(instruction);
     }
 
     pub(super) fn add_instruction_with_jump_slot(&mut self, instruction: Instruction) -> JumpIndex {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_jump_slot());
-        self._push_instruction(instruction);
-        self.add_jump_index()
+        self.executable.add_instruction_with_jump_slot(instruction)
     }
 
     pub(super) fn add_jump_instruction_to_index(
@@ -706,47 +674,16 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         instruction: Instruction,
         jump_index: JumpIndex,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_jump_slot());
-        self._push_instruction(instruction);
-        self.add_double_index(jump_index.index);
+        self.executable
+            .add_jump_instruction_to_index(instruction, jump_index);
     }
 
     pub(super) fn get_jump_index_to_here(&mut self) -> JumpIndex {
-        self.last_instruction_is_terminal = false;
-        JumpIndex {
-            index: self.instructions.len(),
-        }
-    }
-
-    fn add_constant(&mut self, constant: Value<'gc>) -> usize {
-        let duplicate = self
-            .constants
-            .iter()
-            .enumerate()
-            .find(|item| item.1.eq(&constant))
-            .map(|(idx, _)| idx);
-
-        duplicate.unwrap_or_else(|| {
-            let index = self.constants.len();
-            self.constants.push(constant);
-            index
-        })
+        self.executable.get_jump_index_to_here()
     }
 
     pub(super) fn add_identifier(&mut self, identifier: String<'gc>) -> usize {
-        let duplicate = self
-            .constants
-            .iter()
-            .enumerate()
-            .find(|item| String::try_from(*item.1) == Ok(identifier))
-            .map(|(idx, _)| idx);
-
-        duplicate.unwrap_or_else(|| {
-            let index = self.constants.len();
-            self.constants.push(identifier.into_value());
-            index
-        })
+        self.executable.add_identifier(identifier)
     }
 
     pub(super) fn add_instruction_with_immediate(
@@ -754,9 +691,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         instruction: Instruction,
         immediate: usize,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        self._push_instruction(instruction);
-        self.add_index(immediate);
+        self.executable
+            .add_instruction_with_immediate(instruction, immediate);
     }
 
     pub(super) fn add_instruction_with_constant(
@@ -764,11 +700,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         instruction: Instruction,
         constant: impl Into<Value<'gc>>,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_constant_index());
-        self._push_instruction(instruction);
-        let constant = self.add_constant(constant.into());
-        self.add_index(constant);
+        self.executable
+            .add_instruction_with_constant(instruction, constant);
     }
 
     pub(super) fn add_instruction_with_identifier(
@@ -776,11 +709,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         instruction: Instruction,
         identifier: String<'gc>,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_identifier_index());
-        self._push_instruction(instruction);
-        let identifier = self.add_identifier(identifier);
-        self.add_index(identifier);
+        self.executable
+            .add_instruction_with_identifier(instruction, identifier);
     }
 
     pub(super) fn add_instruction_with_identifier_and_constant(
@@ -789,13 +719,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         identifier: String<'gc>,
         constant: impl Into<Value<'gc>>,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
-        self._push_instruction(instruction);
-        let identifier = self.add_identifier(identifier);
-        self.add_index(identifier);
-        let constant = self.add_constant(constant.into());
-        self.add_index(constant);
+        self.executable
+            .add_instruction_with_identifier_and_constant(instruction, identifier, constant);
     }
 
     pub(super) fn add_instruction_with_identifier_and_immediate(
@@ -804,12 +729,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         identifier: String<'gc>,
         immediate: usize,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_identifier_index());
-        self._push_instruction(instruction);
-        let identifier = self.add_identifier(identifier);
-        self.add_index(identifier);
-        self.add_index(immediate);
+        self.executable
+            .add_instruction_with_identifier_and_immediate(instruction, identifier, immediate);
     }
 
     pub(super) fn add_instruction_with_immediate_and_immediate(
@@ -818,22 +739,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         immediate1: usize,
         immediate2: usize,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        self._push_instruction(instruction);
-        self.add_index(immediate1);
-        self.add_index(immediate2)
-    }
-
-    fn add_index(&mut self, index: usize) {
-        let index = IndexType::try_from(index).expect("Immediate value is too large");
-        let bytes: [u8; 2] = index.to_ne_bytes();
-        self.instructions.extend_from_slice(&bytes);
-    }
-
-    fn add_double_index(&mut self, index: usize) {
-        let index = u32::try_from(index).expect("Immediate value is too large");
-        let bytes: [u8; 4] = index.to_ne_bytes();
-        self.instructions.extend_from_slice(&bytes);
+        self.executable
+            .add_instruction_with_immediate_and_immediate(instruction, immediate1, immediate2);
     }
 
     pub(super) fn add_instruction_with_function_expression(
@@ -841,12 +748,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         instruction: Instruction,
         function_expression: FunctionExpression<'gc>,
     ) {
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_function_expression_index());
-        self._push_instruction(instruction);
-        self.function_expressions.push(function_expression);
-        let index = self.function_expressions.len() - 1;
-        self.add_index(index);
+        self.executable
+            .add_instruction_with_function_expression(instruction, function_expression);
     }
 
     /// Add an Instruction that takes a function expression and an immediate
@@ -859,58 +762,28 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         function_expression: FunctionExpression<'gc>,
         immediate: usize,
     ) -> IndexType {
-        debug_assert_eq!(instruction.argument_count(), 2);
-        debug_assert!(instruction.has_function_expression_index());
-        self._push_instruction(instruction);
-        let index = self.function_expressions.len();
-        self.function_expressions.push(function_expression);
-        self.add_index(index);
-        self.add_index(immediate);
-        // Note: add_index would have panicked if this was not a lossless
-        // conversion.
-        index as IndexType
+        self.executable
+            .add_instruction_with_function_expression_and_immediate(
+                instruction,
+                function_expression,
+                immediate,
+            )
     }
 
     pub(super) fn add_arrow_function_expression(
         &mut self,
         arrow_function_expression: ArrowFunctionExpression,
     ) {
-        let instruction = Instruction::InstantiateArrowFunctionExpression;
-        debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_function_expression_index());
-        self._push_instruction(instruction);
-        self.arrow_function_expressions
-            .push(arrow_function_expression);
-        let index = self.arrow_function_expressions.len() - 1;
-        self.add_index(index);
-    }
-
-    fn add_jump_index(&mut self) -> JumpIndex {
-        self.last_instruction_is_terminal = false;
-        self.add_double_index(0);
-        JumpIndex {
-            index: self.instructions.len() - core::mem::size_of::<u32>(),
-        }
-    }
-
-    pub(super) fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
-        assert!(target.index < u32::MAX as usize);
-        let bytes: [u8; 4] = (target.index as u32).to_ne_bytes();
-        self.instructions[source.index..source.index + 4].copy_from_slice(&bytes);
+        self.executable
+            .add_arrow_function_expression(arrow_function_expression);
     }
 
     pub(super) fn set_jump_target_here(&mut self, jump: JumpIndex) {
-        self.set_jump_target(
-            jump,
-            JumpIndex {
-                index: self.instructions.len(),
-            },
-        );
-        self.last_instruction_is_terminal = false;
+        self.executable.set_jump_target_here(jump);
     }
 
     pub(super) fn get_next_class_initializer_index(&self) -> IndexType {
-        IndexType::try_from(self.class_initializer_bytecodes.len()).unwrap()
+        self.executable.get_next_class_initializer_index()
     }
 
     pub(super) fn set_function_expression_bytecode(
@@ -918,7 +791,8 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         index: IndexType,
         executable: Executable<'gc>,
     ) {
-        self.function_expressions[index as usize].compiled_bytecode = Some(executable);
+        self.executable
+            .set_function_expression_bytecode(index, executable);
     }
 
     pub(super) fn add_class_initializer_bytecode(
@@ -926,13 +800,13 @@ impl<'a, 's, 'gc, 'scope> CompileContext<'a, 's, 'gc, 'scope> {
         executable: Executable<'gc>,
         has_constructor_parent: bool,
     ) {
-        self.class_initializer_bytecodes
-            .push((Some(executable), has_constructor_parent));
+        self.executable
+            .add_class_initializer_bytecode(executable, has_constructor_parent);
     }
 
     pub(super) fn add_class_initializer(&mut self, has_constructor_parent: bool) {
-        self.class_initializer_bytecodes
-            .push((None, has_constructor_parent));
+        self.executable
+            .add_class_initializer(has_constructor_parent);
     }
 }
 

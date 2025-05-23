@@ -15,8 +15,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                async_vm_iterator_close_with_error, iterator_close_with_error,
-                iterator_close_with_value,
+                async_iterator_close_with_value, async_vm_iterator_close_with_error,
+                iterator_close_with_error, iterator_close_with_value,
             },
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
@@ -2675,23 +2675,24 @@ impl Vm {
             }
             Instruction::AsyncIteratorClose => {
                 let iterator = vm.iterator_stack.pop().unwrap();
-                if let VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iterator {
+                if let VmIteratorRecord::GenericIterator(iterator_record)
+                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iterator
+                {
                     let result = with_vm_gc(
                         agent,
                         vm,
                         |agent, gc| {
-                            async_vm_iterator_close_with_error(agent, iterator_record.iterator, gc)
+                            async_iterator_close_with_value(agent, iterator_record.iterator, gc)
                         },
                         gc,
-                    );
+                    )?;
                     if let Some(result) = result {
+                        // AsyncIteratorClose
                         let result = vm.result.replace(result.unbind());
                         vm.stack.push(result.unwrap_or(Value::Undefined));
-                        vm.exception_handler_stack
-                            .push(ExceptionHandler::IgnoreErrorAndNextInstruction);
                     } else {
-                        // Skip over Await, PopExceptionJumpTarget, and Store.
-                        vm.ip += 3;
+                        // Skip over VerifyIsObject, message, and Store.
+                        vm.ip += 4;
                     }
                 }
             }
@@ -2717,7 +2718,9 @@ impl Vm {
             }
             Instruction::AsyncIteratorCloseWithError => {
                 let iterator = vm.iterator_stack.pop().unwrap();
-                if let VmIteratorRecord::GenericIterator(iterator_record) = iterator {
+                if let VmIteratorRecord::GenericIterator(iterator_record)
+                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iterator
+                {
                     let inner_result_value = with_vm_gc(
                         agent,
                         vm,
@@ -2788,6 +2791,18 @@ impl Vm {
                         .map_or(Value::Undefined, |v| v.into_value())
                         .unbind(),
                 );
+            }
+            Instruction::VerifyIsObject => {
+                let result = vm.result.unwrap();
+                if !result.is_object() {
+                    let message =
+                        executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                    return Err(agent.throw_exception_with_message(
+                        ExceptionType::TypeError,
+                        message.unbind(),
+                        gc.into_nogc(),
+                    ));
+                }
             }
         }
 
