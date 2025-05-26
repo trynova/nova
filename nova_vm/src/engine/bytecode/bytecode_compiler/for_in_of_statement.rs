@@ -7,7 +7,7 @@ use super::{
     is_reference,
 };
 use crate::ecmascript::types::{String, Value};
-use oxc_ast::ast::{self, BindingPatternKind, ForStatementLeft};
+use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,17 +192,13 @@ fn for_in_of_body_evaluation<'s>(
                     assert_eq!(lhs_kind, LeftHandSideKind::VarBinding);
                     // b. Assert: lhs is a ForBinding.
                     // c. Let status be Completion(BindingInitialization of lhs with arguments nextValue and undefined).
-                    let ForStatementLeft::VariableDeclaration(decl) = &lhs else {
-                        unreachable!()
-                    };
-                    assert_eq!(decl.declarations.len(), 1);
-                    let declaration = decl.declarations.first().unwrap();
-                    ctx.add_instruction(Instruction::Load);
-                    match &declaration.id.kind {
-                        BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
-                        BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
-                        BindingPatternKind::BindingIdentifier(_)
-                        | BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+                    match lhs {
+                        ast::ForStatementLeft::VariableDeclaration(decl) => {
+                            assert_eq!(decl.declarations.len(), 1);
+                            let declaration = decl.declarations.first().unwrap();
+                            declaration.id.compile(ctx);
+                        }
+                        _ => lhs.as_assignment_target().unwrap().compile(ctx),
                     }
                 }
             } else {
@@ -226,29 +222,29 @@ fn for_in_of_body_evaluation<'s>(
                     ast::ForStatementLeft::AssignmentTargetIdentifier(id) => {
                         id.compile(ctx);
                     }
-                    ForStatementLeft::ComputedMemberExpression(expr) => {
+                    ast::ForStatementLeft::ComputedMemberExpression(expr) => {
                         ctx.add_instruction(Instruction::Load);
                         expr.compile(ctx);
                         ctx.add_instruction(Instruction::Store);
                     }
-                    ForStatementLeft::StaticMemberExpression(expr) => {
+                    ast::ForStatementLeft::StaticMemberExpression(expr) => {
                         ctx.add_instruction(Instruction::Load);
                         expr.compile(ctx);
                         ctx.add_instruction(Instruction::Store);
                     }
-                    ForStatementLeft::PrivateFieldExpression(expr) => {
+                    ast::ForStatementLeft::PrivateFieldExpression(expr) => {
                         ctx.add_instruction(Instruction::Load);
                         expr.compile(ctx);
                         ctx.add_instruction(Instruction::Store);
                     }
                     // Note: Assignments are handled above so these are
                     // unreachable.
-                    ForStatementLeft::ArrayAssignmentTarget(_)
-                    | ForStatementLeft::ObjectAssignmentTarget(_)
-                    | ForStatementLeft::TSAsExpression(_)
-                    | ForStatementLeft::TSSatisfiesExpression(_)
-                    | ForStatementLeft::TSNonNullExpression(_)
-                    | ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
+                    ast::ForStatementLeft::ArrayAssignmentTarget(_)
+                    | ast::ForStatementLeft::ObjectAssignmentTarget(_)
+                    | ast::ForStatementLeft::TSAsExpression(_)
+                    | ast::ForStatementLeft::TSSatisfiesExpression(_)
+                    | ast::ForStatementLeft::TSNonNullExpression(_)
+                    | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
                 }
 
                 // 2. If lhsRef is an abrupt completion, then
@@ -292,10 +288,17 @@ fn for_in_of_body_evaluation<'s>(
                 // 1. Let status be
                 //    Completion(ForDeclarationBindingInitialization of lhs
                 //    with arguments nextValue and iterationEnv).
-                assert!(!ctx.lexical_binding_state);
+                let lexical_binding_state = ctx.lexical_binding_state;
                 ctx.lexical_binding_state = true;
-                lhs.compile(ctx);
-                ctx.lexical_binding_state = false;
+                // ## 14.7.5.3 Runtime Semantics: ForDeclarationBindingInitialization
+                // ### ForDeclaration : LetOrConst ForBinding
+                // 1. Return ? BindingInitialization of ForBinding with
+                //    arguments value and environment.
+                assert_eq!(lhs.declarations.len(), 1);
+                let lhs = lhs.declarations.first().unwrap();
+                assert!(lhs.init.is_none());
+                lhs.id.compile(ctx);
+                ctx.lexical_binding_state = lexical_binding_state;
             } else {
                 // vii. Else,
                 lhs.bound_names(&mut |binding_identifier| {

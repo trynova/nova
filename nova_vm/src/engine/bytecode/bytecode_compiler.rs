@@ -487,6 +487,10 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         let elements_min_count = self.elements.len();
         ctx.add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
+        if self.elements.is_empty() {
+            return;
+        }
+        ctx.add_instruction(Instruction::Load);
         for ele in &self.elements {
             match ele {
                 ast::ArrayExpressionElement::SpreadElement(spread) => {
@@ -1271,13 +1275,11 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
             // ArrayAssignmentPattern : [ ]
             // 1. Let iteratorRecord be ? GetIterator(value, sync).
             // 2. Return ? IteratorClose(iteratorRecord, NormalCompletion(unused)).
-            ctx.add_instruction(Instruction::Store);
             ctx.add_instruction(Instruction::GetIteratorSync);
             ctx.add_instruction(Instruction::IteratorClose);
             return;
         }
 
-        ctx.add_instruction(Instruction::Store);
         // 1. Let iteratorRecord be ? GetIterator(value, sync).
         ctx.add_instruction(Instruction::GetIteratorSync);
         let jump_to_catch = ctx.enter_iterator(None);
@@ -1327,6 +1329,7 @@ fn simple_array_pattern<'s, I>(
 ) where
     I: Iterator<Item = Option<&'s BindingPattern<'s>>>,
 {
+    let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
     ctx.add_instruction_with_immediate_and_immediate(
         Instruction::BeginSimpleArrayBindingPattern,
@@ -1393,8 +1396,20 @@ fn simple_array_pattern<'s, I>(
     } else {
         ctx.add_instruction(Instruction::FinishBindingPattern);
     }
+    ctx.lexical_binding_state = lexical_binding_state;
 }
 
+fn check_result_is_undefined(ctx: &mut CompileContext) -> JumpIndex {
+    // Run the initializer if the result value is undefined.
+    ctx.add_instruction(Instruction::LoadCopy);
+    ctx.add_instruction(Instruction::IsUndefined);
+    let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+    // Drop the undefined result value and run initializer.
+    ctx.add_instruction(Instruction::Store);
+    jump_slot
+}
+
+/// ### [8.6.3 Runtime Semantics: IteratorBindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-iteratorbindinginitialization)
 fn complex_array_pattern<'s, I>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     elements: I,
@@ -1403,6 +1418,7 @@ fn complex_array_pattern<'s, I>(
 ) where
     I: Iterator<Item = Option<&'s BindingPattern<'s>>>,
 {
+    let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
     for ele in elements {
         ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
@@ -1411,86 +1427,16 @@ fn complex_array_pattern<'s, I>(
             continue;
         };
 
-        let binding_pattern = match &ele.kind {
-            ast::BindingPatternKind::AssignmentPattern(pattern) => {
-                // Run the initializer if the result value is undefined.
-                ctx.add_instruction(Instruction::LoadCopy);
-                ctx.add_instruction(Instruction::IsUndefined);
-                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-                ctx.add_instruction(Instruction::Store);
-                if is_anonymous_function_definition(&pattern.right) {
-                    if let ast::BindingPatternKind::BindingIdentifier(identifier) =
-                        &pattern.left.kind
-                    {
-                        let identifier_string = ctx.create_string(identifier.name.as_str());
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            identifier_string,
-                        );
-                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-                    }
-                }
-                pattern.right.compile(ctx);
-                ctx.name_identifier = None;
-                if is_reference(&pattern.right) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
-                ctx.add_instruction(Instruction::Load);
-                ctx.set_jump_target_here(jump_slot);
-                ctx.add_instruction(Instruction::Store);
-
-                &pattern.left.kind
-            }
-            _ => &ele.kind,
-        };
-
-        match binding_pattern {
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
-                if !has_environment {
-                    ctx.add_instruction(Instruction::PutValue);
-                } else {
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                }
-            }
-            ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.add_instruction(Instruction::Load);
-                pattern.compile(ctx);
-            }
-            ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.add_instruction(Instruction::Load);
-                pattern.compile(ctx);
-            }
-            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-        }
+        ele.compile(ctx);
     }
 
     if let Some(rest) = rest {
         ctx.add_instruction(Instruction::IteratorRestIntoArray);
-        match &rest.argument.kind {
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
-                if !has_environment {
-                    ctx.add_instruction(Instruction::PutValue);
-                } else {
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                }
-            }
-            ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.add_instruction(Instruction::Load);
-                pattern.compile(ctx);
-            }
-            ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.add_instruction(Instruction::Load);
-                pattern.compile(ctx);
-            }
-            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-        }
+        rest.argument.compile(ctx);
     } else {
         ctx.add_instruction(Instruction::IteratorClose);
     }
+    ctx.lexical_binding_state = lexical_binding_state;
 }
 
 impl<'s> CompileEvaluation<'s> for ast::ObjectPattern<'s> {
@@ -1508,6 +1454,7 @@ fn simple_object_pattern<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     has_environment: bool,
 ) {
+    let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
     ctx.add_instruction_with_immediate(
         Instruction::BeginSimpleObjectBindingPattern,
@@ -1604,6 +1551,7 @@ fn simple_object_pattern<'s>(
     } else {
         ctx.add_instruction(Instruction::FinishBindingPattern);
     }
+    ctx.lexical_binding_state = lexical_binding_state;
 }
 
 fn complex_object_pattern<'s>(
@@ -1611,21 +1559,20 @@ fn complex_object_pattern<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     has_environment: bool,
 ) {
+    let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
     // 8.6.2 Runtime Semantics: BindingInitialization
     // BindingPattern : ObjectBindingPattern
     // 1. Perform ? RequireObjectCoercible(value).
     // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and other operations
     // later on (such as GetV) also perform ToObject, so we convert to an object early.
-    ctx.add_instruction(Instruction::Store);
     ctx.add_instruction(Instruction::ToObject);
     ctx.add_instruction(Instruction::Load);
 
     for property in &object_pattern.properties {
         match &property.key {
             ast::PropertyKey::StaticIdentifier(identifier) => {
-                ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::StoreCopy);
                 let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
@@ -1645,59 +1592,7 @@ fn complex_object_pattern<'s>(
             ctx.add_instruction(Instruction::GetValue);
         }
 
-        let binding_pattern = match &property.value.kind {
-            ast::BindingPatternKind::AssignmentPattern(pattern) => {
-                // Run the initializer if the result value is undefined.
-                ctx.add_instruction(Instruction::LoadCopy);
-                ctx.add_instruction(Instruction::IsUndefined);
-                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-                ctx.add_instruction(Instruction::Store);
-                if is_anonymous_function_definition(&pattern.right) {
-                    if let ast::BindingPatternKind::BindingIdentifier(identifier) =
-                        &pattern.left.kind
-                    {
-                        let identifier_string = ctx.create_string(identifier.name.as_str());
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            identifier_string,
-                        );
-                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-                    }
-                }
-                pattern.right.compile(ctx);
-                ctx.name_identifier = None;
-                if is_reference(&pattern.right) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
-                ctx.add_instruction(Instruction::Load);
-                ctx.set_jump_target_here(jump_slot);
-                ctx.add_instruction(Instruction::Store);
-
-                &pattern.left.kind
-            }
-            _ => &property.value.kind,
-        };
-
-        match binding_pattern {
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
-                if !has_environment {
-                    ctx.add_instruction(Instruction::PutValue);
-                } else {
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                }
-            }
-            ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.add_instruction(Instruction::Load);
-                pattern.compile(ctx);
-            }
-            ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.add_instruction(Instruction::Load);
-                pattern.compile(ctx);
-            }
-            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-        }
+        property.value.compile(ctx);
     }
 
     if let Some(rest) = &object_pattern.rest {
@@ -1723,6 +1618,138 @@ fn complex_object_pattern<'s>(
         // Don't keep the object on the stack.
         ctx.add_instruction(Instruction::Store);
     }
+    ctx.lexical_binding_state = lexical_binding_state;
+}
+
+impl<'s> CompileEvaluation<'s> for ast::BindingPattern<'s> {
+    /// ## [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        match &self.kind {
+            // ### BindingIdentifier : Identifier
+            // ### BindingIdentifier : yield
+            // ### BindingIdentifier : await
+            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                // 1. Let name be the StringValue of Identifier.
+                // 2. Return ? InitializeBoundName(name, value, environment).
+                identifier.compile(ctx);
+
+                // ### 8.6.2.1 InitializeBoundName ( name, value, environment )
+                // 1. If environment is not undefined, then
+                if ctx.lexical_binding_state {
+                    // a. Perform ! environment.InitializeBinding(name, value).
+                    // b. Return unused.
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                } else {
+                    // 2. Else,
+                    // a. Let lhs be ? ResolveBinding(name).
+                    // b. Return ? PutValue(lhs, value).
+                    ctx.add_instruction(Instruction::PutValue);
+                }
+            }
+            // ### BindingPattern : ObjectBindingPattern
+            ast::BindingPatternKind::ObjectPattern(object_binding_pattern) => {
+                object_binding_pattern.compile(ctx);
+            }
+            // ### BindingPattern : ArrayBindingPattern
+            ast::BindingPatternKind::ArrayPattern(array_binding_pattern) => {
+                array_binding_pattern.compile(ctx);
+            }
+            // ### SingleNameBinding : BindingIdentifier Initializer
+            // ### BindingElement : BindingPattern Initializer
+            ast::BindingPatternKind::AssignmentPattern(pattern) => {
+                match &pattern.left.kind {
+                    // ### SingleNameBinding : BindingIdentifier Initializer
+                    //
+                    // * function (a = 1) {}
+                    // * [a = 1]
+                    ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
+                        // 1. Let bindingId be the StringValue of BindingIdentifier.
+                        // 2. Let lhs be ? ResolveBinding(bindingId, environment).
+                        let binding_id = ctx.create_string(binding_identifier.name.as_str());
+                        ctx.add_instruction_with_identifier(
+                            Instruction::ResolveBinding,
+                            binding_id,
+                        );
+                        // Note: v is already in the result register after
+                        // IteratorStepValueOrUndefined above.
+                        // 3. Let v be undefined.
+                        // 4. If iteratorRecord.[[Done]] is false, then
+                        //         a. Let next be ? IteratorStepValue(iteratorRecord).
+                        //         b. If next is not done, then
+                        //                 i. Set v to next.
+                        // 5. If Initializer is present and v is undefined, then
+                        let jump_over_initializer = check_result_is_undefined(ctx);
+                        if is_anonymous_function_definition(&pattern.right) {
+                            // a. If IsAnonymousFunctionDefinition(Initializer) is
+                            //    true, then
+                            // i. Set v to ? NamedEvaluation of Initializer with
+                            //    argument bindingId.
+                            ctx.add_instruction_with_constant(
+                                Instruction::StoreConstant,
+                                binding_id,
+                            );
+                            ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                        }
+                        let right_is_literal = pattern.right.is_literal();
+                        if !right_is_literal {
+                            ctx.add_instruction(Instruction::PushReference);
+                        }
+                        // b. Else,
+                        // i. Let defaultValue be ? Evaluation of Initializer.
+                        pattern.right.compile(ctx);
+                        // ii. Set v to ? GetValue(defaultValue).
+                        if is_reference(&pattern.right) {
+                            ctx.add_instruction(Instruction::GetValue);
+                        }
+                        if !right_is_literal {
+                            ctx.add_instruction(Instruction::PopReference);
+                        }
+                        ctx.name_identifier = None;
+                        ctx.add_instruction(Instruction::Load);
+                        ctx.set_jump_target_here(jump_over_initializer);
+                        ctx.add_instruction(Instruction::Store);
+                        // 6. If environment is undefined,
+                        if !ctx.lexical_binding_state {
+                            // return ? PutValue(lhs, v).
+                            ctx.add_instruction(Instruction::PutValue);
+                        } else {
+                            // 7. Return ? InitializeReferencedBinding(lhs, v).
+                            ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                        }
+                    }
+                    // ### BindingElement : BindingPattern Initializer
+                    //
+                    // * function ({} = 1)
+                    // * [{} = 1]
+                    // * function ([] = 1)
+                    // * [[] = 1]
+                    _ => {
+                        // Note: v is already in the result register after
+                        // IteratorStepValueOrUndefined above.
+                        // 1. Let v be undefined.
+                        // 2. If iteratorRecord.[[Done]] is false, then
+                        //         a. Let next be ? IteratorStepValue(iteratorRecord).
+                        //         b. If next is not done, then
+                        //                 i. Set v to next.
+                        // 3. If Initializer is present and v is undefined, then
+                        let jump_over_initializer = check_result_is_undefined(ctx);
+                        // a. Let defaultValue be ? Evaluation of Initializer.
+                        pattern.right.compile(ctx);
+                        // b. Set v to ? GetValue(defaultValue).
+                        if is_reference(&pattern.right) {
+                            ctx.add_instruction(Instruction::GetValue);
+                        }
+                        ctx.add_instruction(Instruction::Load);
+                        ctx.set_jump_target_here(jump_over_initializer);
+                        ctx.add_instruction(Instruction::Store);
+                        // 4. Return ? BindingInitialization of BindingPattern with
+                        //    arguments v and environment.
+                        pattern.left.compile(ctx)
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
@@ -1741,21 +1768,17 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
                         //  VariableDeclaration : BindingPattern Initializer
-                        ctx.lexical_binding_state = false;
                         // 1. Let rhs be ? Evaluation of Initializer.
                         init.compile(ctx);
                         // 2. Let rval be ? GetValue(rhs).
                         if is_reference(init) {
                             ctx.add_instruction(Instruction::GetValue);
                         }
-                        ctx.add_instruction(Instruction::Load);
                         // 3. Return ? BindingInitialization of BidingPattern with arguments rval and undefined.
-                        match &decl.id.kind {
-                            ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
-                            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
-                            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
-                            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-                        }
+                        let lexical_binding_state = ctx.lexical_binding_state;
+                        ctx.lexical_binding_state = false;
+                        decl.id.compile(ctx);
+                        ctx.lexical_binding_state = lexical_binding_state;
                         continue;
                     };
 
@@ -1800,7 +1823,6 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                 for decl in &self.declarations {
                     let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
                     else {
-                        ctx.lexical_binding_state = true;
                         let init = decl.init.as_ref().unwrap();
 
                         //  LexicalBinding : BindingPattern Initializer
@@ -1812,13 +1834,10 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                         }
                         // 3. Let env be the running execution context's LexicalEnvironment.
                         // 4. Return ? BindingInitialization of BindingPattern with arguments value and env.
-                        ctx.add_instruction(Instruction::Load);
-                        match &decl.id.kind {
-                            ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
-                            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
-                            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.compile(ctx),
-                            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-                        }
+                        let lexical_binding_state = ctx.lexical_binding_state;
+                        ctx.lexical_binding_state = true;
+                        decl.id.compile(ctx);
+                        ctx.lexical_binding_state = lexical_binding_state;
                         return;
                     };
 
@@ -2200,31 +2219,15 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
                         arg_name,
                     );
                 });
-                // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
+                // 5. Let status be Completion(BindingInitialization of
+                //    CatchParameter with arguments thrownValue and catchEnv).
+                let lexical_binding_state = ctx.lexical_binding_state;
+                ctx.lexical_binding_state = true;
+                exception_param.pattern.compile(ctx);
+                ctx.lexical_binding_state = lexical_binding_state;
                 // 6. If status is an abrupt completion, then
                 // a. Set the running execution context's LexicalEnvironment to oldEnv.
                 // b. Return ? status.
-                match &exception_param.pattern.kind {
-                    ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                        let identifier_string = ctx.create_string(identifier.name.as_str());
-                        ctx.add_instruction_with_identifier(
-                            Instruction::ResolveBinding,
-                            identifier_string,
-                        );
-                        ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                    }
-                    ast::BindingPatternKind::ObjectPattern(pattern) => {
-                        ctx.add_instruction(Instruction::Load);
-                        ctx.lexical_binding_state = true;
-                        pattern.compile(ctx);
-                    }
-                    ast::BindingPatternKind::ArrayPattern(pattern) => {
-                        ctx.add_instruction(Instruction::Load);
-                        ctx.lexical_binding_state = true;
-                        pattern.compile(ctx);
-                    }
-                    ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
-                }
             }
             // 7. Let B be Completion(Evaluation of Block).
             catch_clause.body.compile(ctx);

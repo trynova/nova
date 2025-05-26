@@ -486,7 +486,7 @@ impl Vm {
             Instruction::ArrayCreate => {
                 let result = array_create(agent, 0, instr.get_first_index(), None, gc.into_nogc())?
                     .into_value();
-                vm.stack.push(result.unbind());
+                vm.result = Some(result.unbind());
             }
             Instruction::ArrayPush => {
                 let value = vm.result.take().unwrap().bind(gc.nogc());
@@ -2360,7 +2360,7 @@ impl Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                let object = to_object(agent, vm.stack.pop().unwrap(), gc.nogc())
+                let object = to_object(agent, vm.result.take().unwrap(), gc.nogc())
                     .unbind()?
                     .bind(gc.nogc());
                 execute_simple_object_binding(agent, vm, executable, object.unbind(), env, gc)?
