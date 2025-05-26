@@ -43,7 +43,7 @@ use crate::{
         rootable::{Rootable, Scopable},
         unwrap_try,
     },
-    heap::{Heap, ObjectEntry, WellKnownSymbolIndexes},
+    heap::{Heap, ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
 /// ### [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
@@ -2374,6 +2374,22 @@ fn throw_no_private_name_getter_error<'a>(agent: &mut Agent, gc: NoGcScope<'a, '
     )
 }
 
+/// ### [7.3.26 PrivateElementFind ( O, P )](https://tc39.es/ecma262/#sec-privateelementfind)
+///
+/// The abstract operation PrivateElementFind takes arguments O (an Object)
+/// and P (a Private Name) and returns a PrivateElement or empty.
+pub(crate) fn private_element_find<'a>(
+    agent: &'a Agent,
+    o: Object,
+    p: PrivateName,
+) -> Option<(
+    Option<Value<'static>>,
+    Option<&'a ElementDescriptor<'static>>,
+)> {
+    o.get_backing_object(agent)
+        .and_then(|o| o.property_storage().private_element_find(agent, p))
+}
+
 /// ### [7.3.30 PrivateGet ( O, P )](https://tc39.es/ecma262/#sec-privateget)
 ///
 /// The abstract operation PrivateGet takes arguments O (an Object) and P (a
@@ -2390,10 +2406,7 @@ pub(crate) fn private_get<'a>(
         return Err(throw_no_proxy_private_names(agent, gc.into_nogc()));
     }
     // 1. Let entry be PrivateElementFind(O, P).
-    match o
-        .get_backing_object(agent)
-        .and_then(|o| o.property_storage().private_element_find(agent, p))
-    {
+    match private_element_find(agent, o, p) {
         Some((Some(value), descriptor)) => {
             // 3. If entry.[[Kind]] is either field or method, then
             // a. Return entry.[[Value]].
@@ -2437,10 +2450,7 @@ pub(crate) fn try_private_get<'a>(
         return TryResult::Continue(Err(throw_no_proxy_private_names(agent, gc)));
     }
     // 1. Let entry be PrivateElementFind(O, P).
-    match o
-        .get_backing_object(agent)
-        .and_then(|o| o.property_storage().private_element_find(agent, p))
-    {
+    match private_element_find(agent, o, p) {
         Some((Some(value), descriptor)) => {
             // 3. If entry.[[Kind]] is either field or method, then
             // a. Return entry.[[Value]].

@@ -954,8 +954,25 @@ impl<'s> CompileEvaluation<'s> for ast::MetaProperty<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::PrivateInExpression<'s> {
-    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        todo!()
+    /// ## [13.10.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-relational-operators-runtime-semantics-evaluation)
+    /// ###  RelationalExpression : PrivateIdentifier in ShiftExpression
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        // 1. Let privateIdentifier be the StringValue of PrivateIdentifier.
+        let private_identifier = ctx.create_string(&self.left.name);
+        // 2. Let rRef be ? Evaluation of ShiftExpression.
+        self.right.compile(ctx);
+        // 3. Let rVal be ? GetValue(rRef).
+        if is_reference(&self.right) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+        // 4. If rVal is not an Object, throw a TypeError exception.
+        // 5. Let privateEnv be the running execution context's PrivateEnvironment.
+        // 6. Assert: privateEnv is not null.
+        // 7. Let privateName be ResolvePrivateIdentifier(privateEnv, privateIdentifier).
+        ctx.add_instruction_with_identifier(Instruction::MakePrivateReference, private_identifier);
+        // 8. If PrivateElementFind(rVal, privateName) is not empty, return true.
+        // 9. Return false.
+        ctx.add_instruction(Instruction::HasPrivateElement);
     }
 }
 #[cfg(feature = "regexp")]

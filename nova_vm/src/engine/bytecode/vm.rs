@@ -21,9 +21,10 @@ use crate::{
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
                 copy_data_properties_into_object, create_data_property_or_throw,
-                define_property_or_throw, get_method, has_property, ordinary_has_instance, set,
-                throw_no_proxy_private_names, try_copy_data_properties_into_object,
-                try_create_data_property, try_define_property_or_throw, try_has_property,
+                define_property_or_throw, get_method, has_property, ordinary_has_instance,
+                private_element_find, set, throw_no_proxy_private_names,
+                try_copy_data_properties_into_object, try_create_data_property,
+                try_define_property_or_throw, try_has_property,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -2062,21 +2063,9 @@ impl Vm {
                 // RelationalExpression : RelationalExpression in ShiftExpression
                 // 5. If rval is not an Object, throw a TypeError exception.
                 let Ok(mut rval) = Object::try_from(rval) else {
-                    let rval = rval.unbind();
-                    let error_message = with_vm_gc(
+                    return Err(throw_error_in_target_not_object(
                         agent,
-                        vm,
-                        |agent, gc| {
-                            format!(
-                                "The right-hand side of an `in` expression must be an object, got '{}'.",
-                                rval.string_repr(agent, gc).as_str(agent)
-                            )
-                        },
-                        gc.reborrow(),
-                    );
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        error_message,
+                        rval.unbind(),
                         gc.into_nogc(),
                     ));
                 };
@@ -2113,6 +2102,32 @@ impl Vm {
                     )?
                 };
                 vm.result = Some(result.into());
+            }
+            Instruction::HasPrivateElement => {
+                let Some(Reference {
+                    base: Base::Value(r_val),
+                    referenced_name: PropertyKey::PrivateName(private_name),
+                    strict: _,
+                    this_value: _,
+                }) = vm.reference.take()
+                else {
+                    unreachable!()
+                };
+                // 4. If rVal is not an Object,
+                if let Ok(r_val) = Object::try_from(r_val) {
+                    // 8. If PrivateElementFind(rVal, privateName) is not
+                    //    empty, return true.
+                    // 9. Return false.
+                    let result = private_element_find(agent, r_val, private_name).is_some();
+                    vm.result = Some(result.into_value());
+                } else {
+                    // throw a TypeError exception.
+                    return Err(throw_error_in_target_not_object(
+                        agent,
+                        r_val,
+                        gc.into_nogc(),
+                    ));
+                }
             }
             Instruction::IsStrictlyEqual => {
                 let lval = vm.stack.pop().unwrap();
@@ -3401,4 +3416,16 @@ fn set_class_name<'a>(
         let name = prop_key.convert_to_value(agent, gc.nogc());
         set_class_name(agent, vm, name.into_value().unbind(), gc)
     }
+}
+
+fn throw_error_in_target_not_object<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    let error_message = format!(
+        "right-hand side of 'in' should be an object, got {}.",
+        typeof_operator(agent, value, gc).as_str(agent)
+    );
+    agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }
