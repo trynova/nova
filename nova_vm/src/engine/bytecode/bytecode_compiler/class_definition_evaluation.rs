@@ -31,7 +31,6 @@ use super::{IndexType, is_anonymous_function_definition};
 impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        ctx.add_instruction(Instruction::Debug);
         let anonymous_class_name = ctx.name_identifier.take();
 
         // 1. Let env be the LexicalEnvironment of the running execution context.
@@ -319,7 +318,6 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // - [constructor_parent, proto, class_name]
         // - [constructor_parent, proto]
         if has_class_name_on_stack {
-            ctx.add_instruction(Instruction::Debug);
             if has_constructor_parent {
                 // stack: [constructor_parent, proto, class_name]
                 ctx.add_instruction(Instruction::Store);
