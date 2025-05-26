@@ -107,6 +107,9 @@ pub enum Instruction {
     GreaterThanEquals,
     /// Store HasProperty() as the result value.
     HasProperty,
+    /// Perform PrivateElementFind on the private property reference currently
+    /// in the reference register, and convert the result into a boolean.
+    HasPrivateElement,
     Increment,
     Decrement,
     /// Store InstanceofOperator() as the result value.
@@ -1089,6 +1092,7 @@ impl TryFrom<u8> for Instruction {
         const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
         const GREATERTHANEQUALS: u8 = Instruction::GreaterThanEquals.as_u8();
         const HASPROPERTY: u8 = Instruction::HasProperty.as_u8();
+        const HASPRIVATEELEMENT: u8 = Instruction::HasPrivateElement.as_u8();
         const INCREMENT: u8 = Instruction::Increment.as_u8();
         const DECREMENT: u8 = Instruction::Decrement.as_u8();
         const INSTANCEOFOPERATOR: u8 = Instruction::InstanceofOperator.as_u8();
@@ -1277,6 +1281,7 @@ impl TryFrom<u8> for Instruction {
             GREATERTHAN => Ok(Instruction::GreaterThan),
             GREATERTHANEQUALS => Ok(Instruction::GreaterThanEquals),
             HASPROPERTY => Ok(Instruction::HasProperty),
+            HASPRIVATEELEMENT => Ok(Instruction::HasPrivateElement),
             INCREMENT => Ok(Instruction::Increment),
             DECREMENT => Ok(Instruction::Decrement),
             INSTANCEOFOPERATOR => Ok(Instruction::InstanceofOperator),
