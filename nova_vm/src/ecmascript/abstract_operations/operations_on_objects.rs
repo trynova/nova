@@ -2462,8 +2462,7 @@ pub(crate) fn try_private_get<'a>(
                 descriptor.is_none()
                     || descriptor.is_some_and(|d| d.is_data_descriptor()
                         && !d.is_writable().unwrap()
-                        && !d.is_enumerable()
-                        && !d.is_configurable())
+                        && !d.is_enumerable())
             );
             TryResult::Continue(Ok(value.bind(gc)))
         }
