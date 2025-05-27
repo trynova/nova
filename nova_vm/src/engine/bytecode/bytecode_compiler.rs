@@ -983,12 +983,7 @@ impl<'s> CompileEvaluation<'s> for ast::PrivateInExpression<'s> {
 #[cfg(feature = "regexp")]
 impl<'s> CompileEvaluation<'s> for ast::RegExpLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let pattern = match self.regex.pattern {
-            ast::RegExpPattern::Raw(pattern) => pattern,
-            ast::RegExpPattern::Invalid(pattern) => pattern,
-            // We probably shouldn't be getting parsed RegExps?
-            ast::RegExpPattern::Pattern(_) => unreachable!(),
-        };
+        let pattern = self.regex.pattern.text.as_str();
         let regexp = ctx.create_regexp(pattern, self.regex.flags);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }
