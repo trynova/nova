@@ -2,38 +2,30 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
-use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Number;
-use crate::ecmascript::types::bigint::BigIntMathematicalValue;
-
-use crate::ecmascript::types::Numeric;
-use crate::ecmascript::types::Object;
-
-use crate::SmallInteger;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Primitive;
-use crate::ecmascript::types::{String, Value};
-use crate::engine::context::NoGcScope;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::CreateHeapData;
-use crate::heap::IntrinsicConstructorIndexes;
+use crate::{
+    SmallInteger,
+    ecmascript::{
+        abstract_operations::{
+            testing_and_comparison::is_integral_number, type_conversion::to_numeric_primitive,
+        },
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Numeric, Object,
+            Primitive, String, Value, bigint::BigIntMathematicalValue,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
+    heap::{CreateHeapData, IntrinsicConstructorIndexes},
+};
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
 pub struct NumberConstructor;

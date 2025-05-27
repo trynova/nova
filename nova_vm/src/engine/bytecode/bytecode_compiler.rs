@@ -25,6 +25,7 @@ pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, IndexType, JumpIndex,
     NamedEvaluationParameter,
 };
+use num_traits::Num;
 use oxc_ast::ast::{
     self, BindingPattern, BindingRestElement, CallExpression, LabelIdentifier, NewExpression,
     Statement,
@@ -1498,6 +1499,37 @@ fn simple_object_pattern<'s>(
                     unsafe {
                         ctx.create_property_key(&literal.value)
                             .into_value_unchecked()
+                    }
+                }
+                ast::PropertyKey::BigIntLiteral(lit) => {
+                    // Drop out the trailing 'n' from BigInt literals.
+                    let last_index = lit.raw.len() - 1;
+                    let (literal, radix) = match lit.base {
+                        oxc_syntax::number::BigintBase::Decimal => {
+                            (&lit.raw.as_str()[..last_index], 10)
+                        }
+                        oxc_syntax::number::BigintBase::Binary => {
+                            (&lit.raw.as_str()[2..last_index], 2)
+                        }
+                        oxc_syntax::number::BigintBase::Octal => {
+                            (&lit.raw.as_str()[2..last_index], 8)
+                        }
+                        oxc_syntax::number::BigintBase::Hex => {
+                            (&lit.raw.as_str()[2..last_index], 16)
+                        }
+                    };
+                    if let Ok(result) = i64::from_str_radix(literal, radix) {
+                        if let Ok(number) = Number::try_from(result) {
+                            number.into_value()
+                        } else {
+                            ctx.create_string_from_owned(result.to_string())
+                                .into_value()
+                        }
+                    } else {
+                        let string = num_bigint::BigInt::from_str_radix(literal, radix)
+                            .unwrap()
+                            .to_string();
+                        ctx.create_string_from_owned(string).into_value()
                     }
                 }
                 _ => unreachable!(),
