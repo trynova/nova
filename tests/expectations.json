@@ -13299,7 +13299,6 @@
   "staging/sm/Atomics/cross-compartment.js": "FAIL",
   "staging/sm/Atomics/detached-buffers.js": "FAIL",
   "staging/sm/BigInt/Number-conversion-rounding.js": "FAIL",
-  "staging/sm/BigInt/large-bit-length.js": "TIMEOUT",
   "staging/sm/BigInt/property-name.js": "CRASH",
   "staging/sm/Date/UTC-convert-all-arguments.js": "CRASH",
   "staging/sm/Date/constructor-convert-all-arguments.js": "CRASH",
