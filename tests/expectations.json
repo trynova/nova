@@ -1009,7 +1009,6 @@
   "built-ins/Function/prototype/toString/getter-class-statement-static.js": "FAIL",
   "built-ins/Function/prototype/toString/getter-class-statement.js": "FAIL",
   "built-ins/Function/prototype/toString/getter-object.js": "FAIL",
-  "built-ins/Function/prototype/toString/line-terminator-normalisation-LF.js": "FAIL",
   "built-ins/Function/prototype/toString/method-class-expression-static.js": "FAIL",
   "built-ins/Function/prototype/toString/method-class-expression.js": "FAIL",
   "built-ins/Function/prototype/toString/method-class-statement-static.js": "FAIL",
