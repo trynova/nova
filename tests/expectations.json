@@ -13839,7 +13839,6 @@
   "staging/sm/extensions/shareddataview.js": "FAIL",
   "staging/sm/extensions/typedarray-set-detach.js": "FAIL",
   "staging/sm/extensions/weakmap.js": "FAIL",
-  "staging/sm/fields/await-identifier-script.js": "FAIL",
   "staging/sm/fields/bug1587574.js": "FAIL",
   "staging/sm/generators/delegating-yield-1.js": "CRASH",
   "staging/sm/generators/delegating-yield-10.js": "CRASH",
