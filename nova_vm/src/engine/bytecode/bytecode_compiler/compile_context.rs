@@ -823,6 +823,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.executable.set_jump_target_here(jump);
     }
 
+    pub(super) fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
+        self.executable.set_jump_target(source, target);
+    }
+
     pub(super) fn get_next_class_initializer_index(&self) -> IndexType {
         self.executable.get_next_class_initializer_index()
     }
