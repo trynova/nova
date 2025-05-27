@@ -313,9 +313,13 @@ impl<'a> BigInt<'a> {
                 }
                 if let Some(result) = base.checked_pow(exponent) {
                     Ok(Self::from_i64(agent, result))
+                } else if let Some(result) = (base as i128).checked_pow(exponent) {
+                    Ok(agent.heap.create(BigIntHeapData {
+                        data: result.into(),
+                    }))
                 } else {
                     Ok(agent.heap.create(BigIntHeapData {
-                        data: (base as i128).pow(exponent).into(),
+                        data: num_bigint::BigInt::from(base).pow(exponent),
                     }))
                 }
             }
