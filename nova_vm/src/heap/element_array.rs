@@ -1793,48 +1793,60 @@ impl ElementArrays {
         key: ElementArrayKey,
         source: &[PropertyKey],
     ) -> PropertyKeyIndex<'static> {
-        // Check at runtime that PropertyKey can be transmuted into Option<PropertyKey> without issues and will show up as Some.
-        debug_assert!(
-            core::mem::size_of::<Option<PropertyKey>>() == core::mem::size_of::<PropertyKey>()
-        );
-        let property_key_array: [PropertyKey; 4] = [
-            PropertyKey::Integer(SmallInteger::zero()),
-            PropertyKey::SmallString(SmallString::EMPTY),
-            PropertyKey::String(HeapString::_def()),
-            PropertyKey::Symbol(Symbol::_def()),
-        ];
-        // SAFETY: Sizes match, this should be nothing more than a reinterpretation.
-        let property_key_option_array = unsafe {
-            std::mem::transmute::<[PropertyKey; 4], [Option<PropertyKey>; 4]>(
-                property_key_array,
-            )
-        };
-        let mut i = 0;
-        while i < 4 {
-            let key = property_key_array[i];
-            let option_key = property_key_option_array[i];
-            debug_assert!(option_key.is_some());
-            let option_key = option_key.unwrap();
-            match (option_key, key) {
-                (PropertyKey::Integer(a), PropertyKey::Integer(b)) => {
-                    debug_assert!(a.into_i64() == b.into_i64())
-                }
-                (PropertyKey::SmallString(a), PropertyKey::SmallString(b)) => {
-                    let a_data = a.data();
-                    let b_data = b.data();
-                    for j in 0..7 {
-                        debug_assert!(a_data[j] == b_data[j]);
-                    }
-                }
-                (PropertyKey::String(a), PropertyKey::String(b)) => {
-                    debug_assert!(a.get_index() == b.get_index())
-                }
-                (PropertyKey::Symbol(a), PropertyKey::Symbol(b)) => {
-                    debug_assert!(a.get_index() == b.get_index())
-                }
-                _ => unreachable!(),
+        const {
+            // Check at compile time that PropertyKey can be transmuted into
+            // Option<PropertyKey> without issues and will show up as Some.
+            assert!(
+                core::mem::size_of::<Option<PropertyKey>>() == core::mem::size_of::<PropertyKey>()
+            );
+            let property_key_array: [PropertyKey; 4] = [
+                PropertyKey::Integer(SmallInteger::zero()),
+                PropertyKey::SmallString(SmallString::EMPTY),
+                PropertyKey::String(HeapString::_def()),
+                PropertyKey::Symbol(Symbol::_def()),
+            ];
+            // SAFETY: Sizes match, this should be nothing more than a
+            // reinterpretation.
+            let property_key_option_array = unsafe {
+                std::mem::transmute::<[PropertyKey; 4], [Option<PropertyKey>; 4]>(
+                    property_key_array,
+                )
             };
-            i += 1;
+            let mut i = 0;
+            loop {
+                let key = property_key_array[i];
+                let option_key = property_key_option_array[i];
+                assert!(option_key.is_some());
+                let option_key = option_key.unwrap();
+                match (option_key, key) {
+                    (PropertyKey::Integer(a), PropertyKey::Integer(b)) => {
+                        assert!(a.into_i64() == b.into_i64())
+                    }
+                    (PropertyKey::SmallString(a), PropertyKey::SmallString(b)) => {
+                        let mut i: u8 = 0;
+                        let a = a.data();
+                        let b = b.data();
+                        loop {
+                            assert!(a[i as usize] == b[i as usize]);
+                            i += 1;
+                            if i == 7 {
+                                break;
+                            }
+                        }
+                    }
+                    (PropertyKey::String(a), PropertyKey::String(b)) => {
+                        assert!(a.get_index() == b.get_index())
+                    }
+                    (PropertyKey::Symbol(a), PropertyKey::Symbol(b)) => {
+                        assert!(a.get_index() == b.get_index())
+                    }
+                    _ => unreachable!(),
+                };
+                i += 1;
+                if i > 3 {
+                    break;
+                }
+            }
         }
         match key {
             ElementArrayKey::Empty => {
