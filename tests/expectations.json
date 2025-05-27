@@ -11085,7 +11085,6 @@
   "language/expressions/object/fn-name-accessor-set.js": "FAIL",
   "language/expressions/object/getter-super-prop.js": "CRASH",
   "language/expressions/object/identifier-shorthand-static-init-await-valid.js": "FAIL",
-  "language/expressions/object/literal-property-name-bigint.js": "CRASH",
   "language/expressions/object/method-definition/async-gen-meth-dflt-params-abrupt.js": "FAIL",
   "language/expressions/object/method-definition/async-gen-meth-dflt-params-ref-later.js": "FAIL",
   "language/expressions/object/method-definition/async-gen-meth-dflt-params-ref-self.js": "FAIL",
