@@ -300,10 +300,17 @@ impl<'a> Number<'a> {
         if let Ok(value) = Number::try_from(value) {
             value
         } else {
-            // SAFETY: Number was not representable as a
-            // stack-allocated Number.
-            let id = unsafe { agent.heap.alloc_number(value as f64) };
-            Number::Number(id.unbind().bind(gc))
+            let value = value as f64;
+            if let Ok(value) = SmallF64::try_from(value) {
+                // Number did not fit the safe integer range but could be
+                // represented as a SmallF64.
+                Number::SmallF64(value)
+            } else {
+                // SAFETY: Number was not representable as a
+                // stack-allocated Number.
+                let id = unsafe { agent.heap.alloc_number(value) };
+                Number::Number(id.unbind().bind(gc))
+            }
         }
     }
 

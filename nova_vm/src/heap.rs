@@ -51,6 +51,7 @@ use crate::ecmascript::builtins::{
     weak_set::data::WeakSetHeapData,
 };
 use crate::{
+    SmallInteger,
     ecmascript::{
         builtins::{
             ArrayBuffer, ArrayHeapData,
@@ -92,6 +93,7 @@ use crate::{
         ExecutableHeapData,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
+        small_f64::SmallF64,
     },
 };
 #[cfg(feature = "array-buffer")]
@@ -438,7 +440,9 @@ impl Heap {
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
     pub unsafe fn alloc_number<'gc>(&mut self, number: f64) -> HeapNumber<'gc> {
-        debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
+        debug_assert!(
+            SmallInteger::try_from(number).is_err() && SmallF64::try_from(number).is_err()
+        );
         self.numbers.push(Some(number.into()));
         self.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
         HeapNumber(NumberIndex::last(&self.numbers))
