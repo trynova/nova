@@ -350,12 +350,13 @@ impl<'a> ControlFlowStackEntry<'a> {
 /// and if the process finishes successfully then the original result will be
 /// restored as the result value.
 pub(super) fn compile_async_iterator_exit(executable: &mut ExecutableContext) {
-    let error_message = executable.create_string("iterator.return() returned a non-object value");
     executable.add_instruction(Instruction::PopExceptionJumpTarget);
     executable.add_instruction(Instruction::AsyncIteratorClose);
     // If async iterator close returned a Value, then it'll push the previous
-    // result value into the stack. We should await the returned value, verify
-    // that it is an object, and then return the original result.
+    // result value into the stack and perform an implicit Await.
+    // We should verify that the result of the await is an object, and then
+    // return the original result.
+    let error_message = executable.create_string("iterator.return() returned a non-object value");
     executable.add_instruction_with_identifier(Instruction::VerifyIsObject, error_message);
     executable.add_instruction(Instruction::Store);
 }

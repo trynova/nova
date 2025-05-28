@@ -13,13 +13,13 @@ use crate::{
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
-        builtins::{ArgumentsList, ordinary::ordinary_object_create_with_intrinsics},
+        builtins::ArgumentsList,
         execution::{
-            Agent, JsResult, ProtoIntrinsics,
+            Agent, JsResult,
             agent::{ExceptionType, JsError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
             PropertyKey, Value,
         },
     },
@@ -28,7 +28,10 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
+        WellKnownSymbolIndexes, WorkQueues,
+    },
 };
 
 /// ### [7.4.1 Iterator Records](https://tc39.es/ecma262/#sec-iterator-records)
@@ -289,7 +292,7 @@ pub(crate) fn iterator_next<'a>(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-fn iterator_complete<'a>(
+pub(crate) fn iterator_complete<'a>(
     agent: &mut Agent,
     iter_result: Object,
     gc: GcScope<'a, '_>,
@@ -733,30 +736,40 @@ pub(crate) fn async_vm_iterator_close_with_error<'a>(
 /// conforms to the IteratorResult interface.
 pub(crate) fn create_iter_result_object<'a>(
     agent: &mut Agent,
-    value: Value,
+    value: Value<'a>,
     done: bool,
-    gc: NoGcScope<'a, '_>,
-) -> Object<'a> {
+) -> OrdinaryObject<'a> {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
-    let Object::Object(obj) =
-        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
-    else {
-        unreachable!()
-    };
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
-    obj.property_storage().set(
-        agent,
-        BUILTIN_STRING_MEMORY.value.to_property_key(),
-        PropertyDescriptor::new_data_descriptor(value),
-    );
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
-    obj.property_storage().set(
-        agent,
-        BUILTIN_STRING_MEMORY.done.to_property_key(),
-        PropertyDescriptor::new_data_descriptor(done.into()),
-    );
     // 4. Return obj.
-    obj.into_object()
+    agent.heap.create_object_with_prototype(
+        agent
+            .current_realm_record()
+            .intrinsics()
+            .object_prototype()
+            .into_object(),
+        &[
+            ObjectEntry {
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.value),
+                value: ObjectEntryPropertyDescriptor::Data {
+                    value,
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                },
+            },
+            ObjectEntry {
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.done),
+                value: ObjectEntryPropertyDescriptor::Data {
+                    value: done.into_value(),
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                },
+            },
+        ],
+    )
 }
 
 /// ### [7.4.15 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)

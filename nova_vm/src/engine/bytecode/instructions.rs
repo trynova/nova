@@ -392,6 +392,23 @@ pub enum Instruction {
     /// it sets it to `VmIterator::EmptyIterator` so further reads and closes
     /// aren't observable.
     IteratorStepValueOrUndefined,
+    /// Call the current iterator's `[[NextMethod]]` with the current result
+    /// register value as the only parameter.
+    IteratorCallNextMethod,
+    /// Verify that the current result register value contains an object, perform IteratorComplete on it, and if the
+    /// result is `true` then perform IteratorValue on it and jump to the
+    /// provided instruction.
+    IteratorComplete,
+    /// Perform IteratorValue on the current result register value.
+    IteratorValue,
+    /// Perform `? GetMethod(iterator, "return")` on the current iterator and
+    /// call the result if it is not undefined. If the result is undefined,
+    /// jump to the provided instruction.
+    IteratorThrow,
+    /// Perform `? GetMethod(iterator, "throw")` on the current iterator and
+    /// call the result if it is not undefined. If the result is undefined,
+    /// jump to the provided instruction.
+    IteratorReturn,
     /// Consume the remainder of the iterator, and produce a new array with
     /// those elements. This pops the iterator off the iterator stack.
     IteratorRestIntoArray,
@@ -462,6 +479,9 @@ impl Instruction {
             | Self::ClassDefinePrivateProperty
             | Self::InitializeVariableEnvironment
             | Self::IteratorStepValue
+            | Self::IteratorComplete
+            | Self::IteratorThrow
+            | Self::IteratorReturn
             | Self::Jump
             | Self::JumpIfNot
             | Self::JumpIfTrue
@@ -553,7 +573,10 @@ impl Instruction {
     pub fn has_jump_slot(self) -> bool {
         matches!(
             self,
-            Self::Jump
+            Self::IteratorComplete
+                | Self::IteratorThrow
+                | Self::IteratorReturn
+                | Self::Jump
                 | Self::JumpIfNot
                 | Self::JumpIfTrue
                 | Self::PushExceptionJumpTarget
@@ -1181,6 +1204,11 @@ impl TryFrom<u8> for Instruction {
         const GETITERATORASYNC: u8 = Instruction::GetIteratorAsync.as_u8();
         const ITERATORSTEPVALUE: u8 = Instruction::IteratorStepValue.as_u8();
         const ITERATORSTEPVALUEORUNDEFINED: u8 = Instruction::IteratorStepValueOrUndefined.as_u8();
+        const ITERATORNEXT: u8 = Instruction::IteratorCallNextMethod.as_u8();
+        const ITERATORCOMPLETE: u8 = Instruction::IteratorComplete.as_u8();
+        const ITERATORVALUE: u8 = Instruction::IteratorValue.as_u8();
+        const ITERATORTHROW: u8 = Instruction::IteratorThrow.as_u8();
+        const ITERATORRETURN: u8 = Instruction::IteratorReturn.as_u8();
         const ITERATORRESTINTOARRAY: u8 = Instruction::IteratorRestIntoArray.as_u8();
         const ITERATORCLOSE: u8 = Instruction::IteratorClose.as_u8();
         const ASYNCITERATORCLOSE: u8 = Instruction::AsyncIteratorClose.as_u8();
@@ -1368,6 +1396,11 @@ impl TryFrom<u8> for Instruction {
             GETITERATORASYNC => Ok(Instruction::GetIteratorAsync),
             ITERATORSTEPVALUE => Ok(Instruction::IteratorStepValue),
             ITERATORSTEPVALUEORUNDEFINED => Ok(Instruction::IteratorStepValueOrUndefined),
+            ITERATORNEXT => Ok(Instruction::IteratorCallNextMethod),
+            ITERATORCOMPLETE => Ok(Instruction::IteratorComplete),
+            ITERATORVALUE => Ok(Instruction::IteratorValue),
+            ITERATORTHROW => Ok(Instruction::IteratorThrow),
+            ITERATORRETURN => Ok(Instruction::IteratorReturn),
             ITERATORRESTINTOARRAY => Ok(Instruction::IteratorRestIntoArray),
             ITERATORCLOSE => Ok(Instruction::IteratorClose),
             ASYNCITERATORCLOSE => Ok(Instruction::AsyncIteratorClose),
