@@ -257,14 +257,21 @@ impl AsyncGenerator<'_> {
             }
             return;
         }
-        let AsyncGeneratorState::Awaiting {
-            vm,
-            execution_context,
-            queue,
-            kind,
-        } = agent[self].async_generator_state.take().unwrap()
-        else {
-            unreachable!()
+        // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
+        let state = agent[self].async_generator_state.take().unwrap();
+        let (vm, execution_context, queue, kind) = match state {
+            AsyncGeneratorState::SuspendedYield {
+                vm,
+                execution_context,
+                queue,
+            } => (vm, execution_context, queue, AsyncGeneratorAwaitKind::Yield),
+            AsyncGeneratorState::Awaiting {
+                vm,
+                execution_context,
+                queue,
+                kind,
+            } => (vm, execution_context, queue, kind),
+            _ => unreachable!(),
         };
         agent.push_execution_context(execution_context);
         agent[self].async_generator_state = Some(AsyncGeneratorState::Executing(queue));

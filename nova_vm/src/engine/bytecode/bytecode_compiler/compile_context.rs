@@ -68,6 +68,15 @@ pub(crate) struct JumpIndex {
     pub(crate) index: usize,
 }
 
+/// Type of code being compiled by bytecode compiler.
+///
+/// This affects generator yield behaviour.
+#[derive(PartialEq, Eq)]
+pub(crate) enum CodeExecutionKind {
+    Sync,
+    Async,
+}
+
 /// Context for bytecode compilation.
 ///
 /// The lifetimes on this context are:
@@ -92,6 +101,10 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(super) is_call_optional_chain_this: bool,
     /// Stores data needed to generate control flow graph transition points.
     control_flow_stack: Vec<ControlFlowStackEntry<'script>>,
+    /// Type of code being compiled.
+    ///
+    /// This affects generator yield behaviour.
+    execution_kind: CodeExecutionKind,
 }
 
 impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> {
@@ -106,7 +119,20 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             optional_chains: None,
             is_call_optional_chain_this: false,
             control_flow_stack: Vec::new(),
+            execution_kind: CodeExecutionKind::Sync,
         }
+    }
+
+    /// Set the compile context to be asynchronous.
+    ///
+    /// This affects generator yield behaviour.
+    pub(crate) fn set_async(&mut self) {
+        self.execution_kind = CodeExecutionKind::Async;
+    }
+
+    /// Returns true if we're compiling asynchronous code.
+    pub(crate) fn is_async(&self) -> bool {
+        self.execution_kind == CodeExecutionKind::Async
     }
 
     /// Get exclusive access to the Agent, and the GC scope, through the context.

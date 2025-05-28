@@ -244,7 +244,7 @@ impl JSONObject {
     /// > stringified property value. An array is rendered as an opening U+005B
     /// > (LEFT SQUARE BRACKET) followed by zero or more values, separated with a
     /// > U+002C (COMMA), closed with a U+005D (RIGHT SQUARE BRACKET).
-    fn stringify<'gc>(
+    pub(crate) fn stringify<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

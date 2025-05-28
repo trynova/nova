@@ -165,6 +165,9 @@ impl<'gc> Executable<'gc> {
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         let mut ctx = CompileContext::new(agent, gc);
+        if data.is_async {
+            ctx.set_async();
+        }
 
         let is_concise = data.is_concise_body;
 
