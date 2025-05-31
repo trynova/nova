@@ -3158,7 +3158,14 @@ fn filter_typed_array<'a, T: Viewable>(
             if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
                 copy_between_same_type_typed_arrays::<T>(&kept, byte_slice)
             } else {
-                copy_between_different_type_typed_arrays::<T, V>(&kept, byte_slice);
+                let (head, slice, _) = unsafe { byte_slice.align_to_mut::<V>() };
+                if !head.is_empty() {
+                    panic!("ArrayBuffer not correctly aligned");
+                }
+                let len = kept.len().min(slice.len());
+                let slice = &mut slice[..len];
+                let kept = &kept[..len];
+                copy_between_different_type_typed_arrays::<T, V>(kept, slice);
             }
         },
         V
@@ -3169,23 +3176,16 @@ fn filter_typed_array<'a, T: Viewable>(
 }
 
 fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
-    kept: &[Src],
-    byte_slice: &mut [u8],
+    src_slice: &[Src],
+    dst_slice: &mut [Dst],
 ) {
     assert_eq!(Src::IS_BIGINT, Dst::IS_BIGINT);
-    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<Dst>() };
-    if !head.is_empty() {
-        panic!("ArrayBuffer not correctly aligned");
-    }
-    let len = kept.len().min(slice.len());
-    let slice = &mut slice[..len];
-    let kept = &kept[..len];
     if Dst::IS_FLOAT {
-        for (dst, src) in slice.iter_mut().zip(kept.iter()) {
+        for (dst, src) in dst_slice.iter_mut().zip(src_slice.iter()) {
             *dst = Dst::from_f64(src.into_f64());
         }
     } else if !Dst::IS_FLOAT {
-        for (dst, src) in slice.iter_mut().zip(kept.iter()) {
+        for (dst, src) in dst_slice.iter_mut().zip(src_slice.iter()) {
             *dst = Dst::from_bits(src.into_bits());
         }
     }
@@ -3470,11 +3470,11 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
         with_typed_array_viewable!(
             a,
             {
+                let start_index = start_index as usize;
+                let end_index = end_index as usize;
                 if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
                     let (a_slice, o_slice) =
                         split_typed_array_views::<T>(agent, a, o.get(agent), gc.nogc());
-                    let start_index = start_index as usize;
-                    let end_index = end_index as usize;
                     if a_slice.len() > o_slice.len() || end_index > o_slice.len() {
                         let src_slice = &o_slice[start_index..o_slice.len()];
                         let dst_slice = &mut a_slice[..src_slice.len()];
@@ -3488,30 +3488,34 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
                 } else {
                     // h. Else,
                     // i. Let n be 0.
-                    let mut n = 0;
                     // ii. Let k be startIndex.
-                    let mut k = start_index;
                     // iii. Repeat, while k < endIndex,
-                    while k < end_index {
-                        //  1. Let Pk be ! ToString(𝔽(k)).
-                        let pk = PropertyKey::Integer(k.try_into().unwrap());
-                        //  2. Let kValue be ! Get(O, Pk).
-                        let k_value = unwrap_try(try_get(agent, o.get(agent), pk, gc.nogc()));
-                        //  3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
-                        unwrap_try(try_set(
-                            agent,
-                            a.into_object(),
-                            PropertyKey::Integer(n.into()),
-                            k_value.unbind(),
-                            true,
-                            gc.nogc(),
-                        ))
-                        .unwrap();
-                        //  4. Set k to k + 1.
-                        k += 1;
-                        //  5. Set n to n + 1.
-                        n += 1;
+                    //      1. Let Pk be ! ToString(𝔽(k)).
+                    //      2. Let kValue be ! Get(O, Pk).
+                    //      3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
+                    //      4. Set k to k + 1.
+                    //      5. Set n to n + 1.
+                    let gc = gc.nogc();
+                    let o = o.get(agent);
+                    let a_buf = a.get_viewed_array_buffer(agent, gc);
+                    let o_buf = o.get_viewed_array_buffer(agent, gc);
+                    let a_buf = a_buf.as_slice(agent);
+                    let o_buf = o_buf.as_slice(agent);
+                    if !a_buf.is_empty() || !o_buf.is_empty() {
+                        assert!(
+                            !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
+                            "Must not point to the same buffer"
+                        );
                     }
+                    let a_slice = viewable_slice_mut::<V>(agent, a, gc);
+                    let a_ptr = a_slice.as_mut_ptr();
+                    let a_len = a_slice.len();
+                    let o_aligned = viewable_slice::<T>(agent, o, gc);
+                    // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+                    let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
+                    let src_slice = &o_aligned[start_index..end_index];
+                    let dst_slice = &mut a_aligned[..src_slice.len()];
+                    copy_between_different_type_typed_arrays::<T, V>(src_slice, dst_slice)
                 }
             },
             V
