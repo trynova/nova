@@ -2488,7 +2488,7 @@ pub(crate) fn viewable_slice<'a, T: Viewable>(
     slice
 }
 
-fn viewable_slice_mut<'a, T: Viewable>(
+pub(crate) fn viewable_slice_mut<'a, T: Viewable>(
     agent: &'a mut Agent,
     ta: TypedArray,
     gc: NoGcScope,
@@ -3292,7 +3292,7 @@ fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut
     slice.copy_from_slice(kept);
 }
 
-pub(crate) fn split_typed_array_views<'a, T: Viewable>(
+fn split_typed_array_views<'a, T: Viewable>(
     agent: &'a mut Agent,
     a: TypedArray<'a>,
     o: TypedArray<'a>,
