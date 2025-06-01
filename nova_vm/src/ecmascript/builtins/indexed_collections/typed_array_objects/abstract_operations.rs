@@ -42,6 +42,8 @@ use crate::{
     heap::CreateHeapData,
 };
 
+use super::typed_array_intrinsic_object::{viewable_slice, viewable_slice_mut};
+
 /// Matches a TypedArray and defines a type T in the expression which
 /// is the generic type of the viewable.
 #[macro_export]
@@ -1488,6 +1490,21 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     Ok(result.unbind())
 }
 
+fn split_typed_array_views<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    target: TypedArray<'a>,
+    source: TypedArray<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> (&'a mut [T], &'a [T]) {
+    let target_slice_mut = viewable_slice_mut::<T>(agent, target, gc);
+    let target_ptr = target_slice_mut.as_mut_ptr();
+    let target_len = target_slice_mut.len();
+    let source_slice = viewable_slice::<T>(agent, source, gc);
+    // SAFETY: We've already checked buffer regions are valid.
+    let target_slice = unsafe { std::slice::from_raw_parts_mut(target_ptr, target_len) };
+    (target_slice, source_slice)
+}
+
 /// [23.2.3.26.1 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromtypedarray)
 /// The abstract operation SetTypedArrayFromTypedArray takes arguments target
 /// (a TypedArray), targetOffset (a non-negative integer or +∞), and source
@@ -1614,32 +1631,17 @@ pub(crate) fn set_typed_array_from_typed_array<
     if core::any::TypeId::of::<SrcType>() == core::any::TypeId::of::<TargetType>() {
         // a. NOTE: The transfer must be performed in a manner that preserves the bit-level encoding of the source data.
         // Repeat, while targetByteIndex < limit,
-        while target_byte_index < limit {
-            // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
-            let value = get_value_from_buffer::<u8>(
-                agent,
-                src_buffer,
-                src_byte_index,
-                true,
-                Ordering::Unordered,
-                None,
-                gc.nogc(),
-            );
-            // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
-            set_value_in_buffer::<u8>(
-                agent,
-                target_buffer,
-                target_byte_index as usize,
-                value,
-                true,
-                Ordering::Unordered,
-                None,
-            );
-            // iii. Set srcByteIndex to srcByteIndex + 1.
-            src_byte_index += 1;
-            // iv. Set targetByteIndex to targetByteIndex + 1.
-            target_byte_index += 1;
-        }
+        let (target_slice, src_slice) = split_typed_array_views::<TargetType>(
+            agent,
+            target_record.object,
+            src_record.object,
+            gc.nogc(),
+        );
+        let start_target_index = target_offset as usize;
+        let end_target_index = target_offset as usize + src_slice.len();
+        let target_slice = &mut target_slice[start_target_index..end_target_index];
+        let src_slice = &src_slice[..src_slice.len()];
+        target_slice.copy_from_slice(src_slice);
     } else {
         // 24. Else,
         //  a. Repeat, while targetByteIndex < limit,
