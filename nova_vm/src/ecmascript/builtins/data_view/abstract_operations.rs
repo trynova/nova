@@ -170,7 +170,7 @@ pub(crate) fn is_view_out_of_bounds(
 /// returns either a normal completion containing either a Number or a BigInt,
 /// or a throw completion. It is used by functions on DataView instances to
 /// retrieve values from the view's buffer.
-pub(crate) fn get_view_value<'gc, T: Viewable>(
+pub(crate) fn get_view_value<'gc, T: Viewable + std::fmt::Debug>(
     agent: &mut Agent,
     view: Value,
     request_index: Value,

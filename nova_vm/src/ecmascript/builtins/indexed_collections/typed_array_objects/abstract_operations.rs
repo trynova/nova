@@ -11,7 +11,8 @@ use crate::{
             operations_on_objects::{
                 construct, get, length_of_array_like, set, species_constructor,
             },
-            type_conversion::{to_big_int, to_index, to_number},
+            testing_and_comparison::same_value,
+            type_conversion::{IntegerOrInfinity, to_big_int, to_index, to_number, to_object},
         },
         builtins::{
             ArgumentsList, ArrayBuffer, BuiltinFunction,
@@ -457,7 +458,7 @@ pub(crate) fn typed_array_get_element_generic<'a>(
 /// The abstract operation TypedArrayGetElement takes arguments O (a
 /// TypedArray) and index (a Number) and returns a Number, a BigInt,
 /// or undefined.
-pub(crate) fn typed_array_get_element<'a, O: Viewable>(
+pub(crate) fn typed_array_get_element<'a, O: Viewable + std::fmt::Debug>(
     agent: &mut Agent,
     o: TypedArray,
     index: i64,
@@ -736,7 +737,11 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
 /// The abstract operation InitializeTypedArrayFromTypedArray takes arguments O
 /// (a TypedArray) and srcArray (a TypedArray) and returns either a normal
 /// completion containing unused or a throw completion.
-pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: Viewable>(
+pub(crate) fn initialize_typed_array_from_typed_array<
+    'a,
+    O: Viewable,
+    Src: Viewable + std::fmt::Debug,
+>(
     agent: &mut Agent,
     o: TypedArray,
     src_array: TypedArray,
@@ -1481,4 +1486,267 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     }
     // 6. Return result.
     Ok(result.unbind())
+}
+
+/// [23.2.3.26.1 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromtypedarray)
+/// The abstract operation SetTypedArrayFromTypedArray takes arguments target
+/// (a TypedArray), targetOffset (a non-negative integer or +∞), and source
+/// (a TypedArray) and returns either a normal completion containing unused
+/// or a throw completion. It sets multiple values in target, starting at index
+/// targetOffset, reading the values from source.
+pub(crate) fn set_typed_array_from_typed_array<
+    'a,
+    TargetType: Viewable + std::fmt::Debug,
+    SrcType: Viewable + std::fmt::Debug,
+>(
+    agent: &mut Agent,
+    target: TypedArray,
+    target_offset: IntegerOrInfinity,
+    source: TypedArray,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let target = target.bind(gc.nogc());
+    let target_offset = target_offset.bind(gc.nogc());
+    let source = source.bind(gc.nogc());
+    let target = target.scope(agent, gc.nogc());
+    let source = source.scope(agent, gc.nogc());
+    // 1. Let targetBuffer be target.[[ViewedArrayBuffer]].
+    let target_buffer = target.get(agent).get_viewed_array_buffer(agent, gc.nogc());
+    // 2. Let targetRecord be MakeTypedArrayWithBufferWitnessRecord(target, seq-cst).
+    let target_record = make_typed_array_with_buffer_witness_record(
+        agent,
+        target.get(agent),
+        Ordering::SeqCst,
+        gc.nogc(),
+    );
+    // 3. If IsTypedArrayOutOfBounds(targetRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<TargetType>(agent, &target_record, gc.nogc()) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    };
+    // 4. Let targetLength be TypedArrayLength(targetRecord).
+    let target_length = typed_array_length::<TargetType>(agent, &target_record, gc.nogc()) as i64;
+    // 5. Let srcBuffer be source.[[ViewedArrayBuffer]].
+    let mut src_buffer = source.get(agent).get_viewed_array_buffer(agent, gc.nogc());
+    // 6. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(source, seq-cst).
+    let src_record = make_typed_array_with_buffer_witness_record(
+        agent,
+        source.get(agent),
+        Ordering::SeqCst,
+        gc.nogc(),
+    );
+    // 7. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<SrcType>(agent, &src_record, gc.nogc()) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    }
+    // 8. Let srcLength be TypedArrayLength(srcRecord).
+    let src_length = typed_array_length::<SrcType>(agent, &src_record, gc.nogc()) as i64;
+    // 9. Let targetType be TypedArrayElementType(target).
+    // 10. Let targetElementSize be TypedArrayElementSize(target).
+    let target_element_size = size_of::<TargetType>() as i64;
+    // 11. Let targetByteOffset be target.[[ByteOffset]].
+    let target_byte_offset = target.get(agent).byte_offset(agent) as i64;
+    // 12. Let srcType be TypedArrayElementType(source).
+    // 13. Let srcElementSize be TypedArrayElementSize(source).
+    let src_element_size = size_of::<SrcType>();
+    // 14. Let srcByteOffset be source.[[ByteOffset]].
+    let src_byte_offset = source.get(agent).byte_offset(agent);
+    // 15. If targetOffset = +∞, throw a RangeError exception.
+    if target_offset.is_pos_infinity() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc.into_nogc(),
+        ));
+    };
+    // 16. If srcLength + targetOffset > targetLength, throw a RangeError exception.
+    let target_offset = target_offset.into_i64();
+    if src_length + target_offset > target_length {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc.into_nogc(),
+        ));
+    };
+    // 17. If target.[[ContentType]] is not source.[[ContentType]], throw a TypeError exception.
+    let is_type_match = has_matching_content_type::<TargetType>(target.get(agent));
+    if !is_type_match {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray species did not match source",
+            gc.into_nogc(),
+        ));
+    };
+    // 18. If IsSharedArrayBuffer(srcBuffer) is true, IsSharedArrayBuffer(targetBuffer) is true, and srcBuffer.[[ArrayBufferData]] is targetBuffer.[[ArrayBufferData]], let sameSharedArrayBuffer be true; otherwise, let sameSharedArrayBuffer be false.
+    // TODO: SharedArrayBuffer that we can even take here.
+    // 19. If SameValue(srcBuffer, targetBuffer) is true or sameSharedArrayBuffer is true, then
+    let mut src_byte_index = if same_value(agent, src_buffer, target_buffer) {
+        // a. Let srcByteLength be TypedArrayByteLength(srcRecord).
+        let src_byte_length = typed_array_byte_length::<SrcType>(agent, &src_record, gc.nogc());
+        // b. Set srcBuffer to ? CloneArrayBuffer(srcBuffer, srcByteOffset, srcByteLength).
+        src_buffer = clone_array_buffer(
+            agent,
+            src_buffer,
+            src_byte_offset,
+            src_byte_length,
+            gc.nogc(),
+        )
+        .unbind()?;
+        // c. Let srcByteIndex be 0.
+        0
+    } else {
+        // 20. Else,
+        //  a. Let srcByteIndex be srcByteOffset.
+        src_byte_offset
+    };
+    // 21. Let targetByteIndex be (targetOffset × targetElementSize) + targetByteOffset.
+    let mut target_byte_index = (target_offset * target_element_size) + target_byte_offset;
+    // 22. Let limit be targetByteIndex + (targetElementSize × srcLength).
+    let limit = target_byte_index + (target_element_size * src_length);
+    // 23. If srcType is targetType, then
+    if core::any::TypeId::of::<SrcType>() == core::any::TypeId::of::<TargetType>() {
+        // a. NOTE: The transfer must be performed in a manner that preserves the bit-level encoding of the source data.
+        // Repeat, while targetByteIndex < limit,
+        while target_byte_index < limit {
+            // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
+            let value = get_value_from_buffer::<u8>(
+                agent,
+                src_buffer,
+                src_byte_index,
+                true,
+                Ordering::Unordered,
+                None,
+                gc.nogc(),
+            );
+            // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
+            set_value_in_buffer::<u8>(
+                agent,
+                target_buffer,
+                target_byte_index as usize,
+                value,
+                true,
+                Ordering::Unordered,
+                None,
+            );
+            // iii. Set srcByteIndex to srcByteIndex + 1.
+            src_byte_index += 1;
+            // iv. Set targetByteIndex to targetByteIndex + 1.
+            target_byte_index += 1;
+        }
+    } else {
+        // 24. Else,
+        //  a. Repeat, while targetByteIndex < limit,
+        while target_byte_index < limit {
+            // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, srcType, true, unordered).
+            let value = get_value_from_buffer::<SrcType>(
+                agent,
+                src_buffer,
+                src_byte_index,
+                true,
+                Ordering::Unordered,
+                None,
+                gc.nogc(),
+            );
+            // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, targetType, value, true, unordered).
+            set_value_in_buffer::<TargetType>(
+                agent,
+                target_buffer,
+                target_byte_index as usize,
+                value,
+                true,
+                Ordering::Unordered,
+                None,
+            );
+            // iii. Set srcByteIndex to srcByteIndex + srcElementSize.
+            src_byte_index += src_element_size;
+            // iv. Set targetByteIndex to targetByteIndex + targetElementSize.
+            target_byte_index += target_element_size;
+        }
+    }
+    // 25. Return unused.
+    Ok(())
+}
+
+/// ### [23.2.3.26.2 SetTypedArrayFromArrayLike ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromarraylike)
+/// The abstract operation SetTypedArrayFromArrayLike takes arguments target
+/// (a TypedArray), targetOffset (a non-negative integer or +∞), and source
+/// (an ECMAScript language value, but not a TypedArray) and returns either
+/// a normal completion containing unused or a throw completion. It sets
+/// multiple values in target, starting at index targetOffset, reading the
+/// values from source.
+pub(crate) fn set_typed_array_from_array_like<'a, T: Viewable>(
+    agent: &mut Agent,
+    target: TypedArray,
+    target_offset: IntegerOrInfinity,
+    source: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let target = target.bind(gc.nogc());
+    let target_offset = target_offset.bind(gc.nogc());
+    let source = source.bind(gc.nogc());
+    let target = target.scope(agent, gc.nogc());
+    let source = source.scope(agent, gc.nogc());
+    // 1. Let targetRecord be MakeTypedArrayWithBufferWitnessRecord(target, seq-cst).
+    let target_record = make_typed_array_with_buffer_witness_record(
+        agent,
+        target.get(agent),
+        Ordering::SeqCst,
+        gc.nogc(),
+    );
+    // 2. If IsTypedArrayOutOfBounds(targetRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<T>(agent, &target_record, gc.nogc()) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    };
+    // 3. Let targetLength be TypedArrayLength(targetRecord).
+    let target_length = typed_array_length::<T>(agent, &target_record, gc.nogc());
+    // 4. Let src be ? ToObject(source).
+    let src = to_object(agent, source.get(agent), gc.nogc()).unbind()?;
+    // 5. Let srcLength be ? LengthOfArrayLike(src).
+    let src_length = length_of_array_like(agent, src, gc.reborrow()).unbind()?;
+    // 6. If targetOffset = +∞, throw a RangeError exception.
+    if target_offset.is_pos_infinity() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc.into_nogc(),
+        ));
+    };
+    // 7. If srcLength + targetOffset > targetLength, throw a RangeError exception.
+    if src_length as i64 + target_offset.into_i64() > target_length as i64 {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc.into_nogc(),
+        ));
+    };
+    // 8. Let k be 0.
+    let mut k = 0;
+    // 9. Repeat, while k < srcLength,
+    let target = target.get(agent);
+    while k < src_length {
+        // a. Let Pk be ! ToString(𝔽(k)).
+        let pk = PropertyKey::Integer(k.try_into().unwrap());
+        // b. Let value be ? Get(src, Pk).
+        let value = get(agent, src, pk, gc.reborrow()).unbind()?.bind(gc.nogc());
+        // c. Let targetIndex be 𝔽(targetOffset + k).
+        let target_index = target_offset.into_i64() + k;
+        // d. Perform ? TypedArraySetElement(target, targetIndex, value).
+        typed_array_set_element::<T>(agent, target, target_index, value.unbind(), gc.reborrow())
+            .unbind()?;
+        // e. Set k to k + 1.
+        k += 1;
+    }
+    // 10. Return unused.
+    Ok(())
 }

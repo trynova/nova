@@ -56,7 +56,8 @@ use crate::{
 
 use super::abstract_operations::{
     TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds, is_valid_integer_index,
-    make_typed_array_with_buffer_witness_record, typed_array_byte_length,
+    make_typed_array_with_buffer_witness_record, set_typed_array_from_array_like,
+    set_typed_array_from_typed_array, typed_array_byte_length,
     typed_array_create_from_constructor_with_length, typed_array_create_same_type,
     typed_array_length, typed_array_species_create_with_buffer,
     typed_array_species_create_with_length, validate_typed_array,
@@ -1818,13 +1819,29 @@ impl TypedArrayPrototype {
         Ok(o.into_value())
     }
 
+    /// [23.2.3.26 %TypedArray%.prototype.set ( source [ , offset ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.set)
+    /// This method sets multiple values in this TypedArray, reading the values
+    /// from source. The details differ based upon the type of source. The optional
+    /// offset value indicates the first element index in this TypedArray where
+    /// values are written. If omitted, it is assumed to be 0.
     fn set<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("TypedArray.prototype.set", gc.into_nogc()))
+        let source = arguments.get(0);
+        let offset = arguments.get(1);
+        // 1. Let target be the this value.
+        let target = this_value;
+        // 2. Perform ? RequireInternalSlot(target, [[TypedArrayName]]).
+        let o = require_internal_slot_typed_array(agent, target, gc.nogc()).unbind()?;
+        with_typed_array_viewable!(
+            o,
+            set_typed_array::<T>(agent, o, source, offset, gc.reborrow()).unbind()?
+        );
+        // 8. Return undefined.
+        Ok(Value::Undefined)
     }
 
     /// ## [23.2.3.27 %TypedArray%.prototype.slice ( start, end )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.slice)
@@ -2440,7 +2457,11 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     })
 }
 
-fn viewable_slice<'a, T: Viewable>(agent: &'a mut Agent, ta: TypedArray, gc: NoGcScope) -> &'a [T] {
+pub(crate) fn viewable_slice<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    ta: TypedArray,
+    gc: NoGcScope,
+) -> &'a [T] {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
@@ -3271,7 +3292,7 @@ fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut
     slice.copy_from_slice(kept);
 }
 
-fn split_typed_array_views<'a, T: Viewable>(
+pub(crate) fn split_typed_array_views<'a, T: Viewable>(
     agent: &'a mut Agent,
     a: TypedArray<'a>,
     o: TypedArray<'a>,
@@ -3702,4 +3723,78 @@ fn slice_typed_array_same_buffer_different_type(
         // 5. Set n to n + 1.
         n += 1;
     }
+}
+
+fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    o: TypedArray<'_>,
+    source: Value,
+    offset: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let o = o.bind(gc.nogc());
+    let source = source.bind(gc.nogc());
+    let offset = offset.bind(gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
+    let scoped_source = source.scope(agent, gc.nogc());
+    let scoped_offset = offset.scope(agent, gc.nogc());
+    // 3. Assert: target has a [[ViewedArrayBuffer]] internal slot.
+    // 4. Let targetOffset be ? ToIntegerOrInfinity(offset).
+    let target_offset =
+        to_integer_or_infinity(agent, scoped_offset.get(agent), gc.reborrow()).unbind()?;
+    // 5. If targetOffset < 0, throw a RangeError exception.
+    if target_offset.is_negative() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "invalid array length",
+            gc.into_nogc(),
+        ));
+    }
+    // 6. If source is an Object that has a [[TypedArrayName]] internal slot, then
+    if scoped_source.get(agent).is_object() {
+        if let Ok(source) = TypedArray::try_from(scoped_source.get(agent)) {
+            // a. Perform ? SetTypedArrayFromTypedArray(target, targetOffset, source).
+            with_typed_array_viewable!(
+                source,
+                set_typed_array_from_typed_array::<T, V>(
+                    agent,
+                    scoped_o.get(agent),
+                    target_offset,
+                    source,
+                    gc.reborrow()
+                ),
+                V
+            )
+            .unbind()?;
+        } else {
+            // 7. Else,
+            //  a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
+            with_typed_array_viewable!(
+                scoped_o.get(agent),
+                set_typed_array_from_array_like::<T>(
+                    agent,
+                    scoped_o.get(agent),
+                    target_offset,
+                    scoped_source.get(agent),
+                    gc.reborrow()
+                )
+            )
+            .unbind()?;
+        }
+    } else {
+        // 7. Else,
+        //  a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
+        with_typed_array_viewable!(
+            scoped_o.get(agent),
+            set_typed_array_from_array_like::<T>(
+                agent,
+                scoped_o.get(agent),
+                target_offset,
+                scoped_source.get(agent),
+                gc.reborrow()
+            )
+        )
+        .unbind()?;
+    }
+    Ok(())
 }
