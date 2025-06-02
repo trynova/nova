@@ -168,7 +168,8 @@ impl TypedArrayIntrinsicObject {
                 gc.reborrow(),
             )
             .unbind()?
-            .bind(gc.nogc()) else {
+            .bind(gc.nogc())
+            .to_iterator_record() else {
                 return Err(throw_not_callable(agent, gc.into_nogc()));
             };
             let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())

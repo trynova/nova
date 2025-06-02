@@ -1345,6 +1345,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     }) = get_iterator(agent, iterable.get(agent), false, gc.reborrow())
         .unbind()?
         .bind(gc.nogc())
+        .to_iterator_record()
     else {
         return Err(throw_not_callable(agent, gc.into_nogc()));
     };

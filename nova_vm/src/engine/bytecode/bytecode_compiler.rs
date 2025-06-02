@@ -1533,14 +1533,14 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
         // anything special here.
         // 4. Return ? result.
         ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-        let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        let jump_over_catch_and_exit = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         {
             // catch handling, we have to call IteratorClose with the error.
             ctx.set_jump_target_here(jump_to_catch);
             ctx.add_instruction(Instruction::IteratorCloseWithError);
         }
-        ctx.set_jump_target_here(jump_over_catch);
         ctx.exit_iterator(None);
+        ctx.set_jump_target_here(jump_over_catch_and_exit);
     }
 }
 

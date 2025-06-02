@@ -290,6 +290,7 @@ impl ArrayConstructor {
             )
             .unbind()?
             .bind(gc.nogc())
+            .to_iterator_record()
             else {
                 return Err(throw_not_callable(agent, gc.into_nogc()));
             };

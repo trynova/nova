@@ -15,8 +15,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                async_iterator_close_with_value, async_vm_iterator_close_with_error,
-                iterator_close_with_error, iterator_close_with_value, iterator_complete,
+                async_vm_iterator_close_with_error, iterator_close_with_error, iterator_complete,
                 iterator_value,
             },
             operations_on_objects::{
@@ -413,10 +412,10 @@ impl Vm {
                     return ExecutionResult::Return(result);
                 }
                 Ok(ContinuationKind::Yield) => {
-                    if agent.options.print_internals {
-                        eprintln!("Yielding value from function\n");
-                    }
                     let yielded_value = self.result.take().unwrap();
+                    if agent.options.print_internals {
+                        eprintln!("Yielding value from function {yielded_value:?}\n");
+                    }
                     return ExecutionResult::Yield {
                         vm: self.suspend(),
                         yielded_value,
@@ -2557,7 +2556,7 @@ impl Vm {
                     |agent, gc| VmIteratorRecord::from_value(agent, expr_value, gc),
                     gc,
                 )?;
-                vm.iterator_stack.push(result);
+                vm.iterator_stack.push(result.unbind());
             }
             Instruction::GetIteratorAsync => {
                 let expr_value = vm.result.take().unwrap();
@@ -2567,7 +2566,7 @@ impl Vm {
                     |agent, gc| VmIteratorRecord::async_from_value(agent, expr_value, gc),
                     gc,
                 )?;
-                vm.iterator_stack.push(result);
+                vm.iterator_stack.push(result.unbind());
             }
             Instruction::IteratorStepValue => {
                 let result = with_vm_gc(
@@ -2787,52 +2786,46 @@ impl Vm {
                 vm.result = Some(unsafe { array.take(agent).into_value() });
             }
             Instruction::IteratorClose => {
-                let iter = vm.pop_iterator(gc.nogc());
-                if let VmIteratorRecord::GenericIterator(iterator_record) = iter {
-                    let result = vm.result.take().unwrap_or(Value::Undefined);
-                    let result = {
-                        let iterator = iterator_record.iterator.unbind();
-                        // Drop iterator so we can move gc.
-                        drop(iter);
-                        with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| iterator_close_with_value(agent, iterator, result, gc),
-                            gc,
-                        )?
-                    };
-                    vm.result = Some(result.unbind());
+                let iter = vm.pop_iterator(gc.nogc()).unbind();
+                if !iter.requires_return_call(agent, gc.nogc()) {
+                    return Ok(ContinuationKind::Normal);
                 }
+                let result = vm.result.take().unwrap_or(Value::Undefined);
+                let result = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| iter.close_with_value(agent, result, gc),
+                    gc,
+                )?;
+                vm.result = Some(result.unbind());
             }
             Instruction::AsyncIteratorClose => {
                 let iter = vm.pop_iterator(gc.nogc());
-                eprintln!("Iter: {iter:?}");
-                if let VmIteratorRecord::GenericIterator(iterator_record)
-                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iter
-                {
-                    let result = {
-                        let iterator = iterator_record.iterator.unbind();
-                        // Drop iterator so we can move gc.
-                        drop(iter);
-                        with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| async_iterator_close_with_value(agent, iterator, gc),
-                            gc,
-                        )?
-                    };
-                    if let Some(result) = result {
-                        // AsyncIteratorClose
-                        // Iterator return method did return a value: we should
-                        // put it into the result slot, place our original
-                        // result into the stack, and perform an Await.
-                        let result = vm.result.replace(result.unbind());
-                        vm.stack.push(result.unwrap_or(Value::Undefined));
-                        return Ok(ContinuationKind::Await);
-                    } else {
-                        // Skip over VerifyIsObject, message, and Store.
-                        vm.ip += 4;
-                    }
+                if !iter.requires_return_call(agent, gc.nogc()) {
+                    // Skip over VerifyIsObject, message, and Store.
+                    vm.ip += 4;
+                    return Ok(ContinuationKind::Normal);
+                }
+                let result = {
+                    let iter = iter.unbind();
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| iter.async_close_with_value(agent, gc),
+                        gc,
+                    )?
+                };
+                if let Some(result) = result {
+                    // AsyncIteratorClose
+                    // Iterator return method did return a value: we should
+                    // put it into the result slot, place our original
+                    // result into the stack, and perform an Await.
+                    let result = vm.result.replace(result.unbind());
+                    vm.stack.push(result.unwrap_or(Value::Undefined));
+                    return Ok(ContinuationKind::Await);
+                } else {
+                    // Skip over VerifyIsObject, message, and Store.
+                    vm.ip += 4;
                 }
             }
             Instruction::IteratorCloseWithError => {

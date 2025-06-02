@@ -24,7 +24,7 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, ScopedCollection, TryResult,
+        ScopableCollection, ScopedCollection, TryResult, VmIteratorRecord,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -107,6 +107,61 @@ pub(crate) fn get_iterator_direct<'gc>(
     Ok(Some(iterator_record))
 }
 
+pub(crate) struct MaybeInvalidIteratorRecord<'a> {
+    pub(crate) iterator: Object<'a>,
+    pub(crate) next_method: Option<Function<'a>>,
+}
+
+impl<'a> MaybeInvalidIteratorRecord<'a> {
+    pub(crate) fn to_iterator_record(self) -> Option<IteratorRecord<'a>> {
+        if let MaybeInvalidIteratorRecord {
+            iterator,
+            next_method: Some(next_method),
+        } = self
+        {
+            Some(IteratorRecord {
+                iterator,
+                next_method,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn to_vm_iterator_record(self) -> VmIteratorRecord<'a> {
+        let MaybeInvalidIteratorRecord {
+            iterator,
+            next_method,
+        } = self;
+        if let Some(next_method) = next_method {
+            VmIteratorRecord::GenericIterator(IteratorRecord {
+                iterator,
+                next_method,
+            })
+        } else {
+            VmIteratorRecord::InvalidIterator { iterator }
+        }
+    }
+}
+
+unsafe impl Bindable for MaybeInvalidIteratorRecord<'_> {
+    type Of<'a> = MaybeInvalidIteratorRecord<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        MaybeInvalidIteratorRecord {
+            iterator: self.iterator.unbind(),
+            next_method: self.next_method.unbind(),
+        }
+    }
+
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        MaybeInvalidIteratorRecord {
+            iterator: self.iterator.bind(gc),
+            next_method: self.next_method.bind(gc),
+        }
+    }
+}
+
 /// ### [7.4.3 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
 ///
 /// The abstract operation GetIteratorFromMethod takes arguments obj (an
@@ -121,7 +176,7 @@ pub(crate) fn get_iterator_from_method<'a>(
     obj: Value,
     method: Function,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<IteratorRecord<'a>>> {
+) -> JsResult<'a, MaybeInvalidIteratorRecord<'a>> {
     let obj = obj.bind(gc.nogc());
     let method = method.bind(gc.nogc());
     // 1. Let iterator be ? Call(method, obj).
@@ -148,18 +203,18 @@ pub(crate) fn get_iterator_from_method<'a>(
     )
     .unbind()?;
     let gc = gc.into_nogc();
+    // SAFETY: not shared.
+    let iterator = unsafe { scoped_iterator.take(agent).bind(gc) };
 
-    let Some(next_method) = is_callable(next_method, gc) else {
-        return Ok(None);
-    };
+    let next_method = is_callable(next_method, gc);
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
     // 5. Return iteratorRecord.
-    Ok(Some(IteratorRecord {
-        iterator: scoped_iterator.get(agent).bind(gc),
+    Ok(MaybeInvalidIteratorRecord {
+        iterator,
         next_method,
         // done: false,
-    }))
+    })
 }
 
 /// ### [7.4.4 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
@@ -172,7 +227,7 @@ pub(crate) fn get_iterator<'a>(
     obj: Value,
     is_async: bool,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<IteratorRecord<'a>>> {
+) -> JsResult<'a, MaybeInvalidIteratorRecord<'a>> {
     let obj = obj.bind(gc.nogc());
     let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. If kind is async, then
