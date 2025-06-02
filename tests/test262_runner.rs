@@ -29,20 +29,38 @@ enum TestExpectation {
     Timeout,
 }
 
-/// Directory names to always filter out.
-///
-/// - `annexB`: Annex B of the ES specification defines legacy syntax, methods
-///   and other behaviors which are only needed for web compatibility. At this
-///   point we don't plan on implementing them.
-/// - `intl402`: Tests for ECMA-402, which defines the `Intl`
-///   internationalization API. We currently have no plans to implement them.
-const SKIP_DIRS: &[&str] = &["annexB", "intl402"];
-
 fn is_test_file(file_name: &str) -> bool {
     // File names containing the string "_FIXTURE" are JS modules which get
     // imported by module tests. They should not be run as standalone tests.
     // See https://github.com/tc39/test262/blob/main/INTERPRETING.md#modules
     file_name.ends_with(".js") && !file_name.contains("_FIXTURE")
+}
+
+fn count_test_files(path: PathBuf) -> usize {
+    if let Ok(dir) = read_dir(&path) {
+        dir.fold(0, |count, entry| {
+            if let Ok(entry) = entry {
+                if entry.file_type().is_ok_and(|e| e.is_file())
+                    && entry.file_name().to_str().is_some_and(is_test_file)
+                {
+                    count + 1
+                } else {
+                    count + count_test_files(entry.path())
+                }
+            } else {
+                count
+            }
+        })
+    } else if path.is_file()
+        && path
+            .file_name()
+            .and_then(|path| path.to_str())
+            .is_some_and(is_test_file)
+    {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 #[derive(Default)]
@@ -936,7 +954,7 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
 
     let mut filters = TestFilters {
         allowlist: vec![],
-        denylist: SKIP_DIRS.iter().map(PathBuf::from).collect(),
+        denylist: vec![],
     };
 
     // Skip tests (skip.json)
@@ -967,6 +985,13 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
             };
             Some(relative.to_path_buf())
         }));
+    let num_tests_skip = filters.denylist.iter().fold(0, |r, filter| {
+        let Ok(canonical) = absolute(base_runner.tests_base.join(filter)) else {
+            return r;
+        };
+        assert!(canonical.is_absolute());
+        r + count_test_files(canonical)
+    });
 
     let runner = Test262Runner {
         inner: base_runner,
@@ -979,7 +1004,6 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
         Default::default()
     };
 
-    let num_tests_skip = filters.denylist.len();
     let mut metrics_mismatch = false;
     if args.update_metrics {
         let json = serde_json::to_value(Test262RunnerMetrics {
