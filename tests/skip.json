@@ -1,9 +1,18 @@
 {
   "//": [
     "These test262 tests will be skipped. Only add tests here if",
-    "they time out regularly."
+    "they time out regularly or should be skipped for other reasons.",
+    "",
+    "We always skip:",
+    "- `annexB`: Annex B of the ES specification defines legacy syntax, methods",
+    "  and other behaviors which are only needed for web compatibility. At this",
+    "  point we don't plan on implementing them.",
+    "- `intl402`: Tests for ECMA-402, which defines the `Intl`",
+    "  internationalization API. We currently have no plans to implement them.,"
   ],
   "skip": [
+    "annexB",
+    "intl402",
     "built-ins/Array/S15.4.5.2_A1_T1.js",
     "built-ins/Array/S15.4.5.2_A3_T3.js",
     "built-ins/Array/S15.4_A1.1_T10.js",
