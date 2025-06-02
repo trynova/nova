@@ -2725,6 +2725,7 @@
   "built-ins/RegExp/property-escapes/generated/General_Category_-_Surrogate.js": "CRASH",
   "built-ins/RegExp/property-escapes/generated/General_Category_-_Symbol.js": "FAIL",
   "built-ins/RegExp/property-escapes/generated/General_Category_-_Titlecase_Letter.js": "FAIL",
+  "built-ins/RegExp/property-escapes/generated/General_Category_-_Unassigned.js": "FAIL",
   "built-ins/RegExp/property-escapes/generated/General_Category_-_Uppercase_Letter.js": "FAIL",
   "built-ins/RegExp/property-escapes/generated/Grapheme_Base.js": "FAIL",
   "built-ins/RegExp/property-escapes/generated/Grapheme_Extend.js": "FAIL",
