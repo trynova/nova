@@ -13,6 +13,7 @@ mod function_declaration_instantiation;
 mod labelled_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
+use crate::ecmascript::execution::agent::ExceptionType;
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     syntax_directed_operations::{
@@ -1084,10 +1085,215 @@ impl<'s> CompileEvaluation<'s> for ast::ThisExpression {
     }
 }
 
+/// ## [15.5.5 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-generator-function-definitions-runtime-semantics-evaluation)
+///
+/// ### YieldExpression : yield * AssignmentExpression
+fn compile_delegate_yield_expression<'s>(
+    expr: &'s ast::YieldExpression<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    let assignment_expression = expr
+        .argument
+        .as_ref()
+        .expect("Unhandled SyntaxError: yield * requires an argument");
+    // 1. Let generatorKind be GetGeneratorKind().
+    let generator_kind_is_async = ctx.is_async();
+    // 2. Assert: generatorKind is either sync or async.
+    // 3. Let exprRef be ? Evaluation of AssignmentExpression.
+    assignment_expression.compile(ctx);
+    // 4. Let value be ? GetValue(exprRef).
+    if is_reference(assignment_expression) {
+        ctx.add_instruction(Instruction::GetValue);
+    }
+    // 5. Let iteratorRecord be ? GetIterator(value, generatorKind).
+    ctx.add_instruction(Instruction::GetIteratorSync);
+    // 6. Let iterator be iteratorRecord.[[Iterator]].
+    // 7. Let received be NormalCompletion(undefined).
+    // 8. Repeat,
+    let loop_start = ctx.get_jump_index_to_here();
+    // a. If received is a normal completion, then
+
+    // i. Let innerResult be ? Call(
+    //        iteratorRecord.[[NextMethod]],
+    //        iteratorRecord.[[Iterator]],
+    //        « received.[[Value]] »
+    //    ).
+    ctx.add_instruction(Instruction::IteratorCallNextMethod);
+    if generator_kind_is_async {
+        // ii. If generatorKind is async, set innerResult to
+        //     ? Await(innerResult).
+        ctx.add_instruction(Instruction::Await);
+    }
+    let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
+    // iii. If innerResult is not an Object, throw a TypeError exception.
+    // iv. Let done be ? IteratorComplete(innerResult).
+    // v. If done is true, then
+    //     1. Return ? IteratorValue(innerResult).
+
+    // vi. If generatorKind is async,
+    if generator_kind_is_async {
+        // set received to Completion(
+        //     AsyncGeneratorYield(? IteratorValue(innerResult))
+        // ).
+        ctx.add_instruction(Instruction::IteratorValue);
+    }
+    let jump_to_throw_handling = ctx.enter_try_catch_block();
+    // vii. Else, set received to Completion(GeneratorYield(innerResult)).
+    ctx.add_instruction(Instruction::Yield);
+    // Note: generators can be resumed with a Return instruction. For those
+    // cases we need to generate Return handling here.
+    let jump_over_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+    let return_label = ctx.get_jump_index_to_here();
+    let (jump_to_continue, jump_to_throw_handling_from_return_yield) = {
+        // ### Return result handling
+        // c. Else,
+        // i. Assert: received is a return completion.
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        let jump_over_return_call = ctx.add_instruction_with_jump_slot(Instruction::IteratorReturn);
+        // ii. Let return be ? GetMethod(iterator, "return").
+        // iii. If return is undefined, then ... (jump over return call)
+        // iv. Let innerReturnResult be
+        //     ? Call(return, iterator, « received.[[Value]] »).
+        // v. If generatorKind is async,
+        if generator_kind_is_async {
+            // set innerReturnResult to ? Await(innerReturnResult).
+            ctx.add_instruction(Instruction::Await);
+        }
+        // vi. If innerReturnResult is not an Object, throw a TypeError exception.
+        // vii. Let done be ? IteratorComplete(innerReturnResult).
+        // viii. If done is true, then
+        //     1. Set value to ? IteratorValue(innerReturnResult).
+        //     2. Return ReturnCompletion(value).
+        let jump_to_return = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
+        // ix. If generatorKind is async,
+        if generator_kind_is_async {
+            // set received to Completion(
+            //     AsyncGeneratorYield(? IteratorValue(innerReturnResult))
+            // ).
+            ctx.add_instruction(Instruction::IteratorValue);
+        }
+        // x. Else, set received to
+        //    Completion(GeneratorYield(innerReturnResult)).
+        // NOTE: If Yield throws, we jump to throw handling.
+        let jump_to_throw_handling = ctx.enter_try_catch_block();
+        ctx.add_instruction(Instruction::Yield);
+        // NOTE: If Yield continues normally, we jump to continue.
+        let jump_to_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        // NOTE: If Yield returns, we jump back up to return handling.
+        ctx.add_jump_instruction_to_index(Instruction::Jump, return_label.clone());
+        // Note: We purposefully exit the yield catch block here: this will pop
+        // the CompileContext bookkeeping but will not add an instruction
+        // because this instruction address is currently unreachable.
+        // This is as we want it, since the yield will throw, which goes to a
+        // catch block and pops the exception stack, or will go to continue
+        // where exit-try-catch-block is done again, or will go to return
+        // where we start with a PoExceptionJumpTarget.
+        ctx.exit_try_catch_block();
+
+        ctx.set_jump_target_here(jump_over_return_call);
+        // 1. Set value to received.[[Value]].
+        // 2. If generatorKind is async, then
+        if generator_kind_is_async {
+            // a. Set value to ? Await(value).
+            ctx.add_instruction(Instruction::Await);
+        }
+        ctx.set_jump_target_here(jump_to_return);
+        // 3. Return ReturnCompletion(value).
+        ctx.compile_return();
+        (jump_to_continue, jump_to_throw_handling)
+    };
+
+    ctx.set_jump_target_here(jump_over_return);
+    ctx.set_jump_target_here(jump_to_continue);
+    let continue_label = ctx.get_jump_index_to_here();
+    // NOTE: this here is the last part of the normal completion handling.
+    ctx.exit_try_catch_block();
+    ctx.add_jump_instruction_to_index(Instruction::Jump, loop_start);
+    {
+        // ### Throw result handling
+        ctx.set_jump_target_here(jump_to_throw_handling);
+        ctx.set_jump_target_here(jump_to_throw_handling_from_return_yield);
+        let throw_label = ctx.get_jump_index_to_here();
+        // b. Else if received is a throw completion, then
+        // i. Let throw be ? GetMethod(iterator, "throw").
+        let jump_over_throw_call = ctx.add_instruction_with_jump_slot(Instruction::IteratorThrow);
+        // ii. If throw is not undefined, then
+        // 1. Let innerResult be ? Call(throw, iterator, « received.[[Value]] »).
+        // 2. If generatorKind is async,
+        if generator_kind_is_async {
+            // set innerResult to ? Await(innerResult).
+            ctx.add_instruction(Instruction::Await);
+        }
+        // 3. NOTE: Exceptions from the inner iterator throw method are
+        //    propagated. Normal completions from an inner throw method are
+        //    processed similarly to an inner next.
+        // 4. If innerResult is not an Object, throw a TypeError exception.
+        // 5. Let done be ? IteratorComplete(innerResult).
+        // 6. If done is true, then
+        //        a. Return ? IteratorValue(innerResult).
+        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
+        // 7. If generatorKind is async,
+        if generator_kind_is_async {
+            // set received to Completion(
+            //     AsyncGeneratorYield(? IteratorValue(innerResult))
+            // ).
+            ctx.add_instruction(Instruction::IteratorValue);
+        }
+        // 8. Else, set received to Completion(GeneratorYield(innerResult)).
+        // NOTE: If Yield throws, we jump back up to throw handling.
+        let jump_to_catch_block = ctx.enter_try_catch_block();
+        ctx.set_jump_target(jump_to_catch_block, throw_label);
+        ctx.add_instruction(Instruction::Yield);
+        // NOTE: If Yield continues normally, we jump to continue.
+        let jump_to_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.set_jump_target(jump_to_continue, continue_label);
+        // NOTE: If Yield returns, we jump to return handling.
+        ctx.add_jump_instruction_to_index(Instruction::Jump, return_label);
+        // Note: We purposefully exit the yield catch block here: this will pop
+        // the CompileContext bookkeeping but will not add an instruction
+        // because this instruction address is currently unreachable.
+        ctx.exit_try_catch_block();
+
+        // iii. Else,
+        ctx.set_jump_target_here(jump_over_throw_call);
+        // 1. NOTE: If iterator does not have a throw method, this throw is
+        //    going to terminate the yield* loop. But first we need to give
+        //    iterator a chance to clean up.
+        // 2. Let closeCompletion be NormalCompletion(empty).
+        // 3. If generatorKind is async,
+        if generator_kind_is_async {
+            // perform ? AsyncIteratorClose(iteratorRecord, closeCompletion).
+            ctx.add_instruction(Instruction::AsyncIteratorClose);
+            // If async iterator close returned a Value, then it'll push the previous
+            // result value into the stack and perform an implicit Await.
+            // We should verify that the result of the await is an object, and then
+            // return the original result.
+            let error_message = ctx.create_string("iterator.return() returned a non-object value");
+            ctx.add_instruction_with_identifier(Instruction::VerifyIsObject, error_message);
+            ctx.add_instruction(Instruction::Store);
+        } else {
+            // 4. Else, perform ? IteratorClose(iteratorRecord, closeCompletion).
+            ctx.add_instruction(Instruction::IteratorClose);
+        }
+        // 5. NOTE: The next step throws a TypeError to indicate that there was
+        //    a yield* protocol violation: iterator does not have a throw
+        //    method.
+        // 6. Throw a TypeError exception.
+        let error_message = ctx.create_string("iterator does not have a throw method");
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, error_message);
+        ctx.add_instruction_with_immediate(
+            Instruction::ThrowError,
+            ExceptionType::TypeError as usize,
+        );
+        ctx.set_jump_target_here(jump_to_end);
+    }
+    ctx.set_jump_target_here(jump_to_end);
+}
+
 impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.delegate {
-            todo!("`yield*` is not yet supported");
+            return compile_delegate_yield_expression(self, ctx);
         }
         if let Some(arg) = &self.argument {
             // YieldExpression : yield AssignmentExpression
@@ -1103,6 +1309,28 @@ impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
         // 3. Return ? Yield(value).
+        // ### 27.5.3.7 Yield ( value )
+        // 1. Let generatorKind be GetGeneratorKind().
+        let generator_kind_is_async = ctx.is_async();
+        // 2. If generatorKind is async, return ? AsyncGeneratorYield(? Await(value)).
+        if generator_kind_is_async {
+            ctx.add_instruction(Instruction::Await);
+        } else {
+            // 3. Otherwise, return ? GeneratorYield(CreateIteratorResultObject(value, false)).
+            ctx.add_instruction(Instruction::ObjectCreate);
+            ctx.add_instruction_with_constant(
+                Instruction::LoadConstant,
+                BUILTIN_STRING_MEMORY.value,
+            );
+            ctx.add_instruction(Instruction::ObjectDefineProperty);
+            ctx.add_instruction_with_constant(
+                Instruction::LoadConstant,
+                BUILTIN_STRING_MEMORY.done,
+            );
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, false.into_value());
+            ctx.add_instruction(Instruction::ObjectDefineProperty);
+            ctx.add_instruction(Instruction::Store);
+        }
         ctx.add_instruction(Instruction::Yield);
         // Note: generators can be resumed with a Return instruction. For those
         // cases we need to generate Return handling here.
@@ -1305,14 +1533,14 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
         // anything special here.
         // 4. Return ? result.
         ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-        let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        let jump_over_catch_and_exit = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         {
             // catch handling, we have to call IteratorClose with the error.
             ctx.set_jump_target_here(jump_to_catch);
             ctx.add_instruction(Instruction::IteratorCloseWithError);
         }
-        ctx.set_jump_target_here(jump_over_catch);
         ctx.exit_iterator(None);
+        ctx.set_jump_target_here(jump_over_catch_and_exit);
     }
 }
 

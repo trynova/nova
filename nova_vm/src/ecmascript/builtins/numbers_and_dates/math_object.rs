@@ -1721,6 +1721,7 @@ impl MathObject {
         }) = get_iterator(agent, items.unbind(), false, gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
+            .into_iterator_record()
         else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };

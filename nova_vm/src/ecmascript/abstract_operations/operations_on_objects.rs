@@ -46,6 +46,8 @@ use crate::{
     heap::{Heap, ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
+use super::operations_on_iterator_objects::MaybeInvalidIteratorRecord;
+
 /// ### [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
 ///
 /// The abstract operation Get takes arguments O (an Object) and P (a property
@@ -2688,11 +2690,10 @@ pub(crate) fn group_by_property<'gc>(
     let mut groups = KeyedGroup::new(gc.nogc()).scope(agent, gc.nogc());
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
-    let Some(IteratorRecord {
+    let MaybeInvalidIteratorRecord {
         iterator,
-        next_method,
-        ..
-    }) = get_iterator(agent, items.unbind(), false, gc.reborrow())
+        next_method: Some(next_method),
+    } = get_iterator(agent, items.unbind(), false, gc.reborrow())
         .unbind()?
         .bind(gc.nogc())
     else {
@@ -2823,11 +2824,10 @@ pub(crate) fn group_by_collection<'gc>(
     let mut groups = KeyedGroup::new(gc.nogc()).scope(agent, gc.nogc());
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
-    let Some(IteratorRecord {
+    let MaybeInvalidIteratorRecord {
         iterator,
-        next_method,
-        ..
-    }) = get_iterator(agent, items.unbind(), false, gc.reborrow())
+        next_method: Some(next_method),
+    } = get_iterator(agent, items.unbind(), false, gc.reborrow())
         .unbind()?
         .bind(gc.nogc())
     else {

@@ -15,4 +15,5 @@ pub(crate) use executable::{
     Executable, ExecutableHeapData, FunctionExpression, IndexType, SendableRef,
 };
 pub(crate) use instructions::{Instruction, InstructionIter};
+pub(crate) use iterator::VmIteratorRecord;
 pub(crate) use vm::{ExecutionResult, SuspendedVm, Vm, instanceof_operator};

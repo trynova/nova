@@ -249,6 +249,7 @@ pub(crate) struct CompileFunctionBodyData<'a> {
     pub(crate) is_strict: bool,
     pub(crate) is_lexical: bool,
     pub(crate) is_concise_body: bool,
+    pub(crate) is_async: bool,
 }
 
 impl CompileFunctionBodyData<'_> {
@@ -267,6 +268,7 @@ impl CompileFunctionBodyData<'_> {
             is_strict: ecmascript_function.strict,
             is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
             is_concise_body: ecmascript_function.is_concise_arrow_function,
+            is_async: ecmascript_function.is_async,
         }
     }
 }

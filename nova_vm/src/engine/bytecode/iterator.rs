@@ -8,19 +8,25 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                IteratorRecord, get_iterator_from_method, iterator_close_with_value,
+                IteratorRecord, async_iterator_close_with_value, create_iter_result_object,
+                get_iterator_from_method, iterator_close_with_value,
             },
-            operations_on_objects::{call_function, get, get_method, throw_not_callable},
+            operations_on_objects::{
+                call_function, get, get_method, get_object_method, throw_not_callable,
+            },
             type_conversion::to_boolean,
         },
         builtins::{
-            Array, ScopedArgumentsList,
+            ArgumentsList, Array, ScopedArgumentsList,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, JsError},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
-            PropertyKeySet, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyKey, PropertyKeySet, Value,
         },
     },
     engine::{
@@ -37,6 +43,17 @@ pub struct ActiveIterator<'a> {
     scope: PhantomData<&'a ScopeToken>,
 }
 
+fn convert_to_iter_result_object<'a>(
+    agent: &mut Agent,
+    result: Option<Value<'a>>,
+) -> OrdinaryObject<'a> {
+    if let Some(result) = result {
+        create_iter_result_object(agent, result, false)
+    } else {
+        create_iter_result_object(agent, Value::Undefined, true)
+    }
+}
+
 impl<'a> ActiveIterator<'a> {
     pub(super) fn new(agent: &Agent, _: NoGcScope<'_, 'a>) -> Self {
         let iterator = Self { scope: PhantomData };
@@ -50,13 +67,83 @@ impl<'a> ActiveIterator<'a> {
         Self { scope: PhantomData }
     }
 
+    pub(super) fn call_next<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        value: Option<Value>,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        match self.get(agent) {
+            VmIteratorRecord::InvalidIterator { .. } => {
+                Err(throw_not_callable(agent, gc.into_nogc()).unbind())
+            }
+            VmIteratorRecord::ObjectProperties(_) => {
+                // I believe it is impossible to do yield* on object properties.
+                unreachable!()
+            }
+            VmIteratorRecord::ArrayValues(_) => ArrayValuesIterator::new(self)
+                .next(agent, gc)
+                .map(|r| convert_to_iter_result_object(agent, r).into_value()),
+            VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
+                GenericIterator::new(self).call_next(agent, value, gc)
+            }
+            VmIteratorRecord::GenericIterator(_) => {
+                GenericIterator::new(self).call_next(agent, value, gc)
+            }
+            VmIteratorRecord::SliceIterator(slice_ref) => Ok(convert_to_iter_result_object(
+                agent,
+                slice_ref.unshift(agent, gc.into_nogc()),
+            )
+            .into_value()),
+            VmIteratorRecord::EmptySliceIterator => {
+                Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
+            }
+        }
+    }
+
+    pub(super) fn throw<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        received_value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        match self.get(agent) {
+            VmIteratorRecord::ArrayValues(_) => {
+                ArrayValuesIterator::new(self).throw(agent, received_value, gc)
+            }
+            VmIteratorRecord::AsyncFromSyncGenericIterator(_)
+            | VmIteratorRecord::GenericIterator(_) => {
+                GenericIterator::new(self).throw(agent, received_value, gc)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    pub(super) fn r#return<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        received_value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        match self.get(agent) {
+            VmIteratorRecord::ArrayValues(_) => {
+                ArrayValuesIterator::new(self).r#return(agent, received_value, gc)
+            }
+            VmIteratorRecord::AsyncFromSyncGenericIterator(_)
+            | VmIteratorRecord::GenericIterator(_) => {
+                GenericIterator::new(self).r#return(agent, received_value, gc)
+            }
+            _ => unreachable!(),
+        }
+    }
+
     pub(super) fn step_value<'gc>(
         &mut self,
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         match self.get(agent) {
-            VmIteratorRecord::InvalidIterator => {
+            VmIteratorRecord::InvalidIterator { .. } => {
                 Err(throw_not_callable(agent, gc.into_nogc()).unbind())
             }
             VmIteratorRecord::ObjectProperties(_) => {
@@ -64,9 +151,11 @@ impl<'a> ActiveIterator<'a> {
             }
             VmIteratorRecord::ArrayValues(_) => ArrayValuesIterator::new(self).next(agent, gc),
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
-                GenericIterator::new(self).next(agent, gc)
+                GenericIterator::new(self).step_value(agent, gc)
             }
-            VmIteratorRecord::GenericIterator(_) => GenericIterator::new(self).next(agent, gc),
+            VmIteratorRecord::GenericIterator(_) => {
+                GenericIterator::new(self).step_value(agent, gc)
+            }
             VmIteratorRecord::SliceIterator(slice_ref) => {
                 Ok(slice_ref.unshift(agent, gc.into_nogc()))
             }
@@ -94,9 +183,11 @@ impl<'a> ActiveIterator<'a> {
 }
 
 #[derive(Debug)]
-pub enum VmIteratorRecord<'a> {
+pub(crate) enum VmIteratorRecord<'a> {
     /// Special type for iterators that do not have a callable next method.
-    InvalidIterator,
+    InvalidIterator {
+        iterator: Object<'a>,
+    },
     ObjectProperties(Box<ObjectPropertiesIteratorRecord<'a>>),
     ArrayValues(ArrayValuesIteratorRecord<'a>),
     AsyncFromSyncGenericIterator(IteratorRecord<'a>),
@@ -105,10 +196,10 @@ pub enum VmIteratorRecord<'a> {
     EmptySliceIterator,
 }
 
-impl VmIteratorRecord<'_> {
+impl<'a> VmIteratorRecord<'a> {
     pub(super) fn remaining_length_estimate(&self, agent: &Agent) -> Option<usize> {
         match self {
-            VmIteratorRecord::InvalidIterator => None,
+            VmIteratorRecord::InvalidIterator { .. } => Some(0),
             VmIteratorRecord::ObjectProperties(iter) => {
                 Some(iter.remaining_keys.as_ref().map_or(0, |k| k.len()))
             }
@@ -124,8 +215,7 @@ impl VmIteratorRecord<'_> {
 
     pub(super) fn requires_return_call(&self, agent: &mut Agent, gc: NoGcScope) -> bool {
         match self {
-            VmIteratorRecord::InvalidIterator
-            | VmIteratorRecord::ObjectProperties(_)
+            VmIteratorRecord::ObjectProperties(_)
             | VmIteratorRecord::SliceIterator(_)
             | VmIteratorRecord::EmptySliceIterator => false,
             VmIteratorRecord::ArrayValues(_) => {
@@ -156,12 +246,13 @@ impl VmIteratorRecord<'_> {
                     TryResult::Break(_) => true,
                 }
             }
-            VmIteratorRecord::GenericIterator(iter)
-            | VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => {
-                match iter.iterator.try_get(
+            VmIteratorRecord::InvalidIterator { iterator }
+            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
+            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
+                match iterator.try_get(
                     agent,
                     BUILTIN_STRING_MEMORY.r#return.into(),
-                    iter.iterator.into_value(),
+                    iterator.into_value(),
                     gc,
                 ) {
                     TryResult::Continue(return_method) => {
@@ -176,28 +267,101 @@ impl VmIteratorRecord<'_> {
         }
     }
 
-    pub(super) fn close_iterator<'a>(
+    pub(super) fn requires_throw_call(&self, agent: &mut Agent, gc: NoGcScope) -> bool {
+        match self {
+            VmIteratorRecord::ObjectProperties(_)
+            | VmIteratorRecord::SliceIterator(_)
+            | VmIteratorRecord::EmptySliceIterator => false,
+            VmIteratorRecord::ArrayValues(_) => {
+                // Note: no one can access the array values iterator while it is
+                // iterating so we know its prototype is the intrinsic
+                // ArrayIteratorPrototype. But that may have a throw method
+                // set on it by a horrible-horrible person somewhere.
+                // TODO: This should actually maybe be the proto of the Array's
+                // realm?
+                let array_iterator_prototype = agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .array_iterator_prototype();
+                // IteratorClose calls GetMethod on the iterator: if a
+                // non-nullable value is found this way then things happen.
+                match array_iterator_prototype.try_get(
+                    agent,
+                    BUILTIN_STRING_MEMORY.throw.into(),
+                    array_iterator_prototype.into_value(),
+                    gc,
+                ) {
+                    TryResult::Continue(return_method) => {
+                        !return_method.is_undefined() && !return_method.is_null()
+                    }
+                    // Note: here it's still possible that we won't actually
+                    // call a return method but this break already means that
+                    // the user can observe the ArrayIterator object.
+                    TryResult::Break(_) => true,
+                }
+            }
+            VmIteratorRecord::InvalidIterator { iterator }
+            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
+            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
+                match iterator.try_get(
+                    agent,
+                    BUILTIN_STRING_MEMORY.throw.into(),
+                    iterator.into_value(),
+                    gc,
+                ) {
+                    TryResult::Continue(return_method) => {
+                        !return_method.is_undefined() && !return_method.is_null()
+                    }
+                    // Note: here it's still possible that we won't actually
+                    // call a return method but this break already means that
+                    // we'll need garbage collection.
+                    TryResult::Break(_) => true,
+                }
+            }
+        }
+    }
+
+    pub(super) fn is_arguments_iterator(&self) -> bool {
+        matches!(self, VmIteratorRecord::SliceIterator(_))
+    }
+
+    pub(super) fn close_with_value(
         self,
         agent: &mut Agent,
         completion: Value,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, Value<'a>> {
         match self {
-            VmIteratorRecord::InvalidIterator
-            | VmIteratorRecord::ObjectProperties(_)
+            VmIteratorRecord::ObjectProperties(_)
             | VmIteratorRecord::SliceIterator(_)
-            | VmIteratorRecord::EmptySliceIterator => unreachable!(),
-            VmIteratorRecord::ArrayValues(iter) => {
-                // We need to create the ArrayIterator object for user to
-                // interact with.
-                let ArrayValuesIteratorRecord { array, index } = iter;
-                let array = array.bind(gc.nogc());
-                let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
-                iterator_close_with_value(agent, iter.into_object().unbind(), completion, gc)
+            | VmIteratorRecord::EmptySliceIterator => {
+                unreachable!()
             }
-            VmIteratorRecord::GenericIterator(iter)
-            | VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => {
-                iterator_close_with_value(agent, iter.iterator, completion, gc)
+            VmIteratorRecord::ArrayValues(iter) => iter.close_with_value(agent, completion, gc),
+            VmIteratorRecord::InvalidIterator { iterator }
+            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
+            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
+                iterator_close_with_value(agent, iterator, completion, gc)
+            }
+        }
+    }
+
+    pub(super) fn async_close_with_value(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Option<Value<'a>>> {
+        match self {
+            VmIteratorRecord::ObjectProperties(_)
+            | VmIteratorRecord::SliceIterator(_)
+            | VmIteratorRecord::EmptySliceIterator => {
+                unreachable!()
+            }
+            VmIteratorRecord::ArrayValues(iter) => iter.async_close_with_value(agent, gc),
+            VmIteratorRecord::InvalidIterator { iterator }
+            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
+            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
+                async_iterator_close_with_value(agent, iterator, gc)
             }
         }
     }
@@ -209,7 +373,7 @@ impl VmIteratorRecord<'_> {
     /// Iterator Record or a throw completion.
     ///
     /// This method version performs the SYNC version of the method.
-    pub(super) fn from_value<'a>(
+    pub(super) fn from_value(
         agent: &mut Agent,
         obj: Value,
         mut gc: GcScope<'a, '_>,
@@ -227,11 +391,7 @@ impl VmIteratorRecord<'_> {
         .bind(gc.nogc());
         // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Iterator method cannot be undefined",
-                gc.into_nogc(),
-            ));
+            return Err(throw_iterator_method_undefined(agent, gc.into_nogc()));
         };
 
         // SAFETY: scoped_value is not shared.
@@ -252,15 +412,10 @@ impl VmIteratorRecord<'_> {
                     ArrayValuesIteratorRecord::new(array.unbind()),
                 ))
             }
-            _ => {
-                if let Some(js_iterator) =
-                    get_iterator_from_method(agent, value.unbind(), method.unbind(), gc)?
-                {
-                    Ok(VmIteratorRecord::GenericIterator(js_iterator.unbind()))
-                } else {
-                    Ok(VmIteratorRecord::InvalidIterator)
-                }
-            }
+            _ => Ok(
+                get_iterator_from_method(agent, value.unbind(), method.unbind(), gc)?
+                    .into_vm_iterator_record(),
+            ),
         }
     }
 
@@ -271,7 +426,7 @@ impl VmIteratorRecord<'_> {
     /// Iterator Record or a throw completion.
     ///
     /// This method version performs the ASYNC version of the method.
-    pub(super) fn async_from_value<'a>(
+    pub(super) fn async_from_value(
         agent: &mut Agent,
         obj: Value,
         mut gc: GcScope<'a, '_>,
@@ -302,16 +457,15 @@ impl VmIteratorRecord<'_> {
             Ok(VmIteratorRecord::ArrayValues(
                 ArrayValuesIteratorRecord::new(array.unbind()),
             ))
-        } else if let Some(js_iterator) =
-            get_iterator_from_method(agent, obj.unbind(), method.unbind(), gc)?
-        {
-            Ok(VmIteratorRecord::GenericIterator(js_iterator.unbind()))
         } else {
-            Ok(VmIteratorRecord::InvalidIterator)
+            Ok(
+                get_iterator_from_method(agent, obj.unbind(), method.unbind(), gc)?
+                    .into_vm_iterator_record(),
+            )
         }
     }
 
-    fn async_from_sync_value<'a>(
+    fn async_from_sync_value(
         agent: &mut Agent,
         obj: Scoped<Value>,
         mut gc: GcScope<'a, '_>,
@@ -327,25 +481,16 @@ impl VmIteratorRecord<'_> {
         .bind(gc.nogc());
         // ii. If syncMethod is undefined, throw a TypeError exception.
         let Some(sync_method) = sync_method else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Iterator method cannot be undefined",
-                gc.into_nogc(),
-            ));
+            return Err(throw_iterator_method_undefined(agent, gc.into_nogc()));
         };
         // SAFETY: obj is not shared.
         let obj = unsafe { obj.take(agent) }.bind(gc.nogc());
         // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
         // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
-        if let Some(js_iterator) =
+        Ok(
             get_iterator_from_method(agent, obj.unbind(), sync_method.unbind(), gc)?
-        {
-            Ok(VmIteratorRecord::AsyncFromSyncGenericIterator(
-                js_iterator.unbind(),
-            ))
-        } else {
-            Ok(VmIteratorRecord::InvalidIterator)
-        }
+                .into_vm_iterator_record(),
+        )
     }
 }
 
@@ -566,6 +711,62 @@ impl<'a> ArrayValuesIterator<'a> {
         Ok(Some(element_value))
     }
 
+    fn throw<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        _received_value: Value,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        // 1. Let throw be ? GetMethod(iterator, "throw").
+        let throw = get_object_method(
+            agent,
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .array_prototype()
+                .into_object(),
+            BUILTIN_STRING_MEMORY.throw.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 2. If throw is not undefined, then
+        if let Some(throw) = throw {
+            // i. Let innerResult be
+            //    ? Call(throw, iterator, « received.[[Value]] »).
+            todo!("Handle ArrayValuesIterator with throw method {throw:?}");
+        }
+        Ok(None)
+    }
+
+    fn r#return<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        _received_value: Value,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        // 1. Let return be ? GetMethod(iterator, "return").
+        let r#return = get_object_method(
+            agent,
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .array_prototype()
+                .into_object(),
+            BUILTIN_STRING_MEMORY.r#return.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 2. If return is not undefined, then
+        if let Some(r#return) = r#return {
+            // i. Let innerResult be
+            //    ? Call(return, iterator, « received.[[Value]] »).
+            todo!("Handle ArrayValuesIterator with return method {return:?}");
+        }
+        Ok(None)
+    }
+
     fn prep_step<'gc>(
         &mut self,
         agent: &mut Agent,
@@ -606,6 +807,34 @@ impl<'a> ArrayValuesIteratorRecord<'a> {
             index: 0,
         }
     }
+
+    fn close_with_value<'gc>(
+        self,
+        agent: &mut Agent,
+        completion: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let ArrayValuesIteratorRecord { array, index } = self;
+        let array = array.bind(gc.nogc());
+        let completion = completion.bind(gc.nogc());
+        // We need to create the ArrayIterator object for user to
+        // interact with.
+        let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
+        iterator_close_with_value(agent, iter.into_object().unbind(), completion.unbind(), gc)
+    }
+
+    fn async_close_with_value<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        let ArrayValuesIteratorRecord { array, index } = self;
+        let array = array.bind(gc.nogc());
+        // We need to create the ArrayIterator object for user to
+        // interact with.
+        let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
+        async_iterator_close_with_value(agent, iter.into_object().unbind(), gc)
+    }
 }
 
 struct GenericIterator<'a> {
@@ -619,7 +848,41 @@ impl<'a> GenericIterator<'a> {
         }
     }
 
-    fn next<'gc>(
+    fn call_next<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        value: Option<Value>,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let iter = self.get(agent);
+        let next_method = iter.next_method.bind(gc.nogc());
+        let iterator = iter.iterator.bind(gc.nogc());
+        let value = value.bind(gc.nogc());
+
+        // 1. If value is not present, then
+        if let Some(value) = value {
+            // 2. Else,
+            // a. Let result be Completion(Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « value »)).
+            call_function(
+                agent,
+                next_method.unbind(),
+                iterator.into_value().unbind(),
+                Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+                gc,
+            )
+        } else {
+            // a. Let result be Completion(Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]])).
+            call_function(
+                agent,
+                next_method.unbind(),
+                iterator.into_value().unbind(),
+                None,
+                gc,
+            )
+        }
+    }
+
+    fn step_value<'gc>(
         &mut self,
         agent: &mut Agent,
         mut gc: GcScope<'gc, '_>,
@@ -638,11 +901,7 @@ impl<'a> GenericIterator<'a> {
         .unbind()?
         .bind(gc.nogc());
         let Ok(result) = Object::try_from(result) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Iterator returned a non-object result",
-                gc.into_nogc(),
-            ));
+            return Err(throw_iterator_returned_non_object(agent, gc.into_nogc()));
         };
         let result = result.unbind().bind(gc.nogc());
         let scoped_result = result.scope(agent, gc.nogc());
@@ -667,6 +926,78 @@ impl<'a> GenericIterator<'a> {
                 gc,
             )?;
             Ok(Some(value))
+        }
+    }
+
+    fn throw<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        received_value: Value,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        let received_value = received_value.scope(agent, gc.nogc());
+        let iterator = self.get(agent).iterator.bind(gc.nogc());
+        // 1. Let throw be ? GetMethod(iterator, "throw").
+        let throw = get_object_method(
+            agent,
+            iterator.unbind(),
+            BUILTIN_STRING_MEMORY.throw.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 2. If throw is not undefined, then
+        if let Some(throw) = throw {
+            let iterator = self.get(agent).iterator.bind(gc.nogc());
+            // i. Return Call(throw, iterator, « received.[[Value]] »).
+            Ok(Some(call_function(
+                agent,
+                throw.unbind(),
+                iterator.into_value().unbind(),
+                // SAFETY: not shared.
+                Some(ArgumentsList::from_mut_value(&mut unsafe {
+                    received_value.take(agent)
+                })),
+                gc,
+            )?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn r#return<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        received_value: Value,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Option<Value<'gc>>> {
+        let received_value = received_value.scope(agent, gc.nogc());
+        let iterator = self.get(agent).iterator.bind(gc.nogc());
+        // 1. Let return be ? GetMethod(iterator, "return").
+        let r#return = get_object_method(
+            agent,
+            iterator.unbind(),
+            BUILTIN_STRING_MEMORY.r#return.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 2. If return is not undefined, then
+        if let Some(r#return) = r#return {
+            let iterator = self.get(agent).iterator.bind(gc.nogc());
+            // i. Return Call(return, iterator, « received.[[Value]] »).
+            Ok(Some(call_function(
+                agent,
+                r#return.unbind(),
+                iterator.into_value().unbind(),
+                // SAFETY: not shared.
+                Some(ArgumentsList::from_mut_value(&mut unsafe {
+                    received_value.take(agent)
+                })),
+                gc,
+            )?))
+        } else {
+            Ok(None)
         }
     }
 
@@ -724,7 +1055,7 @@ impl HeapMarkAndSweep for ArrayValuesIteratorRecord<'static> {
 impl HeapMarkAndSweep for VmIteratorRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            VmIteratorRecord::InvalidIterator => {}
+            VmIteratorRecord::InvalidIterator { iterator } => iterator.mark_values(queues),
             VmIteratorRecord::ObjectProperties(iter) => iter.mark_values(queues),
             VmIteratorRecord::ArrayValues(iter) => iter.mark_values(queues),
             VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter.mark_values(queues),
@@ -736,7 +1067,7 @@ impl HeapMarkAndSweep for VmIteratorRecord<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            VmIteratorRecord::InvalidIterator => {}
+            VmIteratorRecord::InvalidIterator { iterator } => iterator.sweep_values(compactions),
             VmIteratorRecord::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIteratorRecord::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter.sweep_values(compactions),
@@ -745,4 +1076,23 @@ impl HeapMarkAndSweep for VmIteratorRecord<'static> {
             VmIteratorRecord::EmptySliceIterator => {}
         }
     }
+}
+
+pub(crate) fn throw_iterator_returned_non_object<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "Iterator returned a non-object result",
+        gc,
+    )
+}
+
+fn throw_iterator_method_undefined<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<'a> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "Iterator method cannot be undefined",
+        gc,
+    )
 }

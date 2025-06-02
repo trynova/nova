@@ -4,10 +4,7 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::iterator_close_with_value,
-            operations_on_objects::{get, try_create_data_property_or_throw},
-        },
+        abstract_operations::operations_on_objects::{get, try_create_data_property_or_throw},
         execution::{Agent, JsResult},
         types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
     },
@@ -123,7 +120,11 @@ pub(super) fn execute_simple_array_binding<'a>(
 
         match instr.kind {
             Instruction::BindingPatternSkip => {
-                continue;
+                if break_after_bind {
+                    break;
+                } else {
+                    continue;
+                }
             }
             Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
                 let value = value.unbind();
@@ -196,18 +197,17 @@ pub(super) fn execute_simple_array_binding<'a>(
     // NOTE: `result` here is always UNUSED. We use `undefined` as a stand-in
     // since that way we don't need to implement a separate iterator_close.
     if !iterator_is_done {
-        if let VmIteratorRecord::GenericIterator(iterator_record) = vm.get_active_iterator() {
-            let iterator = iterator_record.iterator.unbind();
-            with_vm_gc(
+        let iter = vm.get_active_iterator_mut();
+        if iter.requires_return_call(agent, gc.nogc()) {
+            let result = with_vm_gc(
                 agent,
                 vm,
                 |agent, gc| {
-                    iterator_close_with_value(agent, iterator, Value::Undefined, gc)?;
-                    JsResult::Ok(())
+                    ActiveIterator::new(agent, gc.nogc()).r#return(agent, Value::Undefined, gc)
                 },
                 gc,
-            )
-            .unbind()?;
+            )?;
+            vm.result = result.unbind();
         }
     }
 

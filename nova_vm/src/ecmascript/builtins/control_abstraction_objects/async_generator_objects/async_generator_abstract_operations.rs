@@ -130,6 +130,7 @@ fn async_generator_complete_step(
     realm: Option<Realm>,
     gc: NoGcScope,
 ) {
+    let completion = completion.bind(gc);
     // 1. Assert: generator.[[AsyncGeneratorQueue]] is not empty.
     assert!(!generator.queue_is_empty(agent));
     // 2. Let next be the first element of generator.[[AsyncGeneratorQueue]].
@@ -161,7 +162,7 @@ fn async_generator_complete_step(
             agent.set_current_realm(realm);
         }
         // iii. Let iteratorResult be CreateIteratorResultObject(value, done).
-        let iterator_result = create_iter_result_object(agent, value, done, gc);
+        let iterator_result = create_iter_result_object(agent, value, done);
         // iv. Set the running execution context's Realm to oldRealm.
         if set_realm {
             agent.set_current_realm(old_realm);
@@ -170,7 +171,7 @@ fn async_generator_complete_step(
     } else {
         // c. Else,
         // i. Let iteratorResult be CreateIteratorResultObject(value, done).
-        create_iter_result_object(agent, value, done, gc)
+        create_iter_result_object(agent, value, done)
     };
     // d. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
     unwrap_try(promise_capability.try_resolve(agent, iterator_result.into_value(), gc));

@@ -53,7 +53,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Object<'a>> {
+    ) -> JsResult<'a, Value<'a>> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -70,12 +70,7 @@ impl Generator<'_> {
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
-                return Ok(create_iter_result_object(
-                    agent,
-                    Value::Undefined,
-                    true,
-                    gc.into_nogc(),
-                ));
+                return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
             }
         };
 
@@ -141,7 +136,7 @@ impl Generator<'_> {
                 // j. Else if result is a return completion, then
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
-                Ok(create_iter_result_object(agent, result_value, true, gc))
+                Ok(create_iter_result_object(agent, result_value, true).into_value())
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -168,7 +163,7 @@ impl Generator<'_> {
                     }));
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
                 // NOTE: `callerContext` here is the `GeneratorResume` execution context.
-                Ok(create_iter_result_object(agent, yielded_value, false, gc))
+                Ok(yielded_value)
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -181,7 +176,7 @@ impl Generator<'_> {
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Object<'a>> {
+    ) -> JsResult<'a, Value<'a>> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -266,7 +261,7 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(agent, result, true, gc))
+                Ok(create_iter_result_object(agent, result.unbind(), true).into_value())
             }
             ExecutionResult::Throw(err) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
@@ -279,7 +274,7 @@ impl Generator<'_> {
                         executable: executable.unbind(),
                         execution_context,
                     }));
-                Ok(create_iter_result_object(agent, yielded_value, false, gc))
+                Ok(yielded_value.unbind())
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -311,13 +306,9 @@ impl Generator<'_> {
 
                 // 3. If abruptCompletion is a return completion, then
                 // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
-                return Ok(create_iter_result_object(
-                    agent,
-                    abrupt_completion.unbind(),
-                    true,
-                    gc.into_nogc(),
-                )
-                .into_value());
+                return Ok(
+                    create_iter_result_object(agent, abrupt_completion.unbind(), true).into_value(),
+                );
             }
             GeneratorState::Suspended { .. } => {
                 // 4. Assert: state is suspended-yield.
@@ -332,13 +323,9 @@ impl Generator<'_> {
             GeneratorState::Completed => {
                 // 3. If abruptCompletion is a return completion, then
                 // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
-                return Ok(create_iter_result_object(
-                    agent,
-                    abrupt_completion.unbind(),
-                    true,
-                    gc.into_nogc(),
-                )
-                .into_value());
+                return Ok(
+                    create_iter_result_object(agent, abrupt_completion.unbind(), true).into_value(),
+                );
             }
         };
 
@@ -396,7 +383,7 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(agent, result, true, gc).into_value())
+                Ok(create_iter_result_object(agent, result, true).into_value())
             }
             ExecutionResult::Throw(err) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
@@ -409,7 +396,7 @@ impl Generator<'_> {
                         executable: executable.unbind(),
                         execution_context,
                     }));
-                Ok(create_iter_result_object(agent, yielded_value, false, gc).into_value())
+                Ok(yielded_value)
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }

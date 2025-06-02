@@ -13,22 +13,25 @@ use crate::{
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
-        builtins::{ArgumentsList, ordinary::ordinary_object_create_with_intrinsics},
+        builtins::ArgumentsList,
         execution::{
-            Agent, JsResult, ProtoIntrinsics,
+            Agent, JsResult,
             agent::{ExceptionType, JsError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
             PropertyKey, Value,
         },
     },
     engine::{
-        ScopableCollection, ScopedCollection, TryResult,
+        ScopableCollection, ScopedCollection, TryResult, VmIteratorRecord,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
+        WellKnownSymbolIndexes, WorkQueues,
+    },
 };
 
 /// ### [7.4.1 Iterator Records](https://tc39.es/ecma262/#sec-iterator-records)
@@ -104,6 +107,61 @@ pub(crate) fn get_iterator_direct<'gc>(
     Ok(Some(iterator_record))
 }
 
+pub(crate) struct MaybeInvalidIteratorRecord<'a> {
+    pub(crate) iterator: Object<'a>,
+    pub(crate) next_method: Option<Function<'a>>,
+}
+
+impl<'a> MaybeInvalidIteratorRecord<'a> {
+    pub(crate) fn into_iterator_record(self) -> Option<IteratorRecord<'a>> {
+        if let MaybeInvalidIteratorRecord {
+            iterator,
+            next_method: Some(next_method),
+        } = self
+        {
+            Some(IteratorRecord {
+                iterator,
+                next_method,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn into_vm_iterator_record(self) -> VmIteratorRecord<'a> {
+        let MaybeInvalidIteratorRecord {
+            iterator,
+            next_method,
+        } = self;
+        if let Some(next_method) = next_method {
+            VmIteratorRecord::GenericIterator(IteratorRecord {
+                iterator,
+                next_method,
+            })
+        } else {
+            VmIteratorRecord::InvalidIterator { iterator }
+        }
+    }
+}
+
+unsafe impl Bindable for MaybeInvalidIteratorRecord<'_> {
+    type Of<'a> = MaybeInvalidIteratorRecord<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        MaybeInvalidIteratorRecord {
+            iterator: self.iterator.unbind(),
+            next_method: self.next_method.unbind(),
+        }
+    }
+
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        MaybeInvalidIteratorRecord {
+            iterator: self.iterator.bind(gc),
+            next_method: self.next_method.bind(gc),
+        }
+    }
+}
+
 /// ### [7.4.3 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
 ///
 /// The abstract operation GetIteratorFromMethod takes arguments obj (an
@@ -118,7 +176,7 @@ pub(crate) fn get_iterator_from_method<'a>(
     obj: Value,
     method: Function,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<IteratorRecord<'a>>> {
+) -> JsResult<'a, MaybeInvalidIteratorRecord<'a>> {
     let obj = obj.bind(gc.nogc());
     let method = method.bind(gc.nogc());
     // 1. Let iterator be ? Call(method, obj).
@@ -145,18 +203,18 @@ pub(crate) fn get_iterator_from_method<'a>(
     )
     .unbind()?;
     let gc = gc.into_nogc();
+    // SAFETY: not shared.
+    let iterator = unsafe { scoped_iterator.take(agent).bind(gc) };
 
-    let Some(next_method) = is_callable(next_method, gc) else {
-        return Ok(None);
-    };
+    let next_method = is_callable(next_method, gc);
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
     // 5. Return iteratorRecord.
-    Ok(Some(IteratorRecord {
-        iterator: scoped_iterator.get(agent).bind(gc),
+    Ok(MaybeInvalidIteratorRecord {
+        iterator,
         next_method,
         // done: false,
-    }))
+    })
 }
 
 /// ### [7.4.4 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
@@ -169,7 +227,7 @@ pub(crate) fn get_iterator<'a>(
     obj: Value,
     is_async: bool,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<IteratorRecord<'a>>> {
+) -> JsResult<'a, MaybeInvalidIteratorRecord<'a>> {
     let obj = obj.bind(gc.nogc());
     let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. If kind is async, then
@@ -289,7 +347,7 @@ pub(crate) fn iterator_next<'a>(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-fn iterator_complete<'a>(
+pub(crate) fn iterator_complete<'a>(
     agent: &mut Agent,
     iter_result: Object,
     gc: GcScope<'a, '_>,
@@ -733,30 +791,40 @@ pub(crate) fn async_vm_iterator_close_with_error<'a>(
 /// conforms to the IteratorResult interface.
 pub(crate) fn create_iter_result_object<'a>(
     agent: &mut Agent,
-    value: Value,
+    value: Value<'a>,
     done: bool,
-    gc: NoGcScope<'a, '_>,
-) -> Object<'a> {
+) -> OrdinaryObject<'a> {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
-    let Object::Object(obj) =
-        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
-    else {
-        unreachable!()
-    };
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
-    obj.property_storage().set(
-        agent,
-        BUILTIN_STRING_MEMORY.value.to_property_key(),
-        PropertyDescriptor::new_data_descriptor(value),
-    );
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
-    obj.property_storage().set(
-        agent,
-        BUILTIN_STRING_MEMORY.done.to_property_key(),
-        PropertyDescriptor::new_data_descriptor(done.into()),
-    );
     // 4. Return obj.
-    obj.into_object()
+    agent.heap.create_object_with_prototype(
+        agent
+            .current_realm_record()
+            .intrinsics()
+            .object_prototype()
+            .into_object(),
+        &[
+            ObjectEntry {
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.value),
+                value: ObjectEntryPropertyDescriptor::Data {
+                    value,
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                },
+            },
+            ObjectEntry {
+                key: PropertyKey::from(BUILTIN_STRING_MEMORY.done),
+                value: ObjectEntryPropertyDescriptor::Data {
+                    value: done.into_value(),
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                },
+            },
+        ],
+    )
 }
 
 /// ### [7.4.15 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
