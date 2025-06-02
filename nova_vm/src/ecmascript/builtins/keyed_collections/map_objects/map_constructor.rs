@@ -451,7 +451,7 @@ pub(crate) fn add_entries_from_iterable<'a>(
     }) = get_iterator(agent, iterable.unbind(), false, gc.reborrow())
         .unbind()?
         .bind(gc.nogc())
-        .to_iterator_record()
+        .into_iterator_record()
     else {
         return Err(throw_not_callable(agent, gc.into_nogc()));
     };

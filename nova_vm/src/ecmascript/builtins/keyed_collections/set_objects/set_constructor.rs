@@ -193,7 +193,7 @@ impl SetConstructor {
         }) = get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .to_iterator_record()
+            .into_iterator_record()
         else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };

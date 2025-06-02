@@ -414,7 +414,7 @@ impl<'a> VmIteratorRecord<'a> {
             }
             _ => Ok(
                 get_iterator_from_method(agent, value.unbind(), method.unbind(), gc)?
-                    .to_vm_iterator_record(),
+                    .into_vm_iterator_record(),
             ),
         }
     }
@@ -460,7 +460,7 @@ impl<'a> VmIteratorRecord<'a> {
         } else {
             Ok(
                 get_iterator_from_method(agent, obj.unbind(), method.unbind(), gc)?
-                    .to_vm_iterator_record(),
+                    .into_vm_iterator_record(),
             )
         }
     }
@@ -489,7 +489,7 @@ impl<'a> VmIteratorRecord<'a> {
         // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
         Ok(
             get_iterator_from_method(agent, obj.unbind(), sync_method.unbind(), gc)?
-                .to_vm_iterator_record(),
+                .into_vm_iterator_record(),
         )
     }
 }

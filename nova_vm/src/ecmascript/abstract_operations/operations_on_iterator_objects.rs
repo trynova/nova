@@ -113,7 +113,7 @@ pub(crate) struct MaybeInvalidIteratorRecord<'a> {
 }
 
 impl<'a> MaybeInvalidIteratorRecord<'a> {
-    pub(crate) fn to_iterator_record(self) -> Option<IteratorRecord<'a>> {
+    pub(crate) fn into_iterator_record(self) -> Option<IteratorRecord<'a>> {
         if let MaybeInvalidIteratorRecord {
             iterator,
             next_method: Some(next_method),
@@ -128,7 +128,7 @@ impl<'a> MaybeInvalidIteratorRecord<'a> {
         }
     }
 
-    pub(crate) fn to_vm_iterator_record(self) -> VmIteratorRecord<'a> {
+    pub(crate) fn into_vm_iterator_record(self) -> VmIteratorRecord<'a> {
         let MaybeInvalidIteratorRecord {
             iterator,
             next_method,
