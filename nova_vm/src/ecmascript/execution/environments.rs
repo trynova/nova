@@ -47,6 +47,7 @@ pub(crate) use private_environment::{
     resolve_private_identifier,
 };
 
+use crate::ecmascript::types::IntoValue;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
@@ -699,6 +700,23 @@ impl Environment<'_> {
             Environment::Function(idx) => idx.has_this_binding(agent),
             Environment::Global(_) => true,
             Environment::Object(_) => false,
+        }
+    }
+
+    /// Get the `this` binding value of this environment.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the environment does not have a `this` binding.
+    pub(crate) fn get_this_binding<'a>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsResult<'a, Value<'a>> {
+        match self {
+            Environment::Function(e) => e.get_this_binding(agent, gc),
+            Environment::Global(e) => Ok(e.get_this_binding(agent, gc).into_value()),
+            _ => unreachable!(),
         }
     }
 

@@ -51,7 +51,6 @@ pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
             | ast::Expression::ComputedMemberExpression(_)
             | ast::Expression::StaticMemberExpression(_)
             | ast::Expression::PrivateFieldExpression(_)
-            | ast::Expression::Super(_)
     )
 }
 
@@ -423,20 +422,48 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                     }
                     match prop.kind {
                         ast::PropertyKind::Init => {
-                            if !is_proto_setter && is_anonymous_function_definition(&prop.value) {
-                                ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
-                            }
-                            prop.value.compile(ctx);
-                            if is_reference(&prop.value) {
-                                ctx.add_instruction(Instruction::GetValue);
-                            }
-                            // 7. If isProtoSetter is true, then
                             if is_proto_setter {
+                                prop.value.compile(ctx);
+                                if is_reference(&prop.value) {
+                                    ctx.add_instruction(Instruction::GetValue);
+                                }
+                                // 7. If isProtoSetter is true, then
                                 // a. If propValue is an Object or propValue is null, then
                                 //     i. Perform ! object.[[SetPrototypeOf]](propValue).
                                 // b. Return unused.
                                 ctx.add_instruction(Instruction::ObjectSetPrototype);
+                            } else if prop.method {
+                                let ast::Expression::FunctionExpression(value) = &prop.value else {
+                                    unreachable!()
+                                };
+                                let identifier = if is_anonymous_function_definition(&prop.value) {
+                                    Some(NamedEvaluationParameter::Stack)
+                                } else {
+                                    None
+                                };
+                                ctx.add_instruction_with_function_expression_and_immediate(
+                                    Instruction::ObjectDefineMethod,
+                                    FunctionExpression {
+                                        expression: SendableRef::new(unsafe {
+                                            core::mem::transmute::<
+                                                &ast::Function<'_>,
+                                                &'static ast::Function<'static>,
+                                            >(&value)
+                                        }),
+                                        identifier,
+                                        compiled_bytecode: None,
+                                    },
+                                    // enumerable: true,
+                                    true.into(),
+                                );
                             } else {
+                                if is_anonymous_function_definition(&prop.value) {
+                                    ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
+                                }
+                                prop.value.compile(ctx);
+                                if is_reference(&prop.value) {
+                                    ctx.add_instruction(Instruction::GetValue);
+                                }
                                 ctx.add_instruction(Instruction::ObjectDefineProperty);
                             }
                         }
@@ -774,7 +801,9 @@ impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
         compile_optional_base_reference(&self.object, self.optional, ctx);
         // If we do not have optional chaining present it means that base value
         // is currently in the result slot. We need to store it on the stack.
-        if !self.optional {
+        // NOTE: `super` keyword does not perform any work and has nothing to
+        // load here.
+        if !self.optional && !self.object.is_super() {
             ctx.add_instruction(Instruction::Load);
         }
 
@@ -792,7 +821,11 @@ impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
             ctx.optional_chains.replace(optional_chain);
         }
 
-        ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+        if self.object.is_super() {
+            ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
+        } else {
+            ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+        }
     }
 }
 
@@ -801,16 +834,23 @@ impl<'s> CompileEvaluation<'s> for ast::StaticMemberExpression<'s> {
         compile_optional_base_reference(&self.object, self.optional, ctx);
         // If we are in an optional chain then result will be on the top of the
         // stack. We need to pop it into the register slot in that case.
-        if self.optional {
+        if self.optional && !self.object.is_super() {
             ctx.add_instruction(Instruction::Store);
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         let identifier = ctx.create_string(self.property.name.as_str());
-        ctx.add_instruction_with_identifier(
-            Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            identifier,
-        );
+        if self.object.is_super() {
+            ctx.add_instruction_with_identifier(
+                Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
+                identifier,
+            );
+        } else {
+            ctx.add_instruction_with_identifier(
+                Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                identifier,
+            );
+        }
     }
 }
 
@@ -1028,7 +1068,7 @@ impl<'s> CompileEvaluation<'s> for ast::SequenceExpression<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::Super {
     fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        todo!()
+        // There's no work to be done here.
     }
 }
 
