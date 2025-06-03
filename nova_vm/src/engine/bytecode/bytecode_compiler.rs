@@ -448,7 +448,7 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                                             core::mem::transmute::<
                                                 &ast::Function<'_>,
                                                 &'static ast::Function<'static>,
-                                            >(&value)
+                                            >(value)
                                         }),
                                         identifier,
                                         compiled_bytecode: None,
