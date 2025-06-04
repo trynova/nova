@@ -2,17 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{
-    DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment, FunctionEnvironment,
-};
-use crate::ecmascript::types::OrdinaryObject;
-use crate::engine::context::{Bindable, NoGcScope};
-use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::ExceptionType,
+            environments::{
+                DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment,
+                FunctionEnvironment,
+            },
+        },
         types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
+    },
+    engine::{
+        context::{Bindable, NoGcScope},
+        unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -482,7 +487,6 @@ impl FunctionEnvironment<'_> {
             return Value::Undefined;
         };
         // 3. Assert: home is an ordinary object.
-        let home = OrdinaryObject::try_from(home).unwrap();
         // 4. Return ! home.[[GetPrototypeOf]]().
         unwrap_try(home.try_get_prototype_of(agent, gc))
             .map_or(Value::Undefined, |o| o.into_value())
