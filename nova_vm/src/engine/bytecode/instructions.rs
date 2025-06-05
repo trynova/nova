@@ -89,10 +89,10 @@ pub enum Instruction {
     /// register and the `privateIdentifier` given as the first immediate
     /// argument, and store the result in the reference register.
     MakePrivateReference,
-    /// Perform MakeSuperPropertyReference with the `propretyKey` in the result
+    /// Perform MakeSuperPropertyReference with the `propertyKey` in the result
     /// register, and store the result in the reference register.
     MakeSuperPropertyReferenceWithExpressionKey,
-    /// Perform MakeSuperPropertyReference with the `propretyKey` given as the
+    /// Perform MakeSuperPropertyReference with the `propertyKey` given as the
     /// first immediate argument, and store the result in the reference
     /// register.
     MakeSuperPropertyReferenceWithIdentifierKey,
