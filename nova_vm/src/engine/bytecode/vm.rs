@@ -1955,6 +1955,127 @@ impl Vm {
                     this_value: None,
                 });
             }
+            Instruction::MakeSuperPropertyReferenceWithExpressionKey => {
+                // ### SuperProperty : super [ Expression ]
+
+                // 1. Let env be GetThisEnvironment().
+                let env = get_this_environment(agent, gc.nogc());
+                // 2. Let actualThis be ? env.GetThisBinding().
+                let mut actual_this = env
+                    .get_this_binding(agent, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // 3. Let propertyNameReference be ? Evaluation of Expression.
+                // 4. Let propertyNameValue be ? GetValue(propertyNameReference).
+                let property_name_value = vm.result.take().unwrap().bind(gc.nogc());
+                // 5. Let strict be IsStrict(this SuperProperty).
+                let strict = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .unwrap()
+                    .is_strict_mode;
+                // 6. NOTE: In most cases, ToPropertyKey will be performed on
+                //    propertyNameValue immediately after this step. However,
+                //    in the case of super[b] = c, it will not be performed
+                //    until after evaluation of c.
+                // 7. Return MakeSuperPropertyReference(
+                //        actualThis,
+                //        propertyNameValue,
+                //        strict
+                //    ).
+                // 1. Let env be GetThisEnvironment().
+                // 2. Assert: env.HasSuperBinding() is true.
+                // 3. Assert: env is a Function Environment Record.
+                debug_assert!(env.has_super_binding(agent));
+                let Environment::Function(env) = env else {
+                    unreachable!()
+                };
+                // 4. Let baseValue be GetSuperBase(env).
+                let mut base_value = env.get_super_base(agent, gc.nogc());
+
+                let property_key =
+                    if property_name_value.is_string() || property_name_value.is_integer() {
+                        unwrap_try(to_property_key_simple(
+                            agent,
+                            property_name_value,
+                            gc.nogc(),
+                        ))
+                    } else {
+                        let scoped_base_value = base_value.scope(agent, gc.nogc());
+                        let scoped_actual_this = actual_this.scope(agent, gc.nogc());
+                        let property_name_value = property_name_value.unbind();
+                        let property_key = with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| to_property_key(agent, property_name_value, gc),
+                            gc.reborrow(),
+                        )
+                        .unbind()?
+                        .bind(gc.nogc());
+                        // SAFETY: not shared
+                        unsafe {
+                            base_value = scoped_base_value.take(agent).bind(gc.nogc());
+                            actual_this = scoped_actual_this.take(agent).bind(gc.nogc());
+                        }
+                        property_key
+                    };
+
+                // 5. Return the Reference Record {
+                vm.reference = Some(Reference {
+                    // [[Base]]: baseValue,
+                    base: Base::Value(base_value.unbind()),
+                    // [[ReferencedName]]: propertyKey,
+                    referenced_name: property_key.unbind(),
+                    // [[Strict]]: strict,
+                    strict,
+                    // [[ThisValue]]: actualThis
+                    this_value: Some(actual_this.unbind()),
+                });
+                // }.
+            }
+            Instruction::MakeSuperPropertyReferenceWithIdentifierKey => {
+                // ### SuperProperty : super . IdentifierName
+
+                // 1. Let env be GetThisEnvironment().
+                let env = get_this_environment(agent, gc.nogc());
+                // 2. Let actualThis be ? env.GetThisBinding().
+                let actual_this = env
+                    .get_this_binding(agent, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // 3. Let propertyKey be the StringValue of IdentifierName.
+                let property_key =
+                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                // 4. Let strict be IsStrict(this SuperProperty).
+                let strict = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .unwrap()
+                    .is_strict_mode;
+                // 5. Return MakeSuperPropertyReference(actualThis, propertyKey, strict).
+                // 1. Let env be GetThisEnvironment().
+                // 2. Assert: env.HasSuperBinding() is true.
+                // 3. Assert: env is a Function Environment Record.
+                debug_assert!(env.has_super_binding(agent));
+                let Environment::Function(env) = env else {
+                    unreachable!()
+                };
+                // 4. Let baseValue be GetSuperBase(env).
+                let base_value = env.get_super_base(agent, gc.nogc());
+                // 4. Let baseValue be GetSuperBase(env).
+                // 5. Return the Reference Record {
+                vm.reference = Some(Reference {
+                    // [[Base]]: baseValue,
+                    base: Base::Value(base_value.unbind()),
+                    // [[ReferencedName]]: propertyKey,
+                    referenced_name: property_key.unbind().into(),
+                    // [[Strict]]: strict,
+                    strict,
+                    // [[ThisValue]]: actualThis
+                    this_value: Some(actual_this.unbind()),
+                });
+                // }.
+            }
             Instruction::Jump => {
                 let ip = instr.get_jump_slot();
                 if agent.options.print_internals {

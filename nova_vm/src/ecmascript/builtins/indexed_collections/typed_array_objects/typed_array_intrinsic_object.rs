@@ -107,7 +107,7 @@ impl TypedArrayIntrinsicObject {
         ))
     }
 
-    /// ### [23.2.2.1 %TypedArray%.from ( source [ , mapper [ , thisArg ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.from)
+    /// ### [23.2.2.1 %TypedArray%.from ( source \[ , mapper \[ , thisArg \] \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.from)
     fn from<'gc>(
         agent: &mut Agent,
         this_value: Value,

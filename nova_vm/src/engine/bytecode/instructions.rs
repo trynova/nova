@@ -89,6 +89,13 @@ pub enum Instruction {
     /// register and the `privateIdentifier` given as the first immediate
     /// argument, and store the result in the reference register.
     MakePrivateReference,
+    /// Perform MakeSuperPropertyReference with the `propertyKey` in the result
+    /// register, and store the result in the reference register.
+    MakeSuperPropertyReferenceWithExpressionKey,
+    /// Perform MakeSuperPropertyReference with the `propertyKey` given as the
+    /// first immediate argument, and store the result in the reference
+    /// register.
+    MakeSuperPropertyReferenceWithIdentifierKey,
     /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
     /// value.
     ///
@@ -508,6 +515,7 @@ impl Instruction {
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::LoadConstant
             | Self::MakePrivateReference
+            | Self::MakeSuperPropertyReferenceWithIdentifierKey
             | Self::ClassInitializePrivateValue
             | Self::ResolveBinding
             | Self::StoreConstant
@@ -552,6 +560,7 @@ impl Instruction {
                 | Self::CreateMutableBinding
                 | Self::EvaluatePropertyAccessWithIdentifierKey
                 | Self::MakePrivateReference
+                | Self::MakeSuperPropertyReferenceWithIdentifierKey
                 | Self::ResolveBinding
                 | Self::VerifyIsObject
         )
@@ -1110,6 +1119,10 @@ impl TryFrom<u8> for Instruction {
         const EVALUATEPROPERTYACCESSWITHIDENTIFIERKEY: u8 =
             Instruction::EvaluatePropertyAccessWithIdentifierKey.as_u8();
         const MAKEPRIVATEREFERENCE: u8 = Instruction::MakePrivateReference.as_u8();
+        const MAKESUPERPROPERTYREFERENCEWITHEXPRESSIONKEY: u8 =
+            Instruction::MakeSuperPropertyReferenceWithExpressionKey.as_u8();
+        const MAKESUPERPROPERTYREFERENCEWITHIDENTIFIERKEY: u8 =
+            Instruction::MakeSuperPropertyReferenceWithIdentifierKey.as_u8();
         const GETVALUE: u8 = Instruction::GetValue.as_u8();
         const GETVALUEKEEPREFERENCE: u8 = Instruction::GetValueKeepReference.as_u8();
         const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
@@ -1304,6 +1317,12 @@ impl TryFrom<u8> for Instruction {
                 Ok(Instruction::EvaluatePropertyAccessWithIdentifierKey)
             }
             MAKEPRIVATEREFERENCE => Ok(Instruction::MakePrivateReference),
+            MAKESUPERPROPERTYREFERENCEWITHEXPRESSIONKEY => {
+                Ok(Instruction::MakeSuperPropertyReferenceWithExpressionKey)
+            }
+            MAKESUPERPROPERTYREFERENCEWITHIDENTIFIERKEY => {
+                Ok(Instruction::MakeSuperPropertyReferenceWithIdentifierKey)
+            }
             GETVALUE => Ok(Instruction::GetValue),
             GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
             GREATERTHAN => Ok(Instruction::GreaterThan),

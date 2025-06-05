@@ -2,17 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{
-    DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment, FunctionEnvironment,
-};
-use crate::ecmascript::types::OrdinaryObject;
-use crate::engine::context::{Bindable, NoGcScope};
-use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::ExceptionType,
+            environments::{
+                DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment,
+                FunctionEnvironment,
+            },
+        },
         types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
+    },
+    engine::{
+        context::{Bindable, NoGcScope},
+        unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -469,25 +474,22 @@ impl FunctionEnvironment<'_> {
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined.
-    pub(crate) fn get_super_base<'a>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Option<Object<'a>>> {
+    pub(crate) fn get_super_base<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Value<'a> {
         let env_rec: &FunctionEnvironmentRecord = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
-            // 2. If home is undefined, return undefined.
-            Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object?,
-            _ => {
-                return None;
-            }
+            Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object,
+            _ => None,
+        };
+        // 2. If home is undefined, return undefined.
+        let Some(home) = home else {
+            return Value::Undefined;
         };
         // 3. Assert: home is an ordinary object.
-        let home = OrdinaryObject::try_from(home).unwrap();
         // 4. Return ! home.[[GetPrototypeOf]]().
-        Some(unwrap_try(home.try_get_prototype_of(agent, gc)))
+        unwrap_try(home.try_get_prototype_of(agent, gc))
+            .map_or(Value::Undefined, |o| o.into_value())
     }
 }
 
