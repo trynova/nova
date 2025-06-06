@@ -49,7 +49,7 @@ impl SmallString {
         for ch in self.as_str().chars() {
             if idx == u16_i {
                 // TODO: Deal with surrogates.
-                assert_eq!(ch.len_utf16(), 1);
+                assert_eq!(ch.len_utf16(), 1, "TODO: Handle WTF-8");
                 return ch;
             }
             u16_i += ch.len_utf16();

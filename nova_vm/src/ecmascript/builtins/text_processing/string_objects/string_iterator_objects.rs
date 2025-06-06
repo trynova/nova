@@ -206,7 +206,7 @@ impl StringIteratorPrototype {
         let cp = s.as_str(agent)[u8_idx..]
             .chars()
             .next()
-            .unwrap()
+            .expect("TODO: Handle WTF-8")
             .to_string();
         // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
         let next_index = *position + cp.len();
