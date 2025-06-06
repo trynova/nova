@@ -107,7 +107,6 @@
   "built-ins/Array/prototype/concat/is-concat-spreadable-is-array-proxy-revoked.js": "FAIL",
   "built-ins/Array/prototype/concat/is-concat-spreadable-proxy-revoked.js": "FAIL",
   "built-ins/Array/prototype/copyWithin/coerced-values-start-change-target.js": "FAIL",
-  "built-ins/Array/prototype/copyWithin/negative-out-of-bounds-end.js": "CRASH",
   "built-ins/Array/prototype/entries/resizable-buffer.js": "FAIL",
   "built-ins/Array/prototype/every/15.4.4.16-1-10.js": "FAIL",
   "built-ins/Array/prototype/every/15.4.4.16-1-11.js": "FAIL",
