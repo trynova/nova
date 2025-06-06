@@ -13,10 +13,23 @@ use super::{
 
 impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let mut named_evaluation_identifier = None;
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         match &self.left {
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
-                identifier.compile(ctx);
+                if is_anonymous_function_definition(&self.right)
+                // NOTE: If the left hand side does not constitute the start of
+                // the assignment expression span, then it means that the left
+                // side is inside parentheses and NamedEvaluation should not
+                // happen.
+                    && self.span.start == identifier.span.start
+                {
+                    let identifier = ctx.create_string(identifier.name.as_str());
+                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+                    named_evaluation_identifier = Some(identifier);
+                } else {
+                    identifier.compile(ctx);
+                }
             }
             ast::AssignmentTarget::ComputedMemberExpression(expression) => {
                 expression.compile(ctx);
@@ -59,6 +72,11 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
 
             if !is_rhs_literal {
                 ctx.add_instruction(Instruction::PushReference);
+            }
+
+            if let Some(identifier) = named_evaluation_identifier {
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
+                ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
 
             self.right.compile(ctx);
@@ -112,26 +130,17 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
             // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
             // is true and IsIdentifierRef of LeftHandSideExpression is true,
             // then
-            match &self.left {
-                ast::AssignmentTarget::AssignmentTargetIdentifier(left)
-                    if is_anonymous_function_definition(&self.right) =>
-                {
-                    // a. Let lhs be the StringValue of LeftHandSideExpression.
-                    let lhs = ctx.create_string(left.name.as_str());
-                    ctx.add_instruction_with_constant(Instruction::StoreConstant, lhs);
-                    // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
-                    ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-                    self.right.compile(ctx);
-                }
-                _ => {
-                    // 6. Else
-                    // a. Let rref be ? Evaluation of AssignmentExpression.
-                    self.right.compile(ctx);
-                    // b. Let rval be ? GetValue(rref).
-                    if is_reference(&self.right) {
-                        ctx.add_instruction(Instruction::GetValue);
-                    }
-                }
+            if let Some(lhs) = named_evaluation_identifier {
+                // a. Let lhs be the StringValue of LeftHandSideExpression.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, lhs);
+                // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
+                ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+            }
+            // a. Let rref be ? Evaluation of AssignmentExpression.
+            self.right.compile(ctx);
+            // b. Let rval be ? GetValue(rref).
+            if is_reference(&self.right) {
+                ctx.add_instruction(Instruction::GetValue);
             }
 
             // 7. Perform ? PutValue(lref, rval).
