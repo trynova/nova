@@ -122,14 +122,14 @@ impl PromiseConstructor {
         };
         let new_target = new_target.unbind().bind(gc.nogc());
 
-        // We currently don't support Promise subclassing.
         assert_eq!(
             new_target,
             agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_object()
+                .into_object(),
+            "We currently don't support Promise subclassing."
         );
 
         // 2. If IsCallable(executor) is false, throw a TypeError exception.
@@ -243,14 +243,14 @@ impl PromiseConstructor {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let r = arguments.get(0).bind(gc.nogc());
-        // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
             agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value()
+                .into_value(),
+            "We currently don't support Promise subclassing."
         );
 
         // 1. Let C be the this value.
@@ -275,14 +275,14 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
             agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value()
+                .into_value(),
+            "We currently don't support Promise subclassing."
         );
 
         // 3. Return ? PromiseResolve(C, x).
@@ -309,14 +309,14 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         }
-        // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
             agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value()
+                .into_value(),
+            "We currently don't support Promise subclassing."
         );
 
         // 3. Let promiseCapability be ? NewPromiseCapability(C).
@@ -366,14 +366,14 @@ impl PromiseConstructor {
                 gc,
             ));
         }
-        // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
             agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value()
+                .into_value(),
+            "We currently don't support Promise subclassing."
         );
 
         // 1. Let C be the this value.
