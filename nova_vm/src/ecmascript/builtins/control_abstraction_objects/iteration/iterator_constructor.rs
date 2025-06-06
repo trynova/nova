@@ -4,16 +4,20 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::setter_that_ignores_prototype_properties,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            BuiltinSetter, ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, Object, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            Value,
+        },
     },
     engine::context::{Bindable, GcScope},
-    heap::IntrinsicConstructorIndexes,
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct IteratorConstructor;
@@ -24,6 +28,23 @@ impl Builtin for IteratorConstructor {
 }
 impl BuiltinIntrinsicConstructor for IteratorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Iterator;
+}
+
+struct IteratorConstructorToStringTag;
+impl Builtin for IteratorConstructorToStringTag {
+    const NAME: String<'static> = String::EMPTY_STRING;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(WellKnownSymbolIndexes::ToStringTag.to_property_key());
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorConstructor::get_to_string_tag);
+}
+impl BuiltinGetter for IteratorConstructorToStringTag {
+    const GETTER_NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
+}
+impl BuiltinSetter for IteratorConstructorToStringTag {
+    const SETTER_NAME: String<'static> = BUILTIN_STRING_MEMORY.set__Symbol_toStringTag_;
+
+    const SETTER_BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorConstructor::set_to_string_tag);
 }
 
 impl IteratorConstructor {
@@ -64,6 +85,45 @@ impl IteratorConstructor {
             gc,
         )
         .map(Into::into)
+    }
+
+    fn get_to_string_tag<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Return "Iterator".
+        Ok(BUILTIN_STRING_MEMORY.Iterator.into_value())
+    }
+
+    fn set_to_string_tag<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let v = arguments.get(0);
+        // 1. Perform ? SetterThatIgnoresPrototypeProperties(
+        setter_that_ignores_prototype_properties(
+            agent,
+            // this value,
+            this_value,
+            // %Iterator.prototype%,
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .iterator_prototype()
+                .into_object(),
+            // "constructor",
+            BUILTIN_STRING_MEMORY.constructor.to_property_key(),
+            // v
+            v,
+            gc,
+        )?;
+        // ).
+        // 2. Return undefined.
+        Ok(Value::Undefined)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

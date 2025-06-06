@@ -46,7 +46,9 @@ use crate::{
     heap::{Heap, ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
-use super::operations_on_iterator_objects::MaybeInvalidIteratorRecord;
+use super::{
+    operations_on_iterator_objects::MaybeInvalidIteratorRecord, testing_and_comparison::same_value,
+};
 
 /// ### [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
 ///
@@ -2917,4 +2919,75 @@ pub(crate) fn group_by_collection<'gc>(
         // j. Set k to k + 1.
         k += 1;
     }
+}
+
+/// ### [7.3.36 SetterThatIgnoresPrototypeProperties ( thisValue, home, p, v )](https://tc39.es/ecma262/#sec-SetterThatIgnoresPrototypeProperties)
+///
+/// The abstract operation SetterThatIgnoresPrototypeProperties takes arguments
+/// thisValue (an ECMAScript language value), home (an Object), p (a property
+/// key), and v (an ECMAScript language value) and returns either a normal
+/// completion containing unused or a throw completion.
+pub(crate) fn setter_that_ignores_prototype_properties<'a>(
+    agent: &mut Agent,
+    this_value: Value,
+    home: Object,
+    p: PropertyKey,
+    v: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let this_value = this_value.bind(gc.nogc());
+    let home = home.bind(gc.nogc());
+    let mut p = p.bind(gc.nogc());
+    let mut v = v.bind(gc.nogc());
+    // 1. If thisValue is not an Object, then
+    let Ok(mut this_value) = Object::try_from(this_value) else {
+        // a. Throw a TypeError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "this value is not an object",
+            gc.into_nogc(),
+        ));
+    };
+    // 2. If SameValue(thisValue, home) is true, then
+    if same_value(agent, this_value, home) {
+        // a. NOTE: Throwing here emulates assignment to a non-writable data
+        //    property on the home object in strict mode code.
+        // b. Throw a TypeError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Could not create property",
+            gc.into_nogc(),
+        ));
+    }
+    // 3. Let desc be ? thisValue.[[GetOwnProperty]](p).
+    let desc =
+        if let TryResult::Continue(desc) = this_value.try_get_own_property(agent, p, gc.nogc()) {
+            desc
+        } else {
+            let scoped_this_value = this_value.scope(agent, gc.nogc());
+            let scoped_p = p.scope(agent, gc.nogc());
+            let scoped_v = v.scope(agent, gc.nogc());
+            let desc = this_value
+                .unbind()
+                .internal_get_own_property(agent, p.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // SAFETY: none are shared.
+            unsafe {
+                v = scoped_v.take(agent).bind(gc.nogc());
+                p = scoped_p.take(agent).bind(gc.nogc());
+                this_value = scoped_this_value.take(agent).bind(gc.nogc());
+            }
+            desc
+        };
+    // 4. If desc is undefined, then
+    if desc.is_none() {
+        // a. Perform ? CreateDataPropertyOrThrow(thisValue, p, v).
+        create_data_property_or_throw(agent, this_value.unbind(), p.unbind(), v.unbind(), gc)
+    } else {
+        // 5. Else,
+        // a. Perform ? Set(thisValue, p, v, true).
+        set(agent, this_value.unbind(), p.unbind(), v.unbind(), true, gc)
+    }
+    // 6. Return unused.
 }

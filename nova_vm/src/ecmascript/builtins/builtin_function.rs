@@ -395,7 +395,14 @@ pub(crate) trait BuiltinIntrinsicConstructor: Builtin {
 pub(crate) trait BuiltinIntrinsic: Builtin {
     const INDEX: IntrinsicFunctionIndexes;
 }
-pub trait BuiltinGetter: Builtin {}
+pub trait BuiltinGetter: Builtin {
+    const GETTER_NAME: String<'static> = Self::NAME;
+    const GETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
+}
+pub trait BuiltinSetter: Builtin {
+    const SETTER_NAME: String<'static> = Self::NAME;
+    const SETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
+}
 
 #[derive(Debug, Default)]
 pub struct BuiltinFunctionArgs<'a> {

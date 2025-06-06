@@ -59,7 +59,13 @@ impl Proxy<'_> {
     pub(crate) fn is_callable(self, agent: &Agent, gc: NoGcScope) -> bool {
         match agent[self] {
             ProxyHeapData::NonRevoked { proxy_target, .. } => {
-                is_callable(proxy_target, gc).is_some()
+                if let Object::Proxy(proxy_target) = proxy_target {
+                    // TODO: Remove this once is_callable handles callable
+                    // Proxies.
+                    proxy_target.is_callable(agent, gc)
+                } else {
+                    is_callable(proxy_target, gc).is_some()
+                }
             }
             ProxyHeapData::RevokedCallable => true,
             ProxyHeapData::Revoked => false,

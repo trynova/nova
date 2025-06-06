@@ -2,13 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::is_prototype_of_loop;
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, has_own_property, invoke},
+            operations_on_objects::{get, has_own_property, invoke, is_prototype_of_loop, try_get},
+            testing_and_comparison::is_array,
             type_conversion::{to_object, to_property_key},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -17,7 +15,14 @@ use crate::{
             primitive_objects::PrimitiveObjectData,
         },
         execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyKey, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
+            String, Value,
+        },
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -155,102 +160,135 @@ impl ObjectPrototype {
         _arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        match this_value.bind(gc.nogc()) {
+        let builtin_tag_with_object_concatenation = match this_value.bind(gc.nogc()) {
             // 1. If the this value is undefined, return "[object Undefined]".
-            Value::Undefined => Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
+            Value::Undefined => return Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
             // 2. If the this value is null, return "[object Null]".
-            Value::Null => Ok(BUILTIN_STRING_MEMORY._object_Null_.into_value()),
+            Value::Null => return Ok(BUILTIN_STRING_MEMORY._object_Null_.into_value()),
             // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            Value::Boolean(_) => Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value()),
+            Value::Boolean(_) => BUILTIN_STRING_MEMORY._object_Boolean_,
             // 6. Else if O has a [[ParameterMap]] internal slot, let builtinTag be "Arguments".
-            Value::Arguments(_) => Ok(BUILTIN_STRING_MEMORY._object_Arguments_.into_value()),
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            Value::Arguments(_) => BUILTIN_STRING_MEMORY._object_Arguments_,
             // 11. Else if O has a [[StringData]] internal slot, let builtinTag be "String".
-            Value::String(_) | Value::SmallString(_) => {
-                Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
-            }
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            Value::String(_) | Value::SmallString(_) => BUILTIN_STRING_MEMORY._object_String_,
             // 10. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
             Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
-                Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
+                BUILTIN_STRING_MEMORY._object_Number_
             }
             // 4. Let isArray be ? IsArray(O).
             // 5. If isArray is true, let builtinTag be "Array".
-            Value::Array(_) => Ok(BUILTIN_STRING_MEMORY._object_Array_.into_value()),
-            // 12. Else if O has a [[DateValue]] internal slot, let builtinTag be "Date".
-            #[cfg(feature = "date")]
-            Value::Date(_) => Ok(BUILTIN_STRING_MEMORY._object_Date_.into_value()),
-            // 8. Else if O has an [[ErrorData]] internal slot, let builtinTag be "Error".
-            Value::Error(_) => Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value()),
-            // 7. Else if O has a [[Call]] internal method, let builtinTag be "Function".
-            Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) => {
-                Ok(BUILTIN_STRING_MEMORY._object_Function_.into_value())
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            Value::Array(_) | Value::Proxy(_)
+                if is_array(agent, this_value, gc.nogc()).unbind()? =>
+            {
+                BUILTIN_STRING_MEMORY._object_Array_
             }
-            // TODO: Check for [[Call]] slot of Proxy
-            Value::Proxy(_) => todo!(),
+            // 12. Else if O has a [[DateValue]] internal slot, let builtinTag be "Date".
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            #[cfg(feature = "date")]
+            Value::Date(_) => BUILTIN_STRING_MEMORY._object_Date_,
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            // 8. Else if O has an [[ErrorData]] internal slot, let builtinTag be "Error".
+            Value::Error(_) => BUILTIN_STRING_MEMORY._object_Error_,
+            // 7. Else if O has a [[Call]] internal method, let builtinTag be "Function".
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            Value::BoundFunction(_)
+            | Value::BuiltinFunction(_)
+            | Value::ECMAScriptFunction(_)
+            | Value::BuiltinConstructorFunction(_)
+            | Value::BuiltinPromiseResolvingFunction(_) => BUILTIN_STRING_MEMORY._object_Function_,
+            Value::Proxy(proxy) if proxy.is_callable(agent, gc.nogc()) => {
+                BUILTIN_STRING_MEMORY._object_Function_
+            }
             // TODO: Check for [[Call]] slot of EmbedderObject
             Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
             #[cfg(feature = "regexp")]
-            Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
+            Value::RegExp(_) => BUILTIN_STRING_MEMORY._object_RegExp_,
             Value::PrimitiveObject(idx) => match &agent[idx].data {
-                PrimitiveObjectData::Boolean(_) => {
-                    Ok(BUILTIN_STRING_MEMORY._object_Boolean_.into_value())
+                // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
+                // 17. Return the string-concatenation of "[object ", tag, and "]".
+                PrimitiveObjectData::Boolean(_) => BUILTIN_STRING_MEMORY._object_Boolean_,
+                // 11. Else if O has a [[StringData]] internal slot, let builtinTag be "String".
+                // 17. Return the string-concatenation of "[object ", tag, and "]".
+                PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
+                    BUILTIN_STRING_MEMORY._object_String_
                 }
-                PrimitiveObjectData::String(_) => {
-                    Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
-                }
-                PrimitiveObjectData::SmallString(_) => {
-                    Ok(BUILTIN_STRING_MEMORY._object_String_.into_value())
-                }
+                // 10. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
+                // 17. Return the string-concatenation of "[object ", tag, and "]".
                 PrimitiveObjectData::Number(_)
                 | PrimitiveObjectData::Integer(_)
-                | PrimitiveObjectData::SmallF64(_) => {
-                    Ok(BUILTIN_STRING_MEMORY._object_Number_.into_value())
-                }
+                | PrimitiveObjectData::SmallF64(_) => BUILTIN_STRING_MEMORY._object_Number_,
                 PrimitiveObjectData::Symbol(_)
                 | PrimitiveObjectData::BigInt(_)
-                | PrimitiveObjectData::SmallBigInt(_) => {
-                    let o = to_object(agent, this_value, gc.nogc()).unwrap();
-                    let tag = get(
-                        agent,
-                        o.unbind(),
-                        WellKnownSymbolIndexes::ToStringTag.into(),
-                        gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc());
-                    if let Ok(tag) = String::try_from(tag) {
-                        let str = format!("[object {}]", tag.as_str(agent));
-                        Ok(Value::from_string(agent, str, gc.into_nogc()))
-                    } else {
-                        let str =
-                            format!("[object {}]", BUILTIN_STRING_MEMORY.Object.as_str(agent));
-                        Ok(Value::from_string(agent, str, gc.into_nogc()))
-                    }
-                }
+                // 14. Else, let builtinTag be "Object".
+                // 17. Return the string-concatenation of "[object ", tag, and "]".
+                | PrimitiveObjectData::SmallBigInt(_) => BUILTIN_STRING_MEMORY._object_Object_,
             },
-            _ => {
-                // 3. Let O be ! ToObject(this value).
-                // 15. Let tag be ? Get(O, @@toStringTag).
-                // 16. If tag is not a String, set tag to builtinTag.
-                let o = to_object(agent, this_value, gc.nogc()).unwrap();
-                let tag = get(
-                    agent,
-                    o.unbind(),
-                    WellKnownSymbolIndexes::ToStringTag.into(),
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                if let Ok(tag) = String::try_from(tag) {
-                    let str = format!("[object {}]", tag.as_str(agent));
-                    Ok(Value::from_string(agent, str, gc.into_nogc()))
-                } else {
-                    // 14. Else, let builtinTag be "Object".
-                    let str = format!("[object {}]", BUILTIN_STRING_MEMORY.Object.as_str(agent));
-                    Ok(Value::from_string(agent, str, gc.into_nogc()))
+            // 14. Else, let builtinTag be "Object".
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            _ => BUILTIN_STRING_MEMORY._object_Object_,
+        };
+        // 3. Let O be ! ToObject(this value).
+        let o_or_prototype = if let Ok(o) = Object::try_from(this_value) {
+            o
+        } else {
+            // Our value is a primitive; this means we'd normally have to
+            // create a PrimitiveObject. Usually it's not needed, though, so
+            // we'll try to get a tag without calling into JavaScript by
+            // accessing @@toStringTag from the prototype directly.
+            let intrinsics = agent.current_realm_record().intrinsics();
+            match this_value {
+                Value::Boolean(_) => intrinsics.boolean_prototype().into_object(),
+                Value::String(_) | Value::SmallString(_) => {
+                    intrinsics.string_prototype().into_object()
                 }
+                Value::Symbol(_) => intrinsics.symbol_prototype().into_object(),
+                Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
+                    intrinsics.number_prototype().into_object()
+                }
+                Value::BigInt(_) | Value::SmallBigInt(_) => {
+                    intrinsics.big_int_prototype().into_object()
+                }
+                _ => unreachable!(),
             }
+        };
+        // 15. Let tag be ? Get(O, @@toStringTag).
+        let tag = if let TryResult::Continue(tag) = try_get(
+            agent,
+            o_or_prototype,
+            WellKnownSymbolIndexes::ToStringTag.into(),
+            gc.nogc(),
+        ) {
+            // We got a result without creating a primitive object! Good!
+            tag
+        } else {
+            // No such luck: Getting @@toStringTag would call a getter, someone
+            // wants to observe the engine at work. We'll have to make pretend for
+            // their sake.
+            // 3. Let O be ! ToObject(this value).
+            let o = to_object(agent, this_value, gc.nogc()).unwrap();
+            get(
+                agent,
+                o.unbind(),
+                WellKnownSymbolIndexes::ToStringTag.into(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc())
+        };
+        if let Ok(tag) = String::try_from(tag) {
+            // 17. Return the string-concatenation of "[object ", tag, and "]".
+            let str = format!("[object {}]", tag.as_str(agent));
+            Ok(Value::from_string(agent, str, gc.into_nogc()))
+        } else {
+            // 16. If tag is not a String, set tag to builtinTag.
+            Ok(builtin_tag_with_object_concatenation.into_value())
         }
     }
 
