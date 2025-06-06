@@ -440,7 +440,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     /// component. Future invocations of Evaluate on any module in the
     /// component return the same Promise. (Most of the work is done by the
     /// auxiliary function InnerModuleEvaluation.)
-    fn evalute<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>> {
+    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>> {
         let module = self.bind(gc.nogc());
         // 1. Assert: This call to Evaluate is not happening at the same time
         //    as another call to Evaluate within the surrounding agent.

@@ -757,7 +757,7 @@ impl Agent {
         };
         module.load_requested_modules(self, None, gc.nogc());
         module.link(self, gc.nogc()).unbind()?;
-        module.unbind().evalute(self, gc);
+        module.unbind().evaluate(self, gc);
         Ok(Value::Undefined)
     }
 }

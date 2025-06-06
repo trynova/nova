@@ -119,7 +119,7 @@ pub trait ModuleAbstractMethods {
     /// rethrow the evaluation error.
     ///
     /// Link must have completed successfully prior to invoking this method.
-    fn evalute<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>>;
+    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>>;
 }
 
 impl HeapMarkAndSweep for AbstractModuleRecord<'static> {
