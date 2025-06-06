@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builtins::{
             Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor,
+            BuiltinIntrinsicConstructor, BuiltinSetter,
         },
         execution::{Agent, Realm},
         types::{
@@ -88,7 +88,6 @@ impl<'agent>
     > {
         agent.heap.builtin_functions.push(None);
         let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
-        let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
@@ -96,8 +95,62 @@ impl<'agent>
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
-            name: CreatorName(name),
+            name: CreatorName(T::NAME),
             behaviour: CreatorBehaviour(T::BEHAVIOUR),
+            properties: Default::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn new_getter<T: BuiltinGetter>(
+        agent: &'agent mut Agent,
+        realm: Realm<'static>,
+    ) -> BuiltinFunctionBuilder<
+        'agent,
+        NoPrototype,
+        CreatorLength,
+        CreatorName,
+        CreatorBehaviour,
+        NoProperties,
+    > {
+        agent.heap.builtin_functions.push(None);
+        let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
+        BuiltinFunctionBuilder {
+            agent,
+            this,
+            object_index: None,
+            realm,
+            prototype: Default::default(),
+            length: CreatorLength(0),
+            name: CreatorName(T::GETTER_NAME),
+            behaviour: CreatorBehaviour(T::GETTER_BEHAVIOUR),
+            properties: Default::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn new_setter<T: BuiltinSetter>(
+        agent: &'agent mut Agent,
+        realm: Realm<'static>,
+    ) -> BuiltinFunctionBuilder<
+        'agent,
+        NoPrototype,
+        CreatorLength,
+        CreatorName,
+        CreatorBehaviour,
+        NoProperties,
+    > {
+        agent.heap.builtin_functions.push(None);
+        let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
+        BuiltinFunctionBuilder {
+            agent,
+            this,
+            object_index: None,
+            realm,
+            prototype: Default::default(),
+            length: CreatorLength(1),
+            name: CreatorName(T::SETTER_NAME),
+            behaviour: CreatorBehaviour(T::SETTER_BEHAVIOUR),
             properties: Default::default(),
         }
     }

@@ -66,7 +66,7 @@ pub use builtin_constructor::BuiltinConstructorFunction;
 pub(crate) use builtin_constructor::{BuiltinConstructorArgs, create_builtin_constructor};
 pub use builtin_function::{
     ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinFunctionArgs, BuiltinGetter,
-    ConstructorFn, RegularFn as JsFunction, RegularFn, ScopedArgumentsList,
+    BuiltinSetter, ConstructorFn, RegularFn as JsFunction, RegularFn, ScopedArgumentsList,
     create_builtin_function,
 };
 pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};

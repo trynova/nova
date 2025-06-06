@@ -6,12 +6,14 @@ use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
     IteratorRecord, get_iterator_direct, if_abrupt_close_iterator, iterator_close_with_error,
     iterator_close_with_value, iterator_step_value,
 };
-use crate::ecmascript::abstract_operations::operations_on_objects::{call, throw_not_callable};
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    call, setter_that_ignores_prototype_properties, throw_not_callable,
+};
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
 use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::builtins::Array;
+use crate::ecmascript::builtins::{Array, BuiltinGetter, BuiltinSetter};
 use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::{IntoValue, Object};
+use crate::ecmascript::types::{IntoObject, IntoValue, Object};
 use crate::engine::ScopableCollection;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
@@ -82,6 +84,23 @@ impl Builtin for IteratorPrototypeToArray {
     const KEY: Option<PropertyKey<'static>> = None;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::to_array);
+}
+
+struct IteratorPrototypeToStringTag;
+impl Builtin for IteratorPrototypeToStringTag {
+    const NAME: String<'static> = String::EMPTY_STRING;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(WellKnownSymbolIndexes::ToStringTag.to_property_key());
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::get_to_string_tag);
+}
+impl BuiltinGetter for IteratorPrototypeToStringTag {
+    const GETTER_NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
+}
+impl BuiltinSetter for IteratorPrototypeToStringTag {
+    const SETTER_NAME: String<'static> = BUILTIN_STRING_MEMORY.set__Symbol_toStringTag_;
+
+    const SETTER_BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::set_to_string_tag);
 }
 
 impl IteratorPrototype {
@@ -722,13 +741,52 @@ impl IteratorPrototype {
         }
     }
 
+    fn get_to_string_tag<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Return "Iterator".
+        Ok(BUILTIN_STRING_MEMORY.Iterator.into_value())
+    }
+
+    fn set_to_string_tag<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let v = arguments.get(0);
+        // 1. Perform ? SetterThatIgnoresPrototypeProperties(
+        setter_that_ignores_prototype_properties(
+            agent,
+            // this value,
+            this_value,
+            // %Iterator.prototype%,
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .iterator_prototype()
+                .into_object(),
+            // %Symbol.toStringTag%,
+            WellKnownSymbolIndexes::ToStringTag.to_property_key(),
+            // v
+            v,
+            gc,
+        )?;
+        // ).
+        // 2. Return undefined.
+        Ok(Value::Undefined)
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.iterator_prototype();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(7)
+            .with_property_capacity(8)
             .with_prototype(object_prototype)
             .with_builtin_function_property::<IteratorPrototypeIterator>()
             .with_builtin_function_property::<IteratorPrototypeEvery>()
@@ -737,6 +795,7 @@ impl IteratorPrototype {
             .with_builtin_function_property::<IteratorPrototypeSome>()
             .with_builtin_function_property::<IteratorPrototypeReduce>()
             .with_builtin_function_property::<IteratorPrototypeToArray>()
+            .with_builtin_function_getter_setter_property::<IteratorPrototypeToStringTag>()
             .build();
     }
 }

@@ -101,6 +101,8 @@ pub(crate) fn is_callable<'a, 'b>(
     if let Ok(f) = argument.try_into() {
         Some(f.unbind())
     } else {
+        // TODO: Once this handles callable Proxies, remove special case in
+        // Proxy::is_callable.
         None
     }
 }

@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{
-        builtins::{Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic},
+        builtins::{Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter},
         execution::{Agent, Realm},
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, ObjectHeapData,
@@ -239,12 +239,38 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
 
     #[must_use]
     pub(crate) fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
-        let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
+        let getter_function = BuiltinFunctionBuilder::new_getter::<T>(self.agent, self.realm)
             .build()
             .into_function();
         let property = PropertyBuilder::new(self.agent)
             .with_key(T::KEY.unwrap())
             .with_getter_function(getter_function)
+            .with_configurable(T::CONFIGURABLE)
+            .with_enumerable(T::ENUMERABLE)
+            .build();
+        self.properties.0.push(property);
+        OrdinaryObjectBuilder {
+            agent: self.agent,
+            this: self.this,
+            realm: self.realm,
+            prototype: self.prototype,
+            extensible: self.extensible,
+            properties: self.properties,
+        }
+    }
+
+    pub(crate) fn with_builtin_function_getter_setter_property<T: BuiltinGetter + BuiltinSetter>(
+        mut self,
+    ) -> Self {
+        let getter_function = BuiltinFunctionBuilder::new_getter::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let setter_function = BuiltinFunctionBuilder::new_setter::<T>(self.agent, self.realm)
+            .build()
+            .into_function();
+        let property = PropertyBuilder::new(self.agent)
+            .with_key(T::KEY.unwrap())
+            .with_getter_and_setter_functions(getter_function, setter_function)
             .with_configurable(T::CONFIGURABLE)
             .with_enumerable(T::ENUMERABLE)
             .build();

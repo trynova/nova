@@ -1,5 +1,7 @@
  
+*default*
 -0
+0
 [object Arguments]
 [object Array]
 [object Boolean]
@@ -21,8 +23,6 @@
 [Symbol.search]
 [Symbol.split]
 [Symbol.toPrimitive]
-*default*
-0
 __proto__
 abs
 acos
@@ -31,8 +31,8 @@ add
 AggregateError
 all
 allSettled
-and
 anchor
+and
 anonymous
 any
 apply
@@ -111,9 +111,8 @@ endsWith
 entries
 enumerable
 EPSILON
-errors
 Error
-isError
+errors
 escape
 eval
 EvalError
@@ -233,6 +232,7 @@ Int8Array
 is
 isArray
 isConcatSpreadable
+isError
 isExtensible
 isFinite
 isFrozen
@@ -251,10 +251,10 @@ join
 JSON
 keyFor
 keys
-link
 lastIndex
 lastIndexOf
 length
+link
 LN10
 LN2
 load
@@ -338,6 +338,7 @@ seal
 search
 set
 Set
+set [Symbol.toStringTag]
 Set Iterator
 setBigInt64
 setBigUint64
@@ -399,6 +400,7 @@ sumPrecise
 sup
 symbol
 Symbol
+Symbol()
 Symbol.asyncIterator
 Symbol.hasInstance
 Symbol.isConcatSpreadable
@@ -412,7 +414,6 @@ Symbol.split
 Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
-Symbol()
 SyntaxError
 tan
 tanh
