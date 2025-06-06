@@ -585,6 +585,9 @@ impl ArrayPrototype {
                 };
 
                 let count = (final_end - from).min(len as isize - to);
+                if count <= 0 {
+                    return Ok(array.into_value().unbind());
+                }
                 let data = array.as_mut_slice(agent);
                 data.copy_within((from as usize)..((from + count) as usize), to as usize);
 
