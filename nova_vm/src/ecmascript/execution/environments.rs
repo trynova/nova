@@ -41,6 +41,7 @@ pub(crate) use function_environment::{
     new_class_static_element_environment, new_function_environment,
 };
 pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
+pub(crate) use module_environment::new_module_environment;
 pub(crate) use object_environment::ObjectEnvironmentRecord;
 pub(crate) use private_environment::{
     PrivateEnvironmentRecord, PrivateField, PrivateMethod, new_private_environment,
@@ -228,6 +229,12 @@ impl<'a> From<GlobalEnvironment<'a>> for Environment<'a> {
     }
 }
 
+impl<'a> From<ModuleEnvironment<'a>> for Environment<'a> {
+    fn from(value: ModuleEnvironment<'a>) -> Self {
+        Environment::Module(value)
+    }
+}
+
 impl<'a> From<ObjectEnvironment<'a>> for Environment<'a> {
     fn from(value: ObjectEnvironment<'a>) -> Self {
         Environment::Object(value)
@@ -263,12 +270,20 @@ impl ModuleEnvironment<'_> {
         )
     }
 
+    pub(crate) const fn from_u32_index(value: u32) -> Self {
+        Self::from_u32(value + 1)
+    }
+
     pub(crate) const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
 
     pub(crate) const fn into_u32(self) -> u32 {
         self.0.get()
+    }
+
+    pub(crate) const fn into_u32_index(self) -> u32 {
+        self.0.get() - 1
     }
 
     pub(crate) fn last(vec: &[Option<DeclarativeEnvironmentRecord>]) -> Self {
@@ -339,17 +354,18 @@ pub(crate) enum Environment<'a> {
     Declarative(DeclarativeEnvironment<'a>) = 1,
     Function(FunctionEnvironment<'a>),
     Global(GlobalEnvironment<'a>),
-    // Module(ModuleEnvironment<'a>),
+    Module(ModuleEnvironment<'a>),
     Object(ObjectEnvironment<'a>),
 }
 
 impl Environment<'_> {
     pub(crate) fn get_outer_env<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> OuterEnv<'a> {
         match self {
-            Environment::Declarative(index) => index.get_outer_env(agent, gc),
-            Environment::Function(index) => index.get_outer_env(agent, gc),
+            Environment::Declarative(e) => e.get_outer_env(agent, gc),
+            Environment::Function(e) => e.get_outer_env(agent, gc),
             Environment::Global(_) => None,
-            Environment::Object(index) => index.get_outer_env(agent, gc),
+            Environment::Module(e) => e.get_outer_env(agent, gc),
+            Environment::Object(e) => e.get_outer_env(agent, gc),
         }
     }
 
@@ -364,10 +380,11 @@ impl Environment<'_> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
-            Environment::Declarative(idx) => TryResult::Continue(idx.has_binding(agent, name)),
-            Environment::Function(idx) => TryResult::Continue(idx.has_binding(agent, name)),
-            Environment::Global(idx) => idx.try_has_binding(agent, name, gc),
-            Environment::Object(idx) => idx.try_has_binding(agent, name, gc),
+            Environment::Declarative(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Function(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Global(e) => e.try_has_binding(agent, name, gc),
+            Environment::Module(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Object(e) => e.try_has_binding(agent, name, gc),
         }
     }
 
@@ -382,10 +399,11 @@ impl Environment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
         match self {
-            Environment::Declarative(idx) => Ok(idx.has_binding(agent, name)),
-            Environment::Function(idx) => Ok(idx.has_binding(agent, name)),
-            Environment::Global(idx) => idx.has_binding(agent, name, gc),
-            Environment::Object(idx) => idx.has_binding(agent, name, gc),
+            Environment::Declarative(e) => Ok(e.has_binding(agent, name)),
+            Environment::Function(e) => Ok(e.has_binding(agent, name)),
+            Environment::Global(e) => e.has_binding(agent, name, gc),
+            Environment::Module(e) => Ok(e.has_binding(agent, name)),
+            Environment::Object(e) => e.has_binding(agent, name, gc),
         }
     }
 
@@ -402,20 +420,22 @@ impl Environment<'_> {
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.create_mutable_binding(agent, name, is_deletable);
+            Environment::Declarative(e) => {
+                e.create_mutable_binding(agent, name, is_deletable);
                 TryResult::Continue(Ok(()))
             }
-            Environment::Function(idx) => {
-                idx.create_mutable_binding(agent, name, is_deletable);
+            Environment::Function(e) => {
+                e.create_mutable_binding(agent, name, is_deletable);
                 TryResult::Continue(Ok(()))
             }
-            Environment::Global(idx) => {
-                TryResult::Continue(idx.create_mutable_binding(agent, name, is_deletable, gc))
+            Environment::Global(e) => {
+                TryResult::Continue(e.create_mutable_binding(agent, name, is_deletable, gc))
             }
-            Environment::Object(idx) => {
-                idx.try_create_mutable_binding(agent, name, is_deletable, gc)
+            Environment::Module(e) => {
+                e.create_mutable_binding(agent, name, is_deletable);
+                TryResult::Continue(Ok(()))
             }
+            Environment::Object(e) => e.try_create_mutable_binding(agent, name, is_deletable, gc),
         }
     }
 
@@ -432,18 +452,22 @@ impl Environment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.create_mutable_binding(agent, name, is_deletable);
+            Environment::Declarative(e) => {
+                e.create_mutable_binding(agent, name, is_deletable);
                 Ok(())
             }
-            Environment::Function(idx) => {
-                idx.create_mutable_binding(agent, name, is_deletable);
+            Environment::Function(e) => {
+                e.create_mutable_binding(agent, name, is_deletable);
                 Ok(())
             }
-            Environment::Global(idx) => {
-                idx.create_mutable_binding(agent, name, is_deletable, gc.into_nogc())
+            Environment::Global(e) => {
+                e.create_mutable_binding(agent, name, is_deletable, gc.into_nogc())
             }
-            Environment::Object(idx) => idx.create_mutable_binding(agent, name, is_deletable, gc),
+            Environment::Module(e) => {
+                e.create_mutable_binding(agent, name, is_deletable);
+                Ok(())
+            }
+            Environment::Object(e) => e.create_mutable_binding(agent, name, is_deletable, gc),
         }
     }
 
@@ -462,17 +486,22 @@ impl Environment<'_> {
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.create_immutable_binding(agent, name, is_strict);
+            Environment::Declarative(e) => {
+                e.create_immutable_binding(agent, name, is_strict);
                 Ok(())
             }
-            Environment::Function(idx) => {
-                idx.create_immutable_binding(agent, name, is_strict);
+            Environment::Function(e) => {
+                e.create_immutable_binding(agent, name, is_strict);
                 Ok(())
             }
-            Environment::Global(idx) => idx.create_immutable_binding(agent, name, is_strict, gc),
-            Environment::Object(idx) => {
-                idx.create_immutable_binding(agent, name, is_strict);
+            Environment::Global(e) => e.create_immutable_binding(agent, name, is_strict, gc),
+            Environment::Module(e) => {
+                debug_assert!(is_strict);
+                e.create_immutable_binding(agent, name);
+                Ok(())
+            }
+            Environment::Object(e) => {
+                e.create_immutable_binding(agent, name, is_strict);
                 Ok(())
             }
         }
@@ -492,16 +521,20 @@ impl Environment<'_> {
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.initialize_binding(agent, name, value);
+            Environment::Declarative(e) => {
+                e.initialize_binding(agent, name, value);
                 TryResult::Continue(Ok(()))
             }
-            Environment::Function(idx) => {
-                idx.initialize_binding(agent, name, value);
+            Environment::Function(e) => {
+                e.initialize_binding(agent, name, value);
                 TryResult::Continue(Ok(()))
             }
-            Environment::Global(idx) => idx.try_initialize_binding(agent, name, value, gc),
-            Environment::Object(idx) => idx.try_initialize_binding(agent, name, value, gc),
+            Environment::Global(e) => e.try_initialize_binding(agent, name, value, gc),
+            Environment::Module(e) => {
+                e.initialize_binding(agent, name, value);
+                TryResult::Continue(Ok(()))
+            }
+            Environment::Object(e) => e.try_initialize_binding(agent, name, value, gc),
         }
     }
 
@@ -519,16 +552,20 @@ impl Environment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.initialize_binding(agent, name, value);
+            Environment::Declarative(e) => {
+                e.initialize_binding(agent, name, value);
                 Ok(())
             }
-            Environment::Function(idx) => {
-                idx.initialize_binding(agent, name, value);
+            Environment::Function(e) => {
+                e.initialize_binding(agent, name, value);
                 Ok(())
             }
-            Environment::Global(idx) => idx.initialize_binding(agent, name, value, gc),
-            Environment::Object(idx) => idx.initialize_binding(agent, name, value, gc),
+            Environment::Global(e) => e.initialize_binding(agent, name, value, gc),
+            Environment::Module(e) => {
+                e.initialize_binding(agent, name, value);
+                Ok(())
+            }
+            Environment::Object(e) => e.initialize_binding(agent, name, value, gc),
         }
     }
 
@@ -548,18 +585,18 @@ impl Environment<'_> {
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
         match self {
-            Environment::Declarative(idx) => {
-                TryResult::Continue(idx.set_mutable_binding(agent, name, value, is_strict, gc))
+            Environment::Declarative(e) => {
+                TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
             }
-            Environment::Function(idx) => {
-                TryResult::Continue(idx.set_mutable_binding(agent, name, value, is_strict, gc))
+            Environment::Function(e) => {
+                TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
             }
-            Environment::Global(idx) => {
-                idx.try_set_mutable_binding(agent, name, value, is_strict, gc)
+            Environment::Global(e) => e.try_set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Module(e) => {
+                debug_assert!(is_strict);
+                TryResult::Continue(e.set_mutable_binding(agent, name, value, gc))
             }
-            Environment::Object(idx) => {
-                idx.try_set_mutable_binding(agent, name, value, is_strict, gc)
-            }
+            Environment::Object(e) => e.try_set_mutable_binding(agent, name, value, is_strict, gc),
         }
     }
 
@@ -579,14 +616,15 @@ impl Environment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
+            Environment::Declarative(e) => {
+                e.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
             }
-            Environment::Function(idx) => {
-                idx.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
+            Environment::Function(e) => {
+                e.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
             }
-            Environment::Global(idx) => idx.set_mutable_binding(agent, name, value, is_strict, gc),
-            Environment::Object(idx) => idx.set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Global(e) => e.set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Module(e) => e.set_mutable_binding(agent, name, value, gc.into_nogc()),
+            Environment::Object(e) => e.set_mutable_binding(agent, name, value, is_strict, gc),
         }
     }
 
@@ -607,14 +645,17 @@ impl Environment<'_> {
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, Value<'a>>> {
         match self {
-            Environment::Declarative(idx) => {
-                TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
+            Environment::Declarative(e) => {
+                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
             }
-            Environment::Function(idx) => {
-                TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
+            Environment::Function(e) => {
+                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
             }
-            Environment::Global(idx) => idx.try_get_binding_value(agent, name, is_strict, gc),
-            Environment::Object(idx) => idx.try_get_binding_value(agent, name, is_strict, gc),
+            Environment::Global(e) => e.try_get_binding_value(agent, name, is_strict, gc),
+            Environment::Module(e) => {
+                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+            }
+            Environment::Object(e) => e.try_get_binding_value(agent, name, is_strict, gc),
         }
     }
 
@@ -635,14 +676,13 @@ impl Environment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, Value<'a>> {
         match self {
-            Environment::Declarative(idx) => {
-                idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
+            Environment::Declarative(e) => {
+                e.get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
-            Environment::Function(idx) => {
-                idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
-            }
-            Environment::Global(idx) => idx.get_binding_value(agent, name, is_strict, gc),
-            Environment::Object(idx) => idx.get_binding_value(agent, name, is_strict, gc),
+            Environment::Function(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
+            Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
+            Environment::Module(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
+            Environment::Object(e) => e.get_binding_value(agent, name, is_strict, gc),
         }
     }
 
@@ -659,13 +699,16 @@ impl Environment<'_> {
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, bool>> {
         match self {
-            Environment::Declarative(idx) => {
-                TryResult::Continue(Ok(idx.delete_binding(agent, name)))
-            }
-            Environment::Function(idx) => TryResult::Continue(Ok(idx.delete_binding(agent, name))),
-            Environment::Global(idx) => idx.try_delete_binding(agent, name, gc),
-            Environment::Object(idx) => {
-                TryResult::Continue(Ok(idx.try_delete_binding(agent, name, gc)?))
+            Environment::Declarative(e) => TryResult::Continue(Ok(e.delete_binding(agent, name))),
+            Environment::Function(e) => TryResult::Continue(Ok(e.delete_binding(agent, name))),
+            Environment::Global(e) => e.try_delete_binding(agent, name, gc),
+            // NOTE: Module Environment Records are only used within strict
+            // code and an early error rule prevents the delete operator, in
+            // strict code, from being applied to a Reference Record that would
+            // resolve to a Module Environment Record binding. See 13.5.1.1.
+            Environment::Module(_) => unreachable!(),
+            Environment::Object(e) => {
+                TryResult::Continue(Ok(e.try_delete_binding(agent, name, gc)?))
             }
         }
     }
@@ -683,10 +726,15 @@ impl Environment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
         match self {
-            Environment::Declarative(idx) => Ok(idx.delete_binding(agent, name)),
-            Environment::Function(idx) => Ok(idx.delete_binding(agent, name)),
-            Environment::Global(idx) => idx.delete_binding(agent, name, gc),
-            Environment::Object(idx) => idx.delete_binding(agent, name, gc),
+            Environment::Declarative(e) => Ok(e.delete_binding(agent, name)),
+            Environment::Function(e) => Ok(e.delete_binding(agent, name)),
+            Environment::Global(e) => e.delete_binding(agent, name, gc),
+            // NOTE: Module Environment Records are only used within strict
+            // code and an early error rule prevents the delete operator, in
+            // strict code, from being applied to a Reference Record that would
+            // resolve to a Module Environment Record binding. See 13.5.1.1.
+            Environment::Module(_) => unreachable!(),
+            Environment::Object(e) => e.delete_binding(agent, name, gc),
         }
     }
 
@@ -697,8 +745,9 @@ impl Environment<'_> {
     pub(crate) fn has_this_binding(self, agent: &Agent) -> bool {
         match self {
             Environment::Declarative(_) => false,
-            Environment::Function(idx) => idx.has_this_binding(agent),
+            Environment::Function(e) => e.has_this_binding(agent),
             Environment::Global(_) => true,
+            Environment::Module(_) => true,
             Environment::Object(_) => false,
         }
     }
@@ -716,6 +765,7 @@ impl Environment<'_> {
         match self {
             Environment::Function(e) => e.get_this_binding(agent, gc),
             Environment::Global(e) => Ok(e.get_this_binding(agent, gc).into_value()),
+            Environment::Module(_) => Ok(Value::Undefined),
             _ => unreachable!(),
         }
     }
@@ -726,10 +776,8 @@ impl Environment<'_> {
     /// Return true if it does and false if it does not.
     pub(crate) fn has_super_binding(self, agent: &mut Agent) -> bool {
         match self {
-            Environment::Declarative(idx) => idx.has_super_binding(),
-            Environment::Function(idx) => idx.has_super_binding(agent),
-            Environment::Global(idx) => idx.has_super_binding(),
-            Environment::Object(idx) => idx.has_super_binding(),
+            Environment::Function(e) => e.has_super_binding(agent),
+            _ => false,
         }
     }
 
@@ -739,10 +787,8 @@ impl Environment<'_> {
     /// the with object. Otherwise, return undefined.
     pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object> {
         match self {
-            Environment::Declarative(idx) => idx.with_base_object(),
-            Environment::Function(idx) => idx.with_base_object(),
-            Environment::Global(idx) => idx.with_base_object(),
-            Environment::Object(idx) => idx.with_base_object(agent),
+            Environment::Object(e) => e.with_base_object(agent),
+            _ => None,
         }
     }
 }
@@ -770,6 +816,7 @@ impl core::fmt::Debug for Environment<'_> {
             }
             Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.into_u32_index()),
             Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.into_u32_index()),
+            Environment::Module(d) => write!(f, "ModuleEnvironment({:?})", d.into_u32_index()),
             Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.into_u32_index()),
             // EnvironmentIndex::Module(d) => {}
         }
@@ -781,18 +828,11 @@ impl Rootable for Environment<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Environment::Declarative(declarative_environment_index) => Err(
-                HeapRootData::DeclarativeEnvironment(declarative_environment_index.unbind()),
-            ),
-            Environment::Function(function_environment_index) => Err(
-                HeapRootData::FunctionEnvironment(function_environment_index.unbind()),
-            ),
-            Environment::Global(global_environment_index) => Err(HeapRootData::GlobalEnvironment(
-                global_environment_index.unbind(),
-            )),
-            Environment::Object(object_environment_index) => Err(HeapRootData::ObjectEnvironment(
-                object_environment_index.unbind(),
-            )),
+            Environment::Declarative(e) => Err(HeapRootData::DeclarativeEnvironment(e.unbind())),
+            Environment::Function(e) => Err(HeapRootData::FunctionEnvironment(e.unbind())),
+            Environment::Global(e) => Err(HeapRootData::GlobalEnvironment(e.unbind())),
+            Environment::Module(e) => Err(HeapRootData::ModuleEnvironment(e.unbind())),
+            Environment::Object(e) => Err(HeapRootData::ObjectEnvironment(e.unbind())),
         }
     }
 
@@ -806,18 +846,11 @@ impl Rootable for Environment<'_> {
 
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
-            HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
-                Some(Environment::Declarative(declarative_environment_index))
-            }
-            HeapRootData::FunctionEnvironment(function_environment_index) => {
-                Some(Environment::Function(function_environment_index))
-            }
-            HeapRootData::GlobalEnvironment(global_environment_index) => {
-                Some(Environment::Global(global_environment_index))
-            }
-            HeapRootData::ObjectEnvironment(object_environment_index) => {
-                Some(Environment::Object(object_environment_index))
-            }
+            HeapRootData::DeclarativeEnvironment(e) => Some(Environment::Declarative(e)),
+            HeapRootData::FunctionEnvironment(e) => Some(Environment::Function(e)),
+            HeapRootData::GlobalEnvironment(e) => Some(Environment::Global(e)),
+            HeapRootData::ModuleEnvironment(e) => Some(Environment::Module(e)),
+            HeapRootData::ObjectEnvironment(e) => Some(Environment::Object(e)),
             _ => None,
         }
     }
@@ -826,19 +859,21 @@ impl Rootable for Environment<'_> {
 impl HeapMarkAndSweep for Environment<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            Environment::Declarative(idx) => idx.mark_values(queues),
-            Environment::Function(idx) => idx.mark_values(queues),
-            Environment::Global(idx) => idx.mark_values(queues),
-            Environment::Object(idx) => idx.mark_values(queues),
+            Environment::Declarative(e) => e.mark_values(queues),
+            Environment::Function(e) => e.mark_values(queues),
+            Environment::Global(e) => e.mark_values(queues),
+            Environment::Module(e) => e.mark_values(queues),
+            Environment::Object(e) => e.mark_values(queues),
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            Environment::Declarative(idx) => idx.sweep_values(compactions),
-            Environment::Function(idx) => idx.sweep_values(compactions),
-            Environment::Global(idx) => idx.sweep_values(compactions),
-            Environment::Object(idx) => idx.sweep_values(compactions),
+            Environment::Declarative(e) => e.sweep_values(compactions),
+            Environment::Function(e) => e.sweep_values(compactions),
+            Environment::Global(e) => e.sweep_values(compactions),
+            Environment::Module(e) => e.sweep_values(compactions),
+            Environment::Object(e) => e.sweep_values(compactions),
         }
     }
 }

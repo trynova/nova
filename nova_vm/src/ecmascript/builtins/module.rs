@@ -13,7 +13,7 @@ use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
         builtins::ordinary::ordinary_get_own_property,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{Agent, JsResult},
         types::{
             InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, String, Value,
@@ -128,16 +128,11 @@ unsafe impl Bindable for Module<'_> {
 impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        None
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(
-            agent[self]
-                .object_index
-                .replace(backing_object.unbind())
-                .is_none()
-        );
+        unreachable!()
     }
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
@@ -483,36 +478,37 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 if !exports_contains_p {
                     TryResult::Continue(Value::Undefined)
                 } else {
-                    // 4. Let m be O.[[Module]].
-                    let m = &agent[self].module;
-                    // 5. Let binding be m.ResolveExport(P).
-                    let binding = m.resolve_export(property_key);
-                    // 6. Assert: binding is a ResolvedBinding Record.
-                    let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
-                        unreachable!();
-                    };
-                    // 7. Let targetModule be binding.[[Module]].
-                    // 8. Assert: targetModule is not undefined.
-                    let target_module = binding.module.unwrap();
-                    // 9. If binding.[[BindingName]] is NAMESPACE, then
-                    let _binding_name = match binding.binding_name {
-                        data::ResolvedBindingName::Namespace => {
-                            // a. Return GetModuleNamespace(targetModule).
-                            todo!();
-                        }
-                        data::ResolvedBindingName::String(data) => String::String(data),
-                        data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
-                    };
-                    // 10. Let targetEnv be targetModule.[[Environment]].
-                    let target_env = agent[target_module].module.environment;
-                    // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
-                    match target_env {
-                        None => TryResult::Break(()),
-                        Some(_target_env) => {
-                            // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                            todo!()
-                        }
-                    }
+                    todo!();
+                    // // 4. Let m be O.[[Module]].
+                    // let m = &agent[self].module;
+                    // // 5. Let binding be m.ResolveExport(P).
+                    // let binding = m.resolve_export(property_key);
+                    // // 6. Assert: binding is a ResolvedBinding Record.
+                    // let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
+                    //     unreachable!();
+                    // };
+                    // // 7. Let targetModule be binding.[[Module]].
+                    // // 8. Assert: targetModule is not undefined.
+                    // let target_module = binding.module.unwrap();
+                    // // 9. If binding.[[BindingName]] is NAMESPACE, then
+                    // let _binding_name = match binding.binding_name {
+                    //     data::ResolvedBindingName::Namespace => {
+                    //         // a. Return GetModuleNamespace(targetModule).
+                    //         todo!();
+                    //     }
+                    //     data::ResolvedBindingName::String(data) => String::String(data),
+                    //     data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
+                    // };
+                    // // 10. Let targetEnv be targetModule.[[Environment]].
+                    // let target_env = agent[target_module].module.environment;
+                    // // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
+                    // match target_env {
+                    //     None => TryResult::Break(()),
+                    //     Some(_target_env) => {
+                    //         // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
+                    //         todo!()
+                    //     }
+                    // }
                 }
             }
         }
@@ -565,40 +561,41 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 if !exports_contains_p {
                     Ok(Value::Undefined)
                 } else {
-                    // 4. Let m be O.[[Module]].
-                    let m = &agent[self].module;
-                    // 5. Let binding be m.ResolveExport(P).
-                    let binding = m.resolve_export(property_key);
-                    // 6. Assert: binding is a ResolvedBinding Record.
-                    let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
-                        unreachable!();
-                    };
-                    // 7. Let targetModule be binding.[[Module]].
-                    // 8. Assert: targetModule is not undefined.
-                    let target_module = binding.module.unwrap();
-                    // 9. If binding.[[BindingName]] is NAMESPACE, then
-                    let _binding_name = match binding.binding_name {
-                        data::ResolvedBindingName::Namespace => {
-                            // a. Return GetModuleNamespace(targetModule).
-                            todo!();
-                        }
-                        data::ResolvedBindingName::String(data) => String::String(data),
-                        data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
-                    };
-                    // 10. Let targetEnv be targetModule.[[Environment]].
-                    let target_env = agent[target_module].module.environment;
-                    // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
-                    match target_env {
-                        None => Err(agent.throw_exception(
-                            ExceptionType::ReferenceError,
-                            format!("Could not resolve module '{}'.", key.as_str(agent)),
-                            gc.into_nogc(),
-                        )),
-                        Some(_target_env) => {
-                            // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                            todo!()
-                        }
-                    }
+                    todo!();
+                    // // 4. Let m be O.[[Module]].
+                    // let m = &agent[self].module;
+                    // // 5. Let binding be m.ResolveExport(P).
+                    // let binding = m.resolve_export(property_key);
+                    // // 6. Assert: binding is a ResolvedBinding Record.
+                    // let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
+                    //     unreachable!();
+                    // };
+                    // // 7. Let targetModule be binding.[[Module]].
+                    // // 8. Assert: targetModule is not undefined.
+                    // let target_module = binding.module.unwrap();
+                    // // 9. If binding.[[BindingName]] is NAMESPACE, then
+                    // let _binding_name = match binding.binding_name {
+                    //     data::ResolvedBindingName::Namespace => {
+                    //         // a. Return GetModuleNamespace(targetModule).
+                    //         todo!();
+                    //     }
+                    //     data::ResolvedBindingName::String(data) => String::String(data),
+                    //     data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
+                    // };
+                    // // 10. Let targetEnv be targetModule.[[Environment]].
+                    // let target_env = agent[target_module].module.environment;
+                    // // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
+                    // match target_env {
+                    //     None => Err(agent.throw_exception(
+                    //         ExceptionType::ReferenceError,
+                    //         format!("Could not resolve module '{}'.", key.as_str(agent)),
+                    //         gc.into_nogc(),
+                    //     )),
+                    //     Some(_target_env) => {
+                    //         // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
+                    //         todo!()
+                    //     }
+                    // }
                 }
             }
         }

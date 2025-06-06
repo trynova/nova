@@ -5,7 +5,7 @@
 use core::ops::Deref;
 
 use oxc_ast::ast::{
-    BindingIdentifier, BlockStatement, Class, Declaration, ExportDefaultDeclarationKind,
+    self, BindingIdentifier, BlockStatement, Class, Declaration, ExportDefaultDeclarationKind,
     ForStatementInit, ForStatementLeft, Function, FunctionBody, LabeledStatement, Program,
     Statement, StaticBlock, SwitchCase, SwitchStatement, VariableDeclaration,
     VariableDeclarationKind, VariableDeclarator,
@@ -344,17 +344,20 @@ pub(crate) fn script_lexically_scoped_declarations<'body>(
     lexically_scoped_declarations
 }
 
-pub(crate) fn module_lexically_scoped_declarations<'body>(
-    module: &'body Program<'body>,
-) -> Vec<LexicallyScopedDeclaration<'body>> {
+pub(crate) fn module_lexically_scoped_declarations<'a>(
+    module: &'a [ast::Statement<'a>],
+) -> Vec<LexicallyScopedDeclaration<'a>> {
     let mut lexically_scoped_declarations = vec![];
 
     //  ModuleItemList : ModuleItemList ModuleItem
     // 1. Let declarations1 be LexicallyScopedDeclarations of ModuleItemList.
-    module.body.lexically_scoped_declarations(&mut |decl| {
+    let f = &mut |decl| {
         // 3. Return the list-concatenation of declarations[...]
         lexically_scoped_declarations.push(decl);
-    });
+    };
+    for statement in module {
+        statement.lexically_scoped_declarations(f);
+    }
 
     lexically_scoped_declarations
 }
@@ -865,7 +868,7 @@ pub(crate) fn script_var_scoped_declarations<'a>(
 }
 
 pub(crate) fn module_var_scoped_declarations<'a>(
-    module: &'a Program<'a>,
+    body: &'a [ast::Statement<'a>],
 ) -> Vec<VarScopedDeclaration<'a>> {
     let mut var_scoped_declarations = vec![];
     // Module : [empty]
@@ -874,9 +877,12 @@ pub(crate) fn module_var_scoped_declarations<'a>(
     // 1. Let declarations1 be VarScopedDeclarations of ModuleItemList.
     // 2. Let declarations2 be VarScopedDeclarations of ModuleItem.
     // 3. Return the list-concatenation of declarations1 and declarations2.
-    module.body.var_scoped_declarations(&mut |declarator| {
+    let f = &mut |declarator| {
         var_scoped_declarations.push(declarator);
-    });
+    };
+    for statement in body {
+        statement.var_scoped_declarations(f);
+    }
     var_scoped_declarations
 }
 

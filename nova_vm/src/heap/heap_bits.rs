@@ -56,7 +56,10 @@ use crate::ecmascript::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
         PrivateEnvironment, Realm,
     },
-    scripts_and_modules::{script::Script, source_code::SourceCode},
+    scripts_and_modules::{
+        module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+        source_code::SourceCode,
+    },
     types::{
         BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, PropertyKey, Symbol, Value,
         bigint::HeapBigInt,
@@ -128,6 +131,7 @@ pub struct HeapBits {
     pub set_iterators: Box<[bool]>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Box<[bool]>,
+    pub source_text_module_records: Box<[bool]>,
     pub string_iterators: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
@@ -205,6 +209,7 @@ pub(crate) struct WorkQueues {
     pub set_iterators: Vec<SetIterator<'static>>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<SharedArrayBuffer<'static>>,
+    pub source_text_module_records: Vec<SourceTextModule<'static>>,
     pub string_iterators: Vec<StringIterator<'static>>,
     pub strings: Vec<HeapString<'static>>,
     pub symbols: Vec<Symbol<'static>>,
@@ -282,6 +287,7 @@ impl HeapBits {
         let set_iterators = vec![false; heap.set_iterators.len()];
         #[cfg(feature = "shared-array-buffer")]
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
+        let source_text_module_records = vec![false; heap.source_text_module_records.len()];
         let string_iterators = vec![false; heap.string_iterators.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
@@ -356,6 +362,7 @@ impl HeapBits {
             set_iterators: set_iterators.into_boxed_slice(),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
+            source_text_module_records: source_text_module_records.into_boxed_slice(),
             string_iterators: string_iterators.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
@@ -438,6 +445,9 @@ impl WorkQueues {
             set_iterators: Vec::with_capacity(heap.set_iterators.len() / 4),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
+            source_text_module_records: Vec::with_capacity(
+                heap.source_text_module_records.len() / 4,
+            ),
             string_iterators: Vec::with_capacity(heap.string_iterators.len() / 4),
             strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
@@ -516,6 +526,7 @@ impl WorkQueues {
             set_iterators,
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
+            source_text_module_records,
             string_iterators,
             strings,
             symbols,
@@ -606,6 +617,7 @@ impl WorkQueues {
             && sets.is_empty()
             && set_iterators.is_empty()
             && shared_array_buffers.is_empty()
+            && source_text_module_records.is_empty()
             && string_iterators.is_empty()
             && strings.is_empty()
             && symbols.is_empty()
@@ -904,6 +916,7 @@ pub(crate) struct CompactionLists {
     pub ecmascript_functions: CompactionList,
     pub embedder_objects: CompactionList,
     pub source_codes: CompactionList,
+    pub source_text_module_records: CompactionList,
     pub errors: CompactionList,
     pub executables: CompactionList,
     pub finalization_registrys: CompactionList,
@@ -1023,6 +1036,9 @@ impl CompactionLists {
             strings: CompactionList::from_mark_bits(&bits.strings),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
+            source_text_module_records: CompactionList::from_mark_bits(
+                &bits.source_text_module_records,
+            ),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
             #[cfg(feature = "array-buffer")]
             data_views: CompactionList::from_mark_bits(&bits.data_views),

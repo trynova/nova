@@ -63,7 +63,10 @@ use crate::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
             ObjectEnvironment, Realm,
         },
-        scripts_and_modules::{script::Script, source_code::SourceCode},
+        scripts_and_modules::{
+            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+            source_code::SourceCode,
+        },
         types::{
             BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol,
             bigint::HeapBigInt,
@@ -157,6 +160,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             set_iterators,
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
+            source_text_module_records,
             string_iterators,
             strings,
             string_lookup_table: _,
@@ -739,6 +743,22 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
+        let mut source_text_module_record_marks: Box<[SourceTextModule]> =
+            queues.source_text_module_records.drain(..).collect();
+        source_text_module_record_marks.sort();
+        source_text_module_record_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.source_text_module_records.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                source_text_module_records
+                    .get(index)
+                    .mark_values(&mut queues);
+            }
+        });
         let mut string_generator_marks: Box<[StringIterator]> =
             queues.string_iterators.drain(..).collect();
         string_generator_marks.sort();
@@ -1222,6 +1242,7 @@ fn sweep(
         set_iterators,
         #[cfg(feature = "shared-array-buffer")]
         shared_array_buffers,
+        source_text_module_records,
         string_iterators,
         strings,
         string_lookup_table,

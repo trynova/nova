@@ -5,10 +5,7 @@
 use small_string::SmallString;
 
 use crate::{
-    ecmascript::{
-        execution::{ModuleEnvironment, Realm},
-        types::{HeapString, OrdinaryObject, PropertyKey, String},
-    },
+    ecmascript::types::{HeapString, String},
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -17,32 +14,7 @@ use super::Module;
 
 #[derive(Debug, Clone)]
 pub struct ModuleHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    pub(crate) module: ModuleRecord<'a>,
     pub(crate) exports: Box<[String<'a>]>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ModuleRecord<'a> {
-    /// \[\[Realm]]
-    ///
-    /// The Realm within which this module was created.
-    realm: Realm<'a>,
-    /// \[\[Environment]]
-    ///
-    /// The Environment Record containing the top level bindings for this
-    /// module. This field is set when the module is linked.
-    pub(super) environment: Option<ModuleEnvironment<'a>>,
-    /// \[\[Namespace]]
-    ///
-    /// The Module Namespace Object (28.3) if one has been created for this
-    /// module.
-    namespace: Option<Module<'a>>,
-    /// \[\[HostDefined]]
-    ///
-    /// Field reserved for use by host environments that need to associate
-    /// additional information with a module.
-    host_defined: (),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,24 +38,6 @@ pub(crate) enum ResolveExportResult {
     Resolved(ResolvedBinding),
 }
 
-impl ModuleRecord<'_> {
-    /// Return the binding of a name exported by this module. Bindings are
-    /// represented by a ResolvedBinding Record, of the form { \[\[Module]]:
-    /// Module Record, \[\[BindingName]]: String | NAMESPACE }. If the export
-    /// is a Module Namespace Object without a direct binding in any module,
-    /// \[\[BindingName]] will be set to NAMESPACE. Return null if the name
-    /// cannot be resolved, or AMBIGUOUS if multiple bindings were found.
-    ///
-    /// Each time this operation is called with a specific exportName,
-    /// resolveSet pair as arguments it must return the same result.
-    ///
-    /// LoadRequestedModules must have completed successfully prior to
-    /// invoking this method.
-    pub(crate) fn resolve_export(&self, _property_key: PropertyKey) -> Option<ResolveExportResult> {
-        todo!()
-    }
-}
-
 // SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for ModuleHeapData<'_> {
     type Of<'a> = ModuleHeapData<'a>;
@@ -101,44 +55,16 @@ unsafe impl Bindable for ModuleHeapData<'_> {
 
 impl HeapMarkAndSweep for ModuleHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            object_index,
-            module,
-            exports,
-        } = self;
-        let ModuleRecord {
-            realm,
-            environment: _,
-            namespace,
-            host_defined: _,
-        } = module;
+        let Self { exports } = self;
         for ele in exports.iter() {
             ele.mark_values(queues);
         }
-        realm.mark_values(queues);
-        // environment.mark_values(queues);
-        namespace.mark_values(queues);
-        object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            object_index,
-            module,
-            exports,
-        } = self;
-        let ModuleRecord {
-            realm,
-            environment: _,
-            namespace,
-            host_defined: _,
-        } = module;
+        let Self { exports } = self;
         for ele in exports.iter_mut() {
             ele.sweep_values(compactions);
         }
-        realm.sweep_values(compactions);
-        // environment.sweep_values(compactions);
-        namespace.sweep_values(compactions);
-        object_index.sweep_values(compactions);
     }
 }

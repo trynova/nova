@@ -49,20 +49,24 @@ enum Command {
 
     /// Evaluates a file
     Eval {
+        #[arg(long)]
+        expose_internals: bool,
+
         #[arg(short, long)]
-        verbose: bool,
+        module: bool,
+
         #[arg(long)]
         nogc: bool,
 
         #[arg(short, long)]
         no_strict: bool,
 
-        #[arg(long)]
-        expose_internals: bool,
-
         /// The files to evaluate
         #[arg(required = true)]
         paths: Vec<String>,
+
+        #[arg(short, long)]
+        verbose: bool,
     },
 
     /// Runs the REPL
@@ -135,6 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Eval {
             verbose,
+            module,
             no_strict,
             nogc,
             expose_internals,
@@ -170,25 +175,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
-                        let realm = agent.current_realm(gc.nogc());
                         let file = std::fs::read_to_string(&path)?;
                         let source_text = JsString::from_string(agent, file, gc.nogc());
-                        let script = match parse_script(
-                            agent,
-                            source_text,
-                            realm,
-                            !no_strict,
-                            None,
-                            gc.nogc(),
-                        ) {
-                            Ok(script) => script,
-                            Err(errors) => {
-                                // Borrow the string data from the Agent
-                                let source_text = source_text.as_str(agent);
-                                exit_with_parse_errors(errors, &path, source_text)
-                            }
+                        let result = if module {
+                            agent.run_module(source_text.unbind(), gc.reborrow())
+                        } else {
+                            let realm = agent.current_realm(gc.nogc());
+                            let script = match parse_script(
+                                agent,
+                                source_text,
+                                realm,
+                                !no_strict,
+                                None,
+                                gc.nogc(),
+                            ) {
+                                Ok(script) => script,
+                                Err(errors) => {
+                                    // Borrow the string data from the Agent
+                                    let source_text = source_text.as_str(agent);
+                                    exit_with_parse_errors(errors, &path, source_text)
+                                }
+                            };
+                            script_evaluation(agent, script.unbind(), gc.reborrow())
                         };
-                        let result = script_evaluation(agent, script.unbind(), gc.reborrow());
 
                         fn run_microtask_queue<'gc>(
                             agent: &mut Agent,

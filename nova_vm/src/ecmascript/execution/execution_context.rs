@@ -167,6 +167,7 @@ pub(crate) fn resolve_this_binding<'a>(
         Environment::Declarative(_) => unreachable!(),
         Environment::Function(idx) => idx.unbind().get_this_binding(agent, gc),
         Environment::Global(idx) => Ok(idx.unbind().get_this_binding(agent, gc).into_value()),
+        Environment::Module(_) => unreachable!(),
         Environment::Object(_) => unreachable!(),
     }
 }

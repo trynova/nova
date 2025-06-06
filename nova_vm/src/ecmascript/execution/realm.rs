@@ -74,8 +74,18 @@ impl Realm<'_> {
         self.0.get() - 1
     }
 
+    /// ### \[\[GlobalObject]]
     pub fn global_object(self, agent: &mut Agent) -> Object {
         agent[self].global_object
+    }
+
+    /// ### \[\[GlobalEnv]]
+    pub fn global_env<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<GlobalEnvironment<'gc>> {
+        agent[self].global_env.bind(gc)
     }
 }
 
