@@ -916,7 +916,13 @@ impl<'s> CompileEvaluation<'s> for ast::ChainExpression<'s> {
                 call.compile(ctx);
                 true
             }
-            ast::ChainElement::TSNonNullExpression(ref _call) => false,
+            #[cfg(feature = "typescript")]
+            ast::ChainElement::TSNonNullExpression(ref call) => {
+                call.expression.compile(ctx);
+                true
+            }
+            #[cfg(not(feature = "typescript"))]
+            ast::ChainElement::TSNonNullExpression(_) => unreachable!(),
         };
         // If chain succeeded, we come here and should jump over the nullish
         // case handling.
@@ -1428,8 +1434,11 @@ impl<'s> CompileEvaluation<'s> for ast::Expression<'s> {
             | ast::Expression::TSAsExpression(_)
             | ast::Expression::TSSatisfiesExpression(_)
             | ast::Expression::TSTypeAssertion(_)
-            | ast::Expression::TSNonNullExpression(_)
             | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSNonNullExpression(x) => x.expression.compile(ctx),
+            #[cfg(not(feature = "typescript"))]
+            ast::Expression::TSNonNullExpression(_) => unreachable!(),
         }
     }
 }
@@ -1441,8 +1450,11 @@ impl<'s> CompileEvaluation<'s> for ast::UpdateExpression<'s> {
             ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::PrivateFieldExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::SimpleAssignmentTarget::TSNonNullExpression(x) => x.expression.compile(ctx),
+            #[cfg(not(feature = "typescript"))]
+            ast::SimpleAssignmentTarget::TSNonNullExpression(_) => unreachable!(),
             ast::SimpleAssignmentTarget::TSAsExpression(_)
-            | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }

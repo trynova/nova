@@ -185,12 +185,15 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
                     | ExportDefaultDeclarationKind::ComputedMemberExpression(_)
                     | ExportDefaultDeclarationKind::StaticMemberExpression(_)
                     | ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
+                    #[cfg(feature = "typescript")]
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => {}
+                    #[cfg(not(feature = "typescript"))]
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => unreachable!(),
                     ExportDefaultDeclarationKind::JSXElement(_)
                     | ExportDefaultDeclarationKind::JSXFragment(_)
                     | ExportDefaultDeclarationKind::TSAsExpression(_)
                     | ExportDefaultDeclarationKind::TSInstantiationExpression(_)
                     | ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
-                    | ExportDefaultDeclarationKind::TSNonNullExpression(_)
                     | ExportDefaultDeclarationKind::TSSatisfiesExpression(_)
                     | ExportDefaultDeclarationKind::TSTypeAssertion(_) => unreachable!(),
                 }
@@ -511,16 +514,18 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     ExportDefaultDeclarationKind::UpdateExpression(_) |
                     ExportDefaultDeclarationKind::YieldExpression(_) |
                     ExportDefaultDeclarationKind::PrivateInExpression(_) |
-                    ExportDefaultDeclarationKind::V8IntrinsicExpression(_) |
-                    ExportDefaultDeclarationKind::ComputedMemberExpression(_) |
+                    ExportDefaultDeclarationKind::V8IntrinsicExpression(_) |                    ExportDefaultDeclarationKind::ComputedMemberExpression(_) |
                     ExportDefaultDeclarationKind::StaticMemberExpression(_) |
                     ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
+                    #[cfg(feature = "typescript")]
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => {}
+                    #[cfg(not(feature = "typescript"))]
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => unreachable!(),
                     ExportDefaultDeclarationKind::JSXElement(_) |
                     ExportDefaultDeclarationKind::JSXFragment(_) |
                     ExportDefaultDeclarationKind::TSAsExpression(_) |
                     ExportDefaultDeclarationKind::TSInstantiationExpression(_) |
                     ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) |
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) |
                     ExportDefaultDeclarationKind::TSSatisfiesExpression(_) |
                     ExportDefaultDeclarationKind::TSTypeAssertion(_) => unreachable!(),
                 }
