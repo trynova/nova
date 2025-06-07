@@ -60,10 +60,14 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
             ast::AssignmentTarget::TSNonNullExpression(x) => {
                 x.expression.compile(ctx);
             }
+            #[cfg(feature = "typescript")]
+            ast::AssignmentTarget::TSAsExpression(x) => {
+                x.expression.compile(ctx);
+            }
             #[cfg(not(feature = "typescript"))]
-            ast::AssignmentTarget::TSNonNullExpression(_) => unreachable!(),
             ast::AssignmentTarget::TSAsExpression(_)
-            | ast::AssignmentTarget::TSSatisfiesExpression(_)
+            | ast::AssignmentTarget::TSNonNullExpression(_) => unreachable!(),
+            ast::AssignmentTarget::TSSatisfiesExpression(_)
             | ast::AssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         };
 
@@ -222,10 +226,17 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
                 ctx.add_instruction(Instruction::Store);
                 ctx.add_instruction(Instruction::PutValue);
             }
+            #[cfg(feature = "typescript")]
+            ast::AssignmentTarget::TSAsExpression(x) => {
+                ctx.add_instruction(Instruction::Load);
+                x.expression.compile(ctx);
+                ctx.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::PutValue);
+            }
             #[cfg(not(feature = "typescript"))]
-            ast::AssignmentTarget::TSNonNullExpression(_) => unreachable!(),
             ast::AssignmentTarget::TSAsExpression(_)
-            | ast::AssignmentTarget::TSSatisfiesExpression(_)
+            | ast::AssignmentTarget::TSNonNullExpression(_) => unreachable!(),
+            ast::AssignmentTarget::TSSatisfiesExpression(_)
             | ast::AssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
     }
@@ -251,10 +262,12 @@ impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
             ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => t.compile(ctx),
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSNonNullExpression(t) => t.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::SimpleAssignmentTarget::TSAsExpression(t) => t.expression.compile(ctx),
             #[cfg(not(feature = "typescript"))]
-            ast::SimpleAssignmentTarget::TSNonNullExpression(_) => unreachable!(),
             ast::SimpleAssignmentTarget::TSAsExpression(_)
-            | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
+            | ast::SimpleAssignmentTarget::TSNonNullExpression(_) => unreachable!(),
+            ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
     }

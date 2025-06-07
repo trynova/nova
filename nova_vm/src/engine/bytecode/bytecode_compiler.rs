@@ -1426,19 +1426,21 @@ impl<'s> CompileEvaluation<'s> for ast::Expression<'s> {
             ast::Expression::ThisExpression(x) => x.compile(ctx),
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
-            ast::Expression::YieldExpression(x) => x.compile(ctx),
-            // TODO: Implement this expression.
+            ast::Expression::YieldExpression(x) => x.compile(ctx), // TODO: Implement this expression.
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
+            #[cfg(not(feature = "typescript"))]
+            ast::Expression::TSAsExpression(_) | ast::Expression::TSNonNullExpression(_) => {
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSNonNullExpression(x) => x.expression.compile(ctx),
             ast::Expression::JSXElement(_)
             | ast::Expression::JSXFragment(_)
-            | ast::Expression::TSAsExpression(_)
             | ast::Expression::TSSatisfiesExpression(_)
             | ast::Expression::TSTypeAssertion(_)
             | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
-            #[cfg(feature = "typescript")]
-            ast::Expression::TSNonNullExpression(x) => x.expression.compile(ctx),
-            #[cfg(not(feature = "typescript"))]
-            ast::Expression::TSNonNullExpression(_) => unreachable!(),
         }
     }
 }

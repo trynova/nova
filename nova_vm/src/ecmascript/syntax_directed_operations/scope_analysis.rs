@@ -186,12 +186,13 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
                     | ExportDefaultDeclarationKind::StaticMemberExpression(_)
                     | ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
                     #[cfg(feature = "typescript")]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => {}
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_)
+                    | ExportDefaultDeclarationKind::TSAsExpression(_) => {}
                     #[cfg(not(feature = "typescript"))]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => unreachable!(),
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_)
+                    | ExportDefaultDeclarationKind::TSAsExpression(_) => unreachable!(),
                     ExportDefaultDeclarationKind::JSXElement(_)
                     | ExportDefaultDeclarationKind::JSXFragment(_)
-                    | ExportDefaultDeclarationKind::TSAsExpression(_)
                     | ExportDefaultDeclarationKind::TSInstantiationExpression(_)
                     | ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
                     | ExportDefaultDeclarationKind::TSSatisfiesExpression(_)
@@ -514,16 +515,18 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     ExportDefaultDeclarationKind::UpdateExpression(_) |
                     ExportDefaultDeclarationKind::YieldExpression(_) |
                     ExportDefaultDeclarationKind::PrivateInExpression(_) |
-                    ExportDefaultDeclarationKind::V8IntrinsicExpression(_) |                    ExportDefaultDeclarationKind::ComputedMemberExpression(_) |
+                    ExportDefaultDeclarationKind::V8IntrinsicExpression(_) |
+                    ExportDefaultDeclarationKind::ComputedMemberExpression(_) |
                     ExportDefaultDeclarationKind::StaticMemberExpression(_) |
                     ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
                     #[cfg(feature = "typescript")]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => {}
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_) |
+                    ExportDefaultDeclarationKind::TSAsExpression(_) => {}
                     #[cfg(not(feature = "typescript"))]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) => unreachable!(),
+                    ExportDefaultDeclarationKind::TSNonNullExpression(_) |
+                    ExportDefaultDeclarationKind::TSAsExpression(_) => unreachable!(),
                     ExportDefaultDeclarationKind::JSXElement(_) |
                     ExportDefaultDeclarationKind::JSXFragment(_) |
-                    ExportDefaultDeclarationKind::TSAsExpression(_) |
                     ExportDefaultDeclarationKind::TSInstantiationExpression(_) |
                     ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) |
                     ExportDefaultDeclarationKind::TSSatisfiesExpression(_) |
