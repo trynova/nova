@@ -249,14 +249,20 @@ fn for_in_of_body_evaluation<'s>(
                         expr.expression.compile(ctx);
                         ctx.add_instruction(Instruction::Store);
                     }
+                    #[cfg(feature = "typescript")]
+                    ast::ForStatementLeft::TSSatisfiesExpression(expr) => {
+                        ctx.add_instruction(Instruction::Load);
+                        expr.expression.compile(ctx);
+                        ctx.add_instruction(Instruction::Store);
+                    }
                     #[cfg(not(feature = "typescript"))]
                     ast::ForStatementLeft::TSNonNullExpression(_)
-                    | ast::ForStatementLeft::TSAsExpression(_) => unreachable!(),
+                    | ast::ForStatementLeft::TSAsExpression(_)
+                    | ast::ForStatementLeft::TSSatisfiesExpression(_) => unreachable!(),
                     // Note: Assignments are handled above so these are
                     // unreachable.
                     ast::ForStatementLeft::ArrayAssignmentTarget(_)
                     | ast::ForStatementLeft::ObjectAssignmentTarget(_)
-                    | ast::ForStatementLeft::TSSatisfiesExpression(_)
                     | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
                 }
 
@@ -438,12 +444,13 @@ fn get_for_statement_left_hand_side_kind<'gc>(
         | ast::ForStatementLeft::StaticMemberExpression(_) => LeftHandSideKind::Assignment,
         #[cfg(feature = "typescript")]
         ast::ForStatementLeft::TSNonNullExpression(_)
-        | ast::ForStatementLeft::TSAsExpression(_) => LeftHandSideKind::Assignment,
+        | ast::ForStatementLeft::TSAsExpression(_)
+        | ast::ForStatementLeft::TSSatisfiesExpression(_) => LeftHandSideKind::Assignment,
         #[cfg(not(feature = "typescript"))]
         ast::ForStatementLeft::TSAsExpression(_)
-        | ast::ForStatementLeft::TSNonNullExpression(_) => unreachable!(),
-        ast::ForStatementLeft::TSSatisfiesExpression(_)
-        | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
+        | ast::ForStatementLeft::TSNonNullExpression(_)
+        | ast::ForStatementLeft::TSSatisfiesExpression(_) => unreachable!(),
+        ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
     }
 }
 
