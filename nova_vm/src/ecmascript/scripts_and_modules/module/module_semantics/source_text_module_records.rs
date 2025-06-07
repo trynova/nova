@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! ## [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 
 use std::{marker::PhantomData, mem::ManuallyDrop};
@@ -181,7 +185,7 @@ impl<'m> SourceTextModule<'m> {
         &agent.heap.source_text_module_records[self.0 as usize]
     }
 
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut SourceTextModuleRecord<'static> {
+    fn get_mut(self, agent: &mut Agent) -> &mut SourceTextModuleRecord<'static> {
         &mut agent.heap.source_text_module_records[self.0 as usize]
     }
 
@@ -237,7 +241,7 @@ impl<'m> SourceTextModule<'m> {
     }
 
     /// Set \[\[EvaluationError]] to error and \[\[Status]] to evaluated.
-    pub(super) fn set_evaluation_error<'gc>(self, agent: &mut Agent, error: JsError) {
+    pub(super) fn set_evaluation_error(self, agent: &mut Agent, error: JsError) {
         self.get_mut(agent)
             .cyclic_fields
             .set_evaluation_error(error)
@@ -323,8 +327,8 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     fn load_requested_modules<'a>(
         self,
         agent: &mut Agent,
-        host_defined: Option<HostDefined>,
-        gc: NoGcScope<'a, '_>,
+        _host_defined: Option<HostDefined>,
+        _gc: NoGcScope<'a, '_>,
     ) -> Option<Promise<'a>> {
         // 1. If hostDefined is not present, let hostDefined be empty.
         // 2. Let pc be ! NewPromiseCapability(%Promise%).
@@ -349,7 +353,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     ///
     /// > NOTE: GetExportedNames does not filter out or throw an exception for
     /// > names that have ambiguous star export bindings.
-    fn get_exported_names(self, agent: &mut Agent, export_start_set: Option<()>, gc: GcScope) {
+    fn get_exported_names(self, _agent: &mut Agent, _export_start_set: Option<()>, _gc: GcScope) {
         // 1. Assert: module.[[Status]] is not new.
         // 2. If exportStarSet is not present, set exportStarSet to a new empty List.
         // 3. If exportStarSet contains module, then
@@ -377,7 +381,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     }
 
     /// ### [16.2.1.7.2.2 ResolveExport ( exportName \[ , resolveSet \] )](https://tc39.es/ecma262/#sec-resolveexport)
-    fn resolve_export(self, agent: &mut Agent, resolve_set: Option<()>, gc: GcScope) {}
+    fn resolve_export(self, _agent: &mut Agent, _resolve_set: Option<()>, _gc: GcScope) {}
 
     /// ### [16.2.1.6.1.2 Link ( )](https://tc39.es/ecma262/#sec-moduledeclarationlinking)
     ///

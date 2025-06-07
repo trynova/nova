@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+//! ## [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
+
 use crate::{
     ecmascript::{
         builtins::{module::Module, promise::Promise},
@@ -31,6 +37,8 @@ pub(crate) struct AbstractModuleRecord<'a> {
     /// additional information with a module.
     host_defined: Option<HostDefined>,
 }
+
+unsafe impl Send for AbstractModuleRecord<'_> {}
 
 impl<'m> AbstractModuleRecord<'m> {
     pub(super) fn new(realm: Realm<'m>, host_defined: Option<HostDefined>) -> Self {

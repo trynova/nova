@@ -1667,6 +1667,15 @@ fn sweep(
                 );
             });
         }
+        if !source_text_module_records.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    source_text_module_records,
+                    &compactions,
+                    &bits.source_text_module_records,
+                );
+            });
+        }
         if !source_codes.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(source_codes, &compactions, &bits.source_codes);

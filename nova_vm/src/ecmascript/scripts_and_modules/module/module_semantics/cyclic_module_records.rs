@@ -1,4 +1,8 @@
-//!
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+//! ## [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
 
 use crate::{
     ecmascript::{
@@ -153,7 +157,7 @@ impl<'m> CyclicModuleRecord<'m> {
     }
 
     /// Set \[\[EvaluationError]] to error and \[\[Status]] to evaluated.
-    pub(super) fn set_evaluation_error<'gc>(&mut self, error: JsError) {
+    pub(super) fn set_evaluation_error(&mut self, error: JsError) {
         debug_assert!(
             self.evaluation_error.is_none(),
             "Attempted to set module [[EvaluationError]] twice"
@@ -164,7 +168,7 @@ impl<'m> CyclicModuleRecord<'m> {
     }
 
     /// ### \[\[Status]]
-    pub(super) fn status<'a>(&'a self) -> &'a CyclicModuleRecordStatus {
+    pub(super) fn status(&self) -> &CyclicModuleRecordStatus {
         &self.status
     }
 
@@ -249,7 +253,7 @@ pub trait CyclicModuleAbstractMethods {
 pub(super) fn inner_module_linking<'a>(
     agent: &mut Agent,
     module: SourceTextModule,
-    stack: (),
+    _stack: (),
     index: u32,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, u32> {
@@ -331,7 +335,7 @@ pub(super) fn inner_module_linking<'a>(
 pub(super) fn inner_module_evaluation<'a>(
     agent: &mut Agent,
     module: SourceTextModule,
-    stack: (),
+    _stack: (),
     index: u32,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, u32> {
