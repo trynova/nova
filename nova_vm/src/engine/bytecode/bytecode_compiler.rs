@@ -7,6 +7,7 @@ mod block_declaration_instantiation;
 mod class_definition_evaluation;
 mod compile_context;
 mod executable_context;
+mod exports;
 mod finaliser_stack;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
@@ -2679,9 +2680,9 @@ impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
             Statement::WithStatement(_) => todo!(),
             Statement::ClassDeclaration(x) => x.compile(ctx),
             Statement::ImportDeclaration(_) => todo!(),
-            Statement::ExportAllDeclaration(_) => todo!(),
-            Statement::ExportDefaultDeclaration(_) => todo!(),
-            Statement::ExportNamedDeclaration(_) => todo!(),
+            Statement::ExportAllDeclaration(x) => x.compile(ctx),
+            Statement::ExportDefaultDeclaration(x) => x.compile(ctx),
+            Statement::ExportNamedDeclaration(x) => x.compile(ctx),
             #[cfg(feature = "typescript")]
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
