@@ -169,11 +169,6 @@ impl BaseTest262Runner {
     fn run_test(&self, path: &PathBuf) -> Option<TestExpectation> {
         let metadata = test_metadata::parse(path);
 
-        if metadata.flags.module {
-            // We don't yet support modules, skip any tests for them.
-            return None;
-        }
-
         if self.print_progress {
             let relpath = path.strip_prefix(&self.tests_base).unwrap();
             let mut message = format!("Running {}", relpath.to_string_lossy());
@@ -203,6 +198,9 @@ impl BaseTest262Runner {
             let mut command = Command::new(&self.nova_cli_path);
             command.arg("eval");
             command.arg("--expose-internals");
+            if metadata.flags.module {
+                command.arg("--module");
+            }
             if !strict {
                 command.arg("--no-strict");
             }

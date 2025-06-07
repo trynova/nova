@@ -11,7 +11,9 @@ use std::marker::PhantomData;
 use crate::{
     ecmascript::{
         execution::Agent,
-        scripts_and_modules::script::Script,
+        scripts_and_modules::{
+            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+        },
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
@@ -152,6 +154,26 @@ impl<'gc> Executable<'gc> {
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
             unsafe { core::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
+        let mut ctx = CompileContext::new(agent, gc);
+
+        ctx.compile_statements(body);
+        ctx.do_implicit_return();
+        ctx.finish()
+    }
+
+    pub(crate) fn compile_module(
+        agent: &mut Agent,
+        module: SourceTextModule,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Self {
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Module ===");
+            eprintln!();
+        }
+        // SAFETY: Garbage collection is not triggered during this call, so the
+        // statements cannot become dangling.
+        let body = unsafe { module.get_statements(agent) };
         let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);

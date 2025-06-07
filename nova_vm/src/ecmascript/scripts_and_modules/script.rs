@@ -40,6 +40,7 @@ use super::source_code::SourceCode;
 
 pub type HostDefined = &'static mut dyn Any;
 
+/// ### [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Script<'a>(
     u32,

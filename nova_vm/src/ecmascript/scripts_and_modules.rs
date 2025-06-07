@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use module::module_semantics::source_text_module_records::SourceTextModule;
+
 use crate::{
     engine::context::Bindable,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -9,23 +11,23 @@ use crate::{
 
 use self::script::Script;
 
-use super::builtins::module::Module;
-
 pub mod module;
 pub mod script;
 pub mod source_code;
 
 #[derive(Clone, Copy)]
 pub(crate) enum ScriptOrModule<'a> {
+    /// ### [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
     Script(Script<'a>),
-    Module(Module<'a>),
+    /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+    SourceTextModule(SourceTextModule<'a>),
 }
 
 impl core::fmt::Debug for ScriptOrModule<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             ScriptOrModule::Script(script) => script.fmt(f),
-            ScriptOrModule::Module(module) => module.fmt(f),
+            ScriptOrModule::SourceTextModule(module) => module.fmt(f),
         }
     }
 }
@@ -48,15 +50,15 @@ unsafe impl Bindable for ScriptOrModule<'_> {
 impl HeapMarkAndSweep for ScriptOrModule<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
-            ScriptOrModule::Script(idx) => idx.mark_values(queues),
-            ScriptOrModule::Module(idx) => idx.mark_values(queues),
+            ScriptOrModule::Script(s) => s.mark_values(queues),
+            ScriptOrModule::SourceTextModule(m) => m.mark_values(queues),
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
-            ScriptOrModule::Script(idx) => idx.sweep_values(compactions),
-            ScriptOrModule::Module(idx) => idx.sweep_values(compactions),
+            ScriptOrModule::Script(s) => s.sweep_values(compactions),
+            ScriptOrModule::SourceTextModule(m) => m.sweep_values(compactions),
         }
     }
 }

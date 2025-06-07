@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
+        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{module::module_semantics::{abstract_module_records::ModuleAbstractMethods, source_text_module_records::parse_module}, script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
@@ -732,6 +732,33 @@ impl Agent {
             }
         };
         script_evaluation(self, script.unbind(), gc)
+    }
+
+    /// Run a module in the current Realm.
+    pub fn run_module<'gc>(
+        &mut self,
+        source_text: String,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let realm = self.current_realm(gc.nogc());
+        let module = match parse_module(self, source_text, realm, None, gc.nogc()) {
+            Ok(module) => module,
+            Err(err) => {
+                let message =
+                    String::from_string(self, err.first().unwrap().message.to_string(), gc.nogc());
+                return Err(self
+                    .throw_exception_with_message(
+                        ExceptionType::SyntaxError,
+                        message.unbind(),
+                        gc.into_nogc(),
+                    )
+                    .unbind());
+            }
+        };
+        module.load_requested_modules(self, None, gc.nogc());
+        module.link(self, gc.nogc()).unbind()?;
+        module.unbind().evaluate(self, gc);
+        Ok(Value::Undefined)
     }
 }
 
