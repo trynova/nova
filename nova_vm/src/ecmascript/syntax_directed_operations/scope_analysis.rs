@@ -149,54 +149,7 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
                 match &decl.declaration {
                     ExportDefaultDeclarationKind::FunctionDeclaration(decl) => decl.bound_names(f),
                     ExportDefaultDeclarationKind::ClassDeclaration(decl) => decl.bound_names(f),
-                    ExportDefaultDeclarationKind::BooleanLiteral(_)
-                    | ExportDefaultDeclarationKind::NullLiteral(_)
-                    | ExportDefaultDeclarationKind::NumericLiteral(_)
-                    | ExportDefaultDeclarationKind::BigIntLiteral(_)
-                    | ExportDefaultDeclarationKind::RegExpLiteral(_)
-                    | ExportDefaultDeclarationKind::StringLiteral(_)
-                    | ExportDefaultDeclarationKind::TemplateLiteral(_)
-                    | ExportDefaultDeclarationKind::Identifier(_)
-                    | ExportDefaultDeclarationKind::MetaProperty(_)
-                    | ExportDefaultDeclarationKind::Super(_)
-                    | ExportDefaultDeclarationKind::ArrayExpression(_)
-                    | ExportDefaultDeclarationKind::ArrowFunctionExpression(_)
-                    | ExportDefaultDeclarationKind::AssignmentExpression(_)
-                    | ExportDefaultDeclarationKind::AwaitExpression(_)
-                    | ExportDefaultDeclarationKind::BinaryExpression(_)
-                    | ExportDefaultDeclarationKind::CallExpression(_)
-                    | ExportDefaultDeclarationKind::ChainExpression(_)
-                    | ExportDefaultDeclarationKind::ClassExpression(_)
-                    | ExportDefaultDeclarationKind::ConditionalExpression(_)
-                    | ExportDefaultDeclarationKind::FunctionExpression(_)
-                    | ExportDefaultDeclarationKind::ImportExpression(_)
-                    | ExportDefaultDeclarationKind::LogicalExpression(_)
-                    | ExportDefaultDeclarationKind::NewExpression(_)
-                    | ExportDefaultDeclarationKind::ObjectExpression(_)
-                    | ExportDefaultDeclarationKind::ParenthesizedExpression(_)
-                    | ExportDefaultDeclarationKind::SequenceExpression(_)
-                    | ExportDefaultDeclarationKind::TaggedTemplateExpression(_)
-                    | ExportDefaultDeclarationKind::ThisExpression(_)
-                    | ExportDefaultDeclarationKind::UnaryExpression(_)
-                    | ExportDefaultDeclarationKind::UpdateExpression(_)
-                    | ExportDefaultDeclarationKind::YieldExpression(_)
-                    | ExportDefaultDeclarationKind::PrivateInExpression(_)
-                    | ExportDefaultDeclarationKind::V8IntrinsicExpression(_)
-                    | ExportDefaultDeclarationKind::ComputedMemberExpression(_)
-                    | ExportDefaultDeclarationKind::StaticMemberExpression(_)
-                    | ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
-                    #[cfg(feature = "typescript")]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_)
-                    | ExportDefaultDeclarationKind::TSAsExpression(_) => {}
-                    #[cfg(not(feature = "typescript"))]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_)
-                    | ExportDefaultDeclarationKind::TSAsExpression(_) => unreachable!(),
-                    ExportDefaultDeclarationKind::JSXElement(_)
-                    | ExportDefaultDeclarationKind::JSXFragment(_)
-                    | ExportDefaultDeclarationKind::TSInstantiationExpression(_)
-                    | ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
-                    | ExportDefaultDeclarationKind::TSSatisfiesExpression(_)
-                    | ExportDefaultDeclarationKind::TSTypeAssertion(_) => unreachable!(),
+                    _ => {}
                 }
             }
             // StatementListItem : Declaration
@@ -473,67 +426,15 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                         // 1. Return a List whose sole element is DeclarationPart of HoistableDeclaration.
                         f(LexicallyScopedDeclaration::Function(decl));
                     },
-                    ExportDefaultDeclarationKind::FunctionExpression(expr) => {
-                        f(LexicallyScopedDeclaration::Function(expr));
-                    },
                     // ExportDeclaration : export default ClassDeclaration
-                    // 1. Return a List whose sole element is ClassDeclaration.
                     ExportDefaultDeclarationKind::ClassDeclaration(decl) => {
+                        // 1. Return a List whose sole element is ClassDeclaration.
                         f(LexicallyScopedDeclaration::Class(decl));
                     },
-                    ExportDefaultDeclarationKind::ClassExpression(expr) => {
-                        f(LexicallyScopedDeclaration::Class(expr));
-                    }
+                    ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) => {},
                     // ExportDeclaration : export default AssignmentExpression ;
-                    ExportDefaultDeclarationKind::AssignmentExpression(_) => {
-                        // 1. Return a List whose sole element is this ExportDeclaration.
-                        f(LexicallyScopedDeclaration::DefaultExport);
-                    }
-                    ExportDefaultDeclarationKind::BooleanLiteral(_) |
-                    ExportDefaultDeclarationKind::NullLiteral(_) |
-                    ExportDefaultDeclarationKind::NumericLiteral(_) |
-                    ExportDefaultDeclarationKind::BigIntLiteral(_) |
-                    ExportDefaultDeclarationKind::RegExpLiteral(_) |
-                    ExportDefaultDeclarationKind::StringLiteral(_) |
-                    ExportDefaultDeclarationKind::TemplateLiteral(_) |
-                    ExportDefaultDeclarationKind::Identifier(_) |
-                    ExportDefaultDeclarationKind::MetaProperty(_) |
-                    ExportDefaultDeclarationKind::Super(_) |
-                    ExportDefaultDeclarationKind::ArrayExpression(_) |
-                    ExportDefaultDeclarationKind::ArrowFunctionExpression(_) |
-                    ExportDefaultDeclarationKind::AwaitExpression(_) |
-                    ExportDefaultDeclarationKind::BinaryExpression(_) |
-                    ExportDefaultDeclarationKind::CallExpression(_) |
-                    ExportDefaultDeclarationKind::ChainExpression(_) |
-                    ExportDefaultDeclarationKind::ConditionalExpression(_) |
-                    ExportDefaultDeclarationKind::ImportExpression(_) |
-                    ExportDefaultDeclarationKind::LogicalExpression(_) |
-                    ExportDefaultDeclarationKind::NewExpression(_) |
-                    ExportDefaultDeclarationKind::ObjectExpression(_) |
-                    ExportDefaultDeclarationKind::ParenthesizedExpression(_) |
-                    ExportDefaultDeclarationKind::SequenceExpression(_) |
-                    ExportDefaultDeclarationKind::TaggedTemplateExpression(_) |
-                    ExportDefaultDeclarationKind::ThisExpression(_) |
-                    ExportDefaultDeclarationKind::UnaryExpression(_) |
-                    ExportDefaultDeclarationKind::UpdateExpression(_) |
-                    ExportDefaultDeclarationKind::YieldExpression(_) |
-                    ExportDefaultDeclarationKind::PrivateInExpression(_) |
-                    ExportDefaultDeclarationKind::V8IntrinsicExpression(_) |
-                    ExportDefaultDeclarationKind::ComputedMemberExpression(_) |
-                    ExportDefaultDeclarationKind::StaticMemberExpression(_) |
-                    ExportDefaultDeclarationKind::PrivateFieldExpression(_) => {}
-                    #[cfg(feature = "typescript")]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) |
-                    ExportDefaultDeclarationKind::TSAsExpression(_) => {}
-                    #[cfg(not(feature = "typescript"))]
-                    ExportDefaultDeclarationKind::TSNonNullExpression(_) |
-                    ExportDefaultDeclarationKind::TSAsExpression(_) => unreachable!(),
-                    ExportDefaultDeclarationKind::JSXElement(_) |
-                    ExportDefaultDeclarationKind::JSXFragment(_) |
-                    ExportDefaultDeclarationKind::TSInstantiationExpression(_) |
-                    ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) |
-                    ExportDefaultDeclarationKind::TSSatisfiesExpression(_) |
-                    ExportDefaultDeclarationKind::TSTypeAssertion(_) => unreachable!(),
+                    _ => f(LexicallyScopedDeclaration::DefaultExport),
+
                 }
             }
             Statement::TSEnumDeclaration(_) |

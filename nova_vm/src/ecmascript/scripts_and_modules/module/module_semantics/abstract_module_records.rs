@@ -9,10 +9,13 @@ use crate::{
         builtins::{module::Module, promise::Promise},
         execution::{Agent, JsResult, ModuleEnvironment, Realm},
         scripts_and_modules::script::HostDefined,
+        types::String,
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
+
+use super::source_text_module_records::SourceTextModule;
 
 /// ### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
 #[derive(Debug)]
@@ -90,7 +93,12 @@ pub trait ModuleAbstractMethods {
     ///
     /// LoadRequestedModules must have completed successfully prior to invoking
     /// this method.
-    fn get_exported_names(self, agent: &mut Agent, export_start_set: Option<()>, gc: GcScope);
+    fn get_exported_names<'a>(
+        self,
+        agent: &mut Agent,
+        export_start_set: Option<Vec<SourceTextModule<'a>>>,
+        gc: NoGcScope<'a, '_>,
+    ) -> Vec<String<'a>>;
 
     /// ### ResolveExport(exportName \[, resolveSet])
     ///
