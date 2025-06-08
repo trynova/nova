@@ -598,8 +598,9 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// `x > y`
     pub fn greater_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
-        Number::less_than(agent, x, y).map(|x| !x)
+        Number::less_than(agent, x, y).map(|lt| !lt && !Number::is(agent, x, y))
     }
 
     /// ### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
@@ -1543,5 +1544,43 @@ impl Rootable for Number<'_> {
             HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Number;
+    use crate::{
+        ecmascript::execution::{
+            Agent,
+            agent::{HostHooks, Job, Options},
+        },
+        engine::context::GcScope,
+    };
+
+    #[derive(Default, Debug)]
+    struct TestAgentHooks;
+
+    impl HostHooks for TestAgentHooks {
+        fn enqueue_promise_job(&self, _job: Job) {
+            // no-op
+        }
+    }
+
+    #[test]
+    fn test_greater_than() {
+        let hooks = Box::leak(Box::new(TestAgentHooks::default()));
+        let mut agent = Agent::new(Options::default(), hooks);
+        let (mut token, mut scope) = unsafe { GcScope::create_root() };
+        let gc = GcScope::new(&mut token, &mut scope);
+
+        let x = Number::from_f64(&mut agent, 1.0, gc.nogc());
+        let y = Number::from_f64(&mut agent, 2.0, gc.nogc());
+
+        assert_eq!(Number::greater_than(&mut agent, x, y), Some(false));
+        assert_eq!(Number::greater_than(&mut agent, y, x), Some(true));
+
+        assert_eq!(Number::greater_than(&mut agent, x, x), Some(false));
+        agent.gc(gc);
     }
 }
