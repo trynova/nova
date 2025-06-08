@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{module::module_semantics::{abstract_module_records::ModuleAbstractMethods, source_text_module_records::parse_module}, script::{parse_script, script_evaluation}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
+        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{module::module_semantics::{abstract_module_records::ModuleAbstractMethods, cyclic_module_records::GraphLoadingStateRecord, source_text_module_records::{parse_module, SourceTextModule}}, script::{parse_script, script_evaluation, HostDefined}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
@@ -146,7 +146,7 @@ pub enum PromiseRejectionTrackerOperation {
 
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
-    fn host_ensure_can_compile_strings<'a>(
+    fn ensure_can_compile_strings<'a>(
         &self,
         _callee_realm: &mut RealmRecord,
         _gc: NoGcScope<'a, '_>,
@@ -156,7 +156,7 @@ pub trait HostHooks: core::fmt::Debug {
     }
 
     /// ### [20.2.5 HostHasSourceTextAvailable ( func )](https://tc39.es/ecma262/#sec-hosthassourcetextavailable)
-    fn host_has_source_text_available(&self, _func: Function) -> bool {
+    fn has_source_text_available(&self, _func: Function) -> bool {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
     }
@@ -171,6 +171,81 @@ pub trait HostHooks: core::fmt::Debug {
         _operation: PromiseRejectionTrackerOperation,
     ) {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
+    }
+
+    /// ### [16.2.1.10 HostLoadImportedModule ( referrer, moduleRequest, hostDefined, payload )](https://tc39.es/ecma262/#sec-HostLoadImportedModule)
+    ///
+    /// The host-defined abstract operation HostLoadImportedModule takes
+    /// arguments referrer (a Script Record, a Cyclic Module Record, or a Realm
+    /// Record), moduleRequest (a ModuleRequest Record), hostDefined
+    /// (anything), and payload (a GraphLoadingState Record or a
+    /// PromiseCapability Record) and returns unused.
+    ///
+    /// > NOTE 1: An example of when referrer can be a Realm Record is in a web
+    /// > browser host. There, if a user clicks on a control given by
+    /// > ```html
+    /// > <button type="button" onclick="import('./foo.mjs')">Click me</button>
+    /// > ```
+    /// > there will be no active script or module at the time the `import()`
+    /// > expression runs. More generally, this can happen in any situation
+    /// > where the host pushes execution contexts with null ScriptOrModule
+    /// > components onto the execution context stack.
+    ///
+    /// An implementation of HostLoadImportedModule must conform to the
+    /// following requirements:
+    /// * The host environment must perform `FinishLoadingImportedModule
+    ///   referrer, moduleRequest, payload, result)`, where `result` is either
+    ///   a normal completion containing the loaded Module Record or a throw
+    ///   completion, either synchronously or asynchronously.
+    ///
+    /// * If this operation is called multiple times with two `(referrer,
+    ///   moduleRequest)` pairs such that:
+    ///
+    ///   * the first `referrer` is the same as the second `referrer`;
+    ///
+    ///   * `ModuleRequestsEqual(the first moduleRequest, the second
+    ///     moduleRequest)` is true;
+    ///
+    ///   and it performs `FinishLoadingImportedModule(referrer, moduleRequest,
+    ///   payload, result)` where `result` is a normal completion, then it must
+    ///   perform `FinishLoadingImportedModule(referrer, moduleRequest,
+    ///   payload, result)` with the same result each time.
+    ///
+    /// * If `moduleRequest.[[Attributes]]` has an entry entry such that
+    ///   `entry.[[Key]]` is "type" and `entry.[[Value]]` is "json", when the
+    ///   host environment performs `FinishLoadingImportedModule(referrer,
+    ///   moduleRequest, payload, result)`, result must either be the
+    ///   Completion Record returned by an invocation of `ParseJSONModule` or a
+    ///   throw completion.
+    ///
+    /// * The operation must treat `payload` as an opaque value to be passed
+    ///   through to `FinishLoadingImportedModule`.
+    ///
+    /// The actual process performed is host-defined, but typically consists of
+    /// performing whatever I/O operations are necessary to load the
+    /// appropriate Module Record. Multiple different `(referrer,
+    /// moduleRequest.[[Specifier]], moduleRequest.[[Attributes]])` triples may
+    /// map to the same Module Record instance. The actual mapping semantics is
+    /// host-defined but typically a normalization process is applied to
+    /// specifier as part of the mapping process. A typical normalization
+    /// process would include actions such as expansion of relative and
+    /// abbreviated path specifiers.
+    ///
+    /// > NOTE 2: The above text requires that hosts support JSON modules when
+    /// > imported with `type: "json"` (and `HostLoadImportedModule` completes
+    /// > normally), but it does not prohibit hosts from supporting JSON
+    /// > modules when imported without `type: "json"`.
+    #[allow(unused_variables)]
+    fn load_imported_module<'gc>(
+        &self,
+        agent: &mut Agent,
+        referrer: SourceTextModule<'gc>,
+        module_request: &str,
+        host_defined: Option<HostDefined>,
+        payload: &mut GraphLoadingStateRecord<'gc>,
+        gc: NoGcScope<'gc, '_>,
+    ) {
+        unimplemented!();
     }
 
     /// Get access to the Host data, useful to share state between calls of built-in functions.
@@ -738,7 +813,7 @@ impl Agent {
     pub fn run_module<'gc>(
         &mut self,
         source_text: String,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let realm = self.current_realm(gc.nogc());
         let module = match parse_module(self, source_text, realm, None, gc.nogc()) {
@@ -755,9 +830,31 @@ impl Agent {
                     .unbind());
             }
         };
-        module.load_requested_modules(self, None, gc.nogc());
+        let Some(result) = module
+            .load_requested_modules(self, None, gc.nogc())
+            .try_get_result(self, gc.nogc())
+        else {
+            return Err(self.throw_exception_with_static_message(
+                ExceptionType::Error,
+                "module was not sync",
+                gc.into_nogc(),
+            ));
+        };
+        result.unbind()?;
+
         module.link(self, gc.nogc()).unbind()?;
-        module.unbind().evaluate(self, gc);
+        if let Some(result) = module.unbind().evaluate(self, gc.reborrow()) {
+            // Note: If we get a Promise result, it should mean that the
+            // Promise was synchronously rejected.
+            let Err(err) = result
+                .unbind()
+                .try_get_result(self, gc.into_nogc())
+                .unwrap()
+            else {
+                unreachable!();
+            };
+            return Err(err);
+        };
         Ok(Value::Undefined)
     }
 }

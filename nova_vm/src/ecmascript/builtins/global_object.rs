@@ -171,7 +171,7 @@ pub fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .host_ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
+        .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
         .unbind()?;
 
     // 6. Let inFunction be false.

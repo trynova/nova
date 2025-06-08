@@ -6,6 +6,8 @@ use core::ops::{Index, IndexMut};
 
 use data::PromiseState;
 
+use crate::ecmascript::execution::JsResult;
+use crate::ecmascript::execution::agent::JsError;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
@@ -37,6 +39,36 @@ impl<'a> Promise<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    /// Create a new rejected, unhandled Promise.
+    pub(crate) fn new_rejected(agent: &mut Agent, error: Value, gc: NoGcScope<'a, '_>) -> Self {
+        agent
+            .heap
+            .create(PromiseHeapData {
+                object_index: None,
+                promise_state: PromiseState::Rejected {
+                    promise_result: error.unbind(),
+                    is_handled: false,
+                },
+            })
+            .bind(gc)
+    }
+
+    /// Get the result of a resolved Promise, or None if the Promise is not
+    /// resolved.
+    pub(crate) fn try_get_result<'gc>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<JsResult<'gc, Value<'gc>>> {
+        match &agent[self].promise_state {
+            PromiseState::Pending { .. } => None,
+            PromiseState::Fulfilled { promise_result } => Some(Ok(promise_result.bind(gc))),
+            PromiseState::Rejected { promise_result, .. } => {
+                Some(Err(JsError::new(promise_result.bind(gc))))
+            }
+        }
     }
 
     pub(crate) fn set_already_resolved(self, agent: &mut Agent) {

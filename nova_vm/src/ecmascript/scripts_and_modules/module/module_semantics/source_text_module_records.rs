@@ -10,7 +10,7 @@ use ahash::AHashSet;
 use oxc_ast::ast::{self, Program};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
+use oxc_span::{Atom, SourceType};
 use small_string::SmallString;
 
 use crate::{
@@ -53,7 +53,10 @@ use crate::{
 
 use super::{
     abstract_module_records::{AbstractModuleRecord, ModuleAbstractMethods},
-    cyclic_module_records::{CyclicModuleAbstractMethods, CyclicModuleRecord},
+    cyclic_module_records::{
+        CyclicModuleAbstractMethods, CyclicModuleRecord, GraphLoadingStateRecord,
+        inner_module_loading,
+    },
 };
 
 #[derive(Debug)]
@@ -147,6 +150,50 @@ impl<'m> SourceTextModule<'m> {
         self.0 as usize
     }
 
+    /// Get a loaded module by a request string.
+    pub(super) fn get_loaded_module(
+        self,
+        agent: &Agent,
+        request: &str,
+    ) -> Option<SourceTextModule<'m>> {
+        self.get(agent).cyclic_fields.get_loaded_module(request)
+    }
+
+    /// Insert a loaded module into the module's requested modules.
+    pub(super) fn insert_loaded_module(
+        self,
+        agent: &mut Agent,
+        request: &str,
+        module: SourceTextModule,
+    ) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .insert_loaded_module(request, module)
+    }
+
+    /// Get the requested modules as a slice.
+    ///
+    /// ## Safety
+    ///
+    /// The `self` SourceTextModule must be valid (not use-after-free) when
+    /// this call is performed, and a copy of it must be rooted (eg. present on
+    /// the execution context stack) while the slice is held. A use-after-free
+    /// `self` will lead to a panic or the conceptually wrong module's
+    /// statements being borrowed from the heap. If the SourceTextModule is not
+    /// rooted (at least a copy of it), then the slice will become a dangling
+    /// pointer during garbage collection.
+    pub(super) unsafe fn get_requested_modules<'a>(&'a self, agent: &Agent) -> &'a [Atom<'a>] {
+        // SAFETY: Caller promises that SourceTextModule is rooted while the
+        // statements slice is held: the SourceTextModuleRecord may move during
+        // GC but the Atoms list memory does not move. Hence the reference is
+        // valid while the self SourceTextModule is held (the parent call).
+        unsafe {
+            core::mem::transmute::<&[Atom], &'a [Atom<'a>]>(
+                self.get(agent).cyclic_fields.get_requested_modules(),
+            )
+        }
+    }
+
     /// Get the module statements as a slice.
     ///
     /// ## Safety
@@ -207,7 +254,7 @@ impl<'m> SourceTextModule<'m> {
     }
 
     // ### \[\[Realm]]
-    fn realm(self, agent: &Agent) -> Realm<'m> {
+    pub fn realm(self, agent: &Agent) -> Realm<'m> {
         self.get(agent).abstract_fields.realm()
     }
 
@@ -233,6 +280,23 @@ impl<'m> SourceTextModule<'m> {
         'm: 'a,
     {
         self.get(agent).cyclic_fields.top_level_capability()
+    }
+
+    /// ### \[\[DFSAncestorIndex]]
+    pub(super) fn dfs_ancestor_index(self, agent: &Agent) -> u32 {
+        self.get(agent).cyclic_fields.dfs_ancestor_index()
+    }
+
+    /// Set \[\[DFSAncestorIndex]] to value if it is larger than previous.
+    pub(super) fn set_dfs_ancestor_index(self, agent: &mut Agent, value: u32) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .set_dfs_ancestor_index(value);
+    }
+
+    /// ### \[\[DFSIndex]]
+    pub(super) fn dfs_index(self, agent: &Agent) -> u32 {
+        self.get(agent).cyclic_fields.dfs_index()
     }
 
     /// Set \[\[DFSIndex]] and \[\[DFSAncestorIndex]] to index.
@@ -333,22 +397,30 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     fn load_requested_modules<'a>(
         self,
         agent: &mut Agent,
-        _host_defined: Option<HostDefined>,
-        _gc: NoGcScope<'a, '_>,
-    ) -> Option<Promise<'a>> {
+        host_defined: Option<HostDefined>,
+        gc: NoGcScope<'a, '_>,
+    ) -> Promise<'a> {
+        let module = self.bind(gc);
         // 1. If hostDefined is not present, let hostDefined be empty.
         // 2. Let pc be ! NewPromiseCapability(%Promise%).
         // 3. Let state be the GraphLoadingState Record {
-        //        [[IsLoading]]: true,
-        //        [[PendingModulesCount]]: 1,
-        //        [[Visited]]: « »,
-        //        [[PromiseCapability]]: pc,
-        //        [[HostDefined]]: hostDefined
-        //    }.
+        let mut state = GraphLoadingStateRecord {
+            // [[PromiseCapability]]: pc,
+            promise_capability: PromiseCapability::new(agent, gc),
+            // [[IsLoading]]: true,
+            is_loading: true,
+            // [[PendingModulesCount]]: 1,
+            pending_modules_count: 1,
+            // [[Visited]]: « »,
+            visited: vec![],
+            // [[HostDefined]]: hostDefined
+            host_defined,
+        };
+        // }.
         // 4. Perform InnerModuleLoading(state, module).
+        inner_module_loading(agent, &mut state, module, gc);
         // 5. Return pc.[[Promise]].
-        self.set_unlinked(agent);
-        None
+        state.promise_capability.promise()
     }
 
     /// ### [16.2.1.7.2.1 GetExportedNames ( \[ exportStarSet \] )](https://tc39.es/ecma262/#sec-getexportednames)
@@ -429,9 +501,9 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
                 | CyclicModuleRecordStatus::Evaluated
         ));
         // 2. Let stack be a new empty List.
-        let stack = ();
+        let mut stack = Vec::with_capacity(8);
         // 3. Let result be Completion(InnerModuleLinking(module, stack, 0)).
-        let result = inner_module_linking(agent, module, stack, 0, gc);
+        let result = inner_module_linking(agent, module, &mut stack, 0, gc);
         // 4. If result is an abrupt completion, then
         if let Err(result) = result {
             // a. For each Cyclic Module Record m of stack, do
@@ -471,7 +543,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     /// component. Future invocations of Evaluate on any module in the
     /// component return the same Promise. (Most of the work is done by the
     /// auxiliary function InnerModuleEvaluation.)
-    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>> {
+    fn evaluate<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> Option<Promise<'gc>> {
         let module = self.bind(gc.nogc());
         // 1. Assert: This call to Evaluate is not happening at the same time
         //    as another call to Evaluate within the surrounding agent.
@@ -502,7 +574,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         // 7. Set module.[[TopLevelCapability]] to capability.
         // 8. Let result be Completion(InnerModuleEvaluation(module, stack, 0)).
         let uaf_module = module.unbind();
-        let result = inner_module_evaluation(agent, module.unbind(), stack, 0, gc);
+        let result = inner_module_evaluation(agent, module.unbind(), stack, 0, gc.reborrow());
         // 9. If result is an abrupt completion, then
         if let Err(result) = result {
             // a. For each Cyclic Module Record m of stack, do
@@ -514,7 +586,11 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
             // b. Assert: module.[[Status]] is evaluated.
             // c. Assert: module.[[EvaluationError]] and result are the same Completion Record.
             // d. Perform ! Call(capability.[[Reject]], undefined, « result.[[Value]] »).
-            todo!();
+            return Some(Promise::new_rejected(
+                agent,
+                result.value().unbind(),
+                gc.into_nogc(),
+            ));
         }
         // 10. Else,
         //         a. Assert: module.[[Status]] is either evaluating-async or evaluated.
@@ -785,7 +861,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
 pub(crate) type ModuleOrErrors<'a> = Result<SourceTextModule<'a>, Vec<OxcDiagnostic>>;
 
 /// ### [16.2.1.7.1 ParseModule ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parsemodule)
-pub(crate) fn parse_module<'a>(
+pub fn parse_module<'a>(
     agent: &mut Agent,
     source_text: String,
     realm: Realm,
@@ -814,7 +890,7 @@ pub(crate) fn parse_module<'a>(
     };
 
     // 3. Let requestedModules be the ModuleRequests of body.
-    let requested_modules = ();
+    let mut requested_modules = vec![];
     // 4. Let importEntries be the ImportEntries of body.
     // 5. Let importedBoundNames be ImportedLocalNames(importEntries).
     // 6. Let indirectExportEntries be a new empty List.
@@ -902,6 +978,11 @@ pub(crate) fn parse_module<'a>(
                 //                a. NOTE: This is a re-export of a single name.
                 //                b. Append the ExportEntry Record { [[ModuleRequest]]: ie.[[ModuleRequest]], [[ImportName]]: ie.[[ImportName]], [[LocalName]]: null, [[ExportName]]: ee.[[ExportName]] } to indirectExportEntries.
             }
+            // b. Else if ee.[[ImportName]] is all-but-default, then
+            //        i. Assert: ee.[[ExportName]] is null.
+            //        ii. Append ee to starExportEntries.
+            // c. Else,
+            //        i. Append ee to indirectExportEntries.
             ast::Statement::ExportNamedDeclaration(ee) => {
                 if ee.source.is_some() {
                     todo!();
@@ -948,13 +1029,15 @@ pub(crate) fn parse_module<'a>(
                 }
             }
             ast::Statement::ExportAllDeclaration(_ee) => todo!(),
+            ast::Statement::ImportDeclaration(import) => {
+                // SAFETY: The SourceTextModuleRecord keeps the SourceCode
+                // alive, and these Atoms refer into it.
+                let specifier =
+                    unsafe { core::mem::transmute::<Atom, Atom<'static>>(import.source.value) };
+                requested_modules.push(specifier);
+            }
             _ => continue,
         }
-        // b. Else if ee.[[ImportName]] is all-but-default, then
-        //        i. Assert: ee.[[ExportName]] is null.
-        //        ii. Append ee to starExportEntries.
-        // c. Else,
-        //        i. Append ee to indirectExportEntries.
     }
 
     // 11. Let async be body Contains await.
@@ -978,7 +1061,7 @@ pub(crate) fn parse_module<'a>(
         // [[LoadedModules]]: « »,
         // [[DFSIndex]]: empty,
         // [[DFSAncestorIndex]]: empty
-        cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules),
+        cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
         // [[ECMAScriptCode]]: body,
         ecmascript_code: ManuallyDrop::new(body),
         // [[Context]]: empty,

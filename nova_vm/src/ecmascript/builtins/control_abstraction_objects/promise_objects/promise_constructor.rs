@@ -242,7 +242,8 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let r = arguments.get(0).bind(gc.nogc());
+        let gc = gc.into_nogc();
+        let r = arguments.get(0).bind(gc);
         assert_eq!(
             this_value,
             agent
@@ -259,14 +260,7 @@ impl PromiseConstructor {
         // 4. Return promiseCapability.[[Promise]].
         // NOTE: Since we don't support promise subclassing, this is equivalent
         // to creating an already-rejected promise.
-        let promise = agent.heap.create(PromiseHeapData {
-            object_index: None,
-            promise_state: PromiseState::Rejected {
-                promise_result: r.unbind(),
-                is_handled: false,
-            },
-        });
-        Ok(promise.into_value())
+        Ok(Promise::new_rejected(agent, r, gc).into_value())
     }
 
     fn resolve<'gc>(

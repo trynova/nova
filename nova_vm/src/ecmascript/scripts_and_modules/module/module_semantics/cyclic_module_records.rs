@@ -4,10 +4,17 @@
 
 //! ## [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
 
+use std::collections::hash_map::Entry;
+
+use ahash::AHashMap;
+use oxc_span::Atom;
+
 use crate::{
     ecmascript::{
         builtins::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         execution::{Agent, JsResult, agent::JsError},
+        scripts_and_modules::{module::module_semantics::get_imported_module, script::HostDefined},
+        types::Value,
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -66,7 +73,10 @@ pub(crate) struct CyclicModuleRecord<'a> {
     ///
     /// A List of the ModuleRequest Records associated with the imports in this
     /// module. The List is in source text occurrence order of the imports.
-    requested_modules: (),
+    ///
+    /// Note: The requested module specifiers are borrowed strings pointing to
+    /// the source text of the module record.
+    requested_modules: Box<[Atom<'static>]>,
     /// ### \[\[LoadedModules]]
     ///
     /// a List of LoadedModuleRequest Records
@@ -75,7 +85,7 @@ pub(crate) struct CyclicModuleRecord<'a> {
     /// record to request the importation of a module with the relative import
     /// attributes to the resolved Module Record. The list does not contain two
     /// different Records r1 and r2 such that ModuleRequestsEqual(r1, r2) is true.
-    loaded_modules: (),
+    loaded_modules: AHashMap<Atom<'static>, SourceTextModule<'a>>,
     /// ### \[\[CycleRoot]]
     ///
     /// a Cyclic Module Record or empty
@@ -134,7 +144,7 @@ pub(crate) struct CyclicModuleRecord<'a> {
 }
 
 impl<'m> CyclicModuleRecord<'m> {
-    pub(super) fn new(r#async: bool, requested_modules: ()) -> Self {
+    pub(super) fn new(r#async: bool, requested_modules: Box<[Atom<'static>]>) -> Self {
         Self {
             has_tla: r#async,
             requested_modules,
@@ -145,6 +155,49 @@ impl<'m> CyclicModuleRecord<'m> {
     /// ### \[\[HasTLA]]
     pub(super) fn has_tla(&self) -> bool {
         self.has_tla
+    }
+
+    /// Get a loaded module by a request string.
+    pub(super) fn get_loaded_module(&self, request: &str) -> Option<SourceTextModule<'m>> {
+        self.loaded_modules.get(request).copied()
+    }
+
+    /// Insert a loaded module into the module's requested modules.
+    pub(super) fn insert_loaded_module(&mut self, request: &str, module: SourceTextModule) {
+        let atom: Atom<'static> = *self
+            .requested_modules
+            .iter()
+            .find(|a| a.as_str() == request)
+            .expect("Could not find loaded module in list of requested modules");
+        // a. If referrer.[[LoadedModules]] contains a LoadedModuleRequest
+        //    Record record such that ModuleRequestsEqual(record,
+        //    moduleRequest) is true, then
+        match self.loaded_modules.entry(atom) {
+            Entry::Occupied(e) => {
+                // i. Assert: record.[[Module]] and result.[[Value]] are the
+                //    same Module Record.
+                assert!(*e.get() == module);
+            }
+            Entry::Vacant(e) => {
+                // b. Else,
+                // i. Append the LoadedModuleRequest Record {
+                // [[Specifier]]: moduleRequest.[[Specifier]],
+                // [[Attributes]]: moduleRequest.[[Attributes]],
+                // [[Module]]: result.[[Value]]
+                // } to referrer.[[LoadedModules]].
+                e.insert(module.unbind());
+            }
+        }
+    }
+
+    /// Get the requested modules as a slice.
+    ///
+    /// ## Safety
+    ///
+    /// The Atoms are only valid while CyclicModuleRecord does not get garbage
+    /// collected.
+    pub(super) fn get_requested_modules(&self) -> &[Atom<'static>] {
+        &self.requested_modules
     }
 
     /// ### \[\[EvaluationError]]
@@ -175,6 +228,27 @@ impl<'m> CyclicModuleRecord<'m> {
     /// ### \[\[TopLevelCapability]]
     pub(super) fn top_level_capability(&self) -> Option<&PromiseCapability<'m>> {
         self.top_level_capability.as_ref()
+    }
+
+    /// ### \[\[DFSAncestorIndex]]
+    pub(super) fn dfs_ancestor_index(&self) -> u32 {
+        self.dfs_ancestor_index
+            .expect("Attempted to get [[DFSAncestorIndex]] of new module")
+    }
+
+    /// Set \[\[DFSAncestorIndex]] to value if it is larger than before.
+    pub(super) fn set_dfs_ancestor_index(&mut self, value: u32) {
+        let dfs_ancestor_index = self
+            .dfs_ancestor_index
+            .as_mut()
+            .expect("Attempted to set [[DFSAncestorIndex]] of new module");
+        *dfs_ancestor_index = (*dfs_ancestor_index).max(value);
+    }
+
+    /// ### \[\[DFSIndex]]
+    pub(super) fn dfs_index(&self) -> u32 {
+        self.dfs_index
+            .expect("Attempted to get [[DFSIndex]] of new module")
     }
 
     /// Set \[\[DFSIndex]] and \[\[DFSAncestorIndex]] to index.
@@ -238,6 +312,116 @@ pub trait CyclicModuleAbstractMethods {
     ) -> JsResult<'a, ()>;
 }
 
+#[derive(Debug)]
+pub struct GraphLoadingStateRecord<'a> {
+    // ### \[\[PromiseCapability]]
+    //
+    // a PromiseCapability Record
+    //
+    // The promise to resolve when the loading process finishes.
+    pub(super) promise_capability: PromiseCapability<'a>,
+    // ### \[\[IsLoading]]
+    //
+    // a Boolean
+    //
+    // It is true if the loading process has not finished yet, neither successfully nor with an error.
+    pub(super) is_loading: bool,
+    // ### \[\[PendingModulesCount]]
+    //
+    // a non-negative integer
+    //
+    // It tracks the number of pending HostLoadImportedModule calls.
+    pub(super) pending_modules_count: u32,
+    // ### \[\[Visited]]
+    //
+    // a List of Cyclic Module Records
+    //
+    // It is a list of the Cyclic Module Records that have been already loaded by the current loading process, to avoid infinite loops with circular dependencies.
+    pub(super) visited: Vec<SourceTextModule<'a>>,
+    // ### \[\[HostDefined]]
+    //
+    // anything (default value is empty)
+    //
+    // It contains host-defined data to pass from the LoadRequestedModules caller to HostLoadImportedModule.
+    pub(super) host_defined: Option<HostDefined>,
+}
+
+/// ### [16.2.1.6.1.1.1 InnerModuleLoading ( state, module )](https://tc39.es/ecma262/#sec-InnerModuleLoading)
+///
+/// The abstract operation InnerModuleLoading takes arguments state (a
+/// GraphLoadingState Record) and module (a Module Record) and returns unused.
+/// It is used by LoadRequestedModules to recursively perform the actual
+/// loading process for module's dependency graph.
+pub(super) fn inner_module_loading<'a>(
+    agent: &mut Agent,
+    state: &mut GraphLoadingStateRecord<'a>,
+    module: SourceTextModule<'a>,
+    gc: NoGcScope<'a, '_>,
+) {
+    // 1. Assert: state.[[IsLoading]] is true.
+    debug_assert!(state.is_loading);
+    // 2. If module is a Cyclic Module Record, module.[[Status]] is new, and state.[[Visited]] does not contain module, then
+    if matches!(module.status(agent), CyclicModuleRecordStatus::New)
+        && !state.visited.contains(&module)
+    {
+        // a. Append module to state.[[Visited]].
+        state.visited.push(module);
+        // b. Let requestedModulesCount be the number of elements in module.[[RequestedModules]].
+        // SAFETY: No GC in this scope.
+        let requested_modules = unsafe { module.get_requested_modules(agent) };
+        let requested_module_count = requested_modules.len() as u32;
+        // c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
+        state.pending_modules_count += requested_module_count;
+        // d. For each ModuleRequest Record request of module.[[RequestedModules]], do
+        for request in requested_modules {
+            // i. If AllImportAttributesSupported(request.[[Attributes]]) is false, then
+            //         1. Let error be ThrowCompletion(a newly created SyntaxError object).
+            //         2. Perform ContinueModuleLoading(state, error).
+            // ii. Else if module.[[LoadedModules]] contains a LoadedModuleRequest Record
+            //     record such that ModuleRequestsEqual(record, request) is true, then
+            //         1. Perform InnerModuleLoading(state, record.[[Module]]).
+            // iii. Else,
+            // 1. Perform HostLoadImportedModule(module, request, state.[[HostDefined]], state).
+            agent.host_hooks.load_imported_module(
+                agent,
+                module,
+                request.as_str(),
+                state.host_defined.clone(),
+                state,
+                gc,
+            );
+            // 2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule,
+            //    which re-enters the graph loading process through ContinueModuleLoading.
+            // iv. If state.[[IsLoading]] is false,
+            if !state.is_loading {
+                // return unused.
+                return;
+            }
+        }
+    }
+    // 3. Assert: state.[[PendingModulesCount]] ≥ 1.
+    debug_assert!(state.pending_modules_count >= 1);
+    // 4. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] - 1.
+    state.pending_modules_count -= 1;
+    // 5. If state.[[PendingModulesCount]] = 0, then
+    if state.pending_modules_count == 0 {
+        // a. Set state.[[IsLoading]] to false.
+        state.is_loading = false;
+        // b. For each Cyclic Module Record loaded of state.[[Visited]], do
+        for loaded in state.visited.drain(..) {
+            // i. If loaded.[[Status]] is new, set loaded.[[Status]] to unlinked.
+            if matches!(loaded.status(agent), CyclicModuleRecordStatus::New) {
+                loaded.set_unlinked(agent);
+            }
+        }
+        // c. Perform ! Call(state.[[PromiseCapability]].[[Resolve]], undefined, « undefined »).
+        state
+            .promise_capability
+            .internal_fulfill(agent, Value::Undefined, gc);
+    }
+    // 6. Return unused.
+}
+
 /// ### [16.2.1.6.1.2.1 InnerModuleLinking ( module, stack, index )](https://tc39.es/ecma262/#sec-InnerModuleLinking)
 ///
 /// The abstract operation InnerModuleLinking takes arguments module (a Module
@@ -252,8 +436,8 @@ pub trait CyclicModuleAbstractMethods {
 /// modules in an SCC transition to linked together.
 pub(super) fn inner_module_linking<'a>(
     agent: &mut Agent,
-    module: SourceTextModule,
-    _stack: (),
+    module: SourceTextModule<'a>,
+    stack: &mut Vec<SourceTextModule<'a>>,
     index: u32,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, u32> {
@@ -284,29 +468,62 @@ pub(super) fn inner_module_linking<'a>(
     module.set_dfs_index(agent, index);
     // 7. Set index to index + 1.
     // Note: if this overflows, we have worse issues.
-    let (index, _) = index.overflowing_add(1);
+    let (mut index, _) = index.overflowing_add(1);
     // 8. Append module to stack.
+    stack.push(module);
     // 9. For each ModuleRequest Record request of module.[[RequestedModules]], do
-    //         a. Let requiredModule be GetImportedModule(module, request).
-    //         b. Set index to ? InnerModuleLinking(requiredModule, stack, index).
-    //         c. If requiredModule is a Cyclic Module Record, then
-    //                 i. Assert: requiredModule.[[Status]] is one of linking, linked, evaluating-async, or evaluated.
-    //                 ii. Assert: requiredModule.[[Status]] is linking if and only if stack contains requiredModule.
-    //                 iii. If requiredModule.[[Status]] is linking, then
-    //                         1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
+    // SAFETY: module is currently rooted.
+    for request in unsafe { module.get_requested_modules(agent) } {
+        // a. Let requiredModule be GetImportedModule(module, request).
+        let required_module = get_imported_module(agent, module, request, gc);
+        // b. Set index to ? InnerModuleLinking(requiredModule, stack, index).
+        index = inner_module_linking(agent, required_module, stack, index, gc)?;
+        // c. If requiredModule is a Cyclic Module Record, then
+        // i. Assert: requiredModule.[[Status]] is one of linking, linked,
+        //    evaluating-async, or evaluated.
+        debug_assert!(matches!(
+            required_module.status(agent),
+            CyclicModuleRecordStatus::Linking
+                | CyclicModuleRecordStatus::Linked
+                | CyclicModuleRecordStatus::EvaluatingAsync
+                | CyclicModuleRecordStatus::Evaluated
+        ));
+        // ii. Assert: requiredModule.[[Status]] is linking if and only if
+        //     stack contains requiredModule.
+        // iii. If requiredModule.[[Status]] is linking, then
+        if matches!(
+            required_module.status(agent),
+            CyclicModuleRecordStatus::Linking
+        ) {
+            debug_assert!(stack.contains(&required_module));
+            // 1. Set module.[[DFSAncestorIndex]] to
+            //    min(module.[[DFSAncestorIndex]],
+            //    requiredModule.[[DFSAncestorIndex]]).
+            module.set_dfs_ancestor_index(agent, required_module.dfs_ancestor_index(agent));
+        }
+    }
     // 10. Perform ? module.InitializeEnvironment().
     module.initialize_environment(agent, gc)?;
     // 11. Assert: module occurs exactly once in stack.
+    debug_assert!(stack.iter().filter(|m| **m == module).count() == 1);
     // 12. Assert: module.[[DFSAncestorIndex]] ≤ module.[[DFSIndex]].
+    debug_assert!(module.dfs_ancestor_index(agent) <= module.dfs_index(agent));
     // 13. If module.[[DFSAncestorIndex]] = module.[[DFSIndex]], then
-    //         a. Let done be false.
-    //         b. Repeat, while done is false,
-    //                 i. Let requiredModule be the last element of stack.
-    //                 ii. Remove the last element of stack.
-    //                 iii. Assert: requiredModule is a Cyclic Module Record.
-    //                 iv. Set requiredModule.[[Status]] to linked.
-    module.set_linked(agent);
-    //                 v. If requiredModule and module are the same Module Record, set done to true.
+    if module.dfs_ancestor_index(agent) == module.dfs_index(agent) {
+        // a. Let done be false.
+        // b. Repeat, while done is false,
+        while let Some(required_module) = stack.pop() {
+            // i. Let requiredModule be the last element of stack.
+            // ii. Remove the last element of stack.
+            // iii. Assert: requiredModule is a Cyclic Module Record.
+            // iv. Set requiredModule.[[Status]] to linked.
+            required_module.set_linked(agent);
+            // v. If requiredModule and module are the same Module Record, set done to true.
+            if required_module == module {
+                break;
+            }
+        }
+    }
     // 14. Return index.
     Ok(index)
 }
@@ -405,6 +622,41 @@ pub(super) fn inner_module_evaluation<'a>(
     //                 viii. Set requiredModule.[[CycleRoot]] to module.
     // 17. Return index.
     Ok(index)
+}
+
+/// ### [16.2.1.6.1.1.2 ContinueModuleLoading ( state, moduleCompletion )](https://tc39.es/ecma262/#sec-ContinueModuleLoading)
+///
+/// The abstract operation ContinueModuleLoading takes arguments state (a
+/// GraphLoadingState Record) and moduleCompletion (either a normal completion
+/// containing a Module Record or a throw completion) and returns unused. It is
+/// used to re-enter the loading process after a call to
+/// HostLoadImportedModule.
+pub(super) fn continue_module_loading<'a>(
+    agent: &mut Agent,
+    state: &mut GraphLoadingStateRecord<'a>,
+    module_completion: JsResult<SourceTextModule<'a>>,
+    gc: NoGcScope<'a, '_>,
+) {
+    // 1. If state.[[IsLoading]] is false,
+    if !state.is_loading {
+        // return unused.
+        return;
+    }
+    // 2. If moduleCompletion is a normal completion, then
+    match module_completion {
+        Ok(value) => {
+            // a. Perform InnerModuleLoading(state, moduleCompletion.[[Value]]).
+            inner_module_loading(agent, state, value, gc);
+        }
+        Err(value) => {
+            // 3. Else,
+            // a. Set state.[[IsLoading]] to false.
+            state.is_loading = false;
+            // b. Perform ! Call(state.[[PromiseCapability]].[[Reject]], undefined, « moduleCompletion.[[Value]] »).
+            state.promise_capability.reject(agent, value.value(), gc);
+        }
+    }
+    // 4. Return unused.
 }
 
 impl HeapMarkAndSweep for CyclicModuleRecord<'static> {

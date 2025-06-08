@@ -79,12 +79,13 @@ pub trait ModuleAbstractMethods {
     ///
     /// Prepares the module for linking by recursively loading all its
     /// dependencies, and returns a promise.
+    #[must_use]
     fn load_requested_modules<'a>(
         self,
         agent: &mut Agent,
         host_defined: Option<HostDefined>,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Promise<'a>>;
+    ) -> Promise<'a>;
 
     /// ### GetExportedNames(\[exportStarSet])
     ///
