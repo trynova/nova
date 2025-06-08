@@ -599,7 +599,7 @@ impl<'a> Number<'a> {
     }
 
     pub fn greater_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
-        Number::less_than(agent, y, x).map(|x| !x)
+        Number::less_than(agent, x, y).map(|x| !x)
     }
 
     /// ### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
