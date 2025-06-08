@@ -1569,7 +1569,7 @@ mod tests {
 
     #[test]
     fn test_greater_than() {
-        let hooks = Box::leak(Box::new(TestAgentHooks::default()));
+        let hooks = Box::leak(Box::new(TestAgentHooks));
         let mut agent = Agent::new(Options::default(), hooks);
         let (mut token, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut token, &mut scope);
