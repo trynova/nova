@@ -340,9 +340,7 @@ impl BaseTest262Runner {
                     format!("Uncaught exception: {}", negative.error_type).into()
                 }
                 test_metadata::TestFailurePhase::Resolution => {
-                    // Module tests should have bailed out earlier, so we
-                    // shouldn't ever reach this point.
-                    unreachable!()
+                    format!("Unresolved: {}", negative.error_type).into()
                 }
             };
 
