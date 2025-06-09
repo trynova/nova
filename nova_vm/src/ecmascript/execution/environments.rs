@@ -41,7 +41,9 @@ pub(crate) use function_environment::{
     new_class_static_element_environment, new_function_environment,
 };
 pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
-pub(crate) use module_environment::new_module_environment;
+pub(crate) use module_environment::{
+    create_import_binding, new_module_environment, throw_uninitialized_binding,
+};
 pub(crate) use object_environment::ObjectEnvironmentRecord;
 pub(crate) use private_environment::{
     PrivateEnvironmentRecord, PrivateField, PrivateMethod, new_private_environment,
@@ -497,7 +499,7 @@ impl Environment<'_> {
             Environment::Global(e) => e.create_immutable_binding(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                e.create_immutable_binding(agent, name);
+                e.create_immutable_binding(agent.as_mut(), name);
                 Ok(())
             }
             Environment::Object(e) => {
@@ -531,7 +533,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent, name, value);
+                e.initialize_binding(agent.as_mut(), name, value);
                 TryResult::Continue(Ok(()))
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, value, gc),
@@ -562,7 +564,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent, name, value);
+                e.initialize_binding(agent.as_mut(), name, value);
                 Ok(())
             }
             Environment::Object(e) => e.initialize_binding(agent, name, value, gc),
@@ -653,7 +655,10 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
-                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+                let Some(value) = e.get_binding_value(agent.as_mut(), name, is_strict, gc) else {
+                    return TryResult::Continue(Err(throw_uninitialized_binding(agent, name, gc)));
+                };
+                TryResult::Continue(Ok(value))
             }
             Environment::Object(e) => e.try_get_binding_value(agent, name, is_strict, gc),
         }
@@ -681,7 +686,13 @@ impl Environment<'_> {
             }
             Environment::Function(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
-            Environment::Module(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
+            Environment::Module(e) => {
+                let gc = gc.into_nogc();
+                let Some(value) = e.get_binding_value(agent.as_mut(), name, is_strict, gc) else {
+                    return Err(throw_uninitialized_binding(agent, name, gc));
+                };
+                Ok(value)
+            }
             Environment::Object(e) => e.get_binding_value(agent, name, is_strict, gc),
         }
     }
@@ -1215,5 +1226,17 @@ pub(crate) fn get_this_environment<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> 
         // d. Assert: outer is not null.
         // e. Set env to outer.
         env = env.get_outer_env(agent, gc).unwrap();
+    }
+}
+
+impl AsRef<Environments> for Agent {
+    fn as_ref(&self) -> &Environments {
+        &self.heap.environments
+    }
+}
+
+impl AsMut<Environments> for Agent {
+    fn as_mut(&mut self) -> &mut Environments {
+        &mut self.heap.environments
     }
 }

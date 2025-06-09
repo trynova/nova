@@ -16,7 +16,11 @@ use crate::{
         scripts_and_modules::{module::module_semantics::get_imported_module, script::HostDefined},
         types::Value,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{
+        Scoped,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -282,6 +286,17 @@ impl<'m> CyclicModuleRecord<'m> {
     pub(super) fn set_evaluating(&mut self) {
         debug_assert!(matches!(self.status, CyclicModuleRecordStatus::Linked));
         self.status = CyclicModuleRecordStatus::Evaluating;
+    }
+
+    /// Set module.\[\[Status]] to evaluated.
+    pub(super) fn set_evaluated(&mut self) {
+        debug_assert!(matches!(
+            self.status,
+            CyclicModuleRecordStatus::Linked
+                | CyclicModuleRecordStatus::Evaluating
+                | CyclicModuleRecordStatus::EvaluatingAsync
+        ));
+        self.status = CyclicModuleRecordStatus::Evaluated;
     }
 }
 
@@ -549,13 +564,14 @@ pub(super) fn inner_module_linking<'a>(
 /// > root of the cycle via \[\[CycleRoot]]. This ensures that the cycle state
 /// > can be treated as a single strongly connected component through its root
 /// > module state.
-pub(super) fn inner_module_evaluation<'a>(
+pub(super) fn inner_module_evaluation<'a, 'b>(
     agent: &mut Agent,
-    module: SourceTextModule,
-    _stack: (),
-    index: u32,
-    gc: GcScope<'a, '_>,
+    scoped_module: Scoped<'b, SourceTextModule<'static>>,
+    stack: &mut Vec<Scoped<'b, SourceTextModule<'static>>>,
+    mut index: u32,
+    mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, u32> {
+    let mut module = scoped_module.get(agent).bind(gc.nogc());
     // 1. If module is not a Cyclic Module Record, then
     //         a. Perform ? EvaluateModuleSync(module).
     //         b. Return index.
@@ -565,7 +581,7 @@ pub(super) fn inner_module_evaluation<'a>(
         CyclicModuleRecordStatus::EvaluatingAsync | CyclicModuleRecordStatus::Evaluated
     ) {
         // a. If module.[[EvaluationError]] is empty, return index.
-        module.evaluation_error(agent, gc.into_nogc())?;
+        module.unbind().evaluation_error(agent, gc.into_nogc())?;
         // b. Otherwise, return ? module.[[EvaluationError]].
         return Ok(index);
     }
@@ -582,44 +598,107 @@ pub(super) fn inner_module_evaluation<'a>(
     module.set_evaluating(agent);
     // 6. Set module.[[DFSIndex]] to index.
     // 7. Set module.[[DFSAncestorIndex]] to index.
+    module.set_dfs_index(agent, index);
     // 8. Set module.[[PendingAsyncDependencies]] to 0.
     // 9. Set index to index + 1.
+    index = index + 1;
     // 10. Append module to stack.
+    stack.push(scoped_module.clone());
     // 11. For each ModuleRequest Record request of module.[[RequestedModules]], do
-    //         a. Let requiredModule be GetImportedModule(module, request).
-    //         b. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
-    //         c. If requiredModule is a Cyclic Module Record, then
-    //                 i. Assert: requiredModule.[[Status]] is one of evaluating, evaluating-async, or evaluated.
-    //                 ii. Assert: requiredModule.[[Status]] is evaluating if and only if stack contains requiredModule.
-    //                 iii. If requiredModule.[[Status]] is evaluating, then
-    //                         1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
-    //                 iv. Else,
-    //                         1. Set requiredModule to requiredModule.[[CycleRoot]].
-    //                         2. Assert: requiredModule.[[Status]] is either evaluating-async or evaluated.
-    //                         3. If requiredModule.[[EvaluationError]] is not empty, return ? requiredModule.[[EvaluationError]].
-    //                 v. If requiredModule.[[AsyncEvaluationOrder]] is an integer, then
-    //                         1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
-    //                         2. Append module to requiredModule.[[AsyncParentModules]].
+    // SAFETY: module is currently rooted.
+    for request in scoped_module.get_requested_modules(agent) {
+        // a. Let requiredModule be GetImportedModule(module, request).
+        let scoped_required_module =
+            get_imported_module(agent, module, request, gc.nogc()).scope(agent, gc.nogc());
+        // b. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
+        index = inner_module_evaluation(
+            agent,
+            scoped_required_module.clone(),
+            stack,
+            index,
+            gc.reborrow(),
+        )
+        .unbind()?;
+        module = scoped_module.get(agent).bind(gc.nogc());
+        let required_module = scoped_required_module.get(agent).bind(gc.nogc());
+        // c. If requiredModule is a Cyclic Module Record, then
+        // i. Assert: requiredModule.[[Status]] is one of evaluating,
+        //    evaluating-async, or evaluated.
+        debug_assert!(matches!(
+            required_module.status(agent),
+            CyclicModuleRecordStatus::Evaluating
+                | CyclicModuleRecordStatus::EvaluatingAsync
+                | CyclicModuleRecordStatus::Evaluated
+        ));
+        // ii. Assert: requiredModule.[[Status]] is evaluating if and only if stack contains requiredModule.
+        // iii. If requiredModule.[[Status]] is evaluating, then
+        if matches!(
+            required_module.status(agent),
+            CyclicModuleRecordStatus::Evaluating
+        ) {
+            debug_assert!(
+                stack
+                    .iter()
+                    .find(|m| m.get(agent) == required_module)
+                    .is_some()
+            );
+            // 1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
+            module.set_dfs_ancestor_index(agent, required_module.dfs_ancestor_index(agent));
+        } else {
+            // iv. Else,
+            // 1. Set requiredModule to requiredModule.[[CycleRoot]].
+            // 2. Assert: requiredModule.[[Status]] is either evaluating-async or evaluated.
+            debug_assert!(matches!(
+                required_module.status(agent),
+                CyclicModuleRecordStatus::EvaluatingAsync | CyclicModuleRecordStatus::Evaluated
+            ));
+            // 3. If requiredModule.[[EvaluationError]] is not empty, return ? requiredModule.[[EvaluationError]].
+            required_module
+                .evaluation_error(agent, gc.nogc())
+                .unbind()?;
+        }
+        // v. If requiredModule.[[AsyncEvaluationOrder]] is an integer, then
+        //         1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
+        //         2. Append module to requiredModule.[[AsyncParentModules]].
+    }
     // 12. If module.[[PendingAsyncDependencies]] > 0 or module.[[HasTLA]] is true, then
     //         a. Assert: module.[[AsyncEvaluationOrder]] is unset.
     //         b. Set module.[[AsyncEvaluationOrder]] to IncrementModuleAsyncEvaluationCount().
     //         c. If module.[[PendingAsyncDependencies]] = 0, perform ExecuteAsyncModule(module).
     // 13. Else,
     //         a. Perform ? module.ExecuteModule().
-    module.execute_module(agent, None, gc)?;
+    module
+        .unbind()
+        .execute_module(agent, None, gc.reborrow())
+        .unbind()?;
+    module = scoped_module.get(agent).bind(gc.nogc());
     // 14. Assert: module occurs exactly once in stack.
+    debug_assert_eq!(stack.iter().filter(|m| m.get(agent) == module).count(), 1);
     // 15. Assert: module.[[DFSAncestorIndex]] ≤ module.[[DFSIndex]].
+    debug_assert!(module.dfs_ancestor_index(agent) <= module.dfs_index(agent));
     // 16. If module.[[DFSAncestorIndex]] = module.[[DFSIndex]], then
-    //         a. Let done be false.
-    //         b. Repeat, while done is false,
-    //                 i. Let requiredModule be the last element of stack.
-    //                 ii. Remove the last element of stack.
-    //                 iii. Assert: requiredModule is a Cyclic Module Record.
-    //                 iv. Assert: requiredModule.[[AsyncEvaluationOrder]] is either an integer or unset.
-    //                 v. If requiredModule.[[AsyncEvaluationOrder]] is unset, set requiredModule.[[Status]] to evaluated.
-    //                 vi. Otherwise, set requiredModule.[[Status]] to evaluating-async.
-    //                 vii. If requiredModule and module are the same Module Record, set done to true.
-    //                 viii. Set requiredModule.[[CycleRoot]] to module.
+    if module.dfs_ancestor_index(agent) == module.dfs_index(agent) {
+        // a. Let done be false.
+        // b. Repeat, while done is false,
+        while let Some(required_module) = stack.pop() {
+            let required_module = required_module.get(agent).bind(gc.nogc());
+            // i. Let requiredModule be the last element of stack.
+            // ii. Remove the last element of stack.
+            // iii. Assert: requiredModule is a Cyclic Module Record.
+            // iv. Assert: requiredModule.[[AsyncEvaluationOrder]] is either an
+            //     integer or unset.
+            // v. If requiredModule.[[AsyncEvaluationOrder]] is unset, set
+            //    requiredModule.[[Status]] to evaluated.
+            required_module.set_evaluated(agent);
+            // vi. Otherwise, set requiredModule.[[Status]] to evaluating-async.
+            // vii. If requiredModule and module are the same Module Record,
+            //      set done to true.
+            // viii. Set requiredModule.[[CycleRoot]] to module.
+            if required_module == module {
+                break;
+            }
+        }
+    }
     // 17. Return index.
     Ok(index)
 }

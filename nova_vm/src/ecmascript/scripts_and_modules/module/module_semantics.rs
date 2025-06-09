@@ -5,7 +5,7 @@
 //! ## [16.2.1 Module Semantics](https://tc39.es/ecma262/#sec-module-semantics)
 
 use cyclic_module_records::{GraphLoadingStateRecord, continue_module_loading};
-use source_text_module_records::SourceTextModule;
+use source_text_module_records::{SourceTextModule, SourceTextModuleHeap};
 
 use crate::{
     ecmascript::execution::{Agent, JsResult},
@@ -21,7 +21,7 @@ pub mod source_text_module_records;
 /// Module Record) and request (a ModuleRequest Record) and returns a Module
 /// Record.
 fn get_imported_module<'a>(
-    agent: &mut Agent,
+    agent: &impl AsRef<SourceTextModuleHeap>,
     referrer: SourceTextModule<'a>,
     request: &str,
     gc: NoGcScope<'a, '_>,

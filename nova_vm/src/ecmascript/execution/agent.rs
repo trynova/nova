@@ -27,7 +27,7 @@ pub struct Options {
 
 pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct JsError<'a>(Value<'a>);
 

@@ -73,6 +73,17 @@ impl<'m> AbstractModuleRecord<'m> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ResolvedBinding<'a> {
+    Ambiguous,
+    Resolved {
+        /// \[\[Module]]
+        module: SourceTextModule<'a>,
+        /// \[\[BindingName]]
+        binding_name: Option<String<'a>>,
+    },
+}
+
 /// ### [Abstract Methods of Module Records](https://tc39.es/ecma262/#table-abstract-methods-of-module-records)
 pub trait ModuleAbstractMethods {
     /// ### LoadRequestedModules(\[hostDefined])
@@ -115,7 +126,13 @@ pub trait ModuleAbstractMethods {
     ///
     /// LoadRequestedModules must have completed successfully prior to invoking
     /// this method.
-    fn resolve_export(self, agent: &mut Agent, resolve_set: Option<()>, gc: GcScope);
+    fn resolve_export<'a>(
+        self,
+        agent: &Agent,
+        export_name: String,
+        resolve_set: Option<()>,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<ResolvedBinding<'a>>;
 
     /// ### Link()
     ///

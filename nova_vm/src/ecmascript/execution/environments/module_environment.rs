@@ -4,13 +4,21 @@
 
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, JsError},
+        },
+        scripts_and_modules::module::module_semantics::source_text_module_records::{
+            SourceTextModule, SourceTextModuleHeap,
+        },
         types::{String, Value},
     },
     engine::context::{Bindable, NoGcScope},
 };
 
-use super::{DeclarativeEnvironment, DeclarativeEnvironmentRecord, ModuleEnvironment, OuterEnv};
+use super::{
+    DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environments, ModuleEnvironment, OuterEnv,
+};
 
 /// ### [9.1.1.5 Module Environment Records](https://tc39.es/ecma262/#sec-module-environment-records)
 /// A Module Environment Record is a Declarative Environment Record that is
@@ -84,9 +92,9 @@ impl<'e> ModuleEnvironment<'e> {
     /// then attempts to set it after it has been initialized will always throw
     /// an exception, regardless of the strict mode setting of operations that
     /// reference that binding.
-    pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String) {
-        self.into_declarative()
-            .create_immutable_binding(agent, name, true);
+    pub(crate) fn create_immutable_binding(self, envs: &mut Environments, name: String) {
+        envs.get_declarative_environment_mut(self.into_declarative())
+            .create_immutable_binding(name, true);
     }
 
     /// ### [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
@@ -95,9 +103,9 @@ impl<'e> ModuleEnvironment<'e> {
     /// Environment Record. The String value N is the text of the bound name.
     /// V is the value for the binding and is a value of any ECMAScript
     /// language type.
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
-        self.into_declarative()
-            .initialize_binding(agent, name, value);
+    pub(crate) fn initialize_binding(self, envs: &mut Environments, name: String, value: Value) {
+        envs.get_declarative_environment_mut(self.into_declarative())
+            .initialize_binding(name, value);
     }
 
     /// ### [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
@@ -132,15 +140,18 @@ impl<'e> ModuleEnvironment<'e> {
     /// > code.
     pub(crate) fn get_binding_value<'a>(
         self,
-        agent: &mut Agent,
+        envs: &mut Environments,
         name: String,
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+    ) -> Option<Value<'a>> {
         // 1. Assert: S is true.
         debug_assert!(is_strict);
         // 2. Assert: envRec has a binding for N.
-        let binding = self.into_declarative().get_binding(agent, name).unwrap();
+        let binding = envs
+            .get_declarative_environment_mut(self.into_declarative())
+            .get_binding(name)
+            .unwrap();
         // 3. If the binding for N is an indirect binding, then
         //        a. Let M and N2 be the indirection values provided when this binding for N was created.
         //        b. Let targetEnv be M.[[Environment]].
@@ -148,13 +159,56 @@ impl<'e> ModuleEnvironment<'e> {
         //        d. Return ? targetEnv.GetBindingValue(N2, true).
         // 4. If the binding for N in envRec is an uninitialized binding, throw a ReferenceError exception.
         let Some(value) = binding.value else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::ReferenceError,
-                "attempted to access uninitialized binding",
-                gc,
-            ));
+            return None;
         };
         // 5. Return the value currently bound to N in envRec.
-        Ok(value.bind(gc))
+        Some(value.bind(gc))
     }
+}
+
+pub(crate) fn throw_uninitialized_binding<'a>(
+    agent: &mut Agent,
+    name: String,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    let name = name.as_str(agent);
+    agent.throw_exception(
+        ExceptionType::ReferenceError,
+        format!("attempted to access uninitialized binding {}", name),
+        gc,
+    )
+}
+/// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
+///
+/// The abstract operation CreateImportBinding takes arguments envRec (a
+/// Module Environment Record), N (a String), M (a Module Record), and N2
+/// (a String) and returns unused. It creates a new initialized immutable
+/// indirect binding for the name N. A binding must not already exist in
+/// envRec for N. N2 is the name of a binding that exists in M's Module
+/// Environment Record. Accesses to the value of the new binding will
+/// indirectly access the bound value of the target binding.
+pub(crate) fn create_import_binding(
+    envs: &mut Environments,
+    _modules: &impl AsRef<SourceTextModuleHeap>,
+    env_rec: ModuleEnvironment,
+    n: String,
+    _m: SourceTextModule,
+    _n2: String,
+    _gc: NoGcScope,
+) {
+    // let value = m
+    //     .environment(modules)
+    //     .get_binding_value(envs, n2, true, gc)
+    //     .expect("Attempted to access uninitialized value");
+    let env_rec = envs.get_declarative_environment_mut(env_rec.into_declarative());
+    // 1. Assert: envRec does not already have a binding for N.
+    debug_assert!(!env_rec.has_binding(n));
+    // 2. Assert: When M.[[Environment]] is instantiated, it will have a direct
+    //    binding for N2.
+    // 3. Create an immutable indirect binding in envRec for N that references
+    //    M and N2 as its target binding and record that the binding is
+    //    initialized.
+    env_rec.create_immutable_binding(n, true);
+    // env_rec.initialize_binding(n, value);
+    // 4. Return unused.
 }

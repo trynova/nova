@@ -133,7 +133,7 @@ impl DeclarativeEnvironmentRecord {
         Some(value)
     }
 
-    fn get_binding(&self, name: String) -> Option<&Binding> {
+    pub(crate) fn get_binding(&self, name: String) -> Option<&Binding> {
         self.bindings.get(&name.unbind())
     }
 
