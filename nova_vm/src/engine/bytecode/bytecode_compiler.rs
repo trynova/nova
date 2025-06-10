@@ -1428,15 +1428,18 @@ impl<'s> CompileEvaluation<'s> for ast::Expression<'s> {
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
             #[cfg(feature = "typescript")]
             ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSSatisfiesExpression(x) => x.expression.compile(ctx),
             #[cfg(not(feature = "typescript"))]
-            ast::Expression::TSAsExpression(_) | ast::Expression::TSNonNullExpression(_) => {
+            ast::Expression::TSAsExpression(_)
+            | ast::Expression::TSNonNullExpression(_)
+            | ast::Expression::TSSatisfiesExpression(_) => {
                 unreachable!()
             }
             #[cfg(feature = "typescript")]
             ast::Expression::TSNonNullExpression(x) => x.expression.compile(ctx),
             ast::Expression::JSXElement(_)
             | ast::Expression::JSXFragment(_)
-            | ast::Expression::TSSatisfiesExpression(_)
             | ast::Expression::TSTypeAssertion(_)
             | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
         }
@@ -1451,12 +1454,17 @@ impl<'s> CompileEvaluation<'s> for ast::UpdateExpression<'s> {
             ast::SimpleAssignmentTarget::PrivateFieldExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx),
             #[cfg(feature = "typescript")]
+            ast::SimpleAssignmentTarget::TSAsExpression(x) => x.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSNonNullExpression(x) => x.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => x.expression.compile(ctx),
             #[cfg(not(feature = "typescript"))]
-            ast::SimpleAssignmentTarget::TSNonNullExpression(_) => unreachable!(),
-            ast::SimpleAssignmentTarget::TSAsExpression(_)
+            ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
-            | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
+            | ast::SimpleAssignmentTarget::TSAsExpression(_) => unreachable!(),
+
+            ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.add_instruction(Instruction::GetValueKeepReference);
         ctx.add_instruction(Instruction::ToNumeric);
