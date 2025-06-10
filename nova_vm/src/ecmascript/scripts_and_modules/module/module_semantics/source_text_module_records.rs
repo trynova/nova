@@ -247,7 +247,7 @@ impl<'m> SourceTextModule<'m> {
     pub(crate) fn environment(
         self,
         agent: &impl AsRef<SourceTextModuleHeap>,
-    ) -> ModuleEnvironment<'m> {
+    ) -> Option<ModuleEnvironment<'m>> {
         self.get(agent).abstract_fields.environment()
     }
 
@@ -855,7 +855,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 imported_modules.inner_resolve_export(source_text_modules, import_name, None, gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
-                module: _,
+                module,
                 binding_name,
             }) = resolution
             else {
@@ -866,17 +866,24 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 ));
             };
             // iii. If resolution.[[BindingName]] is namespace, then
-            if binding_name.is_none() {
+            let Some(binding_name) = binding_name else {
                 // 1. Let namespace be GetModuleNamespace(resolution.[[Module]]).
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(envs, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
                 env.initialize_binding(envs, r#in.local_name, Value::Undefined);
                 continue;
-            }
+            };
             // iv. Else,
             // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-            create_import_binding(envs, env, r#in.local_name);
+            create_import_binding(
+                envs,
+                source_text_modules,
+                env,
+                r#in.local_name,
+                module,
+                binding_name,
+            );
         }
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
@@ -1026,7 +1033,9 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
 
     fn bind_environment(self, agent: &mut Agent, gc: NoGcScope) {
         let module = self.bind(gc);
-        let env = module.environment(agent);
+        let env = module
+            .environment(agent)
+            .expect("Attempted to bind environment of unlinked module");
         let envs = &mut agent.heap.environments;
         let source_text_modules = &agent.heap.source_text_module_records;
         for r#in in module.import_entries(source_text_modules) {
@@ -1075,7 +1084,6 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 r#in.local_name,
                 module,
                 binding_name,
-                gc,
             );
         }
     }
@@ -1097,7 +1105,9 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
         // 1. Let moduleContext be a new ECMAScript code execution context.
         // 5. Assert: module has been linked and declarations in its module
         //    environment have been instantiated.
-        let environment = module.environment(agent);
+        let environment = module
+            .environment(agent)
+            .expect("Attempted to execute unlinked module");
         let source_code = module.source_code(agent);
         let module_context = ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {

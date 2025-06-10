@@ -54,9 +54,8 @@ impl<'m> AbstractModuleRecord<'m> {
     }
 
     /// ### \[\[Environment]]
-    pub(super) fn environment(&self) -> ModuleEnvironment<'m> {
+    pub(super) fn environment(&self) -> Option<ModuleEnvironment<'m>> {
         self.environment
-            .expect("Attempted to access environment of an unlinked module")
     }
 
     /// Set \[\[Environment]] to env.
