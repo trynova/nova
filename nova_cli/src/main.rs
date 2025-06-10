@@ -216,13 +216,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 create_global_this_value,
                 initialize_global,
             );
-            for path in paths {
+            let last_index = paths.len() - 1;
+            for (index, path) in paths.into_iter().enumerate() {
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
                         let file = std::fs::read_to_string(&path)?;
                         let source_text = JsString::from_string(agent, file, gc.nogc());
-                        let result = if module {
+                        let result = if module && last_index == index {
                             agent.run_module(source_text.unbind(), gc.reborrow())
                         } else {
                             let realm = agent.current_realm(gc.nogc());
