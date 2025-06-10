@@ -15,7 +15,7 @@ pub use default_host_hooks::DefaultHostHooks;
 pub(crate) use environments::{
     DeclarativeEnvironment, Environment, Environments, FunctionEnvironment, GlobalEnvironment,
     ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, PrivateField, PrivateMethod,
-    ThisBindingStatus, create_import_binding, get_this_environment,
+    ThisBindingStatus, create_import_binding, get_this_environment, initialize_import_binding,
     new_class_field_initializer_environment, new_class_static_element_environment,
     new_declarative_environment, new_function_environment, new_global_environment,
     new_module_environment, new_private_environment, resolve_private_identifier,

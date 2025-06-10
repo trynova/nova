@@ -27,7 +27,7 @@ use crate::{
             Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
             Realm,
             agent::{ExceptionType, JsError},
-            create_import_binding, new_module_environment,
+            create_import_binding, initialize_import_binding, new_module_environment,
         },
         scripts_and_modules::{
             ScriptOrModule,
@@ -855,7 +855,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 imported_modules.inner_resolve_export(source_text_modules, import_name, None, gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
-                module,
+                module: _,
                 binding_name,
             }) = resolution
             else {
@@ -866,25 +866,17 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 ));
             };
             // iii. If resolution.[[BindingName]] is namespace, then
-            let Some(binding_name) = binding_name else {
+            if binding_name.is_none() {
                 // 1. Let namespace be GetModuleNamespace(resolution.[[Module]]).
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(envs, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
                 env.initialize_binding(envs, r#in.local_name, Value::Undefined);
                 continue;
-            };
+            }
             // iv. Else,
             // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-            create_import_binding(
-                envs,
-                source_text_modules,
-                env,
-                r#in.local_name,
-                module,
-                binding_name,
-                gc,
-            );
+            create_import_binding(envs, env, r#in.local_name);
         }
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
@@ -1030,6 +1022,62 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
         agent.pop_execution_context();
         // 26. Return unused.
         Ok(())
+    }
+
+    fn bind_environment(self, agent: &mut Agent, gc: NoGcScope) {
+        let module = self.bind(gc);
+        let env = module.environment(agent);
+        let envs = &mut agent.heap.environments;
+        let source_text_modules = &agent.heap.source_text_module_records;
+        for r#in in module.import_entries(source_text_modules) {
+            // NOTE: Spec-text from InitializeEnvironment to contrast with what
+            // we're doing here.
+            // a. Let importedModule be GetImportedModule(module, in.[[ModuleRequest]]).
+            let imported_modules = get_imported_module(
+                source_text_modules,
+                module,
+                r#in.module_request.as_str(),
+                gc,
+            );
+            // b. If in.[[ImportName]] is namespace-object, then
+            let Some(import_name) = r#in.import_name else {
+                // i. Let namespace be GetModuleNamespace(importedModule).
+                // ii. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
+                // iii. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
+                continue;
+            };
+            // c. Else,
+            // i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
+            let resolution =
+                imported_modules.inner_resolve_export(source_text_modules, import_name, None, gc);
+            // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
+            let Some(ResolvedBinding::Resolved {
+                module,
+                binding_name,
+            }) = resolution
+            else {
+                // Note: we've already thrown the SyntaxError earlier.
+                unreachable!();
+            };
+            // iii. If resolution.[[BindingName]] is namespace, then
+            let Some(binding_name) = binding_name else {
+                // 1. Let namespace be GetModuleNamespace(resolution.[[Module]]).
+                // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
+                // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
+                continue;
+            };
+            // iv. Else,
+            // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
+            initialize_import_binding(
+                envs,
+                source_text_modules,
+                env,
+                r#in.local_name,
+                module,
+                binding_name,
+                gc,
+            );
+        }
     }
 
     /// ### [16.2.1.7.3.2 ExecuteModule ( \[ capability \] )](https://tc39.es/ecma262/#sec-source-text-module-record-execute-module)

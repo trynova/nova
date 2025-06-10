@@ -42,7 +42,8 @@ pub(crate) use function_environment::{
 };
 pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
 pub(crate) use module_environment::{
-    create_import_binding, new_module_environment, throw_uninitialized_binding,
+    create_import_binding, initialize_import_binding, new_module_environment,
+    throw_uninitialized_binding,
 };
 pub(crate) use object_environment::ObjectEnvironmentRecord;
 pub(crate) use private_environment::{

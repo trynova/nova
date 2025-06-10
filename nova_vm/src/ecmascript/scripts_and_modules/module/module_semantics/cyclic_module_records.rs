@@ -312,6 +312,15 @@ pub trait CyclicModuleAbstractMethods {
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()>;
 
+    /// ### InitializeEnvironment()
+    ///
+    /// Note: This implements a custom step to bind constant value imports into
+    /// the module environment after imported modules have been executed. This
+    /// allows us to skip one indirection for imported values.
+    ///
+    /// Note: let bindings will need the indirection separately.
+    fn bind_environment(self, agent: &mut Agent, gc: NoGcScope);
+
     /// ### ExecuteModule(\[promiseCapability])
     ///
     /// Evaluate the module's code within its execution context. If this module
@@ -585,8 +594,9 @@ pub(super) fn inner_module_evaluation<'a, 'b>(
         // b. Otherwise, return ? module.[[EvaluationError]].
         return Ok(index);
     }
-    // 3. If module.[[Status]] is evaluating, return index.
+    // 3. If module.[[Status]] is evaluating,
     if matches!(module.status(agent), CyclicModuleRecordStatus::Evaluating) {
+        // return index.
         return Ok(index);
     }
     // 4. Assert: module.[[Status]] is linked.
@@ -667,6 +677,7 @@ pub(super) fn inner_module_evaluation<'a, 'b>(
     //         c. If module.[[PendingAsyncDependencies]] = 0, perform ExecuteAsyncModule(module).
     // 13. Else,
     //         a. Perform ? module.ExecuteModule().
+    module.bind_environment(agent, gc.nogc());
     module
         .unbind()
         .execute_module(agent, None, gc.reborrow())

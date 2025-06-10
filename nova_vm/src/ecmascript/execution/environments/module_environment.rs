@@ -187,14 +187,13 @@ pub(crate) fn throw_uninitialized_binding<'a>(
 /// envRec for N. N2 is the name of a binding that exists in M's Module
 /// Environment Record. Accesses to the value of the new binding will
 /// indirectly access the bound value of the target binding.
+///
+/// > NOTE: Performs only the creation of the import bindings, does not
+/// > initialize the indirect binding.
 pub(crate) fn create_import_binding(
     envs: &mut Environments,
-    _modules: &impl AsRef<SourceTextModuleHeap>,
     env_rec: ModuleEnvironment,
     n: String,
-    _m: SourceTextModule,
-    _n2: String,
-    _gc: NoGcScope,
 ) {
     // let value = m
     //     .environment(modules)
@@ -210,5 +209,32 @@ pub(crate) fn create_import_binding(
     //    initialized.
     env_rec.create_immutable_binding(n, true);
     // env_rec.initialize_binding(n, value);
+    // 4. Return unused.
+}
+
+/// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
+///
+/// > NOTE: Performs the initializing of a previously created import binding.
+pub(crate) fn initialize_import_binding(
+    envs: &mut Environments,
+    modules: &impl AsRef<SourceTextModuleHeap>,
+    env_rec: ModuleEnvironment,
+    n: String,
+    m: SourceTextModule,
+    n2: String,
+    gc: NoGcScope,
+) {
+    let value = m
+        .environment(modules)
+        .get_binding_value(envs, n2, true, gc)
+        .expect("Attempted to access uninitialized value");
+    let env_rec = envs.get_declarative_environment_mut(env_rec.into_declarative());
+    // 1. Assert: envRec does not already have a binding for N.
+    // 2. Assert: When M.[[Environment]] is instantiated, it will have a direct
+    //    binding for N2.
+    // 3. Create an immutable indirect binding in envRec for N that references
+    //    M and N2 as its target binding and record that the binding is
+    //    initialized.
+    env_rec.initialize_binding(n, value);
     // 4. Return unused.
 }

@@ -107,6 +107,7 @@ impl DeclarativeEnvironmentRecord {
     pub(super) fn initialize_binding(&mut self, name: String, value: Value) {
         // 1. Assert: envRec must have an uninitialized binding for N.
         let binding = self.bindings.get_mut(&name.unbind()).unwrap();
+        debug_assert!(binding.value.is_none());
 
         // 2. Set the bound value for N in envRec to V.
         // 3. Record that the binding for N in envRec has been initialized.
