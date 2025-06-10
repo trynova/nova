@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
         execution::{
@@ -21,7 +19,11 @@ use crate::{
         },
         types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
-    engine::{Executable, Vm},
+    engine::{
+        Executable, Vm,
+        context::{Bindable, GcScope, GcToken, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHashSet;
@@ -35,10 +37,11 @@ use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
+use std::rc::Rc;
 
 use super::source_code::SourceCode;
 
-pub type HostDefined = &'static mut dyn Any;
+pub type HostDefined = Rc<dyn Any>;
 
 /// ### [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -15,13 +15,20 @@ use nova_vm::{
     ecmascript::{
         execution::{
             Agent, JsResult,
-            agent::{GcAgent, HostHooks, Job, Options},
+            agent::{ExceptionType, GcAgent, HostHooks, Job, Options},
         },
-        scripts_and_modules::script::{parse_script, script_evaluation},
+        scripts_and_modules::{
+            module::module_semantics::{
+                cyclic_module_records::GraphLoadingStateRecord,
+                finish_loading_imported_module,
+                source_text_module_records::{SourceTextModule, parse_module},
+            },
+            script::{HostDefined, parse_script, script_evaluation},
+        },
         types::{Object, String as JsString, Value},
     },
     engine::{
-        context::{Bindable, GcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
 };
@@ -110,6 +117,44 @@ impl HostHooks for CliHostHooks {
     fn enqueue_promise_job(&self, job: Job) {
         self.promise_job_queue.borrow_mut().push_back(job);
     }
+
+    fn load_imported_module<'gc>(
+        &self,
+        agent: &mut Agent,
+        referrer: SourceTextModule<'gc>,
+        module_request: &str,
+        host_defined: Option<HostDefined>,
+        payload: &mut GraphLoadingStateRecord<'gc>,
+        gc: NoGcScope<'gc, '_>,
+    ) {
+        let file = match std::fs::read_to_string(module_request) {
+            Ok(file) => file,
+            Err(err) => {
+                let result = Err(agent.throw_exception(ExceptionType::Error, err.to_string(), gc));
+                finish_loading_imported_module(
+                    agent,
+                    referrer,
+                    module_request,
+                    payload,
+                    result,
+                    gc,
+                );
+                return;
+            }
+        };
+        let source_text = JsString::from_string(agent, file, gc);
+        let result = parse_module(
+            agent,
+            source_text,
+            referrer.realm(agent),
+            host_defined.clone(),
+            gc,
+        )
+        .map_err(|err| {
+            agent.throw_exception(ExceptionType::Error, err.first().unwrap().to_string(), gc)
+        });
+        finish_loading_imported_module(agent, referrer, module_request, payload, result, gc);
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -171,13 +216,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 create_global_this_value,
                 initialize_global,
             );
-            for path in paths {
+            let last_index = paths.len() - 1;
+            for (index, path) in paths.into_iter().enumerate() {
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
                         let file = std::fs::read_to_string(&path)?;
                         let source_text = JsString::from_string(agent, file, gc.nogc());
-                        let result = if module {
+                        let result = if module && last_index == index {
                             agent.run_module(source_text.unbind(), gc.reborrow())
                         } else {
                             let realm = agent.current_realm(gc.nogc());

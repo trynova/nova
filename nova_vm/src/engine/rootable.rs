@@ -74,7 +74,10 @@ use crate::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
             ObjectEnvironment, PrivateEnvironment, Realm,
         },
-        scripts_and_modules::{script::Script, source_code::SourceCode},
+        scripts_and_modules::{
+            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+            source_code::SourceCode,
+        },
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
             ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
@@ -140,7 +143,10 @@ pub mod private {
                 ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
                 agent::JsError,
             },
-            scripts_and_modules::{script::Script, source_code::SourceCode},
+            scripts_and_modules::{
+                module::module_semantics::source_text_module_records::SourceTextModule,
+                script::Script, source_code::SourceCode,
+            },
             types::{
                 BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
                 PropertyKeySet, String, Symbol, Value,
@@ -197,6 +203,7 @@ pub mod private {
     #[cfg(feature = "shared-array-buffer")]
     impl RootableSealed for SharedArrayBuffer<'_> {}
     impl RootableSealed for SourceCode<'_> {}
+    impl RootableSealed for SourceTextModule<'_> {}
     impl RootableSealed for String<'_> {}
     impl RootableSealed for Symbol<'_> {}
     #[cfg(feature = "array-buffer")]
@@ -511,6 +518,7 @@ pub enum HeapRootData {
     PromiseReaction(PromiseReaction<'static>),
     Realm(Realm<'static>),
     Script(Script<'static>),
+    SourceTextModule(SourceTextModule<'static>),
     SourceCode(SourceCode<'static>),
     DeclarativeEnvironment(DeclarativeEnvironment<'static>),
     FunctionEnvironment(FunctionEnvironment<'static>),
@@ -718,6 +726,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Realm(realm) => realm.mark_values(queues),
             HeapRootData::Script(script) => script.mark_values(queues),
             HeapRootData::SourceCode(source_code) => source_code.mark_values(queues),
+            HeapRootData::SourceTextModule(m) => m.mark_values(queues),
             HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
                 declarative_environment_index.mark_values(queues)
             }
@@ -838,6 +847,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Realm(realm) => realm.sweep_values(compactions),
             HeapRootData::Script(script) => script.sweep_values(compactions),
             HeapRootData::SourceCode(source_code) => source_code.sweep_values(compactions),
+            HeapRootData::SourceTextModule(m) => m.sweep_values(compactions),
             HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
                 declarative_environment_index.sweep_values(compactions)
             }

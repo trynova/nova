@@ -166,7 +166,7 @@ impl BaseTest262Runner {
     /// others are treated as crashes.
     const FAILURE_ERROR_CODE: i32 = 1;
 
-    fn run_test(&self, path: &PathBuf) -> Option<TestExpectation> {
+    fn run_test(&self, path: &PathBuf) -> TestExpectation {
         let metadata = test_metadata::parse(path);
 
         if self.print_progress {
@@ -260,14 +260,14 @@ impl BaseTest262Runner {
             }
 
             if expectation != TestExpectation::Pass {
-                return Some(expectation);
+                return expectation;
             }
         }
 
         // Make sure all tests ran at least one mode (strict or loose).
         assert_ne!(modes_run, 0);
 
-        Some(TestExpectation::Pass)
+        TestExpectation::Pass
     }
 
     fn run_command_and_parse_output(
@@ -340,9 +340,7 @@ impl BaseTest262Runner {
                     format!("Uncaught exception: {}", negative.error_type).into()
                 }
                 test_metadata::TestFailurePhase::Resolution => {
-                    // Module tests should have bailed out earlier, so we
-                    // shouldn't ever reach this point.
-                    unreachable!()
+                    format!("Unresolved: {}", negative.error_type).into()
                 }
             };
 
@@ -483,9 +481,7 @@ impl Test262Runner {
     }
 
     fn run_test(&self, path: &PathBuf) {
-        let Some(test_result) = self.inner.run_test(path) else {
-            return;
-        };
+        let test_result = self.inner.run_test(path);
 
         RUNNER_STATE.with_borrow_mut(|state| {
             state.num_tests_run += 1;
@@ -896,12 +892,7 @@ fn eval_test(mut base_runner: BaseTest262Runner, path: PathBuf) {
         std::process::exit(1);
     }
 
-    let Some(result) = base_runner.run_test(&canonical_path) else {
-        eprintln!(
-            "{path:?} is a module or async test, which aren't yet supported by the test runner.",
-        );
-        std::process::exit(1);
-    };
+    let result = base_runner.run_test(&canonical_path);
 
     if result != TestExpectation::Pass {
         std::process::exit(1);

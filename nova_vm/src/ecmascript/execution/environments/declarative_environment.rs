@@ -4,7 +4,7 @@
 
 use ahash::AHashMap;
 
-use super::{DeclarativeEnvironment, Environment, OuterEnv};
+use super::{DeclarativeEnvironment, Environment, Environments, OuterEnv};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, agent::ExceptionType},
@@ -107,6 +107,7 @@ impl DeclarativeEnvironmentRecord {
     pub(super) fn initialize_binding(&mut self, name: String, value: Value) {
         // 1. Assert: envRec must have an uninitialized binding for N.
         let binding = self.bindings.get_mut(&name.unbind()).unwrap();
+        debug_assert!(binding.value.is_none());
 
         // 2. Set the bound value for N in envRec to V.
         // 3. Record that the binding for N in envRec has been initialized.
@@ -133,7 +134,7 @@ impl DeclarativeEnvironmentRecord {
         Some(value)
     }
 
-    fn get_binding(&self, name: String) -> Option<&Binding> {
+    pub(crate) fn get_binding(&self, name: String) -> Option<&Binding> {
         self.bindings.get(&name.unbind())
     }
 
@@ -219,8 +220,8 @@ impl DeclarativeEnvironment<'_> {
     /// envRec takes argument N (a String) and returns a normal completion
     /// containing a Boolean. It determines if the argument identifier is one
     /// of the identifiers bound by the record.
-    pub fn has_binding(self, agent: &Agent, name: String) -> bool {
-        let env_rec = &agent[self];
+    pub fn has_binding(self, agent: &impl AsRef<Environments>, name: String) -> bool {
+        let env_rec = agent.as_ref().get_declarative_environment(self);
         // Delegate to heap data record method.
         env_rec.has_binding(name)
     }
@@ -375,16 +376,26 @@ impl DeclarativeEnvironment<'_> {
         }
     }
 
-    pub(crate) fn get_binding<'a>(self, agent: &'a Agent, name: String) -> Option<&'a Binding> {
-        agent[self].get_binding(name)
+    pub(crate) fn get_binding<'a>(
+        self,
+        agent: &'a impl AsRef<Environments>,
+        name: String,
+    ) -> Option<&'a Binding> {
+        agent
+            .as_ref()
+            .get_declarative_environment(self)
+            .get_binding(name)
     }
 
     pub(crate) fn get_binding_mut<'a>(
         self,
-        agent: &'a mut Agent,
+        agent: &'a mut impl AsMut<Environments>,
         name: String,
     ) -> Option<&'a mut Binding> {
-        agent[self].get_binding_mut(name)
+        agent
+            .as_mut()
+            .get_declarative_environment_mut(self)
+            .get_binding_mut(name)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)

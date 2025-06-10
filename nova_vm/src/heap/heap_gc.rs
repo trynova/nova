@@ -61,7 +61,7 @@ use crate::{
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
-            ObjectEnvironment, Realm,
+            ModuleEnvironment, ObjectEnvironment, Realm,
         },
         scripts_and_modules::{
             module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
@@ -186,6 +186,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             declarative: declarative_environments,
             function: function_environments,
             global: global_environments,
+            module: module_environments,
             object: object_environments,
             private: _private_environments,
         } = environments;
@@ -287,6 +288,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 global_environments.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut module_environment_marks: Box<[ModuleEnvironment]> =
+            queues.module_environments.drain(..).collect();
+        module_environment_marks.sort();
+        module_environment_marks.iter().for_each(|&idx| {
+            let index = idx.into_index();
+            if let Some(marked) = bits.module_environments.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                module_environments.get(index).mark_values(&mut queues);
             }
         });
         let mut object_environment_marks: Box<[ObjectEnvironment]> =
@@ -1270,6 +1285,7 @@ fn sweep(
         declarative,
         function,
         global,
+        module,
         object,
         private: _private_environments,
     } = environments;
@@ -1564,6 +1580,11 @@ fn sweep(
         if !global.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(global, &compactions, &bits.global_environments);
+            });
+        }
+        if !module.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(module, &compactions, &bits.module_environments);
             });
         }
         if !maps.is_empty() {

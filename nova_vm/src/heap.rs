@@ -79,7 +79,7 @@ use crate::{
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
-            module::module_semantics::source_text_module_records::SourceTextModuleRecord,
+            module::module_semantics::source_text_module_records::SourceTextModuleHeap,
             script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
         },
@@ -180,7 +180,7 @@ pub struct Heap {
     #[cfg(feature = "weak-refs")]
     pub weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
     pub modules: Vec<Option<ModuleHeapData<'static>>>,
-    pub(crate) source_text_module_records: Vec<SourceTextModuleRecord<'static>>,
+    pub(crate) source_text_module_records: SourceTextModuleHeap,
     pub scripts: Vec<Option<ScriptRecord<'static>>>,
     pub string_iterators: Vec<Option<StringIteratorHeapData<'static>>>,
     // Parsed ASTs referred by functions must be dropped after functions.
@@ -293,7 +293,7 @@ impl Heap {
             set_iterators: Vec::with_capacity(128),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
-            source_text_module_records: Vec::with_capacity(128),
+            source_text_module_records: SourceTextModuleHeap(Vec::with_capacity(128)),
             strings: Vec::with_capacity(1024),
             string_iterators: Vec::with_capacity(0),
             string_lookup_table: HashTable::with_capacity(1024),

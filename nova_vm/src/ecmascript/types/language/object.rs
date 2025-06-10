@@ -4113,6 +4113,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             | HeapRootData::Realm(_)
             | HeapRootData::Script(_)
             | HeapRootData::SourceCode(_)
+            | HeapRootData::SourceTextModule(_)
             | HeapRootData::DeclarativeEnvironment(_)
             | HeapRootData::FunctionEnvironment(_)
             | HeapRootData::GlobalEnvironment(_)
