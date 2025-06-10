@@ -54,9 +54,8 @@ impl<'m> AbstractModuleRecord<'m> {
     }
 
     /// ### \[\[Environment]]
-    pub(super) fn environment(&self) -> ModuleEnvironment<'m> {
+    pub(super) fn environment(&self) -> Option<ModuleEnvironment<'m>> {
         self.environment
-            .expect("Attempted to access environment of an unlinked module")
     }
 
     /// Set \[\[Environment]] to env.
@@ -73,18 +72,30 @@ impl<'m> AbstractModuleRecord<'m> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ResolvedBinding<'a> {
+    Ambiguous,
+    Resolved {
+        /// \[\[Module]]
+        module: SourceTextModule<'a>,
+        /// \[\[BindingName]]
+        binding_name: Option<String<'a>>,
+    },
+}
+
 /// ### [Abstract Methods of Module Records](https://tc39.es/ecma262/#table-abstract-methods-of-module-records)
 pub trait ModuleAbstractMethods {
     /// ### LoadRequestedModules(\[hostDefined])
     ///
     /// Prepares the module for linking by recursively loading all its
     /// dependencies, and returns a promise.
+    #[must_use]
     fn load_requested_modules<'a>(
         self,
         agent: &mut Agent,
         host_defined: Option<HostDefined>,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Promise<'a>>;
+    ) -> Promise<'a>;
 
     /// ### GetExportedNames(\[exportStarSet])
     ///
@@ -114,7 +125,13 @@ pub trait ModuleAbstractMethods {
     ///
     /// LoadRequestedModules must have completed successfully prior to invoking
     /// this method.
-    fn resolve_export(self, agent: &mut Agent, resolve_set: Option<()>, gc: GcScope);
+    fn resolve_export<'a>(
+        self,
+        agent: &Agent,
+        export_name: String,
+        resolve_set: Option<()>,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<ResolvedBinding<'a>>;
 
     /// ### Link()
     ///

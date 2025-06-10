@@ -28,17 +28,14 @@ pub(crate) use compile_context::{
     NamedEvaluationParameter,
 };
 use num_traits::Num;
-use oxc_ast::ast::{
-    self, BindingPattern, BindingRestElement, CallExpression, LabelIdentifier, NewExpression,
-    Statement,
-};
+use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
 impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
     fn compile_labelled(
         &'a self,
-        _label_set: Option<&mut Vec<&'a LabelIdentifier<'a>>>,
+        _label_set: Option<&mut Vec<&'a ast::LabelIdentifier<'a>>>,
         ctx: &mut CompileContext<'_, 'a, '_, '_>,
     ) {
         self.compile(ctx);
@@ -637,7 +634,7 @@ fn compile_arguments<'s>(
     }
 }
 
-impl<'s> CompileEvaluation<'s> for CallExpression<'s> {
+impl<'s> CompileEvaluation<'s> for ast::CallExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Direct eval
         if !self.optional {
@@ -726,7 +723,7 @@ impl<'s> CompileEvaluation<'s> for CallExpression<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for NewExpression<'s> {
+impl<'s> CompileEvaluation<'s> for ast::NewExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         self.callee.compile(ctx);
         if is_reference(&self.callee) {
@@ -1602,11 +1599,11 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
 fn simple_array_pattern<'s, I>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     elements: I,
-    rest: Option<&'s BindingRestElement<'s>>,
+    rest: Option<&'s ast::BindingRestElement<'s>>,
     num_elements: usize,
     has_environment: bool,
 ) where
-    I: Iterator<Item = Option<&'s BindingPattern<'s>>>,
+    I: Iterator<Item = Option<&'s ast::BindingPattern<'s>>>,
 {
     let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
@@ -1692,10 +1689,10 @@ fn check_result_is_undefined(ctx: &mut CompileContext) -> JumpIndex {
 fn complex_array_pattern<'s, I>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     elements: I,
-    rest: Option<&'s BindingRestElement<'s>>,
+    rest: Option<&'s ast::BindingRestElement<'s>>,
     has_environment: bool,
 ) where
-    I: Iterator<Item = Option<&'s BindingPattern<'s>>>,
+    I: Iterator<Item = Option<&'s ast::BindingPattern<'s>>>,
 {
     let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
@@ -2229,7 +2226,7 @@ impl<'s> CompileEvaluation<'s> for ast::BlockStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
     fn compile_labelled<'gc>(
         &'s self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) {
         let mut per_iteration_lets: Vec<String<'_>> = vec![];
@@ -2381,7 +2378,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
     fn compile_labelled(
         &'s self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
         // 1. Let exprRef be ? Evaluation of Expression.
@@ -2564,7 +2561,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
     fn compile_labelled(
         &'s self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
         ctx.enter_loop(label_set.cloned());
@@ -2605,7 +2602,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
 impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
     fn compile_labelled(
         &'s self,
-        label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
+        label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
         ctx.enter_loop(label_set.cloned());
@@ -2655,45 +2652,47 @@ impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
             return;
         }
         match self {
-            ast::Statement::ExpressionStatement(x) => x.compile(ctx),
-            ast::Statement::ReturnStatement(x) => x.compile(ctx),
-            ast::Statement::IfStatement(x) => x.compile(ctx),
-            ast::Statement::VariableDeclaration(x) => x.compile(ctx),
-            ast::Statement::FunctionDeclaration(_) => {
+            Self::ExpressionStatement(x) => x.compile(ctx),
+            Self::ReturnStatement(x) => x.compile(ctx),
+            Self::IfStatement(x) => x.compile(ctx),
+            Self::VariableDeclaration(x) => x.compile(ctx),
+            Self::FunctionDeclaration(_) => {
                 // Note: Function declaration statements are always hoisted.
                 // There is no work left to do here.
             }
-            ast::Statement::BlockStatement(x) => x.compile(ctx),
-            ast::Statement::EmptyStatement(_) => {}
-            ast::Statement::ForStatement(x) => x.compile_labelled(None, ctx),
-            ast::Statement::ThrowStatement(x) => x.compile(ctx),
-            ast::Statement::TryStatement(x) => x.compile(ctx),
-            Statement::BreakStatement(statement) => statement.compile(ctx),
-            Statement::ContinueStatement(statement) => statement.compile(ctx),
-            Statement::DebuggerStatement(_) => todo!(),
-            Statement::DoWhileStatement(statement) => statement.compile_labelled(None, ctx),
-            Statement::ForInStatement(statement) => statement.compile_labelled(None, ctx),
-            Statement::ForOfStatement(statement) => statement.compile_labelled(None, ctx),
-            Statement::LabeledStatement(statement) => statement.compile_labelled(None, ctx),
-            Statement::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
-            Statement::WhileStatement(statement) => statement.compile_labelled(None, ctx),
-            Statement::WithStatement(_) => todo!(),
-            Statement::ClassDeclaration(x) => x.compile(ctx),
-            Statement::ImportDeclaration(_) => todo!(),
-            Statement::ExportAllDeclaration(x) => x.compile(ctx),
-            Statement::ExportDefaultDeclaration(x) => x.compile(ctx),
-            Statement::ExportNamedDeclaration(x) => x.compile(ctx),
+            Self::BlockStatement(x) => x.compile(ctx),
+            Self::EmptyStatement(_) => {}
+            Self::ForStatement(x) => x.compile_labelled(None, ctx),
+            Self::ThrowStatement(x) => x.compile(ctx),
+            Self::TryStatement(x) => x.compile(ctx),
+            Self::BreakStatement(statement) => statement.compile(ctx),
+            Self::ContinueStatement(statement) => statement.compile(ctx),
+            Self::DebuggerStatement(_) => todo!(),
+            Self::DoWhileStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::ForInStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::ForOfStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::LabeledStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::WhileStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::WithStatement(_) => todo!(),
+            Self::ClassDeclaration(x) => x.compile(ctx),
+            Self::ImportDeclaration(_) => {
+                // Note: Import declarations do not perform any runtime work.
+            }
+            Self::ExportAllDeclaration(x) => x.compile(ctx),
+            Self::ExportDefaultDeclaration(x) => x.compile(ctx),
+            Self::ExportNamedDeclaration(x) => x.compile(ctx),
             #[cfg(feature = "typescript")]
-            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
+            Self::TSTypeAliasDeclaration(_) | Self::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
-            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+            Self::TSTypeAliasDeclaration(_) | Self::TSInterfaceDeclaration(_) => {
                 unreachable!()
             }
-            Statement::TSEnumDeclaration(_)
-            | Statement::TSExportAssignment(_)
-            | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
+            Self::TSEnumDeclaration(_)
+            | Self::TSExportAssignment(_)
+            | Self::TSImportEqualsDeclaration(_)
+            | Self::TSModuleDeclaration(_)
+            | Self::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
 }

@@ -83,7 +83,7 @@ impl<'a> PromiseCapability<'a> {
     }
 
     /// [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
-    fn internal_fulfill(self, agent: &mut Agent, value: Value, gc: NoGcScope) {
+    pub(crate) fn internal_fulfill(&self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -107,7 +107,7 @@ impl<'a> PromiseCapability<'a> {
     }
 
     /// [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
-    fn internal_reject(self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
+    fn internal_reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -308,7 +308,7 @@ impl<'a> PromiseCapability<'a> {
     }
 
     /// [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
-    pub fn reject(self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
+    pub fn reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].

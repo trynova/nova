@@ -2,40 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use small_string::SmallString;
-
 use crate::{
-    ecmascript::types::{HeapString, String},
+    ecmascript::types::String,
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-use super::Module;
-
 #[derive(Debug, Clone)]
 pub struct ModuleHeapData<'a> {
     pub(crate) exports: Box<[String<'a>]>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum ResolvedBindingName {
-    String(HeapString<'static>),
-    SmallString(SmallString),
-    Namespace,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ResolvedBinding {
-    /// \[\[Module]]
-    pub(super) module: Option<Module<'static>>,
-    /// \[\[BindingName]]
-    pub(super) binding_name: ResolvedBindingName,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum ResolveExportResult {
-    Ambiguous,
-    Resolved(ResolvedBinding),
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

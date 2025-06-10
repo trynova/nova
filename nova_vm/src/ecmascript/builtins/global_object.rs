@@ -171,7 +171,7 @@ pub fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .host_ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
+        .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
         .unbind()?;
 
     // 6. Let inFunction be false.
@@ -238,6 +238,27 @@ pub fn perform_eval<'gc>(
             return Err(agent.throw_exception(ExceptionType::SyntaxError, message, gc.into_nogc()));
         }
     };
+
+    // Note: oxc only allows us to do strict mode parsing by using the module
+    // source type, but that also allows module declarations. We need to
+    // manually check against import and export declarations inside eval.
+    if strict_caller
+        && script.body.iter().any(|st| {
+            st.is_module_declaration() || {
+                if let oxc_ast::ast::Statement::ExpressionStatement(st) = &st {
+                    matches!(st.expression, oxc_ast::ast::Expression::MetaProperty(_))
+                } else {
+                    false
+                }
+            }
+        })
+    {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "module declarations may only appear at top level of a module",
+            gc.into_nogc(),
+        ));
+    }
 
     // c. If script Contains ScriptBody is false, return undefined.
     if script.is_empty() {

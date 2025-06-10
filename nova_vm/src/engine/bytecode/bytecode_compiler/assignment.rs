@@ -102,7 +102,10 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
         } else if let Some(operator) = self.operator.to_logical_operator() {
             // 2. Let lval be ? GetValue(lref).
             ctx.add_instruction(Instruction::GetValueKeepReference);
-            ctx.add_instruction(Instruction::PushReference);
+            let needs_save_reference = !self.right.is_literal();
+            if needs_save_reference {
+                ctx.add_instruction(Instruction::PushReference);
+            }
             // We store the left value on the stack, because we'll need to
             // restore it later.
             ctx.add_instruction(Instruction::LoadCopy);
@@ -125,7 +128,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 }
             };
 
-            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
 
             // We're returning the right expression, so we discard the left
             // value at the top of the stack.
@@ -149,12 +152,26 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
 
             // 7. Perform ? PutValue(lref, rval).
             ctx.add_instruction(Instruction::LoadCopy);
-            ctx.add_instruction(Instruction::PopReference);
+            if needs_save_reference {
+                ctx.add_instruction(Instruction::PopReference);
+            }
             ctx.add_instruction(Instruction::PutValue);
+            let jump_over_else = if needs_save_reference {
+                ctx.add_instruction(Instruction::Store);
+                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+            } else {
+                None
+            };
 
             // 4. ... return lval.
-            ctx.set_jump_target_here(jump_to_end);
+            ctx.set_jump_target_here(jump_to_else);
             ctx.add_instruction(Instruction::Store);
+            if needs_save_reference {
+                ctx.add_instruction(Instruction::PopReference);
+            }
+            if let Some(jump_over_else) = jump_over_else {
+                ctx.set_jump_target_here(jump_over_else);
+            }
         } else {
             // 2. let lval be ? GetValue(lref).
             ctx.add_instruction(Instruction::GetValueKeepReference);
@@ -184,7 +201,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
             ctx.add_instruction(Instruction::PutValue);
             // 9. Return r.
             ctx.add_instruction(Instruction::Store);
-        }
+        };
     }
 }
 

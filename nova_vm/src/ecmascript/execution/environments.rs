@@ -41,7 +41,11 @@ pub(crate) use function_environment::{
     new_class_static_element_environment, new_function_environment,
 };
 pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
-pub(crate) use module_environment::new_module_environment;
+use module_environment::ModuleEnvironmentRecord;
+pub(crate) use module_environment::{
+    create_import_binding, initialize_import_binding, new_module_environment,
+    throw_uninitialized_binding,
+};
 pub(crate) use object_environment::ObjectEnvironmentRecord;
 pub(crate) use private_environment::{
     PrivateEnvironmentRecord, PrivateField, PrivateMethod, new_private_environment,
@@ -52,6 +56,7 @@ use crate::ecmascript::types::IntoValue;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
+use crate::heap::Heap;
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -215,6 +220,7 @@ create_environment_index!(
 create_environment_index!(FunctionEnvironmentRecord, FunctionEnvironment, function);
 create_environment_index!(GlobalEnvironmentRecord, GlobalEnvironment, global);
 create_environment_index!(ObjectEnvironmentRecord, ObjectEnvironment, object);
+create_environment_index!(ModuleEnvironmentRecord, ModuleEnvironment, module);
 create_environment_index!(PrivateEnvironmentRecord, PrivateEnvironment, private);
 
 impl<'a> From<DeclarativeEnvironment<'a>> for Environment<'a> {
@@ -238,104 +244,6 @@ impl<'a> From<ModuleEnvironment<'a>> for Environment<'a> {
 impl<'a> From<ObjectEnvironment<'a>> for Environment<'a> {
     fn from(value: ObjectEnvironment<'a>) -> Self {
         Environment::Object(value)
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ModuleEnvironment<'a>(
-    NonZeroU32,
-    PhantomData<DeclarativeEnvironmentRecord>,
-    PhantomData<&'a GcToken>,
-);
-
-impl core::fmt::Debug for ModuleEnvironment<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "ModuleEnvironment({:?})", self.into_index())
-    }
-}
-
-impl ModuleEnvironment<'_> {
-    /// Creates a new index from a u32.
-    ///
-    /// ## Panics
-    /// - If the value is equal to 0.
-    pub(crate) const fn from_u32(value: u32) -> Self {
-        assert!(value != 0);
-        // SAFETY: Number is not 0 and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
-    pub(crate) const fn from_u32_index(value: u32) -> Self {
-        Self::from_u32(value + 1)
-    }
-
-    pub(crate) const fn into_index(self) -> usize {
-        self.0.get() as usize - 1
-    }
-
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0.get()
-    }
-
-    pub(crate) const fn into_u32_index(self) -> u32 {
-        self.0.get() - 1
-    }
-
-    pub(crate) fn last(vec: &[Option<DeclarativeEnvironmentRecord>]) -> Self {
-        Self::from_u32(vec.len() as u32)
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ModuleEnvironment<'_> {
-    type Of<'a> = ModuleEnvironment<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl Rootable for ModuleEnvironment<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::ModuleEnvironment(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::ModuleEnvironment(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
-impl HeapMarkAndSweep for ModuleEnvironment<'_> {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
-        todo!()
-    }
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        todo!()
     }
 }
 
@@ -497,7 +405,7 @@ impl Environment<'_> {
             Environment::Global(e) => e.create_immutable_binding(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                e.create_immutable_binding(agent, name);
+                e.create_immutable_binding(agent.as_mut(), name);
                 Ok(())
             }
             Environment::Object(e) => {
@@ -531,7 +439,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent, name, value);
+                e.initialize_binding(agent.as_mut(), name, value);
                 TryResult::Continue(Ok(()))
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, value, gc),
@@ -562,7 +470,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent, name, value);
+                e.initialize_binding(agent.as_mut(), name, value);
                 Ok(())
             }
             Environment::Object(e) => e.initialize_binding(agent, name, value, gc),
@@ -653,7 +561,21 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
-                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+                let Heap {
+                    environments,
+                    source_text_module_records,
+                    ..
+                } = &agent.heap;
+                let Some(value) = e.get_binding_value(
+                    environments,
+                    source_text_module_records,
+                    name,
+                    is_strict,
+                    gc,
+                ) else {
+                    return TryResult::Continue(Err(throw_uninitialized_binding(agent, name, gc)));
+                };
+                TryResult::Continue(Ok(value))
             }
             Environment::Object(e) => e.try_get_binding_value(agent, name, is_strict, gc),
         }
@@ -681,7 +603,24 @@ impl Environment<'_> {
             }
             Environment::Function(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
-            Environment::Module(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
+            Environment::Module(e) => {
+                let gc = gc.into_nogc();
+                let Heap {
+                    environments,
+                    source_text_module_records,
+                    ..
+                } = &agent.heap;
+                let Some(value) = e.get_binding_value(
+                    environments,
+                    source_text_module_records,
+                    name,
+                    is_strict,
+                    gc,
+                ) else {
+                    return Err(throw_uninitialized_binding(agent, name, gc));
+                };
+                Ok(value)
+            }
             Environment::Object(e) => e.get_binding_value(agent, name, is_strict, gc),
         }
     }
@@ -884,6 +823,7 @@ pub struct Environments {
     pub(crate) function: Vec<Option<FunctionEnvironmentRecord>>,
     pub(crate) global: Vec<Option<GlobalEnvironmentRecord>>,
     pub(crate) object: Vec<Option<ObjectEnvironmentRecord>>,
+    pub(crate) module: Vec<Option<ModuleEnvironmentRecord>>,
     pub(crate) private: Vec<Option<PrivateEnvironmentRecord>>,
 }
 
@@ -894,6 +834,7 @@ impl Default for Environments {
             function: Vec::with_capacity(1024),
             global: Vec::with_capacity(1),
             object: Vec::with_capacity(1024),
+            module: Vec::with_capacity(8),
             private: Vec::with_capacity(0),
         }
     }
@@ -1063,6 +1004,15 @@ impl Environments {
         GlobalEnvironment::from_u32(self.global.len() as u32)
     }
 
+    pub(crate) fn push_module_environment<'a>(
+        &mut self,
+        env: ModuleEnvironmentRecord,
+        _: NoGcScope<'a, '_>,
+    ) -> ModuleEnvironment<'a> {
+        self.module.push(Some(env));
+        ModuleEnvironment::from_u32(self.module.len() as u32)
+    }
+
     pub(crate) fn push_object_environment<'a>(
         &mut self,
         env: ObjectEnvironmentRecord,
@@ -1128,6 +1078,28 @@ impl Environments {
             .expect("FunctionEnvironment did not match to any vector index")
             .as_mut()
             .expect("FunctionEnvironment pointed to a None")
+    }
+
+    pub(crate) fn get_module_environment(
+        &self,
+        index: ModuleEnvironment,
+    ) -> &ModuleEnvironmentRecord {
+        self.module
+            .get(index.into_index())
+            .expect("ModuleEnvironment did not match to any vector index")
+            .as_ref()
+            .expect("ModuleEnvironment pointed to a None")
+    }
+
+    pub(crate) fn get_module_environment_mut(
+        &mut self,
+        index: ModuleEnvironment,
+    ) -> &mut ModuleEnvironmentRecord {
+        self.module
+            .get_mut(index.into_index())
+            .expect("ModuleEnvironment did not match to any vector index")
+            .as_mut()
+            .expect("ModuleEnvironment pointed to a None")
     }
 
     pub(crate) fn get_global_environment(
@@ -1215,5 +1187,29 @@ pub(crate) fn get_this_environment<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> 
         // d. Assert: outer is not null.
         // e. Set env to outer.
         env = env.get_outer_env(agent, gc).unwrap();
+    }
+}
+
+impl AsRef<Environments> for Environments {
+    fn as_ref(&self) -> &Environments {
+        self
+    }
+}
+
+impl AsMut<Environments> for Environments {
+    fn as_mut(&mut self) -> &mut Environments {
+        self
+    }
+}
+
+impl AsRef<Environments> for Agent {
+    fn as_ref(&self) -> &Environments {
+        &self.heap.environments
+    }
+}
+
+impl AsMut<Environments> for Agent {
+    fn as_mut(&mut self) -> &mut Environments {
+        &mut self.heap.environments
     }
 }

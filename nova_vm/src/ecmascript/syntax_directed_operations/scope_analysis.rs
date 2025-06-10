@@ -405,19 +405,40 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 // 1. Return a new empty List.
             },
             Statement::ExportNamedDeclaration(decl) => {
+                #[cfg(feature = "typescript")]
+                if decl.export_kind.is_type() {
+                    return;
+                }
                 // export NamedExports ;
                 // export VariableStatement
                 // 1. Return a new empty List.
-                if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration {
-                    if decl.kind.is_var() {
-                        return;
-                    }
-                    // ExportDeclaration : export Declaration
-                    // 1. Return a List whose sole element is DeclarationPart of Declaration.
-                    debug_assert_eq!(decl.declarations.len(), 1);
-                    f(LexicallyScopedDeclaration::Variable(decl.declarations.first().unwrap()));
+                let Some(decl) = &decl.declaration else {
+                    // No declaration means this is NamedExports (possibly in
+                    // an ExportFromClause)
+                    return;
+                };
+                match decl {
+                    Declaration::VariableDeclaration(decl) => {
+                        if decl.kind.is_var() {
+                            return;
+                        }
+                        // ExportDeclaration : export Declaration
+                        // 1. Return a List whose sole element is DeclarationPart of Declaration.
+                        debug_assert_eq!(decl.declarations.len(), 1);
+                        f(LexicallyScopedDeclaration::Variable(decl.declarations.first().unwrap()));
+                    },
+                    Declaration::FunctionDeclaration(decl) => {
+                        f(LexicallyScopedDeclaration::Function(decl));
+                    },
+                    Declaration::ClassDeclaration(decl) => {
+                        f(LexicallyScopedDeclaration::Class(decl));
+                    },
+                    Declaration::TSTypeAliasDeclaration(_) |
+                    Declaration::TSInterfaceDeclaration(_) |
+                    Declaration::TSEnumDeclaration(_) |
+                    Declaration::TSModuleDeclaration(_) |
+                    Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
                 }
-                // No declaration means this is NamedExports (possibly in an ExportFromClause)
             },
             Statement::ExportDefaultDeclaration(decl) => {
                 match &decl.declaration {

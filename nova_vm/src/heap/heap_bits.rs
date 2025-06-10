@@ -53,8 +53,8 @@ use crate::ecmascript::{
         text_processing::string_objects::string_iterator_objects::StringIterator,
     },
     execution::{
-        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
-        PrivateEnvironment, Realm,
+        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
+        ObjectEnvironment, PrivateEnvironment, Realm,
     },
     scripts_and_modules::{
         module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
@@ -111,6 +111,7 @@ pub struct HeapBits {
     pub global_environments: Box<[bool]>,
     pub maps: Box<[bool]>,
     pub map_iterators: Box<[bool]>,
+    pub module_environments: Box<[bool]>,
     pub modules: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub object_environments: Box<[bool]>,
@@ -189,6 +190,7 @@ pub(crate) struct WorkQueues {
     pub global_environments: Vec<GlobalEnvironment<'static>>,
     pub maps: Vec<Map<'static>>,
     pub map_iterators: Vec<MapIterator<'static>>,
+    pub module_environments: Vec<ModuleEnvironment<'static>>,
     pub modules: Vec<Module<'static>>,
     pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironment<'static>>,
@@ -267,6 +269,7 @@ impl HeapBits {
         let global_environments = vec![false; heap.environments.global.len()];
         let maps = vec![false; heap.maps.len()];
         let map_iterators = vec![false; heap.map_iterators.len()];
+        let module_environments = vec![false; heap.environments.module.len()];
         let modules = vec![false; heap.modules.len()];
         let numbers = vec![false; heap.numbers.len()];
         let object_environments = vec![false; heap.environments.object.len()];
@@ -342,6 +345,7 @@ impl HeapBits {
             global_environments: global_environments.into_boxed_slice(),
             maps: maps.into_boxed_slice(),
             map_iterators: map_iterators.into_boxed_slice(),
+            module_environments: module_environments.into_boxed_slice(),
             modules: modules.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             object_environments: object_environments.into_boxed_slice(),
@@ -423,6 +427,7 @@ impl WorkQueues {
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
             maps: Vec::with_capacity(heap.maps.len() / 4),
             map_iterators: Vec::with_capacity(heap.map_iterators.len() / 4),
+            module_environments: Vec::with_capacity(heap.environments.module.len() / 4),
             modules: Vec::with_capacity(heap.modules.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
@@ -506,6 +511,7 @@ impl WorkQueues {
             global_environments,
             maps,
             map_iterators,
+            module_environments,
             modules,
             numbers,
             object_environments,
@@ -601,6 +607,7 @@ impl WorkQueues {
             && global_environments.is_empty()
             && maps.is_empty()
             && map_iterators.is_empty()
+            && module_environments.is_empty()
             && modules.is_empty()
             && numbers.is_empty()
             && object_environments.is_empty()
