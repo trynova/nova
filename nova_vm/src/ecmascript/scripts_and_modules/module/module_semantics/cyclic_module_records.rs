@@ -611,7 +611,7 @@ pub(super) fn inner_module_evaluation<'a, 'b>(
     module.set_dfs_index(agent, index);
     // 8. Set module.[[PendingAsyncDependencies]] to 0.
     // 9. Set index to index + 1.
-    index = index + 1;
+    index += 1;
     // 10. Append module to stack.
     stack.push(scoped_module.clone());
     // 11. For each ModuleRequest Record request of module.[[RequestedModules]], do
@@ -646,12 +646,7 @@ pub(super) fn inner_module_evaluation<'a, 'b>(
             required_module.status(agent),
             CyclicModuleRecordStatus::Evaluating
         ) {
-            debug_assert!(
-                stack
-                    .iter()
-                    .find(|m| m.get(agent) == required_module)
-                    .is_some()
-            );
+            debug_assert!(stack.iter().any(|m| m.get(agent) == required_module));
             // 1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
             module.set_dfs_ancestor_index(agent, required_module.dfs_ancestor_index(agent));
         } else {

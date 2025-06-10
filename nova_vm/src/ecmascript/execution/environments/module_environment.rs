@@ -225,9 +225,7 @@ impl<'e> ModuleEnvironment<'e> {
             .unwrap();
         // 4. If the binding for N in envRec is an uninitialized binding, throw
         //    a ReferenceError exception.
-        let Some(value) = binding.value else {
-            return None;
-        };
+        let value = binding.value?;
         // 5. Return the value currently bound to N in envRec.
         Some(value.bind(gc))
     }
@@ -241,7 +239,7 @@ pub(crate) fn throw_uninitialized_binding<'a>(
     let name = name.as_str(agent);
     agent.throw_exception(
         ExceptionType::ReferenceError,
-        format!("attempted to access uninitialized binding {}", name),
+        format!("attempted to access uninitialized binding {name}"),
         gc,
     )
 }

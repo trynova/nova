@@ -417,10 +417,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     // an ExportFromClause)
                     return;
                 };
-                #[cfg(feature = "typescript")]
-                if decl.export_kind.is_type() {
-                    return;
-                }
                 match decl {
                     Declaration::VariableDeclaration(decl) => {
                         if decl.kind.is_var() {
@@ -432,10 +428,10 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                         f(LexicallyScopedDeclaration::Variable(decl.declarations.first().unwrap()));
                     },
                     Declaration::FunctionDeclaration(decl) => {
-                        f(LexicallyScopedDeclaration::Function(&decl));
+                        f(LexicallyScopedDeclaration::Function(decl));
                     },
                     Declaration::ClassDeclaration(decl) => {
-                        f(LexicallyScopedDeclaration::Class(&decl));
+                        f(LexicallyScopedDeclaration::Class(decl));
                     },
                     Declaration::TSTypeAliasDeclaration(_) |
                     Declaration::TSInterfaceDeclaration(_) |
@@ -445,10 +441,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 }
             },
             Statement::ExportDefaultDeclaration(decl) => {
-                #[cfg(feature = "typescript")]
-                if decl.export_kind.is_type() {
-                    return;
-                }
                 match &decl.declaration {
                     // ExportDeclaration : export default HoistableDeclaration
                     ExportDefaultDeclarationKind::FunctionDeclaration(decl) => {
