@@ -7,7 +7,6 @@
 use std::collections::hash_map::Entry;
 
 use ahash::AHashMap;
-use oxc_span::Atom;
 
 use crate::{
     ecmascript::{
@@ -24,7 +23,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-use super::source_text_module_records::SourceTextModule;
+use super::{ModuleRequestRecord, source_text_module_records::SourceTextModule};
 
 #[derive(Debug, Default)]
 pub(crate) enum CyclicModuleRecordStatus {
@@ -80,7 +79,7 @@ pub(crate) struct CyclicModuleRecord<'a> {
     ///
     /// Note: The requested module specifiers are borrowed strings pointing to
     /// the source text of the module record.
-    requested_modules: Box<[Atom<'static>]>,
+    requested_modules: Box<[ModuleRequestRecord<'a>]>,
     /// ### \[\[LoadedModules]]
     ///
     /// a List of LoadedModuleRequest Records
@@ -89,7 +88,7 @@ pub(crate) struct CyclicModuleRecord<'a> {
     /// record to request the importation of a module with the relative import
     /// attributes to the resolved Module Record. The list does not contain two
     /// different Records r1 and r2 such that ModuleRequestsEqual(r1, r2) is true.
-    loaded_modules: AHashMap<Atom<'static>, SourceTextModule<'a>>,
+    loaded_modules: AHashMap<&'a str, SourceTextModule<'a>>,
     /// ### \[\[CycleRoot]]
     ///
     /// a Cyclic Module Record or empty
@@ -148,7 +147,7 @@ pub(crate) struct CyclicModuleRecord<'a> {
 }
 
 impl<'m> CyclicModuleRecord<'m> {
-    pub(super) fn new(r#async: bool, requested_modules: Box<[Atom<'static>]>) -> Self {
+    pub(super) fn new(r#async: bool, requested_modules: Box<[ModuleRequestRecord<'m>]>) -> Self {
         Self {
             has_tla: r#async,
             requested_modules,
@@ -162,21 +161,28 @@ impl<'m> CyclicModuleRecord<'m> {
     }
 
     /// Get a loaded module by a request string.
-    pub(super) fn get_loaded_module(&self, request: &str) -> Option<SourceTextModule<'m>> {
-        self.loaded_modules.get(request).copied()
+    pub(super) fn get_loaded_module(
+        &self,
+        request: &ModuleRequestRecord,
+    ) -> Option<SourceTextModule<'m>> {
+        self.loaded_modules.get(request.specifier).copied()
     }
 
     /// Insert a loaded module into the module's requested modules.
-    pub(super) fn insert_loaded_module(&mut self, request: &str, module: SourceTextModule) {
-        let atom: Atom<'static> = *self
+    pub(super) fn insert_loaded_module(
+        &mut self,
+        request: &ModuleRequestRecord,
+        module: SourceTextModule,
+    ) {
+        let record = *self
             .requested_modules
             .iter()
-            .find(|a| a.as_str() == request)
+            .find(|a| a.specifier == request.specifier)
             .expect("Could not find loaded module in list of requested modules");
         // a. If referrer.[[LoadedModules]] contains a LoadedModuleRequest
         //    Record record such that ModuleRequestsEqual(record,
         //    moduleRequest) is true, then
-        match self.loaded_modules.entry(atom) {
+        match self.loaded_modules.entry(record.specifier) {
             Entry::Occupied(e) => {
                 // i. Assert: record.[[Module]] and result.[[Value]] are the
                 //    same Module Record.
@@ -200,7 +206,7 @@ impl<'m> CyclicModuleRecord<'m> {
     ///
     /// The Atoms are only valid while CyclicModuleRecord does not get garbage
     /// collected.
-    pub(super) fn get_requested_modules(&self) -> &[Atom<'static>] {
+    pub(super) fn get_requested_modules(&self) -> &[ModuleRequestRecord<'m>] {
         &self.requested_modules
     }
 
@@ -409,7 +415,7 @@ pub(super) fn inner_module_loading<'a>(
             agent.host_hooks.load_imported_module(
                 agent,
                 module,
-                request.as_str(),
+                request,
                 state.host_defined.clone(),
                 state,
                 gc,

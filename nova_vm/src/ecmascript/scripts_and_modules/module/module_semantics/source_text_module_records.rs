@@ -14,13 +14,13 @@ use ahash::AHashSet;
 use oxc_ast::ast::{self, Program};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::{Atom, SourceType};
+use oxc_span::SourceType;
 use small_string::SmallString;
 
 use crate::{
     ecmascript::{
         builtins::{
-            promise::Promise,
+            module::Module, promise::Promise,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{
@@ -58,12 +58,13 @@ use crate::{
 };
 
 use super::{
+    ModuleRequestRecord,
     abstract_module_records::{AbstractModuleRecord, ModuleAbstractMethods, ResolvedBinding},
     cyclic_module_records::{
         CyclicModuleAbstractMethods, CyclicModuleRecord, GraphLoadingStateRecord,
         inner_module_loading,
     },
-    get_imported_module,
+    get_imported_module, get_module_namespace,
 };
 
 #[derive(Debug)]
@@ -103,23 +104,19 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     ///
     /// A List of ExportEntry records derived from the code of this module that
     /// correspond to declarations that occur within the module.
-    local_export_entries: Box<[ExportEntryRecord<'a>]>,
+    local_export_entries: Box<[LocalExportEntryRecord<'a>]>,
     /// ### \[\[IndirectExportEntries]]
-    ///
-    /// a List of ExportEntry Records
     ///
     /// A List of ExportEntry records derived from the code of this module that
     /// correspond to reexported imports that occur within the module or
     /// exports from export * as namespace declarations.
-    indirect_export_entries: (),
+    indirect_export_entries: Box<[IndirectExportEntryRecord<'a>]>,
     /// ### \[\[StarExportEntries]]
-    ///
-    /// a List of ExportEntry Records
     ///
     /// A List of ExportEntry records derived from the code of this module that
     /// correspond to export * declarations that occur within the module, not
     /// including export * as namespace declarations.
-    star_export_entries: (),
+    star_export_entries: Box<[ModuleRequestRecord<'a>]>,
 
     /// Source text of the script
     ///
@@ -162,7 +159,7 @@ impl<'m> SourceTextModule<'m> {
     pub(super) fn get_loaded_module(
         self,
         agent: &impl AsRef<SourceTextModuleHeap>,
-        request: &str,
+        request: &ModuleRequestRecord,
     ) -> Option<SourceTextModule<'m>> {
         self.get(agent).cyclic_fields.get_loaded_module(request)
     }
@@ -171,7 +168,7 @@ impl<'m> SourceTextModule<'m> {
     pub(super) fn insert_loaded_module(
         self,
         agent: &mut Agent,
-        request: &str,
+        request: &ModuleRequestRecord,
         module: SourceTextModule,
     ) {
         self.get_mut(agent)
@@ -190,13 +187,16 @@ impl<'m> SourceTextModule<'m> {
     /// statements being borrowed from the heap. If the SourceTextModule is not
     /// rooted (at least a copy of it), then the slice will become a dangling
     /// pointer during garbage collection.
-    pub(super) unsafe fn get_requested_modules(self, agent: &Agent) -> &'m [Atom<'m>] {
+    pub(super) unsafe fn get_requested_modules(
+        self,
+        agent: &Agent,
+    ) -> &'m [ModuleRequestRecord<'m>] {
         // SAFETY: Caller promises that SourceTextModule is rooted while the
         // statements slice is held: the SourceTextModuleRecord may move during
         // GC but the Atoms list memory does not move. Hence the reference is
         // valid while the self SourceTextModule is held (the parent call).
         unsafe {
-            core::mem::transmute::<&[Atom], &'m [Atom<'m>]>(
+            core::mem::transmute::<&[ModuleRequestRecord], &'m [ModuleRequestRecord<'m>]>(
                 self.get(agent).cyclic_fields.get_requested_modules(),
             )
         }
@@ -226,16 +226,42 @@ impl<'m> SourceTextModule<'m> {
     }
 
     /// ### \[\[ImportEntries]]
-    fn import_entries(self, agent: &impl AsRef<SourceTextModuleHeap>) -> &[ImportEntryRecord<'m>] {
-        &self.get(agent).import_entries
+    fn import_entries(
+        self,
+        agent: &impl AsRef<SourceTextModuleHeap>,
+    ) -> &'m [ImportEntryRecord<'m>] {
+        // SAFETY: import_entries list cannot be mutated except for during GC.
+        // Hence, we can safely transmute to the module lifetime (which should
+        // be bound to the GcScope).
+        unsafe {
+            core::mem::transmute::<&[ImportEntryRecord], &'m [ImportEntryRecord<'m>]>(
+                &self.get(agent).import_entries,
+            )
+        }
     }
 
     /// ### \[\[LocalExportEntries]]
     fn local_export_entries(
         self,
         agent: &impl AsRef<SourceTextModuleHeap>,
-    ) -> &[ExportEntryRecord<'m>] {
+    ) -> &[LocalExportEntryRecord<'m>] {
         &self.get(agent).local_export_entries
+    }
+
+    /// ### \[\[IndirectExportEntries]]
+    fn indirect_export_entries(
+        self,
+        agent: &impl AsRef<SourceTextModuleHeap>,
+    ) -> &[IndirectExportEntryRecord<'m>] {
+        &self.get(agent).indirect_export_entries
+    }
+
+    /// ### \[\[StarExportEntries]]
+    fn star_export_entries(
+        self,
+        agent: &impl AsRef<SourceTextModuleHeap>,
+    ) -> &[ModuleRequestRecord<'m>] {
+        &self.get(agent).star_export_entries
     }
 
     /// ### \[\[HasTLA]]
@@ -254,6 +280,16 @@ impl<'m> SourceTextModule<'m> {
     // Set \[\[Environment]] to env.
     fn set_environment(self, agent: &mut Agent, env: ModuleEnvironment) {
         self.get_mut(agent).abstract_fields.set_environment(env)
+    }
+
+    /// ### \[\[Namespace]]
+    pub(crate) fn namespace(self, agent: &Agent) -> Option<Module<'m>> {
+        self.get(agent).abstract_fields.namespace()
+    }
+
+    // Set \[\[Namespace]] to namespace.
+    pub(crate) fn set_namespace(self, agent: &mut Agent, namespace: Module) {
+        self.get_mut(agent).abstract_fields.set_namespace(namespace)
     }
 
     /// ### \[\[EvaluationError]]
@@ -355,7 +391,7 @@ impl<'m> SourceTextModule<'m> {
         self,
         agent: &impl AsRef<SourceTextModuleHeap>,
         export_name: String,
-        _resolve_set: Option<()>,
+        resolve_set: Option<()>,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ResolvedBinding<'a>> {
         let module = self.bind(gc);
@@ -374,31 +410,48 @@ impl<'m> SourceTextModule<'m> {
         // 5. For each ExportEntry Record e of module.[[LocalExportEntries]], do
         for e in module.local_export_entries(agent) {
             // a. If e.[[ExportName]] is exportName, then
-            if e.export_name == Some(export_name) {
+            if e.export_name == export_name {
                 // i. Assert: module provides the direct binding for this export.
                 // ii. Return ResolvedBinding Record {
                 return Some(ResolvedBinding::Resolved {
                     // [[Module]]: module,
                     module,
                     // [[BindingName]]: e.[[LocalName]]
-                    binding_name: e.local_name,
+                    binding_name: Some(e.local_name),
                 });
                 // }.
             }
         }
 
         // 6. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
-
-        //        a. If e.[[ExportName]] is exportName, then
-        //               i. Assert: e.[[ModuleRequest]] is not null.
-        //               ii. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-        //               iii. If e.[[ImportName]] is all, then
-        //                        1. Assert: module does not provide the direct binding for this export.
-        //                        2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
-        //               iv. Else,
-        //                       1. Assert: module imports a specific binding for this export.
-        //                       2. Assert: e.[[ImportName]] is a String.
-        //                       3. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+        for e in module.indirect_export_entries(agent) {
+            // a. If e.[[ExportName]] is exportName, then
+            if e.export_name == export_name {
+                // i. Assert: e.[[ModuleRequest]] is not null.
+                // ii. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+                let imported_module = get_imported_module(agent, module, &e.module_request, gc);
+                // iii. If e.[[ImportName]] is all, then
+                if let Some(import_name) = e.import_name {
+                    // iv. Else,
+                    // 1. Assert: module imports a specific binding for this export.
+                    // 2. Assert: e.[[ImportName]] is a String.
+                    // 3. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+                    return imported_module.inner_resolve_export(
+                        agent,
+                        import_name,
+                        resolve_set,
+                        gc,
+                    );
+                } else {
+                    // 1. Assert: module does not provide the direct binding for this export.
+                    // 2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
+                    return Some(ResolvedBinding::Resolved {
+                        module: imported_module,
+                        binding_name: None,
+                    });
+                }
+            }
+        }
 
         // 7. If exportName is "default", then
         if export_name == BUILTIN_STRING_MEMORY.default {
@@ -411,21 +464,75 @@ impl<'m> SourceTextModule<'m> {
         }
 
         // 8. Let starResolution be null.
+        let mut star_resolution = None;
         // 9. For each ExportEntry Record e of module.[[StarExportEntries]], do
-
-        //        a. Assert: e.[[ModuleRequest]] is not null.
-        //        b. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-        //        c. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
-        //        d. If resolution is ambiguous, return ambiguous.
-        //        e. If resolution is not null, then
-        //               i. Assert: resolution is a ResolvedBinding Record.
-        //               ii. If starResolution is null, then
-        //                       1. Set starResolution to resolution.
-        //               iii. Else,
-        //                        1. Assert: There is more than one * import that includes the requested name.
-        //                        2. If resolution.[[Module]] and starResolution.[[Module]] are not the same Module Record, return ambiguous.
-        //                        3. If resolution.[[BindingName]] is not starResolution.[[BindingName]] and either resolution.[[BindingName]] or starResolution.[[BindingName]] is namespace, return ambiguous.
-        //                        4. If resolution.[[BindingName]] is a String, starResolution.[[BindingName]] is a String, and resolution.[[BindingName]] is not starResolution.[[BindingName]], return ambiguous.
+        for e in module.star_export_entries(agent) {
+            // a. Assert: e.[[ModuleRequest]] is not null.
+            // b. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+            let imported_module = get_imported_module(agent, module, e, gc);
+            // c. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
+            let resolution =
+                imported_module.inner_resolve_export(agent, export_name, resolve_set, gc);
+            // d. If resolution is ambiguous, return ambiguous.
+            if matches!(resolution, Some(ResolvedBinding::Ambiguous)) {
+                return resolution;
+            }
+            // e. If resolution is not null, then
+            if let Some(resolution) = resolution {
+                // i. Assert: resolution is a ResolvedBinding Record.
+                let ResolvedBinding::Resolved {
+                    module: resolution_module,
+                    binding_name: resolution_binding_name,
+                } = resolution
+                else {
+                    unreachable!()
+                };
+                debug_assert!(matches!(resolution, ResolvedBinding::Resolved { .. }));
+                // ii. If starResolution is null, then
+                if star_resolution.is_none() {
+                    // 1. Set starResolution to resolution.
+                    star_resolution = Some(resolution);
+                } else {
+                    let Some(ResolvedBinding::Resolved {
+                        module: star_resolution_module,
+                        binding_name: star_resolution_binding_name,
+                    }) = star_resolution
+                    else {
+                        unreachable!()
+                    };
+                    // iii. Else,
+                    // 1. Assert: There is more than one * import that includes
+                    // the requested name.
+                    debug_assert!(module.star_export_entries(agent).len() > 1);
+                    // 2. If resolution.[[Module]] and starResolution.[[Module]]
+                    //    are not the same Module Record, return ambiguous.
+                    if resolution_module != star_resolution_module {
+                        return Some(ResolvedBinding::Ambiguous);
+                    }
+                    // 3. If resolution.[[BindingName]] is not
+                    //    starResolution.[[BindingName]] and either
+                    //    resolution.[[BindingName]] or
+                    //    starResolution.[[BindingName]] is namespace, return
+                    //    ambiguous.
+                    if resolution_binding_name != star_resolution_binding_name
+                        && (resolution_binding_name.is_none()
+                            || star_resolution_binding_name.is_none())
+                    {
+                        return Some(ResolvedBinding::Ambiguous);
+                    }
+                    // 4. If resolution.[[BindingName]] is a String,
+                    //    starResolution.[[BindingName]] is a String, and
+                    //    resolution.[[BindingName]] is not
+                    //    starResolution.[[BindingName]], return ambiguous.
+                    if resolution_binding_name.is_some()
+                        && star_resolution_binding_name.is_some()
+                        && resolution_binding_name != star_resolution_binding_name
+                    {
+                        return Some(ResolvedBinding::Ambiguous);
+                    }
+                }
+            }
+        }
 
         // 10. Return starResolution.
         None
@@ -434,7 +541,10 @@ impl<'m> SourceTextModule<'m> {
 
 impl Scoped<'_, SourceTextModule<'static>> {
     /// Get the requested modules as a slice.
-    pub(super) fn get_requested_modules<'a>(&'a self, agent: &Agent) -> &'a [Atom<'a>] {
+    pub(super) fn get_requested_modules<'a>(
+        &'a self,
+        agent: &Agent,
+    ) -> &'a [ModuleRequestRecord<'a>] {
         // SAFETY: Scoped roots the SourceTextModule.
         unsafe { self.get(agent).get_requested_modules(agent) }
     }
@@ -449,7 +559,7 @@ struct ImportEntryRecord<'a> {
     ///
     /// ModuleRequest Record representing the ModuleSpecifier and import
     /// attributes of the ImportDeclaration.
-    module_request: Atom<'static>,
+    module_request: ModuleRequestRecord<'a>,
     /// ### \[\[ImportName]]
     ///
     /// The name under which the desired binding is exported by the module
@@ -476,41 +586,97 @@ struct ImportEntryRecord<'a> {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 enum ExportEntryImportName<'a> {
+    /// ```javascript
+    /// export * as ns from "mod";
+    /// ```
     All = 1,
+    /// ```javascript
+    /// export * from "mod";
+    /// ```
     AllButDefault = 2,
     String(HeapString<'a>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
 }
 
+impl<'a> From<String<'a>> for ExportEntryImportName<'a> {
+    fn from(value: String<'a>) -> Self {
+        match value {
+            String::String(s) => Self::String(s),
+            String::SmallString(s) => Self::SmallString(s),
+        }
+    }
+}
+
 /// ## [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
+///
+/// This struct is used for local export declarations.
+///
+/// ### Examples
+///
+/// ```javascript
+/// export x;
+/// export var x;
+/// export let x;
+/// export const x;
+/// export function x() {}
+/// export class X {}
+/// ```
 #[derive(Debug, Clone, Copy)]
-struct ExportEntryRecord<'a> {
+struct LocalExportEntryRecord<'a> {
     /// ### \[\[ExportName]]
     ///
     /// The name used to export this binding by this module.
-    export_name: Option<String<'a>>,
-    /// ### \[\[ModuleRequest]]
-    ///
-    /// a ModuleRequest Record or null
-    ///
-    /// The ModuleRequest Record representing the ModuleSpecifier and import
-    /// attributes of the ExportDeclaration. null if the ExportDeclaration does
-    /// not have a ModuleSpecifier.
-    module_request: Option<()>,
-    /// ### \[\[ImportName]]
-    ///
-    /// The name under which the desired binding is exported by the module
-    /// identified by \[\[ModuleRequest]]. null if the ExportDeclaration does
-    /// not have a ModuleSpecifier. all is used for `export * as ns from "mod"`
-    /// declarations. all-but-default is used for `export * from "mod"`
-    /// declarations.
-    import_name: Option<ExportEntryImportName<'a>>,
+    export_name: String<'a>,
     /// ### \[\[LocalName]]
     ///
     /// The name that is used to locally access the exported value from within
-    /// the importing module. null if the exported value is not locally
-    /// accessible from within the module.
-    local_name: Option<String<'a>>,
+    /// the importing module.
+    local_name: String<'a>,
+}
+
+/// ## [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
+///
+/// This struct is used for re-export declarations.
+///
+/// ### Examples
+///
+/// ```javascript
+/// export * as ns from "mod";
+/// export { x } from "mod";
+/// export { v as x } from "mod";
+/// ```
+#[derive(Debug, Clone, Copy)]
+struct IndirectExportEntryRecord<'a> {
+    /// ### \[\[ExportName]]
+    ///
+    /// The name used to export this binding by this module.
+    export_name: String<'a>,
+    /// ### \[\[ModuleRequest]]
+    ///
+    /// The ModuleRequest Record representing the ModuleSpecifier and import
+    /// attributes of the ExportDeclaration.
+    module_request: ModuleRequestRecord<'a>,
+    /// ### \[\[ImportName]]
+    ///
+    /// The name under which the desired binding is exported by the module
+    /// identified by \[\[ModuleRequest]]. None is used for
+    /// `export * as ns from "mod"` declarations.
+    import_name: Option<String<'a>>,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for IndirectExportEntryRecord<'_> {
+    type Of<'a> = IndirectExportEntryRecord<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<_, _>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<_, _>(self) }
+    }
 }
 
 impl<'a> From<SourceTextModule<'a>> for ScriptOrModule<'a> {
@@ -574,8 +740,8 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     /// > names that have ambiguous star export bindings.
     fn get_exported_names<'a>(
         self,
-        agent: &mut Agent,
-        export_start_set: Option<Vec<SourceTextModule<'a>>>,
+        agent: &Agent,
+        export_start_set: &mut Vec<SourceTextModule<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Vec<String<'a>> {
         let module = self.bind(gc);
@@ -584,8 +750,8 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
             module.status(agent),
             CyclicModuleRecordStatus::New
         ));
-        // 2. If exportStarSet is not present, set exportStarSet to a new empty List.
-        let mut export_start_set = export_start_set.unwrap_or_default();
+        // 2. If exportStarSet is not present, set exportStarSet to a new empty
+        //    List.
         // 3. If exportStarSet contains module, then
         if export_start_set.contains(&module) {
             // a. Assert: We've reached the starting point of an export * circularity.
@@ -600,22 +766,35 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         for e in module.local_export_entries(agent) {
             // a. Assert: module provides the direct binding for this export.
             // b. Assert: e.[[ExportName]] is not null.
-            debug_assert!(e.export_name.is_none());
             // c. Append e.[[ExportName]] to exportedNames.
-            exported_names.push(e.export_name.unwrap());
+            exported_names.push(e.export_name);
         }
         // 7. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
-        //        a. Assert: module imports a specific binding for this export.
-        //        b. Assert: e.[[ExportName]] is not null.
-        //        c. Append e.[[ExportName]] to exportedNames.
+        for e in module.indirect_export_entries(agent) {
+            // a. Assert: module imports a specific binding for this export.
+            // b. Assert: e.[[ExportName]] is not null.
+            // c. Append e.[[ExportName]] to exportedNames.
+            exported_names.push(e.export_name);
+        }
         // 8. For each ExportEntry Record e of module.[[StarExportEntries]], do
-        //        a. Assert: e.[[ModuleRequest]] is not null.
-        //        b. Let requestedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-        //        c. Let starNames be requestedModule.GetExportedNames(exportStarSet).
-        //        d. For each element n of starNames, do
-        //               i. If n is not "default", then
-        //                      1. If exportedNames does not contain n, then
-        //                             a. Append n to exportedNames.
+        for e in module.star_export_entries(agent) {
+            // a. Assert: e.[[ModuleRequest]] is not null.
+            // b. Let requestedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+            let requested_module = get_imported_module(agent, module, &e, gc);
+            // c. Let starNames be requestedModule.GetExportedNames(exportStarSet).
+            let start_names = requested_module.get_exported_names(agent, export_start_set, gc);
+            // d. For each element n of starNames, do
+            for n in start_names {
+                // i. If n is not "default", then
+                if n != BUILTIN_STRING_MEMORY.default {
+                    // 1. If exportedNames does not contain n, then
+                    if !exported_names.contains(&n) {
+                        // a. Append n to exportedNames.
+                        exported_names.push(n);
+                    }
+                }
+            }
+        }
         // 9. Return exportedNames.
         exported_names
     }
@@ -818,10 +997,20 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
     ) -> JsResult<'a, ()> {
         let module = self.bind(gc);
         // 1. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
-        //         a. Assert: e.[[ExportName]] is not null.
-        //         b. Let resolution be module.ResolveExport(e.[[ExportName]]).
-        //         c. If resolution is either null or ambiguous, throw a SyntaxError exception.
-        //         d. Assert: resolution is a ResolvedBinding Record.
+        for e in module.indirect_export_entries(agent) {
+            // a. Assert: e.[[ExportName]] is not null.
+            // b. Let resolution be module.ResolveExport(e.[[ExportName]]).
+            let resolution = module.resolve_export(agent, e.export_name, None, gc);
+            // c. If resolution is either null or ambiguous, throw a SyntaxError exception.
+            if matches!(resolution, None | Some(ResolvedBinding::Ambiguous)) {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::SyntaxError,
+                    "ambiguous imports",
+                    gc,
+                ));
+            }
+            // d. Assert: resolution is a ResolvedBinding Record.
+        }
         // 2. Assert: All named exports from module are resolvable.
         // 3. Let realm be module.[[Realm]].
         // 4. Assert: realm is not undefined.
@@ -836,12 +1025,8 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
         // 7. For each ImportEntry Record in of module.[[ImportEntries]], do
         for r#in in module.import_entries(source_text_modules) {
             // a. Let importedModule be GetImportedModule(module, in.[[ModuleRequest]]).
-            let imported_modules = get_imported_module(
-                source_text_modules,
-                module,
-                r#in.module_request.as_str(),
-                gc,
-            );
+            let imported_modules =
+                get_imported_module(source_text_modules, module, &r#in.module_request, gc);
             // b. If in.[[ImportName]] is namespace-object, then
             let Some(import_name) = r#in.import_name else {
                 // i. Let namespace be GetModuleNamespace(importedModule).
@@ -868,10 +1053,11 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             // iii. If resolution.[[BindingName]] is namespace, then
             let Some(binding_name) = binding_name else {
                 // 1. Let namespace be GetModuleNamespace(resolution.[[Module]]).
+                let namespace = get_module_namespace(agent, module, gc);
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(envs, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(envs, r#in.local_name, Value::Undefined);
+                env.initialize_binding(envs, r#in.local_name, namespace.into_value());
                 continue;
             };
             // iv. Else,
@@ -1021,7 +1207,10 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                     // there is no syntax that permits assignment to the
                     // internal bound name used to reference a module's default
                     // object.
-                    env.create_mutable_binding(agent, BUILTIN_STRING_MEMORY._default_, false);
+                    // NOTE: We optimise references to constant declarations
+                    // separately, so we choose to use an immutable binding
+                    // here despite the spec suggesting a mutable one.
+                    env.create_immutable_binding(agent, BUILTIN_STRING_MEMORY._default_);
                 }
             }
         }
@@ -1042,12 +1231,8 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             // NOTE: Spec-text from InitializeEnvironment to contrast with what
             // we're doing here.
             // a. Let importedModule be GetImportedModule(module, in.[[ModuleRequest]]).
-            let imported_modules = get_imported_module(
-                source_text_modules,
-                module,
-                r#in.module_request.as_str(),
-                gc,
-            );
+            let imported_modules =
+                get_imported_module(source_text_modules, module, &r#in.module_request, gc);
             // b. If in.[[ImportName]] is namespace-object, then
             let Some(import_name) = r#in.import_name else {
                 // i. Let namespace be GetModuleNamespace(importedModule).
@@ -1211,7 +1396,9 @@ pub fn parse_module<'a>(
                 if ee.import_kind.is_type() {
                     continue;
                 }
-                let module_request = ee.source.value;
+                let module_request = ModuleRequestRecord::new(ee.source.value.as_str())
+                    .unbind()
+                    .bind(gc);
                 requested_modules.push(module_request);
                 let Some(specifiers) = &ee.specifiers else {
                     continue;
@@ -1269,9 +1456,11 @@ pub fn parse_module<'a>(
         }
     }
     // 6. Let indirectExportEntries be a new empty List.
+    let mut indirect_export_entries = vec![];
     // 7. Let localExportEntries be a new empty List.
     let mut local_export_entries = vec![];
     // 8. Let starExportEntries be a new empty List.
+    let mut star_export_entries = vec![];
     // 9. Let exportEntries be the ExportEntries of body.
     // 10. For each ExportEntry Record ee of exportEntries, do
     for ee in body.body.iter() {
@@ -1286,24 +1475,73 @@ pub fn parse_module<'a>(
                         // ExportDeclaration : export default HoistableDeclaration
                         // 1. Let names be the BoundNames of HoistableDeclaration.
                         // 2. Let localName be the sole element of names.
-                        let local_name = ee
-                            .id
-                            .as_ref()
-                            .map_or(BUILTIN_STRING_MEMORY._default_.bind(gc), |local_name| {
-                                String::from_str(agent, local_name.name.as_str(), gc)
+                        if let Some(local_name) = ee.id.as_ref() {
+                            let local_name_str = local_name.name.as_str();
+                            let local_name = String::from_str(agent, local_name_str, gc);
+                            // i. If importedBoundNames does not contain ee.[[LocalName]], then
+                            if !imported_bound_names.contains(local_name_str) {
+                                // 1. Append ee to localExportEntries.
+                                // 3. Return a List whose sole element is a new ExportEntry Record {
+                                local_export_entries.push(LocalExportEntryRecord {
+                                    // [[ExportName]]: "default"
+                                    export_name: BUILTIN_STRING_MEMORY.default,
+                                    // [[ModuleRequest]]: null,
+                                    // [[ImportName]]: null,
+                                    // [[LocalName]]: localName,
+                                    local_name,
+                                });
+                                // }.
+                            } else {
+                                // ii. Else,
+                                // 1. Let ie be the element of importEntries whose [[LocalName]] is ee.[[LocalName]].
+                                let ie = import_entries
+                                    .iter()
+                                    .find(|element| element.local_name == local_name)
+                                    .unwrap();
+                                // 2. If ie.[[ImportName]] is not namespace-object, then
+                                if let Some(import_name) = ie.import_name {
+                                    // a. NOTE: This is a re-export of a single name.
+                                    // b. Append the ExportEntry Record {
+                                    indirect_export_entries.push(IndirectExportEntryRecord {
+                                        // [[ModuleRequest]]: ie.[[ModuleRequest]],
+                                        module_request: ie.module_request,
+                                        // [[ImportName]]: ie.[[ImportName]],
+                                        import_name: Some(import_name),
+                                        // [[ExportName]]: ee.[[ExportName]]
+                                        export_name: BUILTIN_STRING_MEMORY.default,
+                                        // [[LocalName]]: null,
+                                    });
+                                    // } to indirectExportEntries.
+                                } else {
+                                    // 3. Else,
+                                    // a. NOTE: This is a re-export of an imported module namespace object.
+                                    // b. Append ee to localExportEntries.
+                                    // 3. Return a List whose sole element is a new ExportEntry Record {
+                                    local_export_entries.push(LocalExportEntryRecord {
+                                        // [[ExportName]]: "default"
+                                        export_name: BUILTIN_STRING_MEMORY.default,
+                                        // [[ModuleRequest]]: null,
+                                        // [[ImportName]]: null,
+                                        // [[LocalName]]: localName,
+                                        local_name,
+                                    });
+                                    // }.
+                                    continue;
+                                };
+                            }
+                        } else {
+                            // Note: ImportedBoundNames never contains "*default*".
+                            // 3. Return a List whose sole element is a new ExportEntry Record {
+                            local_export_entries.push(LocalExportEntryRecord {
+                                // [[ExportName]]: "default"
+                                export_name: BUILTIN_STRING_MEMORY.default,
+                                // [[ModuleRequest]]: null,
+                                // [[ImportName]]: null,
+                                // [[LocalName]]: localName,
+                                local_name: BUILTIN_STRING_MEMORY._default_,
                             });
-                        // 3. Return a List whose sole element is a new ExportEntry Record {
-                        local_export_entries.push(ExportEntryRecord {
-                            // [[ExportName]]: "default"
-                            export_name: Some(BUILTIN_STRING_MEMORY.default),
-                            // [[ModuleRequest]]: null,
-                            module_request: None,
-                            // [[ImportName]]: null,
-                            import_name: None,
-                            // [[LocalName]]: localName,
-                            local_name: Some(local_name),
-                        });
-                        // }.
+                            // }.
+                        };
                     }
                     ast::ExportDefaultDeclarationKind::ClassDeclaration(ee) => {
                         // ExportDeclaration : export default ClassDeclaration
@@ -1316,15 +1554,13 @@ pub fn parse_module<'a>(
                                 String::from_str(agent, local_name.name.as_str(), gc)
                             });
                         // 3. Return a List whose sole element is a new ExportEntry Record {
-                        local_export_entries.push(ExportEntryRecord {
+                        local_export_entries.push(LocalExportEntryRecord {
                             // [[ExportName]]: "default"
-                            export_name: Some(BUILTIN_STRING_MEMORY.default),
+                            export_name: BUILTIN_STRING_MEMORY.default,
                             // [[ModuleRequest]]: null,
-                            module_request: None,
                             // [[ImportName]]: null,
-                            import_name: None,
                             // [[LocalName]]: localName,
-                            local_name: Some(local_name),
+                            local_name,
                         });
                         // }.
                     }
@@ -1332,86 +1568,133 @@ pub fn parse_module<'a>(
                     _ => {
                         // ExportDeclaration : export default AssignmentExpression ;
                         // 1. Let entry be the ExportEntry Record {
-                        local_export_entries.push(ExportEntryRecord {
+                        local_export_entries.push(LocalExportEntryRecord {
                             // [[ModuleRequest]]: null,
-                            module_request: None,
                             // [[ImportName]]: null,
-                            import_name: None,
                             // [[LocalName]]: "*default*",
-                            local_name: Some(BUILTIN_STRING_MEMORY._default_),
+                            local_name: BUILTIN_STRING_MEMORY._default_,
                             // [[ExportName]]: "default"
-                            export_name: Some(BUILTIN_STRING_MEMORY.default),
+                            export_name: BUILTIN_STRING_MEMORY.default,
                         });
                         // }.
                     }
                 }
-                // i. If importedBoundNames does not contain ee.[[LocalName]], then
-                //        1. Append ee to localExportEntries.
-                // ii. Else,
-                //         1. Let ie be the element of importEntries whose [[LocalName]] is ee.[[LocalName]].
-                //         2. If ie.[[ImportName]] is namespace-object, then
-                //                a. NOTE: This is a re-export of an imported module namespace object.
-                //                b. Append ee to localExportEntries.
-                //         3. Else,
-                //                a. NOTE: This is a re-export of a single name.
-                //                b. Append the ExportEntry Record { [[ModuleRequest]]: ie.[[ModuleRequest]], [[ImportName]]: ie.[[ImportName]], [[LocalName]]: null, [[ExportName]]: ee.[[ExportName]] } to indirectExportEntries.
             }
-            // b. Else if ee.[[ImportName]] is all-but-default, then
-            //        i. Assert: ee.[[ExportName]] is null.
-            //        ii. Append ee to starExportEntries.
-            // c. Else,
-            //        i. Append ee to indirectExportEntries.
             ast::ModuleDeclaration::ExportNamedDeclaration(ee) => {
-                if ee.source.is_some() {
-                    todo!();
-                }
-                //  ExportDeclaration : export Declaration
-                //  ExportDeclaration : export VariableStatement
-                if let Some(decl) = &ee.declaration {
-                    // 1. Let entries be a new empty List.
-                    // 2. Let names be the BoundNames of Declaration.
-                    // 2. Let names be the BoundNames of VariableStatement.
-                    // 3. For each element name of names, do
-                    decl.bound_names(&mut |name| {
-                        let name = String::from_str(agent, name.name.as_str(), gc);
-                        // a. Append the ExportEntry Record {
-                        local_export_entries.push(ExportEntryRecord {
-                            // [[ModuleRequest]]: null,
-                            module_request: None,
-                            // [[ImportName]]: null,
-                            import_name: None,
-                            // [[LocalName]]: name,
-                            local_name: Some(name),
-                            // [[ExportName]]: name
-                            export_name: Some(name),
+                if let Some(source) = &ee.source {
+                    // export { a, b as c } from "source";
+                    //  ExportSpecifier : ModuleExportName
+                    //  ExportSpecifier : ModuleExportName as ModuleExportName
+                    let module_request = ModuleRequestRecord::new(&source.value);
+                    debug_assert!(ee.declaration.is_none());
+                    for entry in ee.specifiers.iter() {
+                        // 1. Let sourceName be the StringValue of the first ModuleExportName.
+                        let source_name = String::from_str(agent, entry.local.name().as_str(), gc);
+                        // 2. Let exportName be the StringValue of the second ModuleExportName.
+                        let export_name = if entry.local.name() == entry.exported.name() {
+                            source_name
+                        } else {
+                            String::from_str(agent, entry.exported.name().as_str(), gc)
+                        };
+                        // a. Let localName be null.
+                        // b. Let importName be sourceName.
+                        let import_name = source_name;
+                        // 4. Return a List whose sole element is a new ExportEntry Record {
+                        indirect_export_entries.push(IndirectExportEntryRecord {
+                            // [[ModuleRequest]]: module,
+                            module_request,
+                            // [[ImportName]]: importName,
+                            import_name: Some(import_name),
+                            // [[LocalName]]: localName,
+                            // [[ExportName]]: export_name
+                            export_name,
                         });
-                        // } to entries.
-                    });
-                    // 4. Return entries.
-                    continue;
-                }
-                for entry in ee.specifiers.iter() {
-                    let local_name = String::from_str(agent, entry.local.name().as_str(), gc);
-                    // 4. Return a List whose sole element is a new ExportEntry Record {
-                    local_export_entries.push(ExportEntryRecord {
-                        // [[ModuleRequest]]: module,
-                        module_request: None,
-                        // [[ImportName]]: importName,
-                        import_name: None,
-                        // [[LocalName]]: localName,
-                        local_name: Some(local_name),
-                        // [[ExportName]]: sourceName
-                        export_name: Some(local_name),
-                    });
-                    // }.
+                        // }.
+                    }
+                } else {
+                    // export { a, b as c };
+                    // export var d;
+                    // export let e;
+                    // export const f;
+                    // export function g() {}
+                    // export class H {}
+                    //  ExportDeclaration : export Declaration
+                    //  ExportDeclaration : export VariableStatement
+                    if let Some(decl) = &ee.declaration {
+                        // 1. Let entries be a new empty List.
+                        // 2. Let names be the BoundNames of Declaration.
+                        // 2. Let names be the BoundNames of VariableStatement.
+                        // 3. For each element name of names, do
+                        decl.bound_names(&mut |name| {
+                            let name = String::from_str(agent, name.name.as_str(), gc);
+                            // a. Append the ExportEntry Record {
+                            local_export_entries.push(LocalExportEntryRecord {
+                                // [[ModuleRequest]]: null,
+                                // [[ImportName]]: null,
+                                // [[LocalName]]: name,
+                                local_name: name,
+                                // [[ExportName]]: name
+                                export_name: name,
+                            });
+                            // } to entries.
+                        });
+                        // 4. Return entries.
+                    } else {
+                        for entry in ee.specifiers.iter() {
+                            // 1. Let sourceName be the StringValue of the first ModuleExportName.
+                            let source_name =
+                                String::from_str(agent, entry.local.name().as_str(), gc);
+                            // 2. Let exportName be the StringValue of the second ModuleExportName.
+                            let export_name = if entry.local.name() == entry.exported.name() {
+                                source_name
+                            } else {
+                                String::from_str(agent, entry.exported.name().as_str(), gc)
+                            };
+                            // a. Let localName be sourceName.
+                            let local_name = source_name;
+                            // b. Let importName be null.
+                            // 4. Return a List whose sole element is a new ExportEntry Record {
+                            local_export_entries.push(LocalExportEntryRecord {
+                                // [[ModuleRequest]]: module,
+                                // [[ImportName]]: importName,
+                                // [[LocalName]]: localName,
+                                local_name,
+                                // [[ExportName]]: exportName
+                                export_name,
+                            });
+                            // }.
+                        }
+                    }
                 }
             }
-            ast::ModuleDeclaration::ExportAllDeclaration(_ee) => todo!(),
+            ast::ModuleDeclaration::ExportAllDeclaration(ee) => {
+                if let Some(exported) = &ee.exported {
+                    // c. Else,
+                    // i. Append ee to indirectExportEntries.
+                    // export * as ns from "foo";
+                    indirect_export_entries.push(IndirectExportEntryRecord {
+                        export_name: String::from_str(agent, exported.name().as_str(), gc),
+                        module_request: ModuleRequestRecord::new(&ee.source.value),
+                        import_name: None,
+                    });
+                } else {
+                    // b. Else if ee.[[ImportName]] is all-but-default, then
+                    // i. Assert: ee.[[ExportName]] is null.
+                    // ii. Append ee to starExportEntries.
+                    star_export_entries.push(ModuleRequestRecord::new(&ee.source.value));
+                }
+            }
             ast::ModuleDeclaration::ImportDeclaration(_) => {}
             ast::ModuleDeclaration::TSExportAssignment(_)
             | ast::ModuleDeclaration::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
+
+    // SAFETY: The module requests refer to the string data of the module,
+    // which lives at least as long as the SourceTextModuleRecord lives. Hence
+    // we can (in an sketchy way) assert that their lifetime is "gc".
+    let star_export_entries = star_export_entries.into_boxed_slice().unbind().bind(gc);
+    let indirect_export_entries = indirect_export_entries.into_boxed_slice().unbind().bind(gc);
 
     // 11. Let async be body Contains await.
     let r#async = false;
@@ -1446,9 +1729,9 @@ pub fn parse_module<'a>(
         // [[LocalExportEntries]]: localExportEntries,
         local_export_entries: local_export_entries.into_boxed_slice(),
         // [[IndirectExportEntries]]: indirectExportEntries,
-        indirect_export_entries: Default::default(),
+        indirect_export_entries,
         // [[StarExportEntries]]: starExportEntries,
-        star_export_entries: Default::default(),
+        star_export_entries,
 
         source_code,
     }))
@@ -1538,16 +1821,20 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
             ecmascript_code: _,
             context: _,
             import_meta,
-            import_entries: _,
-            local_export_entries: _,
-            indirect_export_entries: _,
-            star_export_entries: _,
+            import_entries,
+            local_export_entries,
+            indirect_export_entries,
+            star_export_entries,
             source_code,
         } = self;
         abstract_fields.mark_values(queues);
         cyclic_fields.mark_values(queues);
         import_meta.mark_values(queues);
         source_code.mark_values(queues);
+        import_entries.mark_values(queues);
+        local_export_entries.mark_values(queues);
+        indirect_export_entries.mark_values(queues);
+        star_export_entries.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -1557,16 +1844,104 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
             ecmascript_code: _,
             context: _,
             import_meta,
-            import_entries: _,
-            local_export_entries: _,
-            indirect_export_entries: _,
-            star_export_entries: _,
+            import_entries,
+            local_export_entries,
+            indirect_export_entries,
+            star_export_entries,
             source_code,
         } = self;
         abstract_fields.sweep_values(compactions);
         cyclic_fields.sweep_values(compactions);
         import_meta.sweep_values(compactions);
         source_code.sweep_values(compactions);
+        import_entries.sweep_values(compactions);
+        local_export_entries.sweep_values(compactions);
+        indirect_export_entries.sweep_values(compactions);
+        star_export_entries.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for ImportEntryRecord<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            module_request,
+            import_name,
+            local_name,
+        } = self;
+        module_request.mark_values(queues);
+        import_name.mark_values(queues);
+        local_name.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            module_request,
+            import_name,
+            local_name,
+        } = self;
+        module_request.sweep_values(compactions);
+        import_name.sweep_values(compactions);
+        local_name.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for LocalExportEntryRecord<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            export_name,
+            local_name,
+        } = self;
+        export_name.mark_values(queues);
+        local_name.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            export_name,
+            local_name,
+        } = self;
+        export_name.sweep_values(compactions);
+        local_name.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for IndirectExportEntryRecord<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            export_name,
+            module_request,
+            import_name,
+        } = self;
+        export_name.mark_values(queues);
+        module_request.mark_values(queues);
+        import_name.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            export_name,
+            module_request,
+            import_name,
+        } = self;
+        export_name.sweep_values(compactions);
+        module_request.sweep_values(compactions);
+        import_name.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for ModuleRequestRecord<'static> {
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        let Self {
+            specifier: _,
+            attributes: _,
+        } = self;
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        let Self {
+            specifier: _,
+            attributes: _,
+        } = self;
     }
 }
 

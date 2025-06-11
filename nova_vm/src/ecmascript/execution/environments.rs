@@ -405,7 +405,7 @@ impl Environment<'_> {
             Environment::Global(e) => e.create_immutable_binding(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                e.create_immutable_binding(agent.as_mut(), name);
+                e.create_immutable_binding(agent, name);
                 Ok(())
             }
             Environment::Object(e) => {
@@ -439,7 +439,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent.as_mut(), name, value);
+                e.initialize_binding(agent, name, value);
                 TryResult::Continue(Ok(()))
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, value, gc),
@@ -470,7 +470,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent.as_mut(), name, value);
+                e.initialize_binding(agent, name, value);
                 Ok(())
             }
             Environment::Object(e) => e.initialize_binding(agent, name, value, gc),

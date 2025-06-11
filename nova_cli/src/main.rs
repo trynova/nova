@@ -19,6 +19,7 @@ use nova_vm::{
         },
         scripts_and_modules::{
             module::module_semantics::{
+                ModuleRequestRecord,
                 cyclic_module_records::GraphLoadingStateRecord,
                 finish_loading_imported_module,
                 source_text_module_records::{SourceTextModule, parse_module},
@@ -122,12 +123,12 @@ impl HostHooks for CliHostHooks {
         &self,
         agent: &mut Agent,
         referrer: SourceTextModule<'gc>,
-        module_request: &str,
+        module_request: &'gc ModuleRequestRecord<'gc>,
         host_defined: Option<HostDefined>,
         payload: &mut GraphLoadingStateRecord<'gc>,
         gc: NoGcScope<'gc, '_>,
     ) {
-        let file = match std::fs::read_to_string(module_request) {
+        let file = match std::fs::read_to_string(module_request.specifier()) {
             Ok(file) => file,
             Err(err) => {
                 let result = Err(agent.throw_exception(ExceptionType::Error, err.to_string(), gc));

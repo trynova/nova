@@ -5,21 +5,28 @@
 use core::ops::{Index, IndexMut};
 use std::marker::PhantomData;
 
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, Scopable};
-use crate::engine::{TryResult, unwrap_try};
-use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
         builtins::ordinary::ordinary_get_own_property,
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
+        scripts_and_modules::module::module_semantics::{
+            abstract_module_records::{ModuleAbstractMethods, ResolvedBinding},
+            get_module_namespace,
+            source_text_module_records::SourceTextModule,
+        },
         types::{
             InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, String, Value,
         },
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, Scopable},
+        unwrap_try,
+    },
+    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 
 use self::data::ModuleHeapData;
@@ -484,7 +491,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // // 5. Let binding be m.ResolveExport(P).
                     // let binding = m.resolve_export(property_key);
                     // // 6. Assert: binding is a ResolvedBinding Record.
-                    // let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
+                    // let Some(ResolvedBinding::Resolved(binding)) = binding else {
                     //     unreachable!();
                     // };
                     // // 7. Let targetModule be binding.[[Module]].
@@ -492,12 +499,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // let target_module = binding.module.unwrap();
                     // // 9. If binding.[[BindingName]] is NAMESPACE, then
                     // let _binding_name = match binding.binding_name {
-                    //     data::ResolvedBindingName::Namespace => {
+                    //     ResolvedBindingName::Namespace => {
                     //         // a. Return GetModuleNamespace(targetModule).
                     //         todo!();
                     //     }
-                    //     data::ResolvedBindingName::String(data) => String::String(data),
-                    //     data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
+                    //     ResolvedBindingName::String(data) => String::String(data),
+                    //     ResolvedBindingName::SmallString(data) => String::SmallString(data),
                     // };
                     // // 10. Let targetEnv be targetModule.[[Environment]].
                     // let target_env = agent[target_module].module.environment;
@@ -561,41 +568,45 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 if !exports_contains_p {
                     Ok(Value::Undefined)
                 } else {
-                    todo!();
-                    // // 4. Let m be O.[[Module]].
-                    // let m = &agent[self].module;
-                    // // 5. Let binding be m.ResolveExport(P).
-                    // let binding = m.resolve_export(property_key);
-                    // // 6. Assert: binding is a ResolvedBinding Record.
-                    // let Some(data::ResolveExportResult::Resolved(binding)) = binding else {
-                    //     unreachable!();
-                    // };
-                    // // 7. Let targetModule be binding.[[Module]].
-                    // // 8. Assert: targetModule is not undefined.
-                    // let target_module = binding.module.unwrap();
-                    // // 9. If binding.[[BindingName]] is NAMESPACE, then
-                    // let _binding_name = match binding.binding_name {
-                    //     data::ResolvedBindingName::Namespace => {
-                    //         // a. Return GetModuleNamespace(targetModule).
-                    //         todo!();
-                    //     }
-                    //     data::ResolvedBindingName::String(data) => String::String(data),
-                    //     data::ResolvedBindingName::SmallString(data) => String::SmallString(data),
-                    // };
-                    // // 10. Let targetEnv be targetModule.[[Environment]].
-                    // let target_env = agent[target_module].module.environment;
-                    // // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
-                    // match target_env {
-                    //     None => Err(agent.throw_exception(
-                    //         ExceptionType::ReferenceError,
-                    //         format!("Could not resolve module '{}'.", key.as_str(agent)),
-                    //         gc.into_nogc(),
-                    //     )),
-                    //     Some(_target_env) => {
-                    //         // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                    //         todo!()
-                    //     }
-                    // }
+                    // 4. Let m be O.[[Module]].
+                    let m = &agent[self].module;
+                    // 5. Let binding be m.ResolveExport(P).
+                    let binding = m.resolve_export(agent, key, None, gc.nogc());
+                    // 6. Assert: binding is a ResolvedBinding Record.
+                    let Some(ResolvedBinding::Resolved {
+                        // 7. Let targetModule be binding.[[Module]].
+                        // 8. Assert: targetModule is not undefined.
+                        module: target_module,
+                        binding_name,
+                    }) = binding
+                    else {
+                        unreachable!();
+                    };
+                    // 9. If binding.[[BindingName]] is NAMESPACE, then
+                    let Some(binding_name) = binding_name else {
+                        // a. Return GetModuleNamespace(targetModule).
+                        return Ok(
+                            get_module_namespace(agent, target_module, gc.into_nogc()).into_value()
+                        );
+                    };
+                    // 10. Let targetEnv be targetModule.[[Environment]].
+                    let target_env = target_module.environment(agent);
+                    // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
+                    let Some(target_env) = target_env else {
+                        return Err(agent.throw_exception(
+                            ExceptionType::ReferenceError,
+                            format!("Could not resolve module '{}'.", key.as_str(agent)),
+                            gc.into_nogc(),
+                        ));
+                    };
+                    // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
+                    let gc = gc.into_nogc();
+                    if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
+                    {
+                        Ok(value)
+                    } else {
+                        Err(throw_uninitialized_binding(agent, name, gc))
+                    }
                 }
             }
         }
@@ -674,6 +685,30 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             .for_each(|symbol_key| own_property_keys.push(*symbol_key));
         TryResult::Continue(own_property_keys)
     }
+}
+
+/// ### [10.4.6.12 ModuleNamespaceCreate ( module, exports )](https://tc39.es/ecma262/#sec-modulenamespacecreate)
+///
+/// The abstract operation ModuleNamespaceCreate takes arguments module (a Module Record) and exports (a List of Strings) and returns a module namespace exotic object. It is used to specify the creation of new module namespace exotic objects. It performs the following steps when called:
+pub(crate) fn module_namespace_create<'a>(
+    agent: &mut Agent,
+    module: SourceTextModule<'a>,
+    exports: Box<[String<'a>]>,
+) -> Module<'a> {
+    // 1. Assert: module.[[Namespace]] is empty.
+    debug_assert!(module.namespace(agent).is_none());
+    // 2. Let internalSlotsList be the internal slots listed in Table 33.
+    // 3. Let M be MakeBasicObject(internalSlotsList).
+    // 4. Set M's essential internal methods to the definitions specified in 10.4.6.
+    // 5. Set M.[[Module]] to module.
+    // 6. Let sortedExports be a List whose elements are the elements of exports, sorted according to lexicographic code unit order.
+    // 7. Set M.[[Exports]] to sortedExports.
+    // 8. Create own properties of M corresponding to the definitions in 28.3.
+    let m = agent.heap.create(ModuleHeapData { module, exports });
+    // 9. Set module.[[Namespace]] to M.
+    module.set_namespace(agent, m);
+    // 10. Return M.
+    m
 }
 
 impl TryFrom<HeapRootData> for Module<'_> {
