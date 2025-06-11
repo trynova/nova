@@ -1020,13 +1020,10 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
         let env = new_module_environment(agent, Some(global_env.into()), gc);
         // 6. Set module.[[Environment]] to env.
         module.set_environment(agent, env);
-        let envs = &mut agent.heap.environments;
-        let source_text_modules = &agent.heap.source_text_module_records;
         // 7. For each ImportEntry Record in of module.[[ImportEntries]], do
-        for r#in in module.import_entries(source_text_modules) {
+        for r#in in module.import_entries(agent) {
             // a. Let importedModule be GetImportedModule(module, in.[[ModuleRequest]]).
-            let imported_modules =
-                get_imported_module(source_text_modules, module, &r#in.module_request, gc);
+            let imported_modules = get_imported_module(agent, module, &r#in.module_request, gc);
             // b. If in.[[ImportName]] is namespace-object, then
             let Some(import_name) = r#in.import_name else {
                 // i. Let namespace be GetModuleNamespace(importedModule).
@@ -1036,8 +1033,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             };
             // c. Else,
             // i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
-            let resolution =
-                imported_modules.inner_resolve_export(source_text_modules, import_name, None, gc);
+            let resolution = imported_modules.inner_resolve_export(agent, import_name, None, gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
                 module,
@@ -1055,21 +1051,14 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 // 1. Let namespace be GetModuleNamespace(resolution.[[Module]]).
                 let namespace = get_module_namespace(agent, module, gc);
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
-                env.create_immutable_binding(envs, r#in.local_name);
+                env.create_immutable_binding(agent, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(envs, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
                 continue;
             };
             // iv. Else,
             // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-            create_import_binding(
-                envs,
-                source_text_modules,
-                env,
-                r#in.local_name,
-                module,
-                binding_name,
-            );
+            create_import_binding(agent, env, r#in.local_name, module, binding_name);
         }
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
