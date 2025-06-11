@@ -66,6 +66,19 @@ impl<'m> AbstractModuleRecord<'m> {
         );
     }
 
+    /// ### \[\[Namespace]]
+    pub(super) fn namespace(&self) -> Option<Module<'m>> {
+        self.namespace
+    }
+
+    /// Set \[\[Namespace]] to namespace.
+    pub(super) fn set_namespace(&mut self, namespace: Module) {
+        assert!(
+            self.namespace.replace(namespace.unbind()).is_none(),
+            "Attempted to set module namespace twice"
+        );
+    }
+
     /// ### \[\[Realm]]
     pub(super) fn realm(&self) -> Realm<'m> {
         self.realm
@@ -106,8 +119,8 @@ pub trait ModuleAbstractMethods {
     /// this method.
     fn get_exported_names<'a>(
         self,
-        agent: &mut Agent,
-        export_start_set: Option<Vec<SourceTextModule<'a>>>,
+        agent: &Agent,
+        export_start_set: &mut Vec<SourceTextModule<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Vec<String<'a>>;
 

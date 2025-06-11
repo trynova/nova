@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{module::module_semantics::{abstract_module_records::ModuleAbstractMethods, cyclic_module_records::GraphLoadingStateRecord, source_text_module_records::{parse_module, SourceTextModule}}, script::{parse_script, script_evaluation, HostDefined}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
+        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{module::module_semantics::{abstract_module_records::ModuleAbstractMethods, cyclic_module_records::GraphLoadingStateRecord, source_text_module_records::{parse_module, SourceTextModule}, ModuleRequestRecord}, script::{parse_script, script_evaluation, HostDefined}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
@@ -240,7 +240,7 @@ pub trait HostHooks: core::fmt::Debug {
         &self,
         agent: &mut Agent,
         referrer: SourceTextModule<'gc>,
-        module_request: &str,
+        module_request: &'gc ModuleRequestRecord<'gc>,
         host_defined: Option<HostDefined>,
         payload: &mut GraphLoadingStateRecord<'gc>,
         gc: NoGcScope<'gc, '_>,

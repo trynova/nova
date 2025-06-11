@@ -124,7 +124,7 @@ impl<'e> ModuleEnvironment<'e> {
         env.has_indirect_binding(name) || env.declarative_environment.has_binding(agent, name)
     }
 
-    fn has_direct_binding(self, agent: &impl AsRef<Environments>, name: String) -> bool {
+    pub(crate) fn has_direct_binding(self, agent: &impl AsRef<Environments>, name: String) -> bool {
         agent
             .as_ref()
             .get_module_environment(self)
@@ -149,7 +149,16 @@ impl<'e> ModuleEnvironment<'e> {
     /// then attempts to set it after it has been initialized will always throw
     /// an exception, regardless of the strict mode setting of operations that
     /// reference that binding.
-    pub(crate) fn create_immutable_binding(self, envs: &mut Environments, name: String) {
+    pub(crate) fn create_immutable_binding(
+        self,
+        envs: &mut impl AsMut<Environments>,
+        name: String,
+    ) {
+        let envs = envs.as_mut();
+        self.inner_create_immutable_binding(envs, name);
+    }
+
+    fn inner_create_immutable_binding(self, envs: &mut Environments, name: String) {
         envs.get_declarative_environment_mut(self.get_declarative_env(envs))
             .create_immutable_binding(name, true);
     }
@@ -160,7 +169,17 @@ impl<'e> ModuleEnvironment<'e> {
     /// Environment Record. The String value N is the text of the bound name.
     /// V is the value for the binding and is a value of any ECMAScript
     /// language type.
-    pub(crate) fn initialize_binding(self, envs: &mut Environments, name: String, value: Value) {
+    pub(crate) fn initialize_binding(
+        self,
+        envs: &mut impl AsMut<Environments>,
+        name: String,
+        value: Value,
+    ) {
+        let envs = envs.as_mut();
+        self.inner_initialize_binding(envs, name, value);
+    }
+
+    fn inner_initialize_binding(self, envs: &mut Environments, name: String, value: Value) {
         envs.get_declarative_environment_mut(self.get_declarative_env(envs))
             .initialize_binding(name, value);
     }
@@ -197,8 +216,18 @@ impl<'e> ModuleEnvironment<'e> {
     /// > code.
     pub(crate) fn get_binding_value<'a>(
         self,
+        agent: &Agent,
+        name: String,
+        is_strict: bool,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Value<'a>> {
+        self.inner_get_binding_value(agent.as_ref(), agent.as_ref(), name, is_strict, gc)
+    }
+
+    pub(super) fn inner_get_binding_value<'a>(
+        self,
         envs: &Environments,
-        modules: &impl AsRef<SourceTextModuleHeap>,
+        modules: &SourceTextModuleHeap,
         name: String,
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
@@ -217,7 +246,7 @@ impl<'e> ModuleEnvironment<'e> {
             // c. If targetEnv is empty, throw a ReferenceError exception.
             let target_env = m.environment(modules)?;
             // d. Return ? targetEnv.GetBindingValue(N2, true).
-            return target_env.get_binding_value(envs, modules, *n2, true, gc);
+            return target_env.inner_get_binding_value(envs, modules, *n2, true, gc);
         }
         let binding = envs
             .get_declarative_environment(self.get_declarative_env(envs))
@@ -253,8 +282,21 @@ pub(crate) fn throw_uninitialized_binding<'a>(
 /// Environment Record. Accesses to the value of the new binding will
 /// indirectly access the bound value of the target binding.
 pub(crate) fn create_import_binding(
-    envs: &mut Environments,
+    envs: &mut impl AsMut<Environments>,
     modules: &impl AsRef<SourceTextModuleHeap>,
+    env_rec: ModuleEnvironment,
+    n: String,
+    m: SourceTextModule,
+    n2: String,
+) {
+    let envs = envs.as_mut();
+    let modules = modules.as_ref();
+    inner_create_import_binding(envs, modules, env_rec, n, m, n2);
+}
+
+fn inner_create_import_binding(
+    envs: &mut Environments,
+    modules: &SourceTextModuleHeap,
     env_rec: ModuleEnvironment,
     n: String,
     m: SourceTextModule,
@@ -305,8 +347,20 @@ pub(crate) fn create_import_binding(
 ///
 /// > NOTE: Performs the initializing of a previously created import binding.
 pub(crate) fn initialize_import_binding(
-    envs: &mut Environments,
+    envs: &mut impl AsMut<Environments>,
     modules: &impl AsRef<SourceTextModuleHeap>,
+    env_rec: ModuleEnvironment,
+    n: String,
+    m: SourceTextModule,
+    n2: String,
+) {
+    let envs = envs.as_mut();
+    let modules = modules.as_ref();
+    inner_initialize_import_binding(envs, modules, env_rec, n, m, n2);
+}
+fn inner_initialize_import_binding(
+    envs: &mut Environments,
+    modules: &SourceTextModuleHeap,
     env_rec: ModuleEnvironment,
     n: String,
     m: SourceTextModule,
