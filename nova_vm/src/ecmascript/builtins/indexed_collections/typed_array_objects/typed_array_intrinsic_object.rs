@@ -1834,16 +1834,15 @@ impl TypedArrayPrototype {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let start = arguments_list.get(0);
-        let end = arguments_list.get(1);
+        let start = arguments_list.get(0).bind(gc.nogc());
+        let end = arguments_list.get(1).bind(gc.nogc());
         // 1. Let O be the this value.
-        let o = this_value;
+        let o = this_value.bind(gc.nogc());
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
         let o = ta_record.object;
-        // 3. Let srcArrayLength be TypedArrayLength(taRecord).
         let a = with_typed_array_viewable!(
             o,
             slice_typed_array::<T>(agent, ta_record.unbind(), start.unbind(), end.unbind(), gc)
@@ -3401,11 +3400,13 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
     let end = end.bind(gc.nogc());
     let o = ta_record.object;
     let o = o.scope(agent, gc.nogc());
-    let start = start.scope(agent, gc.nogc());
     let end = end.scope(agent, gc.nogc());
+    // 3. Let srcArrayLength be TypedArrayLength(taRecord).
     let src_array_length = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
     // 4. Let relativeStart be ? ToIntegerOrInfinity(start).
-    let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow()).unbind()?;
+    let relative_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
     // 5. If relativeStart = -∞, let startIndex be 0.
     let start_index = if relative_start.is_neg_infinity() {
         0
@@ -3417,11 +3418,13 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
         relative_start.into_i64().min(src_array_length)
     };
     // 8. If end is undefined, let relativeEnd be srcArrayLength; else let relativeEnd be ? ToIntegerOrInfinity(end).
-    let end_index = if end.get(agent).is_undefined() {
+    // SAFETY: end is not shared.
+    let end = unsafe { end.take(agent) }.bind(gc.nogc());
+    let end_index = if end.is_undefined() {
         src_array_length
     } else {
         let integer_or_infinity =
-            to_integer_or_infinity(agent, end.get(agent), gc.reborrow()).unbind()?;
+            to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
         if integer_or_infinity.is_neg_infinity() {
             // 9. If relativeEnd = -∞, let endIndex be 0.
             0
@@ -3445,81 +3448,84 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
     .unbind()?
     .bind(gc.nogc());
     // 14. If countBytes > 0, then
-    if count_bytes > 0 {
-        // a. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-        let ta_record = make_typed_array_with_buffer_witness_record(
-            agent,
-            o.get(agent),
-            Ordering::SeqCst,
-            gc.nogc(),
-        );
-        // b. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-        if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc.nogc()) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Callback is not callable",
-                gc.into_nogc(),
-            ));
-        };
-        // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
-        // let end_index = end_index.min(typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64);
-        // d. Set countBytes to max(endIndex - startIndex, 0).
-        // e. Let srcType be TypedArrayElementType(O).
-        // f. Let targetType be TypedArrayElementType(A).
-        // g. If srcType is targetType, then
-        with_typed_array_viewable!(
-            a,
-            {
-                let start_index = start_index as usize;
-                let end_index = end_index as usize;
-                if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
-                    let (a_slice, o_slice) =
-                        split_typed_array_views::<T>(agent, a, o.get(agent), gc.nogc());
-                    if a_slice.len() > o_slice.len() || end_index > o_slice.len() {
-                        let src_slice = &o_slice[start_index..o_slice.len()];
-                        let dst_slice = &mut a_slice[..src_slice.len()];
-                        dst_slice.copy_from_slice(src_slice);
-                    } else {
-                        let a_slice_len = a_slice.len();
-                        let a_slice = &mut a_slice[..a_slice_len];
-                        let o_slice = &o_slice[start_index..end_index];
-                        a_slice.copy_from_slice(o_slice);
-                    }
-                } else {
-                    // h. Else,
-                    // i. Let n be 0.
-                    // ii. Let k be startIndex.
-                    // iii. Repeat, while k < endIndex,
-                    //      1. Let Pk be ! ToString(𝔽(k)).
-                    //      2. Let kValue be ! Get(O, Pk).
-                    //      3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
-                    //      4. Set k to k + 1.
-                    //      5. Set n to n + 1.
-                    let gc = gc.nogc();
-                    let o = o.get(agent);
-                    let a_buf = a.get_viewed_array_buffer(agent, gc);
-                    let o_buf = o.get_viewed_array_buffer(agent, gc);
-                    let a_buf = a_buf.as_slice(agent);
-                    let o_buf = o_buf.as_slice(agent);
-                    if !a_buf.is_empty() || !o_buf.is_empty() {
-                        assert!(
-                            !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
-                            "Must not point to the same buffer"
-                        );
-                    }
-                    let a_slice = viewable_slice_mut::<V>(agent, a, gc);
-                    let a_ptr = a_slice.as_mut_ptr();
-                    let a_len = a_slice.len();
-                    let o_aligned = viewable_slice::<T>(agent, o, gc);
-                    // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
-                    let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
-                    let src_slice = &o_aligned[start_index..end_index];
-                    let dst_slice = &mut a_aligned[..src_slice.len()];
-                    copy_between_different_type_typed_arrays::<T, V>(src_slice, dst_slice)
-                }
-            },
-            V
-        );
+    if count_bytes == 0 {
+        return Ok(a.unbind());
     };
+    let ta_record = make_typed_array_with_buffer_witness_record(
+        agent,
+        o.get(agent),
+        Ordering::SeqCst,
+        gc.nogc(),
+    );
+    // a. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+    // b. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc.nogc()) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    };
+    with_typed_array_viewable!(
+        a,
+        {
+            let start_index = start_index as usize;
+            // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
+            let end_index = end_index
+                .min(typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64)
+                as usize;
+            // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
+            // d. Set countBytes to max(endIndex - startIndex, 0).
+            // e. Let srcType be TypedArrayElementType(O).
+            // f. Let targetType be TypedArrayElementType(A).
+            // g. If srcType is targetType, then
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
+                let (a_slice, o_slice) =
+                    split_typed_array_views::<T>(agent, a, o.get(agent), gc.nogc());
+                if a_slice.len() > o_slice.len() || end_index + 1 > o_slice.len() {
+                    let src_slice = &o_slice[start_index..o_slice.len()];
+                    let dst_slice = &mut a_slice[..src_slice.len()];
+                    dst_slice.copy_from_slice(src_slice);
+                } else {
+                    let a_slice_len = a_slice.len();
+                    let a_slice = &mut a_slice[..a_slice_len];
+                    let o_slice = &o_slice[start_index..end_index];
+                    a_slice.copy_from_slice(o_slice);
+                }
+            } else {
+                // h. Else,
+                // i. Let n be 0.
+                // ii. Let k be startIndex.
+                // iii. Repeat, while k < endIndex,
+                //      1. Let Pk be ! ToString(𝔽(k)).
+                //      2. Let kValue be ! Get(O, Pk).
+                //      3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
+                //      4. Set k to k + 1.
+                //      5. Set n to n + 1.
+                let gc = gc.nogc();
+                let o = o.get(agent);
+                let a_buf = a.get_viewed_array_buffer(agent, gc);
+                let o_buf = o.get_viewed_array_buffer(agent, gc);
+                let a_buf = a_buf.as_slice(agent);
+                let o_buf = o_buf.as_slice(agent);
+                if !a_buf.is_empty() || !o_buf.is_empty() {
+                    assert!(
+                        !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
+                        "Must not point to the same buffer"
+                    );
+                }
+                let a_slice = viewable_slice_mut::<V>(agent, a, gc);
+                let a_ptr = a_slice.as_mut_ptr();
+                let a_len = a_slice.len();
+                let o_aligned = viewable_slice::<T>(agent, o, gc);
+                // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+                let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
+                let src_slice = &o_aligned[start_index..end_index];
+                let dst_slice = &mut a_aligned[..src_slice.len()];
+                copy_between_different_type_typed_arrays::<T, V>(src_slice, dst_slice)
+            }
+        },
+        V
+    );
     Ok(a.unbind())
 }
