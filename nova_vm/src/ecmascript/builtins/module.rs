@@ -9,7 +9,7 @@ use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
         builtins::ordinary::ordinary_get_own_property,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{Agent, JsResult, agent::ExceptionType, throw_uninitialized_binding},
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::{ModuleAbstractMethods, ResolvedBinding},
             get_module_namespace,
@@ -585,9 +585,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
-                        return Ok(
-                            get_module_namespace(agent, target_module, gc.into_nogc()).into_value()
-                        );
+                        return Ok(get_module_namespace(
+                            agent,
+                            target_module.unbind(),
+                            gc.into_nogc(),
+                        )
+                        .into_value());
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
                     let target_env = target_module.environment(agent);
@@ -600,12 +603,16 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         ));
                     };
                     // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
+                    let binding_name = binding_name.unbind();
+                    let target_env = target_env.unbind();
                     let gc = gc.into_nogc();
+                    let binding_name = binding_name.bind(gc);
+                    let target_env = target_env.bind(gc);
                     if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
                     {
                         Ok(value)
                     } else {
-                        Err(throw_uninitialized_binding(agent, name, gc))
+                        Err(throw_uninitialized_binding(agent, binding_name, gc))
                     }
                 }
             }

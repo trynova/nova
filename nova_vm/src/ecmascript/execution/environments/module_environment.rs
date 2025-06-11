@@ -282,26 +282,14 @@ pub(crate) fn throw_uninitialized_binding<'a>(
 /// Environment Record. Accesses to the value of the new binding will
 /// indirectly access the bound value of the target binding.
 pub(crate) fn create_import_binding(
-    envs: &mut impl AsMut<Environments>,
-    modules: &impl AsRef<SourceTextModuleHeap>,
+    agent: &mut Agent,
     env_rec: ModuleEnvironment,
     n: String,
     m: SourceTextModule,
     n2: String,
 ) {
-    let envs = envs.as_mut();
-    let modules = modules.as_ref();
-    inner_create_import_binding(envs, modules, env_rec, n, m, n2);
-}
-
-fn inner_create_import_binding(
-    envs: &mut Environments,
-    modules: &SourceTextModuleHeap,
-    env_rec: ModuleEnvironment,
-    n: String,
-    m: SourceTextModule,
-    n2: String,
-) {
+    let envs = &mut agent.heap.environments;
+    let modules = &agent.heap.source_text_module_records;
     // 1. Assert: envRec does not already have a binding for N.
     debug_assert!(!env_rec.has_binding(envs, n));
     let m_environment = m
