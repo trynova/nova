@@ -3544,8 +3544,9 @@ impl ArrayPrototype {
                     None,
                     gc.reborrow(),
                 )
-                .unbind()?;
-                let s = to_string(agent, argument, gc.reborrow()).unbind()?;
+                .unbind()?
+                .bind(gc.nogc());
+                let s = to_string(agent, argument.unbind(), gc.reborrow()).unbind()?;
                 //  ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             };
