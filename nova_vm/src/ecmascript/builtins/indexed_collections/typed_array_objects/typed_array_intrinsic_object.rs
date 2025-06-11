@@ -2110,19 +2110,23 @@ impl TypedArrayPrototype {
                 PropertyKey::Integer(k.try_into().unwrap()),
                 gc.reborrow(),
             )
-            .unbind()?;
+            .unbind()?
+            .bind(gc.nogc());
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 //  i. Let S be ? ToString(? Invoke(element, "toLocaleString")).
                 let argument = invoke(
                     agent,
-                    element,
+                    element.unbind(),
                     BUILTIN_STRING_MEMORY.toLocaleString.into(),
                     None,
                     gc.reborrow(),
                 )
-                .unbind()?;
-                let s = to_string(agent, argument, gc.reborrow()).unbind()?;
+                .unbind()?
+                .bind(gc.nogc());
+                let s = to_string(agent, argument.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             };
@@ -2130,7 +2134,7 @@ impl TypedArrayPrototype {
             k += 1;
         }
         // 7. Return R.
-        Ok(Value::from_string(agent, r, gc.into_nogc()).into_value())
+        Ok(Value::from_string(agent, r, gc.into_nogc()))
     }
 
     /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tospliced)
