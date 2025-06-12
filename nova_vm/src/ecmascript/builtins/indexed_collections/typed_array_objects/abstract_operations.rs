@@ -11,7 +11,6 @@ use crate::{
             operations_on_objects::{
                 construct, get, length_of_array_like, set, species_constructor,
             },
-            testing_and_comparison::same_value,
             type_conversion::{IntegerOrInfinity, to_big_int, to_index, to_number, to_object},
         },
         builtins::{
@@ -1579,7 +1578,7 @@ pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType
     // 18. If IsSharedArrayBuffer(srcBuffer) is true, IsSharedArrayBuffer(targetBuffer) is true, and srcBuffer.[[ArrayBufferData]] is targetBuffer.[[ArrayBufferData]], let sameSharedArrayBuffer be true; otherwise, let sameSharedArrayBuffer be false.
     // TODO: SharedArrayBuffer that we can even take here.
     // 19. If SameValue(srcBuffer, targetBuffer) is true or sameSharedArrayBuffer is true, then
-    let mut src_byte_index = if same_value(agent, src_buffer, target_buffer) {
+    let mut src_byte_index = if src_buffer == target_buffer {
         // a. Let srcByteLength be TypedArrayByteLength(srcRecord).
         let src_byte_length = typed_array_byte_length::<SrcType>(agent, &src_record, gc.nogc());
         // b. Set srcBuffer to ? CloneArrayBuffer(srcBuffer, srcByteOffset, srcByteLength).
