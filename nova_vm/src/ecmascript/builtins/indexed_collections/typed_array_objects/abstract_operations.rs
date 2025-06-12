@@ -1491,15 +1491,13 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
 /// targetOffset, reading the values from source.
 pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType: Viewable>(
     agent: &mut Agent,
-    target: TypedArray,
+    target: Scoped<TypedArray>,
     target_offset: IntegerOrInfinity,
     source: TypedArray,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let target = target.bind(gc.nogc());
-    let target_offset = target_offset.bind(gc.nogc());
     let source = source.bind(gc.nogc());
-    let target = target.scope(agent, gc.nogc());
     let source = source.scope(agent, gc.nogc());
     // 1. Let targetBuffer be target.[[ViewedArrayBuffer]].
     let target_buffer = target.get(agent).get_viewed_array_buffer(agent, gc.nogc());
@@ -1589,7 +1587,8 @@ pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType
             src_byte_length,
             gc.nogc(),
         )
-        .unbind()?;
+        .unbind()?
+        .bind(gc.nogc());
         // c. Let srcByteIndex be 0.
         0
     } else {
@@ -1674,16 +1673,12 @@ pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType
 /// values from source.
 pub(crate) fn set_typed_array_from_array_like<'a, T: Viewable>(
     agent: &mut Agent,
-    target: TypedArray,
+    target: Scoped<TypedArray>,
     target_offset: IntegerOrInfinity,
-    source: Value,
+    source: Scoped<Value>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let target = target.bind(gc.nogc());
-    let target_offset = target_offset.bind(gc.nogc());
-    let source = source.bind(gc.nogc());
-    let target = target.scope(agent, gc.nogc());
-    let source = source.scope(agent, gc.nogc());
     // 1. Let targetRecord be MakeTypedArrayWithBufferWitnessRecord(target, seq-cst).
     let target_record = make_typed_array_with_buffer_witness_record(
         agent,
@@ -1703,8 +1698,9 @@ pub(crate) fn set_typed_array_from_array_like<'a, T: Viewable>(
     let target_length = typed_array_length::<T>(agent, &target_record, gc.nogc());
     // 4. Let src be ? ToObject(source).
     let src = to_object(agent, source.get(agent), gc.nogc()).unbind()?;
+    let src = unsafe { source.replace_self(agent, src) };
     // 5. Let srcLength be ? LengthOfArrayLike(src).
-    let src_length = length_of_array_like(agent, src, gc.reborrow()).unbind()?;
+    let src_length = length_of_array_like(agent, src.get(agent), gc.reborrow()).unbind()?;
     // 6. If targetOffset = +∞, throw a RangeError exception.
     if target_offset.is_pos_infinity() {
         return Err(agent.throw_exception_with_static_message(
@@ -1724,17 +1720,25 @@ pub(crate) fn set_typed_array_from_array_like<'a, T: Viewable>(
     // 8. Let k be 0.
     let mut k = 0;
     // 9. Repeat, while k < srcLength,
-    let target = target.get(agent);
+    let target_offset = target_offset.into_i64();
     while k < src_length {
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::Integer(k.try_into().unwrap());
         // b. Let value be ? Get(src, Pk).
-        let value = get(agent, src, pk, gc.reborrow()).unbind()?.bind(gc.nogc());
+        let value = get(agent, src.get(agent), pk, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
         // c. Let targetIndex be 𝔽(targetOffset + k).
-        let target_index = target_offset.into_i64() + k;
+        let target_index = target_offset + k;
         // d. Perform ? TypedArraySetElement(target, targetIndex, value).
-        typed_array_set_element::<T>(agent, target, target_index, value.unbind(), gc.reborrow())
-            .unbind()?;
+        typed_array_set_element::<T>(
+            agent,
+            target.get(agent),
+            target_index,
+            value.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?;
         // e. Set k to k + 1.
         k += 1;
     }
