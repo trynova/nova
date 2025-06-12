@@ -1568,7 +1568,7 @@ pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType
         ));
     };
     // 17. If target.[[ContentType]] is not source.[[ContentType]], throw a TypeError exception.
-    let is_type_match = has_matching_content_type::<TargetType>(target.get(agent));
+    let is_type_match = has_matching_content_type::<TargetType>(source.get(agent));
     if !is_type_match {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
