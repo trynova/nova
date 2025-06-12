@@ -385,7 +385,7 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// integer), type (a TypedArray element type), isTypedArray (a Boolean),
 /// and order (SEQ-CST or UNORDERED) and optional argument isLittleEndian
 /// (a Boolean) and returns a Number or a BigInt.
-pub(crate) fn get_value_from_buffer<'a, T: Viewable + std::fmt::Debug>(
+pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
     array_buffer: ArrayBuffer,
     byte_index: usize,
