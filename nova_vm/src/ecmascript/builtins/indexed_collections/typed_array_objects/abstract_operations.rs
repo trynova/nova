@@ -737,11 +737,7 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
 /// The abstract operation InitializeTypedArrayFromTypedArray takes arguments O
 /// (a TypedArray) and srcArray (a TypedArray) and returns either a normal
 /// completion containing unused or a throw completion.
-pub(crate) fn initialize_typed_array_from_typed_array<
-    'a,
-    O: Viewable,
-    Src: Viewable + std::fmt::Debug,
->(
+pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     src_array: TypedArray,
@@ -1494,11 +1490,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
 /// (a TypedArray) and returns either a normal completion containing unused
 /// or a throw completion. It sets multiple values in target, starting at index
 /// targetOffset, reading the values from source.
-pub(crate) fn set_typed_array_from_typed_array<
-    'a,
-    TargetType: Viewable + std::fmt::Debug,
-    SrcType: Viewable + std::fmt::Debug,
->(
+pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType: Viewable>(
     agent: &mut Agent,
     target: TypedArray,
     target_offset: IntegerOrInfinity,
