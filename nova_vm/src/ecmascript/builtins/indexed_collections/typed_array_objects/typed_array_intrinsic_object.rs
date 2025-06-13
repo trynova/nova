@@ -3480,6 +3480,19 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
             // f. Let targetType be TypedArrayElementType(A).
             // g. If srcType is targetType, then
             if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
+                // i. NOTE: The transfer must be performed in a manner that preserves the bit-level encoding of the source data.
+                // ii. Let srcBuffer be O.[[ViewedArrayBuffer]].
+                // iii. Let targetBuffer be A.[[ViewedArrayBuffer]].
+                // iv. Let elementSize be TypedArrayElementSize(O).
+                // v. Let srcByteOffset be O.[[ByteOffset]].
+                // vi. Let srcByteIndex be (startIndex × elementSize) + srcByteOffset.
+                // vii. Let targetByteIndex be A.[[ByteOffset]].
+                // viii. Let endByteIndex be targetByteIndex + (countBytes × elementSize).
+                // ix. Repeat, while targetByteIndex < endByteIndex,
+                //  1. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
+                //  2. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
+                //  3. Set srcByteIndex to srcByteIndex + 1.
+                //  4. Set targetByteIndex to targetByteIndex + 1.
                 let (a_slice, o_slice) =
                     split_typed_array_views::<T>(agent, a, o.get(agent), gc.nogc());
                 if a_slice.len() > o_slice.len() || end_index + 1 > o_slice.len() {
