@@ -144,8 +144,14 @@ pub mod private {
                 agent::JsError,
             },
             scripts_and_modules::{
-                module::module_semantics::source_text_module_records::SourceTextModule,
-                script::Script, source_code::SourceCode,
+                module::module_semantics::{
+                    InnerReferrer, Referrer,
+                    abstract_module_records::{AbstractModule, InnerAbstractModule},
+                    cyclic_module_records::{CyclicModule, InnerCyclicModule},
+                    source_text_module_records::SourceTextModule,
+                },
+                script::Script,
+                source_code::SourceCode,
             },
             types::{
                 BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
@@ -227,6 +233,13 @@ pub mod private {
     impl RootableSealed for Environment<'_> {}
     // Errors are rootable as they're just a wrapper around Value.
     impl RootableSealed for JsError<'_> {}
+    // Module Record references are also rootable
+    impl RootableSealed for AbstractModule<'_> {}
+    impl RootableSealed for InnerAbstractModule<'_> {}
+    impl RootableSealed for CyclicModule<'_> {}
+    impl RootableSealed for InnerCyclicModule<'_> {}
+    impl RootableSealed for Referrer<'_> {}
+    impl RootableSealed for InnerReferrer<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {

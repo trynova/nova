@@ -4,7 +4,10 @@
 mod helper;
 mod theme;
 
-use std::{cell::RefCell, collections::VecDeque, fmt::Debug, ptr::NonNull};
+use std::{
+    cell::RefCell, collections::VecDeque, fmt::Debug, path::PathBuf, ptr::NonNull, rc::Rc,
+    str::FromStr,
+};
 
 use clap::{Parser as ClapParser, Subcommand};
 use cliclack::{input, intro, set_theme};
@@ -19,10 +22,8 @@ use nova_vm::{
         },
         scripts_and_modules::{
             module::module_semantics::{
-                ModuleRequestRecord,
-                cyclic_module_records::GraphLoadingStateRecord,
-                finish_loading_imported_module,
-                source_text_module_records::{SourceTextModule, parse_module},
+                ModuleRequest, Referrer, cyclic_module_records::GraphLoadingStateRecord,
+                finish_loading_imported_module, source_text_module_records::parse_module,
             },
             script::{HostDefined, parse_script, script_evaluation},
         },
@@ -122,13 +123,38 @@ impl HostHooks for CliHostHooks {
     fn load_imported_module<'gc>(
         &self,
         agent: &mut Agent,
-        referrer: SourceTextModule<'gc>,
-        module_request: &'gc ModuleRequestRecord<'gc>,
-        host_defined: Option<HostDefined>,
+        referrer: Referrer<'gc>,
+        module_request: ModuleRequest<'gc>,
+        _host_defined: Option<HostDefined>,
         payload: &mut GraphLoadingStateRecord<'gc>,
         gc: NoGcScope<'gc, '_>,
     ) {
-        let file = match std::fs::read_to_string(module_request.specifier()) {
+        let specifier = module_request.specifier(agent);
+        let specifier = specifier.as_str(agent);
+        let specifier_target = if specifier.starts_with("./") {
+            let referrer_path = referrer
+                .host_defined(agent)
+                .unwrap()
+                .downcast::<PathBuf>()
+                .unwrap();
+            let parent = referrer_path
+                .parent()
+                .expect("Attempted to get sibling file of root");
+            parent.join(&specifier[2..])
+        } else if specifier.starts_with("../") {
+            let referrer_path = referrer
+                .host_defined(agent)
+                .unwrap()
+                .downcast::<PathBuf>()
+                .unwrap();
+            referrer_path
+                .join(specifier)
+                .canonicalize()
+                .expect("Failed to canonicalize target path")
+        } else {
+            PathBuf::from_str(specifier).expect("Failed to parse target path into PathBuf")
+        };
+        let file = match std::fs::read_to_string(&specifier_target) {
             Ok(file) => file,
             Err(err) => {
                 let result = Err(agent.throw_exception(ExceptionType::Error, err.to_string(), gc));
@@ -147,10 +173,11 @@ impl HostHooks for CliHostHooks {
         let result = parse_module(
             agent,
             source_text,
-            referrer.realm(agent),
-            host_defined.clone(),
+            referrer.realm(agent, gc),
+            Some(Rc::new(specifier_target)),
             gc,
         )
+        .map(|m| m.into())
         .map_err(|err| {
             agent.throw_exception(ExceptionType::Error, err.first().unwrap().to_string(), gc)
         });
@@ -222,10 +249,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
-                        let file = std::fs::read_to_string(&path)?;
+                        let absolute_path = std::fs::canonicalize(&path)?;
+                        let file = std::fs::read_to_string(&absolute_path)?;
                         let source_text = JsString::from_string(agent, file, gc.nogc());
+                        let host_defined = Rc::new(absolute_path);
                         let result = if module && last_index == index {
-                            agent.run_module(source_text.unbind(), gc.reborrow())
+                            agent.run_module_script(
+                                source_text.unbind(),
+                                Some(host_defined),
+                                gc.reborrow(),
+                            )
                         } else {
                             let realm = agent.current_realm(gc.nogc());
                             let script = match parse_script(
@@ -233,7 +266,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 source_text,
                                 realm,
                                 !no_strict,
-                                None,
+                                Some(host_defined),
                                 gc.nogc(),
                             ) {
                                 Ok(script) => script,

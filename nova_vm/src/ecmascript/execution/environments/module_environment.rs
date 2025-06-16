@@ -10,8 +10,8 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, JsError},
         },
-        scripts_and_modules::module::module_semantics::source_text_module_records::{
-            SourceTextModule, SourceTextModuleHeap,
+        scripts_and_modules::module::module_semantics::abstract_module_records::{
+            AbstractModule, AbstractModuleSlots,
         },
         types::{String, Value},
     },
@@ -54,7 +54,7 @@ struct IndirectBinding<'a> {
     /// ### \[\[M]]
     ///
     /// Module record which holds the direct binding for \[\[N2]].
-    m: SourceTextModule<'a>,
+    m: AbstractModule<'a>,
     /// ### \[\[N2]]
     ///
     /// Name of the direct binding in \[\[M]].
@@ -221,35 +221,26 @@ impl<'e> ModuleEnvironment<'e> {
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
     ) -> Option<Value<'a>> {
-        self.inner_get_binding_value(agent.as_ref(), agent.as_ref(), name, is_strict, gc)
-    }
-
-    pub(super) fn inner_get_binding_value<'a>(
-        self,
-        envs: &Environments,
-        modules: &SourceTextModuleHeap,
-        name: String,
-        is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Value<'a>> {
         // 1. Assert: S is true.
         debug_assert!(is_strict);
         // 2. Assert: envRec has a binding for N.
-        debug_assert!(self.has_binding(envs, name));
+        debug_assert!(self.has_binding(agent, name));
         // 3. If the binding for N is an indirect binding, then
-        if let Some(IndirectBinding { m, n2 }) =
-            envs.get_module_environment(self).get_indirect_binding(name)
-        {
+        let env_rec = agent.heap.environments.get_module_environment(self);
+        if let Some(IndirectBinding { m, n2 }) = env_rec.get_indirect_binding(name) {
             // a. Let M and N2 be the indirection values provided when this
             //    binding for N was created.
             // b. Let targetEnv be M.[[Environment]].
             // c. If targetEnv is empty, throw a ReferenceError exception.
-            let target_env = m.environment(modules)?;
+            let target_env = m.environment(agent, gc)?;
             // d. Return ? targetEnv.GetBindingValue(N2, true).
-            return target_env.inner_get_binding_value(envs, modules, *n2, true, gc);
+            return target_env.get_binding_value(agent, *n2, true, gc);
         }
-        let binding = envs
-            .get_declarative_environment(self.get_declarative_env(envs))
+        let decl_env = env_rec.declarative_environment;
+        let binding = agent
+            .heap
+            .environments
+            .get_declarative_environment(decl_env)
             .get_binding(name)
             .unwrap();
         // 4. If the binding for N in envRec is an uninitialized binding, throw
@@ -285,16 +276,16 @@ pub(crate) fn create_import_binding(
     agent: &mut Agent,
     env_rec: ModuleEnvironment,
     n: String,
-    m: SourceTextModule,
+    m: AbstractModule,
     n2: String,
+    gc: NoGcScope,
 ) {
-    let envs = &mut agent.heap.environments;
-    let modules = &agent.heap.source_text_module_records;
     // 1. Assert: envRec does not already have a binding for N.
-    debug_assert!(!env_rec.has_binding(envs, n));
+    debug_assert!(!env_rec.has_binding(agent, n));
     let m_environment = m
-        .environment(modules)
+        .environment(agent, gc)
         .expect("Attempted to access unlinked module's environment");
+    let envs = &mut agent.heap.environments;
     // 2. Assert: When M.[[Environment]] is instantiated, it will have a direct
     //    binding for N2.
     let m_decl_env = m_environment.get_declarative_env(envs);
@@ -335,26 +326,14 @@ pub(crate) fn create_import_binding(
 ///
 /// > NOTE: Performs the initializing of a previously created import binding.
 pub(crate) fn initialize_import_binding(
-    envs: &mut impl AsMut<Environments>,
-    modules: &impl AsRef<SourceTextModuleHeap>,
+    agent: &mut Agent,
     env_rec: ModuleEnvironment,
     n: String,
-    m: SourceTextModule,
+    m: AbstractModule,
     n2: String,
+    gc: NoGcScope,
 ) {
-    let envs = envs.as_mut();
-    let modules = modules.as_ref();
-    inner_initialize_import_binding(envs, modules, env_rec, n, m, n2);
-}
-fn inner_initialize_import_binding(
-    envs: &mut Environments,
-    modules: &SourceTextModuleHeap,
-    env_rec: ModuleEnvironment,
-    n: String,
-    m: SourceTextModule,
-    n2: String,
-) {
-    let direct_binding = env_rec.get_declarative_env(envs).get_binding_mut(envs, n);
+    let direct_binding = env_rec.get_declarative_env(agent).get_binding_mut(agent, n);
     let Some(direct_binding) = direct_binding else {
         // Note: if we have indirect binding to name, then it has already been
         // initialized as part of CreateImportBinding.
@@ -364,16 +343,16 @@ fn inner_initialize_import_binding(
     debug_assert!(direct_binding.strict);
     let direct_binding_value = &mut direct_binding.value as *mut Option<Value<'static>>;
     let value = m
-        .environment(modules)
+        .environment(agent, gc)
         .expect("Attempted to access unlinked module's environment")
-        .get_declarative_env(envs)
-        .get_binding(envs, n2)
+        .get_declarative_env(agent)
+        .get_binding(agent, n2)
         .expect("Direct binding target did not exist")
         .value
         .expect("Attempted to access uninitialized binding");
-    // SAFETY: get_declarative_env and get_binding both perform no mutation on
-    // envs; the direct_binding_value pointer still points to valid memory and
-    // has not been trampled with.
+    // SAFETY: m.environment, get_declarative_env and get_binding both perform
+    // no mutation on module environments; the direct_binding_value pointer
+    // still points to valid memory and has not been trampled with.
     unsafe { *direct_binding_value = Some(value) };
     // 4. Return unused.
 }

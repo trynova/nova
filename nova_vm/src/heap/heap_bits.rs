@@ -57,7 +57,8 @@ use crate::ecmascript::{
         ObjectEnvironment, PrivateEnvironment, Realm,
     },
     scripts_and_modules::{
-        module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+        module::module_semantics::{ModuleRequest, source_text_module_records::SourceTextModule},
+        script::Script,
         source_code::SourceCode,
     },
     types::{
@@ -113,6 +114,7 @@ pub struct HeapBits {
     pub map_iterators: Box<[bool]>,
     pub module_environments: Box<[bool]>,
     pub modules: Box<[bool]>,
+    pub module_request_records: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub object_environments: Box<[bool]>,
     pub objects: Box<[bool]>,
@@ -192,6 +194,7 @@ pub(crate) struct WorkQueues {
     pub map_iterators: Vec<MapIterator<'static>>,
     pub module_environments: Vec<ModuleEnvironment<'static>>,
     pub modules: Vec<Module<'static>>,
+    pub module_request_records: Vec<ModuleRequest<'static>>,
     pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironment<'static>>,
     pub objects: Vec<OrdinaryObject<'static>>,
@@ -271,6 +274,7 @@ impl HeapBits {
         let map_iterators = vec![false; heap.map_iterators.len()];
         let module_environments = vec![false; heap.environments.module.len()];
         let modules = vec![false; heap.modules.len()];
+        let module_request_records = vec![false; heap.module_request_records.len()];
         let numbers = vec![false; heap.numbers.len()];
         let object_environments = vec![false; heap.environments.object.len()];
         let objects = vec![false; heap.objects.len()];
@@ -347,6 +351,7 @@ impl HeapBits {
             map_iterators: map_iterators.into_boxed_slice(),
             module_environments: module_environments.into_boxed_slice(),
             modules: modules.into_boxed_slice(),
+            module_request_records: module_request_records.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             object_environments: object_environments.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
@@ -429,6 +434,7 @@ impl WorkQueues {
             map_iterators: Vec::with_capacity(heap.map_iterators.len() / 4),
             module_environments: Vec::with_capacity(heap.environments.module.len() / 4),
             modules: Vec::with_capacity(heap.modules.len() / 4),
+            module_request_records: Vec::with_capacity(heap.module_request_records.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
@@ -513,6 +519,7 @@ impl WorkQueues {
             map_iterators,
             module_environments,
             modules,
+            module_request_records,
             numbers,
             object_environments,
             objects,
@@ -609,6 +616,7 @@ impl WorkQueues {
             && map_iterators.is_empty()
             && module_environments.is_empty()
             && modules.is_empty()
+            && module_request_records.is_empty()
             && numbers.is_empty()
             && object_environments.is_empty()
             && objects.is_empty()
@@ -933,6 +941,7 @@ pub(crate) struct CompactionLists {
     pub maps: CompactionList,
     pub map_iterators: CompactionList,
     pub modules: CompactionList,
+    pub module_request_records: CompactionList,
     pub numbers: CompactionList,
     pub object_environments: CompactionList,
     pub objects: CompactionList,
@@ -1022,6 +1031,7 @@ impl CompactionLists {
             executables: CompactionList::from_mark_bits(&bits.executables),
             maps: CompactionList::from_mark_bits(&bits.maps),
             map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
+            module_request_records: CompactionList::from_mark_bits(&bits.module_request_records),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),

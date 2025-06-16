@@ -9,13 +9,47 @@
 
 use ahash::AHashMap;
 
-use super::{
-    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, RealmRecord, Realm
-};
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string, builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise}, execution::clear_kept_objects, scripts_and_modules::{module::module_semantics::{abstract_module_records::ModuleAbstractMethods, cyclic_module_records::GraphLoadingStateRecord, source_text_module_records::{parse_module, SourceTextModule}, ModuleRequestRecord}, script::{parse_script, script_evaluation, HostDefined}, source_code::SourceCode, ScriptOrModule}, types::{Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value, ValueRootRepr}
-    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable}, TryResult, Vm}, heap::{heap_gc::heap_gc, CompactionLists, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues}, Heap
+        abstract_operations::type_conversion::to_string,
+        builtins::{
+            error::ErrorHeapData,
+            promise::Promise,
+            promise_objects::promise_abstract_operations::promise_jobs::{
+                PromiseReactionJob, PromiseResolveThenableJob,
+            },
+        },
+        execution::clear_kept_objects,
+        scripts_and_modules::{
+            ScriptOrModule,
+            module::module_semantics::{
+                ModuleRequest, Referrer, abstract_module_records::AbstractModuleMethods,
+                cyclic_module_records::GraphLoadingStateRecord,
+                source_text_module_records::parse_module,
+            },
+            script::{HostDefined, parse_script, script_evaluation},
+            source_code::SourceCode,
+        },
+        types::{
+            Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value,
+            ValueRootRepr,
+        },
+    },
+    engine::{
+        TryResult, Vm,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
+    },
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapIndexable,
+        WorkQueues, heap_gc::heap_gc,
+    },
+};
+
+use super::{
+    Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, Realm, RealmRecord,
+    environments::{get_identifier_reference, try_get_identifier_reference},
+    initialize_default_realm, initialize_host_defined_realm,
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -239,8 +273,8 @@ pub trait HostHooks: core::fmt::Debug {
     fn load_imported_module<'gc>(
         &self,
         agent: &mut Agent,
-        referrer: SourceTextModule<'gc>,
-        module_request: &'gc ModuleRequestRecord<'gc>,
+        referrer: Referrer<'gc>,
+        module_request: ModuleRequest<'gc>,
         host_defined: Option<HostDefined>,
         payload: &mut GraphLoadingStateRecord<'gc>,
         gc: NoGcScope<'gc, '_>,
@@ -810,13 +844,14 @@ impl Agent {
     }
 
     /// Run a module in the current Realm.
-    pub fn run_module<'gc>(
+    pub fn run_module_script<'gc>(
         &mut self,
         source_text: String,
+        host_defined: Option<HostDefined>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let realm = self.current_realm(gc.nogc());
-        let module = match parse_module(self, source_text, realm, None, gc.nogc()) {
+        let module = match parse_module(self, source_text, realm, host_defined, gc.nogc()) {
             Ok(module) => module,
             Err(err) => {
                 let message =

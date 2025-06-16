@@ -11,9 +11,10 @@ use crate::{
         builtins::ordinary::ordinary_get_own_property,
         execution::{Agent, JsResult, agent::ExceptionType, throw_uninitialized_binding},
         scripts_and_modules::module::module_semantics::{
-            abstract_module_records::{ModuleAbstractMethods, ResolvedBinding},
+            abstract_module_records::{
+                AbstractModule, AbstractModuleMethods, AbstractModuleSlots, ResolvedBinding,
+            },
             get_module_namespace,
-            source_text_module_records::SourceTextModule,
         },
         types::{
             InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
@@ -593,7 +594,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         .into_value());
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
-                    let target_env = target_module.environment(agent);
+                    let target_env = target_module.environment(agent, gc.nogc());
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     let Some(target_env) = target_env else {
                         return Err(agent.throw_exception(
@@ -696,14 +697,18 @@ impl<'a> InternalMethods<'a> for Module<'a> {
 
 /// ### [10.4.6.12 ModuleNamespaceCreate ( module, exports )](https://tc39.es/ecma262/#sec-modulenamespacecreate)
 ///
-/// The abstract operation ModuleNamespaceCreate takes arguments module (a Module Record) and exports (a List of Strings) and returns a module namespace exotic object. It is used to specify the creation of new module namespace exotic objects. It performs the following steps when called:
+/// The abstract operation ModuleNamespaceCreate takes arguments module (a
+/// Module Record) and exports (a List of Strings) and returns a module
+/// namespace exotic object. It is used to specify the creation of new module
+/// namespace exotic objects.
 pub(crate) fn module_namespace_create<'a>(
     agent: &mut Agent,
-    module: SourceTextModule<'a>,
+    module: AbstractModule<'a>,
     exports: Box<[String<'a>]>,
+    gc: NoGcScope<'a, '_>,
 ) -> Module<'a> {
     // 1. Assert: module.[[Namespace]] is empty.
-    debug_assert!(module.namespace(agent).is_none());
+    debug_assert!(module.namespace(agent, gc).is_none());
     // 2. Let internalSlotsList be the internal slots listed in Table 33.
     // 3. Let M be MakeBasicObject(internalSlotsList).
     // 4. Set M's essential internal methods to the definitions specified in 10.4.6.

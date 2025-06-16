@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{
-        scripts_and_modules::module::module_semantics::source_text_module_records::SourceTextModule,
+        scripts_and_modules::module::module_semantics::abstract_module_records::AbstractModule,
         types::String,
     },
     engine::context::{Bindable, NoGcScope},
@@ -15,7 +15,7 @@ use super::Module;
 
 #[derive(Debug, Clone)]
 pub struct ModuleHeapData<'a> {
-    pub(super) module: SourceTextModule<'a>,
+    pub(super) module: AbstractModule<'a>,
     pub(super) exports: Box<[String<'a>]>,
 }
 

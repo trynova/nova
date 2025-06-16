@@ -8,6 +8,7 @@ use std::{
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
+    ptr::NonNull,
 };
 
 use ahash::AHashSet;
@@ -15,7 +16,6 @@ use oxc_ast::ast::{self, Program};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
-use small_string::SmallString;
 
 use crate::{
     ecmascript::{
@@ -44,10 +44,7 @@ use crate::{
                 module_lexically_scoped_declarations, module_var_scoped_declarations,
             },
         },
-        types::{
-            BUILTIN_STRING_MEMORY, HeapString, IntoValue, Object, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
     },
     engine::{
         Executable, Scoped, Vm,
@@ -58,10 +55,13 @@ use crate::{
 };
 
 use super::{
-    ModuleRequestRecord,
-    abstract_module_records::{AbstractModuleRecord, ModuleAbstractMethods, ResolvedBinding},
+    ModuleRequest, ModuleRequestRecord,
+    abstract_module_records::{
+        AbstractModule, AbstractModuleMethods, AbstractModuleRecord, AbstractModuleSlots,
+        ResolvedBinding,
+    },
     cyclic_module_records::{
-        CyclicModuleAbstractMethods, CyclicModuleRecord, GraphLoadingStateRecord,
+        CyclicModuleMethods, CyclicModuleRecord, CyclicModuleSlots, GraphLoadingStateRecord,
         inner_module_loading,
     },
     get_imported_module, get_module_namespace,
@@ -116,7 +116,9 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     /// A List of ExportEntry records derived from the code of this module that
     /// correspond to export * declarations that occur within the module, not
     /// including export * as namespace declarations.
-    star_export_entries: Box<[ModuleRequestRecord<'a>]>,
+    ///
+    /// > NOTE: These are references to \[\[RequestedModules]] list.
+    star_export_entries: Box<[ModuleRequest<'a>]>,
 
     /// Source text of the script
     ///
@@ -147,33 +149,40 @@ impl<'m> SourceTextModule<'m> {
         &agent.as_ref()[self.0 as usize]
     }
 
-    fn get_mut(self, agent: &mut Agent) -> &mut SourceTextModuleRecord<'static> {
-        &mut agent.heap.source_text_module_records[self.0 as usize]
+    fn get_mut(
+        self,
+        agent: &mut impl AsMut<SourceTextModuleHeap>,
+    ) -> &mut SourceTextModuleRecord<'static> {
+        &mut agent.as_mut()[self.0 as usize]
     }
 
     pub(crate) fn get_index(self) -> usize {
         self.0 as usize
     }
 
-    /// Get a loaded module by a request string.
+    /// Get a loaded module by module request reference.
     pub(super) fn get_loaded_module(
         self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
-        request: &ModuleRequestRecord,
-    ) -> Option<SourceTextModule<'m>> {
-        self.get(agent).cyclic_fields.get_loaded_module(request)
+        agent: &Agent,
+        request: ModuleRequest<'m>,
+    ) -> Option<AbstractModule<'m>> {
+        self.get(agent)
+            .cyclic_fields
+            .get_loaded_module(agent, request)
     }
 
     /// Insert a loaded module into the module's requested modules.
     pub(super) fn insert_loaded_module(
         self,
         agent: &mut Agent,
-        request: &ModuleRequestRecord,
-        module: SourceTextModule,
+        request: ModuleRequest,
+        module: AbstractModule,
     ) {
-        self.get_mut(agent)
+        let reqeusts = &agent.heap.module_request_records;
+        let source_text_module_records = &mut agent.heap.source_text_module_records;
+        self.get_mut(source_text_module_records)
             .cyclic_fields
-            .insert_loaded_module(request, module)
+            .insert_loaded_module(reqeusts, request.unbind(), module.unbind())
     }
 
     /// Get the requested modules as a slice.
@@ -187,16 +196,13 @@ impl<'m> SourceTextModule<'m> {
     /// statements being borrowed from the heap. If the SourceTextModule is not
     /// rooted (at least a copy of it), then the slice will become a dangling
     /// pointer during garbage collection.
-    pub(super) unsafe fn get_requested_modules(
-        self,
-        agent: &Agent,
-    ) -> &'m [ModuleRequestRecord<'m>] {
+    pub(super) unsafe fn get_requested_modules(self, agent: &Agent) -> &'m [ModuleRequest<'m>] {
         // SAFETY: Caller promises that SourceTextModule is rooted while the
         // statements slice is held: the SourceTextModuleRecord may move during
         // GC but the Atoms list memory does not move. Hence the reference is
         // valid while the self SourceTextModule is held (the parent call).
         unsafe {
-            core::mem::transmute::<&[ModuleRequestRecord], &'m [ModuleRequestRecord<'m>]>(
+            core::mem::transmute::<&[ModuleRequest], &'m [ModuleRequest<'m>]>(
                 self.get(agent).cyclic_fields.get_requested_modules(),
             )
         }
@@ -226,10 +232,12 @@ impl<'m> SourceTextModule<'m> {
     }
 
     /// ### \[\[ImportEntries]]
-    fn import_entries(
-        self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
-    ) -> &'m [ImportEntryRecord<'m>] {
+    ///
+    /// ## Safety
+    ///
+    /// The SourceTextModule must be properly bound to the garbage collector
+    /// lifetime.
+    fn import_entries(self, agent: &Agent) -> &'m [ImportEntryRecord<'m>] {
         // SAFETY: import_entries list cannot be mutated except for during GC.
         // Hence, we can safely transmute to the module lifetime (which should
         // be bound to the GcScope).
@@ -249,47 +257,47 @@ impl<'m> SourceTextModule<'m> {
     }
 
     /// ### \[\[IndirectExportEntries]]
+    ///
+    /// ## Safety
+    ///
+    /// The SourceTextModule must be properly bound to the garbage collector
+    /// lifetime.
     fn indirect_export_entries(
         self,
         agent: &impl AsRef<SourceTextModuleHeap>,
-    ) -> &[IndirectExportEntryRecord<'m>] {
-        &self.get(agent).indirect_export_entries
+    ) -> &'m [IndirectExportEntryRecord<'m>] {
+        // SAFETY: [[IndirectExportEntries]] are only mutated during GC: as
+        // long as GC does not run, the reference stays valid.
+        unsafe {
+            core::mem::transmute::<
+                &[IndirectExportEntryRecord<'m>],
+                &'m [IndirectExportEntryRecord<'m>],
+            >(&self.get(agent).indirect_export_entries)
+        }
     }
 
     /// ### \[\[StarExportEntries]]
+    ///
+    /// ## Safety
+    ///
+    /// The SourceTextModule must be properly bound to the garbage collector
+    /// lifetime.
     fn star_export_entries(
         self,
         agent: &impl AsRef<SourceTextModuleHeap>,
-    ) -> &[ModuleRequestRecord<'m>] {
-        &self.get(agent).star_export_entries
+    ) -> &'m [ModuleRequest<'m>] {
+        // SAFETY: [[StartExportEntries]] are never mutated; as long as GC does
+        // not run, the reference stays valid.
+        unsafe {
+            core::mem::transmute::<&[ModuleRequest], &'m [ModuleRequest<'m>]>(
+                &self.unbind().get(agent).star_export_entries,
+            )
+        }
     }
 
     /// ### \[\[HasTLA]]
     fn has_tla(self, agent: &Agent) -> bool {
         self.get(agent).cyclic_fields.has_tla()
-    }
-
-    // ### \[\[Environment]]
-    pub(crate) fn environment(
-        self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
-    ) -> Option<ModuleEnvironment<'m>> {
-        self.get(agent).abstract_fields.environment()
-    }
-
-    // Set \[\[Environment]] to env.
-    fn set_environment(self, agent: &mut Agent, env: ModuleEnvironment) {
-        self.get_mut(agent).abstract_fields.set_environment(env)
-    }
-
-    /// ### \[\[Namespace]]
-    pub(crate) fn namespace(self, agent: &Agent) -> Option<Module<'m>> {
-        self.get(agent).abstract_fields.namespace()
-    }
-
-    // Set \[\[Namespace]] to namespace.
-    pub(crate) fn set_namespace(self, agent: &mut Agent, namespace: Module) {
-        self.get_mut(agent).abstract_fields.set_namespace(namespace)
     }
 
     /// ### \[\[EvaluationError]]
@@ -306,22 +314,6 @@ impl<'m> SourceTextModule<'m> {
         self.get_mut(agent)
             .cyclic_fields
             .set_evaluation_error(error)
-    }
-
-    // ### \[\[Realm]]
-    pub fn realm(self, agent: &Agent) -> Realm<'m> {
-        self.get(agent).abstract_fields.realm()
-    }
-
-    /// ### \[\[Status]]
-    pub(super) fn status<'a>(
-        self,
-        agent: &'a impl AsRef<SourceTextModuleHeap>,
-    ) -> &'a CyclicModuleRecordStatus
-    where
-        'm: 'a,
-    {
-        self.get(agent).cyclic_fields.status()
     }
 
     /// Get a reference to the module's source code storage.
@@ -386,167 +378,79 @@ impl<'m> SourceTextModule<'m> {
     pub(super) fn set_evaluated(self, agent: &mut Agent) {
         self.get_mut(agent).cyclic_fields.set_evaluated()
     }
+}
 
-    fn inner_resolve_export<'a>(
-        self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
-        export_name: String,
-        resolve_set: Option<()>,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<ResolvedBinding<'a>> {
-        let module = self.bind(gc);
-        // 1. Assert: module.[[Status]] is not new.
-        debug_assert!(!matches!(
-            module.status(agent),
-            CyclicModuleRecordStatus::New
-        ));
-        // 2. If resolveSet is not present, set resolveSet to a new empty List.
-        // 3. For each Record { [[Module]], [[ExportName]] } r of resolveSet, do
-        //        a. If module and r.[[Module]] are the same Module Record and exportName is r.[[ExportName]], then
-        //               i. Assert: This is a circular import request.
-        //               ii. Return null.
+/// Direct access to the requested modules of a Scoped SourceTextModule.
+///
+/// A separate type is used because garbage collection will mutate the
+/// ModuleRequests inside the \[\[RequestedModules]] list but does not move or
+/// otherwise invalidate the list itself.
+///
+/// ## Safety
+///
+/// The type is iterable but the ModuleRequest returned by the iterator is not
+/// correctly bound to the garbage collector lifetime. It must be rebound as
+/// the first thing before usage to ensure GC safety.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ScopedRequestedModules<'a> {
+    ptr: NonNull<[ModuleRequest<'a>]>,
+}
 
-        // 4. Append the Record { [[Module]]: module, [[ExportName]]: exportName } to resolveSet.
-        // 5. For each ExportEntry Record e of module.[[LocalExportEntries]], do
-        for e in module.local_export_entries(agent) {
-            // a. If e.[[ExportName]] is exportName, then
-            if e.export_name == export_name {
-                // i. Assert: module provides the direct binding for this export.
-                // ii. Return ResolvedBinding Record {
-                return Some(ResolvedBinding::Resolved {
-                    // [[Module]]: module,
-                    module,
-                    // [[BindingName]]: e.[[LocalName]]
-                    binding_name: Some(e.local_name),
-                });
-                // }.
-            }
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ScopedRequestedModulesIterator<'a> {
+    ptr: ScopedRequestedModules<'a>,
+    index: usize,
+}
+
+impl<'a> Iterator for ScopedRequestedModulesIterator<'a> {
+    type Item = ModuleRequest<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // SAFETY: GC cannot be running while we call next, so this transmute
+        // is safe.
+        let slice = unsafe {
+            core::mem::transmute::<NonNull<[ModuleRequest<'a>]>, &[ModuleRequest<'a>]>(self.ptr.ptr)
+        };
+        let next = slice.get(self.index).copied();
+        self.index += 1;
+        next
+    }
+}
+
+impl<'a> IntoIterator for ScopedRequestedModules<'a> {
+    type Item = ModuleRequest<'a>;
+
+    type IntoIter = ScopedRequestedModulesIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ScopedRequestedModulesIterator {
+            ptr: self,
+            index: 0,
         }
-
-        // 6. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
-        for e in module.indirect_export_entries(agent) {
-            // a. If e.[[ExportName]] is exportName, then
-            if e.export_name == export_name {
-                // i. Assert: e.[[ModuleRequest]] is not null.
-                // ii. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-                let imported_module = get_imported_module(agent, module, &e.module_request, gc);
-                // iii. If e.[[ImportName]] is all, then
-                if let Some(import_name) = e.import_name {
-                    // iv. Else,
-                    // 1. Assert: module imports a specific binding for this export.
-                    // 2. Assert: e.[[ImportName]] is a String.
-                    // 3. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
-                    return imported_module.inner_resolve_export(
-                        agent,
-                        import_name,
-                        resolve_set,
-                        gc,
-                    );
-                } else {
-                    // 1. Assert: module does not provide the direct binding for this export.
-                    // 2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
-                    return Some(ResolvedBinding::Resolved {
-                        module: imported_module,
-                        binding_name: None,
-                    });
-                }
-            }
-        }
-
-        // 7. If exportName is "default", then
-        if export_name == BUILTIN_STRING_MEMORY.default {
-            // a. Assert: A default export was not explicitly defined by this
-            //    module.
-            // b. Return null.
-            // c. NOTE: A default export cannot be provided by an export * from
-            //    "mod" declaration.
-            return None;
-        }
-
-        // 8. Let starResolution be null.
-        let mut star_resolution = None;
-        // 9. For each ExportEntry Record e of module.[[StarExportEntries]], do
-        for e in module.star_export_entries(agent) {
-            // a. Assert: e.[[ModuleRequest]] is not null.
-            // b. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-            let imported_module = get_imported_module(agent, module, e, gc);
-            // c. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
-            let resolution =
-                imported_module.inner_resolve_export(agent, export_name, resolve_set, gc);
-            // d. If resolution is ambiguous, return ambiguous.
-            if matches!(resolution, Some(ResolvedBinding::Ambiguous)) {
-                return resolution;
-            }
-            // e. If resolution is not null, then
-            if let Some(resolution) = resolution {
-                // i. Assert: resolution is a ResolvedBinding Record.
-                let ResolvedBinding::Resolved {
-                    module: resolution_module,
-                    binding_name: resolution_binding_name,
-                } = resolution
-                else {
-                    unreachable!()
-                };
-                debug_assert!(matches!(resolution, ResolvedBinding::Resolved { .. }));
-                // ii. If starResolution is null, then
-                if star_resolution.is_none() {
-                    // 1. Set starResolution to resolution.
-                    star_resolution = Some(resolution);
-                } else {
-                    let Some(ResolvedBinding::Resolved {
-                        module: star_resolution_module,
-                        binding_name: star_resolution_binding_name,
-                    }) = star_resolution
-                    else {
-                        unreachable!()
-                    };
-                    // iii. Else,
-                    // 1. Assert: There is more than one * import that includes
-                    // the requested name.
-                    debug_assert!(module.star_export_entries(agent).len() > 1);
-                    // 2. If resolution.[[Module]] and starResolution.[[Module]]
-                    //    are not the same Module Record, return ambiguous.
-                    if resolution_module != star_resolution_module {
-                        return Some(ResolvedBinding::Ambiguous);
-                    }
-                    // 3. If resolution.[[BindingName]] is not
-                    //    starResolution.[[BindingName]] and either
-                    //    resolution.[[BindingName]] or
-                    //    starResolution.[[BindingName]] is namespace, return
-                    //    ambiguous.
-                    if resolution_binding_name != star_resolution_binding_name
-                        && (resolution_binding_name.is_none()
-                            || star_resolution_binding_name.is_none())
-                    {
-                        return Some(ResolvedBinding::Ambiguous);
-                    }
-                    // 4. If resolution.[[BindingName]] is a String,
-                    //    starResolution.[[BindingName]] is a String, and
-                    //    resolution.[[BindingName]] is not
-                    //    starResolution.[[BindingName]], return ambiguous.
-                    if resolution_binding_name.is_some()
-                        && star_resolution_binding_name.is_some()
-                        && resolution_binding_name != star_resolution_binding_name
-                    {
-                        return Some(ResolvedBinding::Ambiguous);
-                    }
-                }
-            }
-        }
-
-        // 10. Return starResolution.
-        None
     }
 }
 
 impl Scoped<'_, SourceTextModule<'static>> {
     /// Get the requested modules as a slice.
-    pub(super) fn get_requested_modules<'a>(
-        &'a self,
-        agent: &Agent,
-    ) -> &'a [ModuleRequestRecord<'a>] {
-        // SAFETY: Scoped roots the SourceTextModule.
-        unsafe { self.get(agent).get_requested_modules(agent) }
+    pub(super) fn get_requested_modules<'a>(&'a self, agent: &Agent) -> ScopedRequestedModules<'a> {
+        ScopedRequestedModules {
+            // SAFETY: self keeps the SourceTextModule scoped, which means that
+            // the RequestedModules list cannot be dropped. The pointer thus
+            // points to valid memory containing ModuleRequests; the pointer
+            // can be safely dereferenced while GC is not running (during GC a
+            // &mut reference to the list exists).
+            ptr: NonNull::from(unsafe { self.get(agent).get_requested_modules(agent) }),
+        }
+    }
+}
+
+impl<'a> From<Scoped<'a, SourceTextModule<'static>>> for Scoped<'a, AbstractModule<'static>> {
+    fn from(value: Scoped<'a, SourceTextModule<'static>>) -> Self {
+        // SAFETY: Unwrapped root repr is moved into a new Scoped wrapper that
+        // holds the 'scoped lifetime: there is no chance of use-after-free
+        // here. A SourceTextModule is a subtype of AbstractModule, so the root
+        // repr and its backing data is valid for both.
+        Scoped::from_root_repr(unsafe { value.to_root_repr() })
     }
 }
 
@@ -555,11 +459,9 @@ impl Scoped<'_, SourceTextModule<'static>> {
 struct ImportEntryRecord<'a> {
     /// ### \[\[ModuleRequest]]
     ///
-    /// a ModuleRequest Record
-    ///
     /// ModuleRequest Record representing the ModuleSpecifier and import
     /// attributes of the ImportDeclaration.
-    module_request: ModuleRequestRecord<'a>,
+    module_request: ModuleRequest<'a>,
     /// ### \[\[ImportName]]
     ///
     /// The name under which the desired binding is exported by the module
@@ -574,37 +476,6 @@ struct ImportEntryRecord<'a> {
     /// The name that is used to locally access the imported value from within
     /// the importing module.
     local_name: String<'a>,
-}
-
-/// ### \[\[ImportName]]
-///
-/// The name under which the desired binding is exported by the module
-/// identified by \[\[ModuleRequest]]. null if the ExportDeclaration does
-/// not have a ModuleSpecifier. all is used for `export * as ns from "mod"`
-/// declarations. all-but-default is used for `export * from "mod"`
-/// declarations.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-enum ExportEntryImportName<'a> {
-    /// ```javascript
-    /// export * as ns from "mod";
-    /// ```
-    All = 1,
-    /// ```javascript
-    /// export * from "mod";
-    /// ```
-    AllButDefault = 2,
-    String(HeapString<'a>) = STRING_DISCRIMINANT,
-    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-}
-
-impl<'a> From<String<'a>> for ExportEntryImportName<'a> {
-    fn from(value: String<'a>) -> Self {
-        match value {
-            String::String(s) => Self::String(s),
-            String::SmallString(s) => Self::SmallString(s),
-        }
-    }
 }
 
 /// ## [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
@@ -645,7 +516,7 @@ struct LocalExportEntryRecord<'a> {
 /// export { x } from "mod";
 /// export { v as x } from "mod";
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct IndirectExportEntryRecord<'a> {
     /// ### \[\[ExportName]]
     ///
@@ -655,7 +526,7 @@ struct IndirectExportEntryRecord<'a> {
     ///
     /// The ModuleRequest Record representing the ModuleSpecifier and import
     /// attributes of the ExportDeclaration.
-    module_request: ModuleRequestRecord<'a>,
+    module_request: ModuleRequest<'a>,
     /// ### \[\[ImportName]]
     ///
     /// The name under which the desired binding is exported by the module
@@ -685,7 +556,37 @@ impl<'a> From<SourceTextModule<'a>> for ScriptOrModule<'a> {
     }
 }
 
-impl ModuleAbstractMethods for SourceTextModule<'_> {
+impl AbstractModuleSlots for SourceTextModule<'_> {
+    fn environment<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<ModuleEnvironment<'a>> {
+        self.get(agent).abstract_fields.environment().bind(gc)
+    }
+
+    fn set_environment(self, agent: &mut Agent, env: ModuleEnvironment) {
+        self.get_mut(agent).abstract_fields.set_environment(env);
+    }
+
+    fn namespace<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Option<Module<'a>> {
+        self.get(agent).abstract_fields.namespace().bind(gc)
+    }
+
+    fn set_namespace(self, agent: &mut Agent, namespace: Module) {
+        self.get_mut(agent).abstract_fields.set_namespace(namespace);
+    }
+
+    fn realm<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Realm<'a> {
+        self.get(agent).abstract_fields.realm().bind(gc)
+    }
+
+    fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
+        self.get(agent).abstract_fields.host_defined()
+    }
+}
+
+impl AbstractModuleMethods for SourceTextModule<'_> {
     /// ### [16.2.1.6.1.1 LoadRequestedModules ( \[ hostDefined \] )](https://tc39.es/ecma262/#sec-LoadRequestedModules)
     ///
     /// The LoadRequestedModules concrete method of a Cyclic Module Record
@@ -725,7 +626,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         };
         // }.
         // 4. Perform InnerModuleLoading(state, module).
-        inner_module_loading(agent, &mut state, module, gc);
+        inner_module_loading(agent, &mut state, module.into(), gc);
         // 5. Return pc.[[Promise]].
         state.promise_capability.promise()
     }
@@ -780,7 +681,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         for e in module.star_export_entries(agent) {
             // a. Assert: e.[[ModuleRequest]] is not null.
             // b. Let requestedModule be GetImportedModule(module, e.[[ModuleRequest]]).
-            let requested_module = get_imported_module(agent, module, &e, gc);
+            let requested_module = get_imported_module(agent, module, *e, gc);
             // c. Let starNames be requestedModule.GetExportedNames(exportStarSet).
             let start_names = requested_module.get_exported_names(agent, export_start_set, gc);
             // d. For each element n of starNames, do
@@ -831,7 +732,141 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         resolve_set: Option<()>,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ResolvedBinding<'a>> {
-        self.inner_resolve_export(agent, export_name, resolve_set, gc)
+        let module = self.bind(gc);
+        // 1. Assert: module.[[Status]] is not new.
+        debug_assert!(!matches!(
+            module.status(agent),
+            CyclicModuleRecordStatus::New
+        ));
+        // 2. If resolveSet is not present, set resolveSet to a new empty List.
+        // 3. For each Record { [[Module]], [[ExportName]] } r of resolveSet, do
+        //        a. If module and r.[[Module]] are the same Module Record and exportName is r.[[ExportName]], then
+        //               i. Assert: This is a circular import request.
+        //               ii. Return null.
+
+        // 4. Append the Record { [[Module]]: module, [[ExportName]]: exportName } to resolveSet.
+        // 5. For each ExportEntry Record e of module.[[LocalExportEntries]], do
+        for e in module.local_export_entries(agent) {
+            // a. If e.[[ExportName]] is exportName, then
+            if e.export_name == export_name {
+                // i. Assert: module provides the direct binding for this export.
+                // ii. Return ResolvedBinding Record {
+                return Some(ResolvedBinding::Resolved {
+                    // [[Module]]: module,
+                    module: module.into(),
+                    // [[BindingName]]: e.[[LocalName]]
+                    binding_name: Some(e.local_name),
+                });
+                // }.
+            }
+        }
+
+        // 6. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
+        for e in module.indirect_export_entries(agent) {
+            // a. If e.[[ExportName]] is exportName, then
+            if e.export_name == export_name {
+                // i. Assert: e.[[ModuleRequest]] is not null.
+                // ii. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+                let imported_module = get_imported_module(agent, module, e.module_request, gc);
+                // iii. If e.[[ImportName]] is all, then
+                if let Some(import_name) = e.import_name {
+                    // iv. Else,
+                    // 1. Assert: module imports a specific binding for this export.
+                    // 2. Assert: e.[[ImportName]] is a String.
+                    // 3. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+                    return imported_module.resolve_export(agent, import_name, resolve_set, gc);
+                } else {
+                    // 1. Assert: module does not provide the direct binding for this export.
+                    // 2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
+                    return Some(ResolvedBinding::Resolved {
+                        module: imported_module,
+                        binding_name: None,
+                    });
+                }
+            }
+        }
+
+        // 7. If exportName is "default", then
+        if export_name == BUILTIN_STRING_MEMORY.default {
+            // a. Assert: A default export was not explicitly defined by this
+            //    module.
+            // b. Return null.
+            // c. NOTE: A default export cannot be provided by an export * from
+            //    "mod" declaration.
+            return None;
+        }
+
+        // 8. Let starResolution be null.
+        let mut star_resolution = None;
+        // 9. For each ExportEntry Record e of module.[[StarExportEntries]], do
+        for e in module.star_export_entries(agent) {
+            // a. Assert: e.[[ModuleRequest]] is not null.
+            // b. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+            let imported_module = get_imported_module(agent, module, *e, gc);
+            // c. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
+            let resolution = imported_module.resolve_export(agent, export_name, resolve_set, gc);
+            // d. If resolution is ambiguous, return ambiguous.
+            if matches!(resolution, Some(ResolvedBinding::Ambiguous)) {
+                return resolution;
+            }
+            // e. If resolution is not null, then
+            if let Some(resolution) = resolution {
+                // i. Assert: resolution is a ResolvedBinding Record.
+                let ResolvedBinding::Resolved {
+                    module: resolution_module,
+                    binding_name: resolution_binding_name,
+                } = resolution
+                else {
+                    unreachable!()
+                };
+                // ii. If starResolution is null, then
+                if star_resolution.is_none() {
+                    // 1. Set starResolution to resolution.
+                    star_resolution = Some(resolution);
+                } else {
+                    let Some(ResolvedBinding::Resolved {
+                        module: star_resolution_module,
+                        binding_name: star_resolution_binding_name,
+                    }) = star_resolution
+                    else {
+                        unreachable!()
+                    };
+                    // iii. Else,
+                    // 1. Assert: There is more than one * import that includes
+                    // the requested name.
+                    debug_assert!(module.star_export_entries(agent).len() > 1);
+                    // 2. If resolution.[[Module]] and starResolution.[[Module]]
+                    //    are not the same Module Record, return ambiguous.
+                    if resolution_module != star_resolution_module {
+                        return Some(ResolvedBinding::Ambiguous);
+                    }
+                    // 3. If resolution.[[BindingName]] is not
+                    //    starResolution.[[BindingName]] and either
+                    //    resolution.[[BindingName]] or
+                    //    starResolution.[[BindingName]] is namespace, return
+                    //    ambiguous.
+                    if resolution_binding_name != star_resolution_binding_name
+                        && (resolution_binding_name.is_none()
+                            || star_resolution_binding_name.is_none())
+                    {
+                        return Some(ResolvedBinding::Ambiguous);
+                    }
+                    // 4. If resolution.[[BindingName]] is a String,
+                    //    starResolution.[[BindingName]] is a String, and
+                    //    resolution.[[BindingName]] is not
+                    //    starResolution.[[BindingName]], return ambiguous.
+                    if resolution_binding_name.is_some()
+                        && star_resolution_binding_name.is_some()
+                        && resolution_binding_name != star_resolution_binding_name
+                    {
+                        return Some(ResolvedBinding::Ambiguous);
+                    }
+                }
+            }
+        }
+
+        // 10. Return starResolution.
+        None
     }
 
     /// ### [16.2.1.6.1.2 Link ( )](https://tc39.es/ecma262/#sec-moduledeclarationlinking)
@@ -855,7 +890,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         // 2. Let stack be a new empty List.
         let mut stack = Vec::with_capacity(8);
         // 3. Let result be Completion(InnerModuleLinking(module, stack, 0)).
-        let result = inner_module_linking(agent, module, &mut stack, 0, gc);
+        let result = inner_module_linking(agent, module.into(), &mut stack, 0, gc);
         // 4. If result is an abrupt completion, then
         if let Err(result) = result {
             // a. For each Cyclic Module Record m of stack, do
@@ -865,7 +900,7 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
             // b. Assert: module.[[Status]] is unlinked.
             debug_assert!(matches!(
                 module.status(agent),
-                CyclicModuleRecordStatus::Linking
+                CyclicModuleRecordStatus::Unlinked
             ));
             // c. Return ? result.
             return Err(result);
@@ -926,10 +961,15 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
         // 7. Set module.[[TopLevelCapability]] to capability.
         // 8. Let result be Completion(InnerModuleEvaluation(module, stack, 0)).
         let scoped_module = module.scope(agent, gc.nogc());
-        let result =
-            inner_module_evaluation(agent, scoped_module.clone(), &mut stack, 0, gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
+        let result = inner_module_evaluation(
+            agent,
+            scoped_module.clone().into(),
+            &mut stack,
+            0,
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
         let module = scoped_module.get(agent).bind(gc.nogc());
         // 9. If result is an abrupt completion, then
         if let Err(result) = result {
@@ -984,7 +1024,13 @@ impl ModuleAbstractMethods for SourceTextModule<'_> {
     }
 }
 
-impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
+impl CyclicModuleSlots for SourceTextModule<'_> {
+    fn status(self, agent: &Agent) -> CyclicModuleRecordStatus {
+        self.get(agent).cyclic_fields.status()
+    }
+}
+
+impl CyclicModuleMethods for SourceTextModule<'_> {
     /// ### [16.2.1.7.3.1 InitializeEnvironment ( )](https://tc39.es/ecma262/#sec-source-text-module-record-initialize-environment)
     ///
     /// The InitializeEnvironment concrete method of a Source Text Module
@@ -1010,11 +1056,12 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
                 ));
             }
             // d. Assert: resolution is a ResolvedBinding Record.
+            debug_assert!(matches!(resolution, Some(ResolvedBinding::Resolved { .. })));
         }
         // 2. Assert: All named exports from module are resolvable.
         // 3. Let realm be module.[[Realm]].
         // 4. Assert: realm is not undefined.
-        let realm = module.realm(agent);
+        let realm = module.realm(agent, gc);
         // 5. Let env be NewModuleEnvironment(realm.[[GlobalEnv]]).
         let global_env = realm.global_env(agent, gc).unwrap();
         let env = new_module_environment(agent, Some(global_env.into()), gc);
@@ -1023,17 +1070,20 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
         // 7. For each ImportEntry Record in of module.[[ImportEntries]], do
         for r#in in module.import_entries(agent) {
             // a. Let importedModule be GetImportedModule(module, in.[[ModuleRequest]]).
-            let imported_modules = get_imported_module(agent, module, &r#in.module_request, gc);
+            let imported_module = get_imported_module(agent, module, r#in.module_request, gc);
             // b. If in.[[ImportName]] is namespace-object, then
             let Some(import_name) = r#in.import_name else {
                 // i. Let namespace be GetModuleNamespace(importedModule).
+                let namespace = get_module_namespace(agent, imported_module, gc);
                 // ii. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
+                env.create_immutable_binding(agent, r#in.local_name);
                 // iii. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                todo!();
+                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                continue;
             };
             // c. Else,
             // i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
-            let resolution = imported_modules.inner_resolve_export(agent, import_name, None, gc);
+            let resolution = imported_module.resolve_export(agent, import_name, None, gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
                 module,
@@ -1058,7 +1108,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             };
             // iv. Else,
             // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-            create_import_binding(agent, env, r#in.local_name, module, binding_name);
+            create_import_binding(agent, env, r#in.local_name, module, binding_name, gc);
         }
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
@@ -1212,16 +1262,13 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
     fn bind_environment(self, agent: &mut Agent, gc: NoGcScope) {
         let module = self.bind(gc);
         let env = module
-            .environment(agent)
+            .environment(agent, gc)
             .expect("Attempted to bind environment of unlinked module");
-        let envs = &mut agent.heap.environments;
-        let source_text_modules = &agent.heap.source_text_module_records;
-        for r#in in module.import_entries(source_text_modules) {
+        for r#in in module.import_entries(agent) {
             // NOTE: Spec-text from InitializeEnvironment to contrast with what
             // we're doing here.
             // a. Let importedModule be GetImportedModule(module, in.[[ModuleRequest]]).
-            let imported_modules =
-                get_imported_module(source_text_modules, module, &r#in.module_request, gc);
+            let imported_modules = get_imported_module(agent, module, r#in.module_request, gc);
             // b. If in.[[ImportName]] is namespace-object, then
             let Some(import_name) = r#in.import_name else {
                 // i. Let namespace be GetModuleNamespace(importedModule).
@@ -1231,8 +1278,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             };
             // c. Else,
             // i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
-            let resolution =
-                imported_modules.inner_resolve_export(source_text_modules, import_name, None, gc);
+            let resolution = imported_modules.resolve_export(agent, import_name, None, gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
                 module,
@@ -1251,14 +1297,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             };
             // iv. Else,
             // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-            initialize_import_binding(
-                envs,
-                source_text_modules,
-                env,
-                r#in.local_name,
-                module,
-                binding_name,
-            );
+            initialize_import_binding(agent, env, r#in.local_name, module, binding_name, gc);
         }
     }
 
@@ -1280,7 +1319,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
         // 5. Assert: module has been linked and declarations in its module
         //    environment have been instantiated.
         let environment = module
-            .environment(agent)
+            .environment(agent, gc.nogc())
             .expect("Attempted to execute unlinked module");
         let source_code = module.source_code(agent);
         let module_context = ExecutionContext {
@@ -1298,7 +1337,7 @@ impl CyclicModuleAbstractMethods for SourceTextModule<'_> {
             // 2. Set the Function of moduleContext to null.
             function: None,
             // 3. Set the Realm of moduleContext to module.[[Realm]].
-            realm: module.realm(agent).unbind(),
+            realm: module.realm(agent, gc.nogc()).unbind(),
             // 4. Set the ScriptOrModule of moduleContext to module.
             script_or_module: Some(module.unbind().into()),
         };
@@ -1385,9 +1424,8 @@ pub fn parse_module<'a>(
                 if ee.import_kind.is_type() {
                     continue;
                 }
-                let module_request = ModuleRequestRecord::new(ee.source.value.as_str())
-                    .unbind()
-                    .bind(gc);
+                let module_request =
+                    ModuleRequest::new(agent, &ee.source.value, ee.with_clause.as_deref(), gc);
                 requested_modules.push(module_request);
                 let Some(specifiers) = &ee.specifiers else {
                     continue;
@@ -1574,7 +1612,9 @@ pub fn parse_module<'a>(
                     // export { a, b as c } from "source";
                     //  ExportSpecifier : ModuleExportName
                     //  ExportSpecifier : ModuleExportName as ModuleExportName
-                    let module_request = ModuleRequestRecord::new(&source.value);
+                    let module_request =
+                        ModuleRequest::new(agent, &source.value, ee.with_clause.as_deref(), gc);
+                    requested_modules.push(module_request);
                     debug_assert!(ee.declaration.is_none());
                     for entry in ee.specifiers.iter() {
                         // 1. Let sourceName be the StringValue of the first ModuleExportName.
@@ -1661,16 +1701,22 @@ pub fn parse_module<'a>(
                     // c. Else,
                     // i. Append ee to indirectExportEntries.
                     // export * as ns from "foo";
+                    let module_request =
+                        ModuleRequest::new(agent, &ee.source.value, ee.with_clause.as_deref(), gc);
+                    requested_modules.push(module_request);
                     indirect_export_entries.push(IndirectExportEntryRecord {
                         export_name: String::from_str(agent, exported.name().as_str(), gc),
-                        module_request: ModuleRequestRecord::new(&ee.source.value),
+                        module_request,
                         import_name: None,
                     });
                 } else {
                     // b. Else if ee.[[ImportName]] is all-but-default, then
                     // i. Assert: ee.[[ExportName]] is null.
                     // ii. Append ee to starExportEntries.
-                    star_export_entries.push(ModuleRequestRecord::new(&ee.source.value));
+                    let module_request =
+                        ModuleRequest::new(agent, &ee.source.value, ee.with_clause.as_deref(), gc);
+                    requested_modules.push(module_request);
+                    star_export_entries.push(module_request);
                 }
             }
             ast::ModuleDeclaration::ImportDeclaration(_) => {}
@@ -1678,12 +1724,6 @@ pub fn parse_module<'a>(
             | ast::ModuleDeclaration::TSNamespaceExportDeclaration(_) => unreachable!(),
         }
     }
-
-    // SAFETY: The module requests refer to the string data of the module,
-    // which lives at least as long as the SourceTextModuleRecord lives. Hence
-    // we can (in an sketchy way) assert that their lifetime is "gc".
-    let star_export_entries = star_export_entries.into_boxed_slice().unbind().bind(gc);
-    let indirect_export_entries = indirect_export_entries.into_boxed_slice().unbind().bind(gc);
 
     // 11. Let async be body Contains await.
     let r#async = false;
@@ -1718,9 +1758,9 @@ pub fn parse_module<'a>(
         // [[LocalExportEntries]]: localExportEntries,
         local_export_entries: local_export_entries.into_boxed_slice(),
         // [[IndirectExportEntries]]: indirectExportEntries,
-        indirect_export_entries,
+        indirect_export_entries: indirect_export_entries.into_boxed_slice(),
         // [[StarExportEntries]]: starExportEntries,
-        star_export_entries,
+        star_export_entries: star_export_entries.into_boxed_slice(),
 
         source_code,
     }))
@@ -1813,7 +1853,7 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
             import_entries,
             local_export_entries,
             indirect_export_entries,
-            star_export_entries,
+            star_export_entries: _,
             source_code,
         } = self;
         abstract_fields.mark_values(queues);
@@ -1823,7 +1863,6 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
         import_entries.mark_values(queues);
         local_export_entries.mark_values(queues);
         indirect_export_entries.mark_values(queues);
-        star_export_entries.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -1836,7 +1875,7 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
             import_entries,
             local_export_entries,
             indirect_export_entries,
-            star_export_entries,
+            star_export_entries: _,
             source_code,
         } = self;
         abstract_fields.sweep_values(compactions);
@@ -1846,29 +1885,26 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
         import_entries.sweep_values(compactions);
         local_export_entries.sweep_values(compactions);
         indirect_export_entries.sweep_values(compactions);
-        star_export_entries.sweep_values(compactions);
     }
 }
 
 impl HeapMarkAndSweep for ImportEntryRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
-            module_request,
+            module_request: _,
             import_name,
             local_name,
         } = self;
-        module_request.mark_values(queues);
         import_name.mark_values(queues);
         local_name.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
-            module_request,
+            module_request: _,
             import_name,
             local_name,
         } = self;
-        module_request.sweep_values(compactions);
         import_name.sweep_values(compactions);
         local_name.sweep_values(compactions);
     }
@@ -1898,39 +1934,53 @@ impl HeapMarkAndSweep for IndirectExportEntryRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             export_name,
-            module_request,
+            module_request: _,
             import_name,
         } = self;
         export_name.mark_values(queues);
-        module_request.mark_values(queues);
         import_name.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             export_name,
-            module_request,
+            module_request: _,
             import_name,
         } = self;
         export_name.sweep_values(compactions);
-        module_request.sweep_values(compactions);
         import_name.sweep_values(compactions);
     }
 }
 
 impl HeapMarkAndSweep for ModuleRequestRecord<'static> {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
-            specifier: _,
-            attributes: _,
+            specifier,
+            attributes,
+            hash: _,
         } = self;
+        specifier.mark_values(queues);
+        if let Some(attributes) = attributes {
+            for attr in attributes {
+                attr.key.mark_values(queues);
+                attr.value.mark_values(queues);
+            }
+        }
     }
 
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
-            specifier: _,
-            attributes: _,
+            specifier,
+            attributes,
+            hash: _,
         } = self;
+        specifier.sweep_values(compactions);
+        if let Some(attributes) = attributes {
+            for attr in attributes {
+                attr.key.sweep_values(compactions);
+                attr.value.sweep_values(compactions);
+            }
+        }
     }
 }
 
