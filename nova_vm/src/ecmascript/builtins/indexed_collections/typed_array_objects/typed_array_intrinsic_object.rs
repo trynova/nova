@@ -10,8 +10,8 @@ use crate::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
             operations_on_objects::{
-                call_function, get, get_method, length_of_array_like, set, throw_not_callable,
-                try_get, try_set,
+                call_function, get, get_method, invoke, length_of_array_like, set,
+                throw_not_callable, try_get, try_set,
             },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
@@ -2060,13 +2060,81 @@ impl TypedArrayPrototype {
         res.map(|v| v.into_value())
     }
 
+    /// ### [23.2.3.31 %TypedArray%.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.tolocalestring)
+    /// This is a distinct method that implements the same algorithm as Array.prototype.toLocaleString
+    /// as defined in 23.1.3.32 except that TypedArrayLength is called in place of performing a
+    /// [[Get]] of "length". The implementation of the algorithm may be optimized with the knowledge
+    /// that the this value has a fixed length when the underlying buffer is not resizable and whose
+    /// integer-indexed properties are not sparse. However, such optimization must not introduce any
+    /// observable changes in the specified behaviour of the algorithm. This method is not generic.
+    /// ValidateTypedArray is called with the this value and seq-cst as arguments prior to evaluating
+    /// the algorithm. If its result is an abrupt completion that exception is thrown instead of
+    /// evaluating the algorithm.
+    ///
+    /// > #### Note
+    /// > If the ECMAScript implementation includes the ECMA-402 Internationalization API this method is
+    /// > based upon the algorithm for Array.prototype.toLocaleString that is in the ECMA-402 specification.
     fn to_locale_string<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("TypedArray.prototype.toLocaleString", gc.into_nogc()))
+        // 1. Let array be ? ToObject(this value).
+        let ta_record = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let o = ta_record.object;
+        let o = o.scope(agent, gc.nogc());
+        // 2. Let len be ? LengthOfArrayLike(array).
+        let len = with_typed_array_viewable!(
+            o.get(agent),
+            typed_array_length::<T>(agent, &ta_record, gc.nogc())
+        ) as i64;
+        // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
+        let separator = ", ";
+        // 4. Let R be the empty String.
+        let mut r = std::string::String::new();
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Repeat, while k < len,
+        while k < len {
+            // a. If k > 0, set R to the string-concatenation of R and separator.
+            if k > 0 {
+                r.push_str(separator);
+            };
+            // b. Let element be ? Get(array, ! ToString(𝔽(k))).
+            let element = get(
+                agent,
+                o.get(agent),
+                PropertyKey::Integer(k.try_into().unwrap()),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // c. If element is neither undefined nor null, then
+            if !element.is_undefined() && !element.is_null() {
+                //  i. Let S be ? ToString(? Invoke(element, "toLocaleString")).
+                let argument = invoke(
+                    agent,
+                    element.unbind(),
+                    BUILTIN_STRING_MEMORY.toLocaleString.into(),
+                    None,
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let s = to_string(agent, argument.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                //  ii. Set R to the string-concatenation of R and S.
+                r.push_str(s.as_str(agent));
+            };
+            // d. Set k to k + 1.
+            k += 1;
+        }
+        // 7. Return R.
+        Ok(Value::from_string(agent, r, gc.into_nogc()))
     }
 
     /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tospliced)
