@@ -26,7 +26,9 @@ use crate::{
         builtins::{
             ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor,
-            array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
+            array_buffer::{
+                Ordering, get_value_from_buffer, is_detached_buffer, set_value_in_buffer,
+            },
             indexed_collections::array_objects::{
                 array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind},
                 array_prototype::find_via_predicate,
@@ -38,8 +40,8 @@ use crate::{
             agent::{ExceptionType, JsError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoNumeric, IntoObject, IntoValue, Number, Object,
-            PropertyKey, String, U8Clamped, Value, Viewable,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoNumeric, IntoObject, IntoValue,
+            Number, Object, PropertyKey, String, U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -3388,7 +3390,7 @@ fn subarray_typed_array<'a, T: Viewable>(
     )
 }
 
-fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
+fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     start: Value,
@@ -3402,7 +3404,7 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
     let o = o.scope(agent, gc.nogc());
     let end = end.scope(agent, gc.nogc());
     // 3. Let srcArrayLength be TypedArrayLength(taRecord).
-    let src_array_length = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let src_array_length = typed_array_length::<SrcType>(agent, &ta_record, gc.nogc()) as i64;
     // 4. Let relativeStart be ? ToIntegerOrInfinity(start).
     let relative_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())
         .unbind()?
@@ -3437,50 +3439,48 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
         }
     };
     // 12. Let countBytes be max(endIndex - startIndex, 0).
-    let count_bytes = (end_index - start_index).max(0);
+    let count_bytes = (end_index - start_index).max(0) as usize;
     // 13. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(countBytes) »).
-    let a = typed_array_species_create_with_length::<T>(
+    let a = typed_array_species_create_with_length::<SrcType>(
         agent,
         o.get(agent),
-        count_bytes,
+        count_bytes as i64,
         gc.reborrow(),
     )
-    .unbind()?
-    .bind(gc.nogc());
+    .unbind()?;
+    let gc = gc.into_nogc();
+    let a = a.bind(gc);
     // 14. If countBytes > 0, then
     if count_bytes == 0 {
-        return Ok(a.unbind());
+        // 15. Return A.
+        return Ok(a);
     };
-    let ta_record = make_typed_array_with_buffer_witness_record(
-        agent,
-        o.get(agent),
-        Ordering::SeqCst,
-        gc.nogc(),
-    );
+    // SAFETY: o is not shared.
+    let o = unsafe { o.take(agent) }.bind(gc);
     // a. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
     // b. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc.nogc()) {
+    if is_typed_array_out_of_bounds::<SrcType>(agent, &ta_record, gc) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray out of bounds",
-            gc.into_nogc(),
+            gc,
         ));
     };
+    // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
+    let end_index =
+        end_index.min(typed_array_length::<SrcType>(agent, &ta_record, gc) as i64) as usize;
     with_typed_array_viewable!(
         a,
         {
             let start_index = start_index as usize;
-            // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
-            let end_index = end_index
-                .min(typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64)
-                as usize;
-            // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
             // d. Set countBytes to max(endIndex - startIndex, 0).
             // e. Let srcType be TypedArrayElementType(O).
             // f. Let targetType be TypedArrayElementType(A).
             // g. If srcType is targetType, then
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<V>() {
-                // i. NOTE: The transfer must be performed in a manner that preserves the bit-level encoding of the source data.
+            if core::any::TypeId::of::<SrcType>() == core::any::TypeId::of::<TargetType>() {
+                // i. NOTE: The transfer must be performed in a manner that
+                //    preserves the bit-level encoding of the source data.
                 // ii. Let srcBuffer be O.[[ViewedArrayBuffer]].
                 // iii. Let targetBuffer be A.[[ViewedArrayBuffer]].
                 // iv. Let elementSize be TypedArrayElementSize(O).
@@ -3493,17 +3493,23 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
                 //  2. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
                 //  3. Set srcByteIndex to srcByteIndex + 1.
                 //  4. Set targetByteIndex to targetByteIndex + 1.
-                let (a_slice, o_slice) =
-                    split_typed_array_views::<T>(agent, a, o.get(agent), gc.nogc());
-                if a_slice.len() > o_slice.len() || end_index + 1 > o_slice.len() {
-                    let src_slice = &o_slice[start_index..o_slice.len()];
+                let a_buf = a.get_viewed_array_buffer(agent, gc);
+                let o_buf = o.get_viewed_array_buffer(agent, gc);
+                if a_buf == o_buf {
+                    slice_typed_array_same_buffer_same_type::<SrcType>(
+                        agent,
+                        a,
+                        o,
+                        start_index,
+                        count_bytes,
+                        gc,
+                    );
+                } else {
+                    let (a_slice, o_slice) = split_typed_array_views::<SrcType>(agent, a, o, gc);
+                    let end_index = end_index.min(o_slice.len());
+                    let src_slice = &o_slice[start_index..end_index];
                     let dst_slice = &mut a_slice[..src_slice.len()];
                     dst_slice.copy_from_slice(src_slice);
-                } else {
-                    let a_slice_len = a_slice.len();
-                    let a_slice = &mut a_slice[..a_slice_len];
-                    let o_slice = &o_slice[start_index..end_index];
-                    a_slice.copy_from_slice(o_slice);
                 }
             } else {
                 // h. Else,
@@ -3515,30 +3521,117 @@ fn slice_typed_array<'a, T: Viewable + std::fmt::Debug>(
                 //      3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
                 //      4. Set k to k + 1.
                 //      5. Set n to n + 1.
-                let gc = gc.nogc();
-                let o = o.get(agent);
                 let a_buf = a.get_viewed_array_buffer(agent, gc);
                 let o_buf = o.get_viewed_array_buffer(agent, gc);
-                let a_buf = a_buf.as_slice(agent);
-                let o_buf = o_buf.as_slice(agent);
-                if !a_buf.is_empty() || !o_buf.is_empty() {
-                    assert!(
-                        !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
-                        "Must not point to the same buffer"
+                if a_buf == o_buf {
+                    slice_typed_array_same_buffer_different_type(
+                        agent,
+                        a,
+                        o,
+                        start_index,
+                        end_index,
+                        gc,
                     );
+                } else {
+                    let a_slice = viewable_slice_mut::<TargetType>(agent, a, gc);
+                    let a_ptr = a_slice.as_mut_ptr();
+                    let a_len = a_slice.len();
+                    let o_aligned = viewable_slice::<SrcType>(agent, o, gc);
+                    // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+                    let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
+                    let src_slice = &o_aligned[start_index..end_index];
+                    let dst_slice = &mut a_aligned[..src_slice.len()];
+                    copy_between_different_type_typed_arrays::<SrcType, TargetType>(
+                        src_slice, dst_slice,
+                    )
                 }
-                let a_slice = viewable_slice_mut::<V>(agent, a, gc);
-                let a_ptr = a_slice.as_mut_ptr();
-                let a_len = a_slice.len();
-                let o_aligned = viewable_slice::<T>(agent, o, gc);
-                // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
-                let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
-                let src_slice = &o_aligned[start_index..end_index];
-                let dst_slice = &mut a_aligned[..src_slice.len()];
-                copy_between_different_type_typed_arrays::<T, V>(src_slice, dst_slice)
             }
         },
-        V
+        TargetType
     );
     Ok(a.unbind())
+}
+
+fn slice_typed_array_same_buffer_same_type<T: Viewable>(
+    agent: &mut Agent,
+    a: TypedArray,
+    o: TypedArray,
+    start_index: usize,
+    count_bytes: usize,
+    gc: NoGcScope,
+) {
+    // i. NOTE: The transfer must be performed in a manner that
+    //    preserves the bit-level encoding of the source data.
+    // ii. Let srcBuffer be O.[[ViewedArrayBuffer]].
+    // iii. Let targetBuffer be A.[[ViewedArrayBuffer]].
+    let buffer = a.get_viewed_array_buffer(agent, gc);
+    // iv. Let elementSize be TypedArrayElementSize(O).
+    let element_size = core::mem::size_of::<T>();
+    // v. Let srcByteOffset be O.[[ByteOffset]].
+    let src_byte_offset = o.byte_offset(agent);
+    // vi. Let srcByteIndex be (startIndex × elementSize) + srcByteOffset.
+    let mut src_byte_index = (start_index * element_size) + src_byte_offset;
+    // vii. Let targetByteIndex be A.[[ByteOffset]].
+    let mut target_byte_index = a.byte_offset(agent);
+    // viii. Let endByteIndex be targetByteIndex + (countBytes × elementSize).
+    let end_byte_index = target_byte_index + (count_bytes * element_size);
+    // ix. Repeat, while targetByteIndex < endByteIndex,
+    while target_byte_index < end_byte_index {
+        //  1. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
+        let value = get_value_from_buffer::<u8>(
+            agent,
+            buffer,
+            src_byte_index,
+            true,
+            Ordering::Unordered,
+            None,
+            gc,
+        );
+        //  2. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
+        set_value_in_buffer::<u8>(
+            agent,
+            buffer,
+            target_byte_index,
+            value,
+            true,
+            Ordering::Unordered,
+            None,
+        );
+        //  3. Set srcByteIndex to srcByteIndex + 1.
+        src_byte_index += 1;
+        //  4. Set targetByteIndex to targetByteIndex + 1.
+        target_byte_index += 1;
+    }
+}
+
+fn slice_typed_array_same_buffer_different_type(
+    agent: &mut Agent,
+    a: TypedArray,
+    o: TypedArray,
+    start_index: usize,
+    end_index: usize,
+    gc: NoGcScope,
+) {
+    // i. Let n be 0.
+    let mut n: usize = 0;
+    // ii. Let k be startIndex.
+    let mut k = start_index;
+    // iii. Repeat, while k < endIndex,
+    while k < end_index {
+        // 1. Let Pk be ! ToString(𝔽(k)).
+        // 2. Let kValue be ! Get(O, Pk).
+        let k_value = unwrap_try(o.try_get(agent, k.try_into().unwrap(), o.into_value(), gc));
+        // 3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
+        debug_assert!(unwrap_try(a.try_set(
+            agent,
+            n.try_into().unwrap(),
+            k_value,
+            a.into_value(),
+            gc
+        )));
+        // 4. Set k to k + 1.
+        k += 1;
+        // 5. Set n to n + 1.
+        n += 1;
+    }
 }
