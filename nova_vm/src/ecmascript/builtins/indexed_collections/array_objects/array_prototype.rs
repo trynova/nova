@@ -3511,9 +3511,7 @@ impl ArrayPrototype {
             .bind(gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(array).
         let array = array.scope(agent, gc.nogc());
-        let len = length_of_array_like(agent, array.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let len = length_of_array_like(agent, array.get(agent), gc.reborrow()).unbind()?;
         // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
         let separator = ", ";
         // 4. Let R be the empty String.
@@ -3533,20 +3531,23 @@ impl ArrayPrototype {
                 PropertyKey::Integer(k.try_into().unwrap()),
                 gc.reborrow(),
             )
-            .unbind()?;
+            .unbind()?
+            .bind(gc.nogc());
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 //  i. Let S be ? ToString(? Invoke(element, "toLocaleString")).
                 let argument = invoke(
                     agent,
-                    element,
+                    element.unbind(),
                     BUILTIN_STRING_MEMORY.toLocaleString.into(),
                     None,
                     gc.reborrow(),
                 )
                 .unbind()?
                 .bind(gc.nogc());
-                let s = to_string(agent, argument.unbind(), gc.reborrow()).unbind()?;
+                let s = to_string(agent, argument.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             };
