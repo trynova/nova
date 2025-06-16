@@ -383,7 +383,6 @@ impl BaseTest262Runner {
 struct Test262Runner {
     inner: BaseTest262Runner,
     expectations: HashMap<PathBuf, TestExpectation>,
-    treat_crashes_as_failures: bool,
 }
 
 #[derive(Debug, Default)]
@@ -503,15 +502,6 @@ impl Test262Runner {
             .unwrap_or(TestExpectation::Pass);
 
         if test_result != expectation {
-            // If we're treating crashes as failures, ignore any mismatch where
-            // one side is a crash and the other a fail.
-            if self.treat_crashes_as_failures
-                && matches!(test_result, TestExpectation::Fail | TestExpectation::Crash)
-                && matches!(expectation, TestExpectation::Fail | TestExpectation::Crash)
-            {
-                return;
-            }
-
             // In Windows, `relpath` will likely contain backwards slashes,
             // which shouldn't end up in the JSON output, because they will
             // not match in Unix systems. So we replace them with forward
@@ -805,16 +795,6 @@ struct RunTestsArgs {
     )]
     update_metrics: bool,
 
-    /// If true, crashes and failures are not distinguished as test
-    /// expectations, i.e. if a test should crash in the expectation file but it
-    /// fails instead, that is not counted as a test failure. True by default.
-    #[arg(
-        long = "dont-treat-crashes-as-failures",
-        action = clap::ArgAction::SetFalse,
-        help = "Don't treat failures as valid for crash test expectations and vice versa"
-    )]
-    treat_crashes_as_failures: bool,
-
     #[arg(short, long)]
     /// Don't print progress messages
     noprogress: bool,
@@ -984,7 +964,6 @@ fn run_tests(mut base_runner: BaseTest262Runner, args: RunTestsArgs) {
 
     let runner = Test262Runner {
         inner: base_runner,
-        treat_crashes_as_failures: args.treat_crashes_as_failures,
         expectations,
     };
     let run_result = if filters_are_valid {
