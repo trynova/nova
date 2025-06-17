@@ -6,20 +6,26 @@ mod intrinsics;
 
 use super::new_global_environment;
 use super::{Agent, ExecutionContext, JsResult, environments::GlobalEnvironment};
-use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
+use crate::ecmascript::scripts_and_modules::module::module_semantics::ModuleRequest;
+use crate::ecmascript::scripts_and_modules::script::HostDefined;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
+        scripts_and_modules::module::module_semantics::{
+            LoadedModules, abstract_module_records::AbstractModule,
+        },
         types::{
             BUILTIN_STRING_MEMORY, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, Value,
         },
     },
+    engine::{
+        context::{Bindable, GcScope, GcToken, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use core::{
-    any::Any,
     marker::PhantomData,
     num::NonZeroU32,
     ops::{Index, IndexMut},
@@ -74,6 +80,24 @@ impl Realm<'_> {
         self.0.get() - 1
     }
 
+    /// ### \[\[\HostDefined]]
+    pub fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
+        agent[self].host_defined.clone()
+    }
+
+    /// Initialize the \[\[HostDefined]] field to a value.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the \[\[HostDefined]] field is non-empty.
+    pub fn initialize_host_defined(self, agent: &mut Agent, host_defined: HostDefined) {
+        assert!(
+            agent[self].host_defined.is_none(),
+            "Attempted to replace Realm's [[HostDefined]] slot data."
+        );
+        agent[self].host_defined.replace(host_defined);
+    }
+
     /// ### \[\[GlobalObject]]
     pub fn global_object(self, agent: &mut Agent) -> Object {
         agent[self].global_object
@@ -86,6 +110,18 @@ impl Realm<'_> {
         gc: NoGcScope<'gc, '_>,
     ) -> Option<GlobalEnvironment<'gc>> {
         agent[self].global_env.bind(gc)
+    }
+
+    pub(crate) fn insert_loaded_module<'gc>(
+        self,
+        agent: &mut Agent,
+        request: ModuleRequest<'gc>,
+        module: AbstractModule<'gc>,
+    ) {
+        let requests = &agent.heap.module_request_records;
+        agent.heap.realms[self]
+            .loaded_modules
+            .insert_loaded_module(requests, request, module);
     }
 }
 
@@ -214,14 +250,13 @@ pub struct RealmRecord<'a> {
     /// A map from the specifier strings imported by this realm to the resolved
     /// Module Record. The list does not contain two different Records with the
     /// same \[\[Specifier]].
-    // TODO: Include this once we support modules.
-    loaded_modules: (),
+    loaded_modules: LoadedModules<'a>,
 
     /// ### \[\[HostDefined]]
     ///
     /// Field reserved for use by hosts that need to associate additional
     /// information with a Realm Record.
-    pub(crate) host_defined: Option<&'static dyn Any>,
+    pub(crate) host_defined: Option<HostDefined>,
 }
 
 unsafe impl Send for RealmRecord<'_> {}
@@ -259,12 +294,13 @@ impl HeapMarkAndSweep for RealmRecord<'static> {
             global_object,
             global_env,
             template_map: _,
-            loaded_modules: _,
+            loaded_modules,
             host_defined: _,
         } = self;
         intrinsics.mark_values(queues);
         global_env.mark_values(queues);
         global_object.mark_values(queues);
+        loaded_modules.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -274,12 +310,13 @@ impl HeapMarkAndSweep for RealmRecord<'static> {
             global_object,
             global_env,
             template_map: _,
-            loaded_modules: _,
+            loaded_modules,
             host_defined: _,
         } = self;
         intrinsics.sweep_values(compactions);
         global_env.sweep_values(compactions);
         global_object.sweep_values(compactions);
+        loaded_modules.sweep_values(compactions);
     }
 }
 
@@ -307,7 +344,7 @@ pub(crate) fn create_realm<'gc>(agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Re
 
         // NOTE: These fields are implicitly empty.
         host_defined: None,
-        loaded_modules: (),
+        loaded_modules: Default::default(),
     };
 
     // 7. Return realmRec.

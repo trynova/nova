@@ -52,13 +52,13 @@ pub(crate) use private_environment::{
     resolve_private_identifier,
 };
 
-use crate::ecmascript::types::IntoValue;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, GcToken, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
-use crate::heap::Heap;
 use crate::{
-    ecmascript::types::{Base, Object, Reference, String, Value},
+    ecmascript::types::{Base, IntoValue, Object, Reference, String, Value},
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, GcToken, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -405,7 +405,7 @@ impl Environment<'_> {
             Environment::Global(e) => e.create_immutable_binding(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                e.create_immutable_binding(agent.as_mut(), name);
+                e.create_immutable_binding(agent, name);
                 Ok(())
             }
             Environment::Object(e) => {
@@ -439,7 +439,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent.as_mut(), name, value);
+                e.initialize_binding(agent, name, value);
                 TryResult::Continue(Ok(()))
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, value, gc),
@@ -470,7 +470,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.initialize_binding(agent, name, value, gc),
             Environment::Module(e) => {
-                e.initialize_binding(agent.as_mut(), name, value);
+                e.initialize_binding(agent, name, value);
                 Ok(())
             }
             Environment::Object(e) => e.initialize_binding(agent, name, value, gc),
@@ -561,18 +561,7 @@ impl Environment<'_> {
             }
             Environment::Global(e) => e.try_get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
-                let Heap {
-                    environments,
-                    source_text_module_records,
-                    ..
-                } = &agent.heap;
-                let Some(value) = e.get_binding_value(
-                    environments,
-                    source_text_module_records,
-                    name,
-                    is_strict,
-                    gc,
-                ) else {
+                let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
                     return TryResult::Continue(Err(throw_uninitialized_binding(agent, name, gc)));
                 };
                 TryResult::Continue(Ok(value))
@@ -605,18 +594,7 @@ impl Environment<'_> {
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 let gc = gc.into_nogc();
-                let Heap {
-                    environments,
-                    source_text_module_records,
-                    ..
-                } = &agent.heap;
-                let Some(value) = e.get_binding_value(
-                    environments,
-                    source_text_module_records,
-                    name,
-                    is_strict,
-                    gc,
-                ) else {
+                let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
                     return Err(throw_uninitialized_binding(agent, name, gc));
                 };
                 Ok(value)

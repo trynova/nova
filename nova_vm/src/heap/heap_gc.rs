@@ -64,7 +64,10 @@ use crate::{
             ModuleEnvironment, ObjectEnvironment, Realm,
         },
         scripts_and_modules::{
-            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+            module::module_semantics::{
+                ModuleRequest, source_text_module_records::SourceTextModule,
+            },
+            script::Script,
             source_code::SourceCode,
         },
         types::{
@@ -143,6 +146,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             maps,
             map_iterators,
             modules,
+            module_request_records,
             numbers,
             objects,
             primitive_objects,
@@ -665,6 +669,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 map_iterators.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut module_request_record_marks: Box<[ModuleRequest]> =
+            queues.module_request_records.drain(..).collect();
+        module_request_record_marks.sort();
+        module_request_record_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.module_request_records.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                module_request_records.get(index).mark_values(&mut queues);
             }
         });
         let mut number_marks: Box<[HeapNumber]> = queues.numbers.drain(..).collect();
@@ -1240,6 +1258,7 @@ fn sweep(
         maps,
         map_iterators,
         modules,
+        module_request_records,
         numbers,
         objects,
         primitive_objects,
@@ -1600,6 +1619,15 @@ fn sweep(
         if !modules.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(modules, &compactions, &bits.modules);
+            });
+        }
+        if !module_request_records.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    module_request_records,
+                    &compactions,
+                    &bits.module_request_records,
+                );
             });
         }
         if !numbers.is_empty() {

@@ -22,7 +22,7 @@ use crate::{
 };
 
 /// ### [6.2.6 The Property Descriptor Specification Type](https://tc39.es/ecma262/#sec-property-descriptor-specification-type)
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct PropertyDescriptor<'a> {
     /// \[\[Value]]
     pub value: Option<Value<'a>>,

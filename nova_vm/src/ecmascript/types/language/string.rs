@@ -31,6 +31,12 @@ use crate::{
 pub use data::StringHeapData;
 use wtf8::Wtf8Buf;
 
+/// String data allocated onto the Agent heap.
+///
+/// ## Ordering
+///
+/// HeapString implements the Ord trait, but it does not sort the
+/// heap-allocated strings into lexicographic order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct HeapString<'a>(pub(crate) StringIndex<'a>);
@@ -119,7 +125,36 @@ impl IndexMut<HeapString<'_>> for Vec<Option<StringHeapData>> {
 }
 
 /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// The String type is the set of all ordered sequences of zero or more 16-bit
+/// unsigned integer values (“elements”) up to a maximum length of 2**53 - 1
+/// elements. The String type is generally used to represent textual data in a
+/// running ECMAScript program, in which case each element in the String is
+/// treated as a UTF-16 code unit value. Each element is regarded as occupying
+/// a position within the sequence. These positions are indexed with
+/// non-negative integers. The first element (if any) is at index 0, the next
+/// element (if any) at index 1, and so on. The length of a String is the
+/// number of elements (i.e., 16-bit values) within it. The empty String has
+/// length zero and therefore contains no elements.
+///
+/// ## Internal representation
+///
+/// For ECMAScript programs the String type looks like UTF-16 (or WTF-16)
+/// encoded data. In actual reality, Strings in the engine are stored as UTF-8
+/// (or [WTF-8](https://simonsapin.github.io/wtf-8/)). ECMAScript facing APIs
+/// that expose implementation details about Strings, such as
+/// `String.prototype.indexOf`, adapt their output to show the result as if the
+/// String was internally UTF-16.
+///
+/// The String type additionally has a short-string optimisation implemented:
+/// all strings less than 7 bytes in length are stored directly in the String
+/// value instead of being allocated on the heap.
+///
+/// ## Ordering
+///
+/// String implements the Ord trait, but it does not sort heap-allocated
+/// strings into lexicographic order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum String<'a> {
     String(HeapString<'a>) = STRING_DISCRIMINANT,
@@ -430,12 +465,28 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_str<'string, 'agent: 'string>(
-        &'string self,
-        agent: &'agent impl Index<HeapString<'static>, Output = StringHeapData>,
-    ) -> &'string str {
+    /// Get the String value as a UTF-8 string slice.
+    ///
+    /// ## Safety
+    ///
+    /// The method is safe assuming that the caller has properly bound the
+    /// `String` value to the garbage collector lifetime:
+    ///
+    /// ```rust,ignore
+    /// let string = string.bind(gc.nogc());
+    /// ```
+    ///
+    /// If the string has not been properly bound (and is not internally a
+    /// static string) then garbage collection may deallocate the backing data,
+    /// causing the string slice to dangle.
+    pub fn as_str(&self, agent: &impl Index<HeapString<'a>, Output = StringHeapData>) -> &str {
         match self {
-            String::String(s) => agent[s.unbind()].as_str(),
+            // SAFETY: Assuming that user has properly bound the String, the
+            // backing string data is guaranteed to never be accessed as
+            // exclusive by the heap and thus the reference never invalidates.
+            // As `&self` is bound to the GC lfietime, the StringHeapData will
+            // not be dropped while the `&str` is being used.
+            String::String(s) => unsafe { std::mem::transmute::<&str, &str>(agent[*s].as_str()) },
             String::SmallString(s) => s.as_str(),
         }
     }
