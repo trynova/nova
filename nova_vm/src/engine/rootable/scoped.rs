@@ -72,7 +72,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     /// The RootRepr does not carry the 'scope lifetime and is thus liable to
     /// become use-after-free. This method should only be used to implement eg.
     /// trivial From-implementations, or TryFrom-like methods.
-    pub(crate) unsafe fn to_root_repr(self) -> T::RootRepr {
+    pub(crate) unsafe fn into_root_repr(self) -> T::RootRepr {
         self.inner
     }
 

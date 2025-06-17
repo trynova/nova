@@ -663,8 +663,7 @@ pub(super) fn inner_module_evaluation<'a, 'b>(
     // SAFETY: module is currently rooted.
     for request in scoped_module.get_requested_modules(agent) {
         // a. Let requiredModule be GetImportedModule(module, request).
-        let required_module: AbstractModule =
-            get_imported_module(agent, module, request, gc.nogc()).into();
+        let required_module = get_imported_module(agent, module, request, gc.nogc());
 
         let scoped_required_module = required_module.scope(agent, gc.nogc());
         // b. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).

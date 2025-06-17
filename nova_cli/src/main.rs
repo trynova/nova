@@ -138,7 +138,7 @@ impl HostHooks for CliHostHooks {
     ) {
         let specifier = module_request.specifier(agent);
         let specifier = specifier.as_str(agent);
-        let specifier_target = if specifier.starts_with("./") {
+        let specifier_target = if let Some(specifier) = specifier.strip_prefix("./") {
             let referrer_path = referrer
                 .host_defined(agent)
                 .unwrap()
@@ -147,7 +147,7 @@ impl HostHooks for CliHostHooks {
             let parent = referrer_path
                 .parent()
                 .expect("Attempted to get sibling file of root");
-            parent.join(&specifier[2..])
+            parent.join(specifier)
         } else if specifier.starts_with("../") {
             let referrer_path = referrer
                 .host_defined(agent)

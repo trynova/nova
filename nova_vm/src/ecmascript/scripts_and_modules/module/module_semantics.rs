@@ -495,7 +495,7 @@ impl Rootable for InnerReferrer<'_> {
     }
 }
 
-impl<'r> Referrer<'r> {
+impl Referrer<'_> {
     fn insert_loaded_module(
         self,
         agent: &mut Agent,
