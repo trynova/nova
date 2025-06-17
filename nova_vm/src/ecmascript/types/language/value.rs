@@ -1722,5 +1722,7 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::StringIterator(_)
         | Object::Generator(_)
         | Object::EmbedderObject(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "proposal-float16array")]
+        Object::Float16Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
     }
 }
