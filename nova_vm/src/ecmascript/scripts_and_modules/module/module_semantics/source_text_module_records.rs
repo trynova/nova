@@ -58,7 +58,7 @@ use super::{
     ModuleRequest, ModuleRequestRecord,
     abstract_module_records::{
         AbstractModule, AbstractModuleMethods, AbstractModuleRecord, AbstractModuleSlots,
-        ResolvedBinding,
+        ResolveSetEntry, ResolvedBinding,
     },
     cyclic_module_records::{
         CyclicModuleMethods, CyclicModuleRecord, CyclicModuleSlots, GraphLoadingStateRecord,
@@ -683,9 +683,9 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
             // b. Let requestedModule be GetImportedModule(module, e.[[ModuleRequest]]).
             let requested_module = get_imported_module(agent, module, *e, gc);
             // c. Let starNames be requestedModule.GetExportedNames(exportStarSet).
-            let start_names = requested_module.get_exported_names(agent, export_start_set, gc);
+            let star_names = requested_module.get_exported_names(agent, export_start_set, gc);
             // d. For each element n of starNames, do
-            for n in start_names {
+            for n in star_names {
                 // i. If n is not "default", then
                 if n != BUILTIN_STRING_MEMORY.default {
                     // 1. If exportedNames does not contain n, then
@@ -729,10 +729,11 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         self,
         agent: &Agent,
         export_name: String,
-        resolve_set: Option<()>,
+        resolve_set: &mut Vec<ResolveSetEntry<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ResolvedBinding<'a>> {
         let module = self.bind(gc);
+        let export_name = export_name.bind(gc);
         // 1. Assert: module.[[Status]] is not new.
         debug_assert!(!matches!(
             module.status(agent),
@@ -740,11 +741,21 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         ));
         // 2. If resolveSet is not present, set resolveSet to a new empty List.
         // 3. For each Record { [[Module]], [[ExportName]] } r of resolveSet, do
-        //        a. If module and r.[[Module]] are the same Module Record and exportName is r.[[ExportName]], then
-        //               i. Assert: This is a circular import request.
-        //               ii. Return null.
+        // a. If module and r.[[Module]] are the same Module Record and exportName is r.[[ExportName]], then
+        if resolve_set
+            .iter()
+            .any(|r| module == r.module && export_name == r.export_name)
+        {
+            // i. Assert: This is a circular import request.
+            // ii. Return null.
+            return None;
+        }
 
         // 4. Append the Record { [[Module]]: module, [[ExportName]]: exportName } to resolveSet.
+        resolve_set.push(ResolveSetEntry {
+            module,
+            export_name,
+        });
         // 5. For each ExportEntry Record e of module.[[LocalExportEntries]], do
         for e in module.local_export_entries(agent) {
             // a. If e.[[ExportName]] is exportName, then
@@ -866,7 +877,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         }
 
         // 10. Return starResolution.
-        None
+        star_resolution
     }
 
     /// ### [16.2.1.6.1.2 Link ( )](https://tc39.es/ecma262/#sec-moduledeclarationlinking)
@@ -1046,7 +1057,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         for e in module.indirect_export_entries(agent) {
             // a. Assert: e.[[ExportName]] is not null.
             // b. Let resolution be module.ResolveExport(e.[[ExportName]]).
-            let resolution = module.resolve_export(agent, e.export_name, None, gc);
+            let resolution = module.resolve_export(agent, e.export_name, &mut vec![], gc);
             // c. If resolution is either null or ambiguous, throw a SyntaxError exception.
             if matches!(resolution, None | Some(ResolvedBinding::Ambiguous)) {
                 return Err(agent.throw_exception_with_static_message(
@@ -1083,7 +1094,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             };
             // c. Else,
             // i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
-            let resolution = imported_module.resolve_export(agent, import_name, None, gc);
+            let resolution = imported_module.resolve_export(agent, import_name, &mut vec![], gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
                 module,
@@ -1278,7 +1289,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             };
             // c. Else,
             // i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
-            let resolution = imported_modules.resolve_export(agent, import_name, None, gc);
+            let resolution = imported_modules.resolve_export(agent, import_name, &mut vec![], gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
                 module,

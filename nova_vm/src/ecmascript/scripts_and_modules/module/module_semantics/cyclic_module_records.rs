@@ -635,8 +635,8 @@ pub(super) fn inner_module_evaluation<'a, 'b>(
         CyclicModuleRecordStatus::EvaluatingAsync | CyclicModuleRecordStatus::Evaluated
     ) {
         // a. If module.[[EvaluationError]] is empty, return index.
-        module.unbind().evaluation_error(agent, gc.into_nogc())?;
         // b. Otherwise, return ? module.[[EvaluationError]].
+        module.unbind().evaluation_error(agent, gc.into_nogc())?;
         return Ok(index);
     }
     // 3. If module.[[Status]] is evaluating,

@@ -586,7 +586,7 @@ pub(crate) fn get_module_namespace<'a>(
             .into_iter()
             .filter(|name| {
                 // i. Let resolution be module.ResolveExport(name).
-                let resolution = module.resolve_export(agent, *name, None, gc);
+                let resolution = module.resolve_export(agent, *name, &mut vec![], gc);
                 // ii. If resolution is a ResolvedBinding Record, append name to
                 //     unambiguousNames.
                 matches!(resolution, Some(ResolvedBinding::Resolved { .. }))

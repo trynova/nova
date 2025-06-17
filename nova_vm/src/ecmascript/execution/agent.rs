@@ -25,7 +25,7 @@ use crate::{
             module::module_semantics::{
                 ModuleRequest, Referrer, abstract_module_records::AbstractModuleMethods,
                 cyclic_module_records::GraphLoadingStateRecord,
-                source_text_module_records::parse_module,
+                source_text_module_records::SourceTextModule,
             },
             script::{HostDefined, parse_script, script_evaluation},
             source_code::SourceCode,
@@ -309,6 +309,18 @@ pub struct RealmRoot {
     index: u8,
 }
 
+impl RealmRoot {
+    /// Initialize the Realm's \[\[HostDefined]] field to a value.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the \[\[HostDefined]] field is non-empty.
+    pub fn initialize_host_defined(&self, agent: &mut GcAgent, host_defined: HostDefined) {
+        let realm = agent.get_realm_by_root(self);
+        realm.initialize_host_defined(&mut agent.agent, host_defined);
+    }
+}
+
 impl GcAgent {
     pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
@@ -387,14 +399,7 @@ impl GcAgent {
     where
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
-        let index = realm.index;
-        let error_message = "Attempted to run in non-existing Realm";
-        let realm = *self
-            .realm_roots
-            .get(index as usize)
-            .expect(error_message)
-            .as_ref()
-            .expect(error_message);
+        let realm = self.get_realm_by_root(realm);
         assert!(self.agent.execution_context_stack.is_empty());
         let result = self.agent.run_in_realm(realm, func);
         clear_kept_objects(&mut self.agent);
@@ -402,6 +407,17 @@ impl GcAgent {
         assert!(self.agent.vm_stack.is_empty());
         self.agent.stack_refs.borrow_mut().clear();
         result
+    }
+
+    fn get_realm_by_root(&self, realm_root: &RealmRoot) -> Realm<'static> {
+        let index = realm_root.index;
+        let error_message = "Couldn't find Realm by RealmRoot";
+        *self
+            .realm_roots
+            .get(index as usize)
+            .expect(error_message)
+            .as_ref()
+            .expect(error_message)
     }
 
     pub fn gc(&mut self) {
@@ -843,30 +859,20 @@ impl Agent {
         script_evaluation(self, script.unbind(), gc)
     }
 
-    /// Run a module in the current Realm.
-    pub fn run_module_script<'gc>(
+    /// Run a parsed SourceTextModule in the current Realm.
+    ///
+    /// This runs the LoadRequestedModules (passing in the host_defined
+    /// parameter), Link, and finally Evaluate operations on the module.
+    /// This should not be called multiple times on the same module.
+    pub fn run_parsed_module<'gc>(
         &mut self,
-        source_text: String,
+        module: SourceTextModule,
         host_defined: Option<HostDefined>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let realm = self.current_realm(gc.nogc());
-        let module = match parse_module(self, source_text, realm, host_defined, gc.nogc()) {
-            Ok(module) => module,
-            Err(err) => {
-                let message =
-                    String::from_string(self, err.first().unwrap().message.to_string(), gc.nogc());
-                return Err(self
-                    .throw_exception_with_message(
-                        ExceptionType::SyntaxError,
-                        message.unbind(),
-                        gc.into_nogc(),
-                    )
-                    .unbind());
-            }
-        };
+        let module = module.bind(gc.nogc());
         let Some(result) = module
-            .load_requested_modules(self, None, gc.nogc())
+            .load_requested_modules(self, host_defined, gc.nogc())
             .try_get_result(self, gc.nogc())
         else {
             return Err(self.throw_exception_with_static_message(

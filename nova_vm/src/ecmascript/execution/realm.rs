@@ -80,9 +80,22 @@ impl Realm<'_> {
         self.0.get() - 1
     }
 
-    /// \[\[\HostDefined]]
+    /// ### \[\[\HostDefined]]
     pub fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
         agent[self].host_defined.clone()
+    }
+
+    /// Initialize the \[\[HostDefined]] field to a value.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the \[\[HostDefined]] field is non-empty.
+    pub fn initialize_host_defined(self, agent: &mut Agent, host_defined: HostDefined) {
+        assert!(
+            agent[self].host_defined.is_none(),
+            "Attempted to replace Realm's [[HostDefined]] slot data."
+        );
+        agent[self].host_defined.replace(host_defined);
     }
 
     /// ### \[\[GlobalObject]]

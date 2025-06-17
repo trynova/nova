@@ -240,6 +240,13 @@ pub(crate) trait AbstractModuleSlots: Copy {
     fn host_defined(self, agent: &Agent) -> Option<HostDefined>;
 }
 
+pub(crate) struct ResolveSetEntry<'a> {
+    /// ### \[\[Module]]
+    pub(crate) module: SourceTextModule<'a>,
+    /// ### \[\[ExportName]]
+    pub(crate) export_name: String<'a>,
+}
+
 /// ### [Abstract Methods of Module Records](https://tc39.es/ecma262/#table-abstract-methods-of-module-records)
 pub(crate) trait AbstractModuleMethods: AbstractModuleSlots {
     /// ### LoadRequestedModules(\[hostDefined])
@@ -286,7 +293,7 @@ pub(crate) trait AbstractModuleMethods: AbstractModuleSlots {
         self,
         agent: &Agent,
         export_name: String,
-        resolve_set: Option<()>,
+        resolve_set: &mut Vec<ResolveSetEntry<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ResolvedBinding<'a>>;
 
@@ -385,7 +392,7 @@ impl AbstractModuleMethods for AbstractModule<'_> {
         self,
         agent: &Agent,
         export_name: String,
-        resolve_set: Option<()>,
+        resolve_set: &mut Vec<ResolveSetEntry<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ResolvedBinding<'a>> {
         match self.0 {

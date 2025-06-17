@@ -8,7 +8,6 @@ use std::marker::PhantomData;
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
-        builtins::ordinary::ordinary_get_own_property,
         execution::{Agent, JsResult, agent::ExceptionType, throw_uninitialized_binding},
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::{
@@ -17,25 +16,22 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
-        unwrap_try,
     },
-    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
+    heap::{
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
+        WellKnownSymbolIndexes, WorkQueues,
+    },
 };
 
 use self::data::ModuleHeapData;
-
-use super::ordinary::{
-    ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_own_property_keys,
-    ordinary_try_get, ordinary_try_has_property,
-};
 
 pub mod data;
 
@@ -136,28 +132,38 @@ unsafe impl Bindable for Module<'_> {
 impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        None
+        unreachable!()
     }
 
+    #[inline(always)]
     fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
         unreachable!()
     }
 
+    #[inline(always)]
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!();
     }
 
+    #[inline(always)]
     fn internal_extensible(self, _agent: &Agent) -> bool {
-        false
+        unreachable!()
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {}
+    #[inline(always)]
+    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
+        unreachable!()
+    }
 
+    #[inline(always)]
     fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
-        None
+        unreachable!()
     }
 
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {}
+    #[inline(always)]
+    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+        unreachable!()
+    }
 }
 
 impl<'a> InternalMethods<'a> for Module<'a> {
@@ -198,13 +204,22 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match property_key {
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
-                TryResult::Continue(
-                    self.get_backing_object(agent)
-                        .and_then(|object| ordinary_get_own_property(agent, object, property_key)),
-                )
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    TryResult::Continue(Some(PropertyDescriptor {
+                        value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
+                        writable: Some(false),
+                        get: None,
+                        set: None,
+                        enumerable: Some(false),
+                        configurable: Some(false),
+                    }))
+                } else {
+                    TryResult::Continue(None)
+                }
             }
+            PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
                 let exports: &[String] = &agent[self].exports;
@@ -247,12 +262,22 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     ) -> JsResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let property_key = property_key.bind(gc.nogc());
         match property_key {
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
-                Ok(self
-                    .get_backing_object(agent)
-                    .and_then(|object| ordinary_get_own_property(agent, object, property_key)))
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    Ok(Some(PropertyDescriptor {
+                        value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
+                        writable: Some(false),
+                        get: None,
+                        set: None,
+                        enumerable: Some(false),
+                        configurable: Some(false),
+                    }))
+                } else {
+                    Ok(None)
+                }
             }
+            PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
                 let exports: &[String] = &agent[self].exports;
@@ -293,18 +318,22 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
-                    ordinary_define_own_property(
-                        agent,
-                        object,
-                        property_key,
-                        property_descriptor,
-                        gc,
-                    )
-                }))
+                TryResult::Continue(
+                    symbol == WellKnownSymbolIndexes::ToStringTag.into()
+                        && property_descriptor
+                            == PropertyDescriptor {
+                                value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
+                                writable: Some(false),
+                                get: None,
+                                set: None,
+                                enumerable: Some(false),
+                                configurable: Some(false),
+                            },
+                )
             }
+            PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
                 let current = self.try_get_own_property(agent, property_key, gc)?;
@@ -351,19 +380,20 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         let property_key = property_key.bind(gc.nogc());
         let property_descriptor = property_descriptor.bind(gc.nogc());
         match property_key {
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                Ok(match o.get_backing_object(agent) {
-                    Some(object) => ordinary_define_own_property(
-                        agent,
-                        object,
-                        property_key.unbind(),
-                        property_descriptor.unbind(),
-                        gc.into_nogc(),
-                    ),
-                    None => false,
-                })
+                Ok(symbol == WellKnownSymbolIndexes::ToStringTag.into()
+                    && property_descriptor
+                        == PropertyDescriptor {
+                            value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
+                            writable: Some(false),
+                            get: None,
+                            set: None,
+                            enumerable: Some(false),
+                            configurable: Some(false),
+                        })
             }
+            PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
                 let is_accessor_descriptor = property_descriptor.is_accessor_descriptor();
@@ -418,7 +448,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
+        _gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -438,12 +468,11 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(false)
                 }
             }
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
-                TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
-                    unwrap_try(ordinary_try_has_property(agent, object, property_key, gc))
-                }))
+                TryResult::Continue(symbol == WellKnownSymbolIndexes::ToStringTag.into())
             }
+            PropertyKey::PrivateName(_) => unreachable!(),
         }
     }
 
@@ -452,7 +481,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        receiver: Value,
+        _receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
@@ -463,98 +492,15 @@ impl<'a> InternalMethods<'a> for Module<'a> {
 
         match property_key {
             // 1. If P is a Symbol, then
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
-                TryResult::Continue(self.get_backing_object(agent).map_or(
-                    Value::Undefined,
-                    |object| {
-                        unwrap_try(ordinary_try_get(agent, object, property_key, receiver, gc))
-                    },
-                ))
-            }
-            PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
-                // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
-                let key = match property_key {
-                    PropertyKey::SmallString(data) => String::SmallString(data),
-                    PropertyKey::String(data) => String::String(data),
-                    PropertyKey::Integer(_) => todo!(),
-                    PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
-                };
-                let exports_contains_p = exports.contains(&key);
-                // 3. If exports does not contain P, return undefined.
-                if !exports_contains_p {
-                    TryResult::Continue(Value::Undefined)
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    TryResult::Continue(BUILTIN_STRING_MEMORY.Module.into_value())
                 } else {
-                    todo!();
-                    // // 4. Let m be O.[[Module]].
-                    // let m = &agent[self].module;
-                    // // 5. Let binding be m.ResolveExport(P).
-                    // let binding = m.resolve_export(property_key);
-                    // // 6. Assert: binding is a ResolvedBinding Record.
-                    // let Some(ResolvedBinding::Resolved(binding)) = binding else {
-                    //     unreachable!();
-                    // };
-                    // // 7. Let targetModule be binding.[[Module]].
-                    // // 8. Assert: targetModule is not undefined.
-                    // let target_module = binding.module.unwrap();
-                    // // 9. If binding.[[BindingName]] is NAMESPACE, then
-                    // let _binding_name = match binding.binding_name {
-                    //     ResolvedBindingName::Namespace => {
-                    //         // a. Return GetModuleNamespace(targetModule).
-                    //         todo!();
-                    //     }
-                    //     ResolvedBindingName::String(data) => String::String(data),
-                    //     ResolvedBindingName::SmallString(data) => String::SmallString(data),
-                    // };
-                    // // 10. Let targetEnv be targetModule.[[Environment]].
-                    // let target_env = agent[target_module].module.environment;
-                    // // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
-                    // match target_env {
-                    //     None => TryResult::Break(()),
-                    //     Some(_target_env) => {
-                    //         // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                    //         todo!()
-                    //     }
-                    // }
+                    TryResult::Continue(Value::Undefined)
                 }
             }
-        }
-    }
-
-    /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn internal_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
-
-        // NOTE: ResolveExport is side-effect free. Each time this operation
-        // is called with a specific exportName, resolveSet pair as arguments
-        // it must return the same result. An implementation might choose to
-        // pre-compute or cache the ResolveExport results for the [[Exports]]
-        // of each module namespace exotic object.
-
-        match property_key {
-            // 1. If P is a Symbol, then
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
-                // a. Return ! OrdinaryGet(O, P, Receiver).
-                Ok(match self.get_backing_object(agent) {
-                    Some(object) => ordinary_get(
-                        agent,
-                        object,
-                        property_key.unbind(),
-                        receiver,
-                        gc.reborrow(),
-                    )
-                    .unwrap()
-                    .unbind(),
-                    None => Value::Undefined,
-                })
-            }
+            PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
                 let exports: &[String] = &agent[self].exports;
@@ -567,12 +513,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
-                    Ok(Value::Undefined)
+                    TryResult::Continue(Value::Undefined)
                 } else {
                     // 4. Let m be O.[[Module]].
                     let m = &agent[self].module;
                     // 5. Let binding be m.ResolveExport(P).
-                    let binding = m.resolve_export(agent, key, None, gc.nogc());
+                    let binding = m.resolve_export(agent, key, &mut vec![], gc);
                     // 6. Assert: binding is a ResolvedBinding Record.
                     let Some(ResolvedBinding::Resolved {
                         // 7. Let targetModule be binding.[[Module]].
@@ -586,29 +532,103 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
-                        return Ok(get_module_namespace(
-                            agent,
-                            target_module.unbind(),
-                            gc.into_nogc(),
-                        )
-                        .into_value());
+                        return TryResult::Continue(
+                            get_module_namespace(agent, target_module.unbind(), gc).into_value(),
+                        );
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
-                    let target_env = target_module.environment(agent, gc.nogc());
+                    let target_env = target_module.environment(agent, gc);
+                    // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
+                    let Some(target_env) = target_env else {
+                        return TryResult::Break(());
+                    };
+                    // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
+                    if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
+                    {
+                        TryResult::Continue(value)
+                    } else {
+                        TryResult::Break(())
+                    }
+                }
+            }
+        }
+    }
+
+    /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
+    fn internal_get<'gc>(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        _receiver: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let property_key = property_key.bind(gc);
+
+        // NOTE: ResolveExport is side-effect free. Each time this operation
+        // is called with a specific exportName, resolveSet pair as arguments
+        // it must return the same result. An implementation might choose to
+        // pre-compute or cache the ResolveExport results for the [[Exports]]
+        // of each module namespace exotic object.
+
+        match property_key {
+            // 1. If P is a Symbol, then
+            PropertyKey::Symbol(symbol) => {
+                // a. Return ! OrdinaryGet(O, P, Receiver).
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    Ok(BUILTIN_STRING_MEMORY.Module.into_value())
+                } else {
+                    Ok(Value::Undefined)
+                }
+            }
+            PropertyKey::PrivateName(_) => unreachable!(),
+            PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
+                // 2. Let exports be O.[[Exports]].
+                let exports: &[String] = &agent[self].exports;
+                let key = match property_key {
+                    PropertyKey::SmallString(data) => String::SmallString(data),
+                    PropertyKey::String(data) => String::String(data),
+                    PropertyKey::Integer(_) => todo!(),
+                    _ => unreachable!(),
+                };
+                let exports_contains_p = exports.contains(&key);
+                // 3. If exports does not contain P,
+                if !exports_contains_p {
+                    // return undefined.
+                    Ok(Value::Undefined)
+                } else {
+                    // 4. Let m be O.[[Module]].
+                    let m = &agent[self].module;
+                    // 5. Let binding be m.ResolveExport(P).
+                    let binding = m.resolve_export(agent, key, &mut vec![], gc);
+                    // 6. Assert: binding is a ResolvedBinding Record.
+                    let Some(ResolvedBinding::Resolved {
+                        // 7. Let targetModule be binding.[[Module]].
+                        // 8. Assert: targetModule is not undefined.
+                        module: target_module,
+                        binding_name,
+                    }) = binding
+                    else {
+                        unreachable!();
+                    };
+                    // 9. If binding.[[BindingName]] is NAMESPACE, then
+                    let Some(binding_name) = binding_name else {
+                        // a. Return GetModuleNamespace(targetModule).
+                        return Ok(
+                            get_module_namespace(agent, target_module.unbind(), gc).into_value()
+                        );
+                    };
+                    // 10. Let targetEnv be targetModule.[[Environment]].
+                    let target_env = target_module.environment(agent, gc);
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     let Some(target_env) = target_env else {
                         return Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
                             format!("Could not resolve module '{}'.", key.as_str(agent)),
-                            gc.into_nogc(),
+                            gc,
                         ));
                     };
                     // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
-                    let binding_name = binding_name.unbind();
-                    let target_env = target_env.unbind();
-                    let gc = gc.into_nogc();
-                    let binding_name = binding_name.bind(gc);
-                    let target_env = target_env.bind(gc);
                     if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
                     {
                         Ok(value)
@@ -632,21 +652,32 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         TryResult::Continue(false)
     }
 
+    fn internal_set<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: Value,
+        _: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
+        Ok(false)
+    }
+
     /// ### [10.4.6.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-delete-p)
     fn try_delete(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
+        _: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
-            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+            PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
-                TryResult::Continue(
-                    self.get_backing_object(agent)
-                        .is_none_or(|object| ordinary_delete(agent, object, property_key, gc)),
-                )
+                TryResult::Continue(symbol != WellKnownSymbolIndexes::ToStringTag.into())
+            }
+            PropertyKey::PrivateName(_) => {
+                unreachable!()
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 let p = match property_key {
@@ -657,8 +688,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 };
                 // 2. Let exports be O.[[Exports]].
                 let exports = &agent[self].exports;
-                // 3. If exports contains P, return false.
+                // 3. If exports contains P,
                 if exports.contains(&p) {
+                    // return false.
                     TryResult::Continue(false)
                 } else {
                     // 4. Return true.
@@ -672,7 +704,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
+        _gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Vec<PropertyKey<'gc>>> {
         // 1. Let exports be O.[[Exports]].
         let exports = agent[self]
@@ -681,16 +713,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             .map(|string| PropertyKey::from(*string));
         let exports_count = exports.len();
         // 2. Let symbolKeys be OrdinaryOwnPropertyKeys(O).
-        let symbol_keys = self.get_backing_object(agent).map_or(vec![], |object| {
-            ordinary_own_property_keys(agent, object, gc)
-        });
-        let symbol_keys_count = symbol_keys.len();
         // 3. Return the list-concatenation of exports and symbolKeys.
-        let mut own_property_keys = Vec::with_capacity(exports_count + symbol_keys_count);
+        let mut own_property_keys = Vec::with_capacity(exports_count + 1);
         exports.for_each(|export_key| own_property_keys.push(export_key));
-        symbol_keys
-            .iter()
-            .for_each(|symbol_key| own_property_keys.push(*symbol_key));
+        own_property_keys.push(WellKnownSymbolIndexes::ToStringTag.into());
         TryResult::Continue(own_property_keys)
     }
 }
@@ -704,7 +730,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
 pub(crate) fn module_namespace_create<'a>(
     agent: &mut Agent,
     module: AbstractModule<'a>,
-    exports: Box<[String<'a>]>,
+    mut exports: Box<[String<'a>]>,
     gc: NoGcScope<'a, '_>,
 ) -> Module<'a> {
     // 1. Assert: module.[[Namespace]] is empty.
@@ -713,7 +739,9 @@ pub(crate) fn module_namespace_create<'a>(
     // 3. Let M be MakeBasicObject(internalSlotsList).
     // 4. Set M's essential internal methods to the definitions specified in 10.4.6.
     // 5. Set M.[[Module]] to module.
-    // 6. Let sortedExports be a List whose elements are the elements of exports, sorted according to lexicographic code unit order.
+    // 6. Let sortedExports be a List whose elements are the elements of
+    //    exports, sorted according to lexicographic code unit order.
+    exports.sort_by(|a, b| a.as_str(agent).cmp(b.as_str(agent)));
     // 7. Set M.[[Exports]] to sortedExports.
     // 8. Create own properties of M corresponding to the definitions in 28.3.
     let m = agent.heap.create(ModuleHeapData { module, exports });
