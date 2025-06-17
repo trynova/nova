@@ -472,7 +472,7 @@ impl<'a> String<'a> {
     /// The method is safe assuming that the caller has properly bound the
     /// `String` value to the garbage collector lifetime:
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// let string = string.bind(gc.nogc());
     /// ```
     ///
