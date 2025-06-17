@@ -178,11 +178,11 @@ impl<'m> SourceTextModule<'m> {
         request: ModuleRequest,
         module: AbstractModule,
     ) {
-        let reqeusts = &agent.heap.module_request_records;
+        let requests = &agent.heap.module_request_records;
         let source_text_module_records = &mut agent.heap.source_text_module_records;
         self.get_mut(source_text_module_records)
             .cyclic_fields
-            .insert_loaded_module(reqeusts, request.unbind(), module.unbind())
+            .insert_loaded_module(requests, request.unbind(), module.unbind())
     }
 
     /// Get the requested modules as a slice.
