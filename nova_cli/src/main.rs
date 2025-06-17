@@ -5,7 +5,12 @@ mod helper;
 mod theme;
 
 use std::{
-    cell::RefCell, collections::VecDeque, fmt::Debug, path::PathBuf, ptr::NonNull, rc::Rc,
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    fmt::Debug,
+    path::PathBuf,
+    ptr::NonNull,
+    rc::Rc,
     str::FromStr,
 };
 
@@ -22,14 +27,16 @@ use nova_vm::{
         },
         scripts_and_modules::{
             module::module_semantics::{
-                ModuleRequest, Referrer, cyclic_module_records::GraphLoadingStateRecord,
-                finish_loading_imported_module, source_text_module_records::parse_module,
+                ModuleRequest, Referrer, abstract_module_records::AbstractModule,
+                cyclic_module_records::GraphLoadingStateRecord, finish_loading_imported_module,
+                source_text_module_records::parse_module,
             },
             script::{HostDefined, parse_script, script_evaluation},
         },
         types::{Object, String as JsString, Value},
     },
     engine::{
+        Global,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -154,6 +161,23 @@ impl HostHooks for CliHostHooks {
         } else {
             PathBuf::from_str(specifier).expect("Failed to parse target path into PathBuf")
         };
+        let realm = referrer.realm(agent, gc);
+        let module_map = realm
+            .host_defined(agent)
+            .expect("No referrer realm [[HostDefined]] slot")
+            .downcast::<ModuleMap>()
+            .expect("No referrer realm ModuleMap");
+        if let Some(module) = module_map.get(agent, &specifier_target, gc) {
+            finish_loading_imported_module(
+                agent,
+                referrer,
+                module_request,
+                payload,
+                Ok(module),
+                gc,
+            );
+            return;
+        }
         let file = match std::fs::read_to_string(&specifier_target) {
             Ok(file) => file,
             Err(err) => {
@@ -174,14 +198,43 @@ impl HostHooks for CliHostHooks {
             agent,
             source_text,
             referrer.realm(agent, gc),
-            Some(Rc::new(specifier_target)),
+            Some(Rc::new(specifier_target.clone())),
             gc,
         )
-        .map(|m| m.into())
+        .map(|m| {
+            let global_m = Global::new(agent, m.unbind().into());
+            module_map.add(specifier_target, global_m);
+            m.into()
+        })
         .map_err(|err| {
             agent.throw_exception(ExceptionType::Error, err.first().unwrap().to_string(), gc)
         });
         finish_loading_imported_module(agent, referrer, module_request, payload, result, gc);
+    }
+}
+
+struct ModuleMap {
+    map: RefCell<HashMap<PathBuf, Global<AbstractModule<'static>>>>,
+}
+
+impl ModuleMap {
+    fn new() -> Self {
+        Self {
+            map: Default::default(),
+        }
+    }
+
+    fn add(&self, path: PathBuf, module: Global<AbstractModule<'static>>) {
+        self.map.borrow_mut().insert(path, module);
+    }
+
+    fn get<'a>(
+        &self,
+        agent: &Agent,
+        path: &PathBuf,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<AbstractModule<'a>> {
+        self.map.borrow().get(path).map(|g| g.get(agent, gc))
     }
 }
 
@@ -244,6 +297,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 create_global_this_value,
                 initialize_global,
             );
+            let module_map = Rc::new(ModuleMap::new());
+            realm.initialize_host_defined(&mut agent, module_map.clone());
             let last_index = paths.len() - 1;
             for (index, path) in paths.into_iter().enumerate() {
                 agent.run_in_realm(
@@ -252,21 +307,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let absolute_path = std::fs::canonicalize(&path)?;
                         let file = std::fs::read_to_string(&absolute_path)?;
                         let source_text = JsString::from_string(agent, file, gc.nogc());
-                        let host_defined = Rc::new(absolute_path);
+                        let realm = agent.current_realm(gc.nogc());
                         let result = if module && last_index == index {
-                            agent.run_module_script(
+                            let module = match parse_module(
+                                agent,
                                 source_text.unbind(),
-                                Some(host_defined),
+                                realm,
+                                Some(Rc::new(absolute_path.clone())),
+                                gc.nogc(),
+                            ) {
+                                Ok(module) => module,
+                                Err(errors) => {
+                                    // Borrow the string data from the Agent
+                                    let source_text = source_text.as_str(agent);
+                                    exit_with_parse_errors(errors, &path, source_text)
+                                }
+                            };
+                            module_map
+                                .add(absolute_path, Global::new(agent, module.unbind().into()));
+                            agent.run_parsed_module(
+                                module.unbind(),
+                                Some(module_map.clone()),
                                 gc.reborrow(),
                             )
                         } else {
-                            let realm = agent.current_realm(gc.nogc());
                             let script = match parse_script(
                                 agent,
                                 source_text,
                                 realm,
                                 !no_strict,
-                                Some(host_defined),
+                                Some(Rc::new(absolute_path.clone())),
                                 gc.nogc(),
                             ) {
                                 Ok(script) => script,
