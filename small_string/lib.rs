@@ -3,11 +3,25 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #![no_std]
 
+use core::cmp::Ordering;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmallString {
     /// The string will be padded to 7 bytes with the 0xFF byte, which is never
     /// contained in valid UTF-8 or WTF-8.
     bytes: [u8; 7],
+}
+
+impl Ord for SmallString {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
+impl PartialOrd for SmallString {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl core::fmt::Debug for SmallString {
@@ -61,9 +75,9 @@ impl SmallString {
         let mut current_utf16_index = 0;
         for (idx, ch) in self.as_str().char_indices() {
             match current_utf16_index.cmp(&utf16_idx) {
-                core::cmp::Ordering::Equal => return Some(idx),
-                core::cmp::Ordering::Greater => return None,
-                core::cmp::Ordering::Less => {
+                Ordering::Equal => return Some(idx),
+                Ordering::Greater => return None,
+                Ordering::Less => {
                     current_utf16_index += ch.len_utf16();
                 }
             }

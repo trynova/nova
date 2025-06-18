@@ -8,6 +8,7 @@
 [object Date]
 [object Error]
 [object Function]
+[object Module]
 [object Null]
 [object Number]
 [object Object]
@@ -279,6 +280,7 @@ message
 min
 MIN_SAFE_INTEGER
 MIN_VALUE
+Module
 multiline
 name
 NaN

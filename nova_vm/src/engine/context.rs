@@ -523,6 +523,32 @@ unsafe impl<T: Bindable> Bindable for Vec<T> {
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<T: Bindable> Bindable for Box<[T]> {
+    type Of<'gc> = Box<[T::Of<'gc>]>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        // SAFETY: We assume that T properly implements Bindable. In that case
+        // we can safely transmute the lifetime out of the T's in the slice.
+        unsafe { core::mem::transmute::<Box<[T]>, Box<[T::Of<'static>]>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        // SAFETY: We assume that T properly implements Bindable. In that case
+        // we can safely transmute the lifetime into the T's in the slice.
+        unsafe { core::mem::transmute::<Box<[T]>, Box<[T::Of<'a>]>>(self) }
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
 unsafe impl<'slice, T: Bindable> Bindable for &'slice [T]
 where
     for<'gc> <T as Bindable>::Of<'gc>: 'slice,

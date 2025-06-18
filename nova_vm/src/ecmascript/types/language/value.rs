@@ -48,7 +48,7 @@ use crate::{
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult},
-        types::BUILTIN_STRING_MEMORY,
+        types::{BUILTIN_STRING_MEMORY, Object},
     },
     engine::{
         Scoped, TryResult,
@@ -609,10 +609,7 @@ impl<'a> Value<'a> {
         };
         match self.to_string(agent, gc) {
             Ok(result) => result,
-            Err(_) => {
-                debug_assert!(self.is_object());
-                BUILTIN_STRING_MEMORY._object_Object_
-            }
+            _ => map_object_to_static_string_repr(self),
         }
     }
 
@@ -626,10 +623,7 @@ impl<'a> Value<'a> {
         };
         match self.try_to_string(agent, gc) {
             TryResult::Continue(result) => result.unwrap(),
-            _ => {
-                debug_assert!(self.is_object());
-                BUILTIN_STRING_MEMORY._object_Object_
-            }
+            _ => map_object_to_static_string_repr(self),
         }
     }
 
@@ -1677,5 +1671,58 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),
         }
+    }
+}
+
+fn map_object_to_static_string_repr(value: Value) -> String<'static> {
+    match Object::try_from(value).unwrap() {
+        Object::BoundFunction(_)
+        | Object::BuiltinFunction(_)
+        | Object::ECMAScriptFunction(_)
+        | Object::BuiltinGeneratorFunction
+        | Object::BuiltinConstructorFunction(_)
+        | Object::BuiltinPromiseResolvingFunction(_)
+        | Object::BuiltinPromiseCollectorFunction
+        | Object::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY._object_Function_,
+        Object::Arguments(_) => BUILTIN_STRING_MEMORY._object_Arguments_,
+        Object::Array(_) => BUILTIN_STRING_MEMORY._object_Array_,
+        Object::Error(_) => BUILTIN_STRING_MEMORY._object_Error_,
+        Object::RegExp(_) => BUILTIN_STRING_MEMORY._object_RegExp_,
+        Object::Module(_) => BUILTIN_STRING_MEMORY._object_Module_,
+        Object::Object(_)
+        | Object::PrimitiveObject(_)
+        | Object::ArrayBuffer(_)
+        | Object::DataView(_)
+        | Object::Date(_)
+        | Object::FinalizationRegistry(_)
+        | Object::Map(_)
+        | Object::Promise(_)
+        | Object::Proxy(_)
+        | Object::Set(_)
+        | Object::SharedArrayBuffer(_)
+        | Object::WeakMap(_)
+        | Object::WeakRef(_)
+        | Object::WeakSet(_)
+        | Object::Int8Array(_)
+        | Object::Uint8Array(_)
+        | Object::Uint8ClampedArray(_)
+        | Object::Int16Array(_)
+        | Object::Uint16Array(_)
+        | Object::Int32Array(_)
+        | Object::Uint32Array(_)
+        | Object::BigInt64Array(_)
+        | Object::BigUint64Array(_)
+        | Object::Float32Array(_)
+        | Object::Float64Array(_)
+        | Object::AsyncFromSyncIterator
+        | Object::AsyncGenerator(_)
+        | Object::ArrayIterator(_)
+        | Object::SetIterator(_)
+        | Object::MapIterator(_)
+        | Object::StringIterator(_)
+        | Object::Generator(_)
+        | Object::EmbedderObject(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "proposal-float16array")]
+        Object::Float16Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
     }
 }

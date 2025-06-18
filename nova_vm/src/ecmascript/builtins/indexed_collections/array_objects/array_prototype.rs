@@ -5,7 +5,7 @@
 use core::cmp::Ordering;
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{
-    try_create_data_property_or_throw, try_length_of_array_like,
+    invoke, try_create_data_property_or_throw, try_length_of_array_like,
 };
 use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_integer_or_infinity, try_to_string,
@@ -3474,13 +3474,88 @@ impl ArrayPrototype {
         Ok(a.get(agent).into_value())
     }
 
+    /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tolocalestring)
+    /// An ECMAScript implementation that includes the ECMA-402 Internationalization
+    /// API must implement this method as specified in the ECMA-402 specification.
+    /// If an ECMAScript implementation does not include the ECMA-402 API the
+    /// following specification of this method is used.
+    ///
+    /// > #### Note 1
+    /// > The first edition of ECMA-402 did not include a replacement specification
+    /// > for this method. The meanings of the optional parameters to this method
+    /// > are defined in the ECMA-402 specification; implementations that do not
+    /// > include ECMA-402 support must not use those parameter positions for
+    /// > anything else.
+    ///
+    /// > #### Note 2
+    /// > This method converts the elements of the array to Strings using their
+    /// > toLocaleString methods, and then concatenates these Strings, separated
+    /// > by occurrences of an implementation-defined locale-sensitive separator
+    /// > String. This method is analogous to toString except that it is intended
+    /// > to yield a locale-sensitive result corresponding with conventions of
+    /// > the host environment's current locale.
+    ///
+    /// > #### Note 3
+    /// > This method is intentionally generic; it does not require that its this
+    /// > value be an Array. Therefore it can be transferred to other kinds of
+    /// > objects for use as a method.
     fn to_locale_string<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Array.prototype.toLocaleString", gc.into_nogc()))
+        // 1. Let array be ? ToObject(this value).
+        let array = to_object(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 2. Let len be ? LengthOfArrayLike(array).
+        let array = array.scope(agent, gc.nogc());
+        let len = length_of_array_like(agent, array.get(agent), gc.reborrow()).unbind()?;
+        // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
+        let separator = ", ";
+        // 4. Let R be the empty String.
+        let mut r = std::string::String::new();
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Repeat, while k < len,
+        while k < len {
+            // a. If k > 0, set R to the string-concatenation of R and separator.
+            if k > 0 {
+                r.push_str(separator);
+            };
+            // b. Let element be ? Get(array, ! ToString(𝔽(k))).
+            let element = get(
+                agent,
+                array.get(agent),
+                PropertyKey::Integer(k.try_into().unwrap()),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // c. If element is neither undefined nor null, then
+            if !element.is_undefined() && !element.is_null() {
+                //  i. Let S be ? ToString(? Invoke(element, "toLocaleString")).
+                let argument = invoke(
+                    agent,
+                    element.unbind(),
+                    BUILTIN_STRING_MEMORY.toLocaleString.into(),
+                    None,
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let s = to_string(agent, argument.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                //  ii. Set R to the string-concatenation of R and S.
+                r.push_str(s.as_str(agent));
+            };
+            // d. Set k to k + 1.
+            k += 1;
+        }
+        // 7. Return R.
+        Ok(Value::from_string(agent, r, gc.into_nogc()).into_value())
     }
 
     fn to_reversed<'gc>(

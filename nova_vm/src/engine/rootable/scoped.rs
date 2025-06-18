@@ -64,6 +64,18 @@ where
 impl<T: Rootable + Bindable> Scopable for T where for<'a> Self::Of<'a>: Rootable + Bindable {}
 
 impl<'scope, T: Rootable> Scoped<'scope, T> {
+    /// Unwrap the Scoped value to get access to the inner RootRepr value of
+    /// the wrapped type.
+    ///
+    /// ## Safety
+    ///
+    /// The RootRepr does not carry the 'scope lifetime and is thus liable to
+    /// become use-after-free. This method should only be used to implement eg.
+    /// trivial From-implementations, or TryFrom-like methods.
+    pub(crate) unsafe fn into_root_repr(self) -> T::RootRepr {
+        self.inner
+    }
+
     pub fn new(agent: &Agent, value: T, _gc: NoGcScope<'_, 'scope>) -> Self {
         let value = match T::to_root_repr(value) {
             Ok(stack_repr) => {

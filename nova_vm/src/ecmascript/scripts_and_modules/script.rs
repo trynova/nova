@@ -39,7 +39,12 @@ use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 use std::rc::Rc;
 
-use super::source_code::SourceCode;
+use super::{
+    module::module_semantics::{
+        LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
+    },
+    source_code::SourceCode,
+};
 
 pub type HostDefined = Rc<dyn Any>;
 
@@ -83,6 +88,28 @@ impl Script<'_> {
 
     pub(crate) const fn into_u32(self) -> u32 {
         self.0
+    }
+
+    /// ### \[\[Realm]]
+    pub(crate) fn realm<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Realm<'a> {
+        agent[self].realm.bind(gc)
+    }
+
+    /// \[\[\HostDefined]]
+    pub(crate) fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
+        agent[self].host_defined.clone()
+    }
+
+    pub(crate) fn insert_loaded_module(
+        self,
+        agent: &mut Agent,
+        request: ModuleRequest,
+        module: AbstractModule,
+    ) {
+        let requests = &agent.heap.module_request_records;
+        agent.heap.scripts[self]
+            .loaded_modules
+            .insert_loaded_module(requests, request.unbind(), module.unbind());
     }
 }
 
@@ -139,8 +166,7 @@ pub struct ScriptRecord<'a> {
     ///
     /// The realm within which this script was created. undefined if not yet
     /// assigned.
-    // TODO: This should be able to be undefined sometimes.
-    pub(crate) realm: Realm<'a>,
+    realm: Realm<'a>,
 
     /// ### \[\[ECMAScriptCode]]
     ///
@@ -158,7 +184,7 @@ pub struct ScriptRecord<'a> {
     /// A map from the specifier strings imported by this script to the
     /// resolved Module Record. The list does not contain two different Records
     /// with the same \[\[Specifier]].
-    pub(crate) loaded_modules: (),
+    loaded_modules: LoadedModules<'a>,
 
     /// ### \[\[HostDefined]]
     ///
@@ -235,11 +261,12 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
         let Self {
             realm,
             ecmascript_code: _,
-            loaded_modules: _,
+            loaded_modules,
             host_defined: _,
             source_code,
         } = self;
         realm.mark_values(queues);
+        loaded_modules.mark_values(queues);
         source_code.mark_values(queues);
     }
 
@@ -247,11 +274,12 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
         let Self {
             realm,
             ecmascript_code: _,
-            loaded_modules: _,
+            loaded_modules,
             host_defined: _,
             source_code,
         } = self;
         realm.sweep_values(compactions);
+        loaded_modules.sweep_values(compactions);
         source_code.sweep_values(compactions);
     }
 }
@@ -302,7 +330,7 @@ pub fn parse_script<'a>(
         // [[ECMAScriptCode]]: script,
         ecmascript_code: ManuallyDrop::new(program),
         // [[LoadedModules]]: « »,
-        loaded_modules: (),
+        loaded_modules: Default::default(),
         // [[HostDefined]]: hostDefined,
         host_defined,
         source_code: source_code.unbind(),

@@ -79,7 +79,9 @@ use crate::{
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
-            module::module_semantics::source_text_module_records::SourceTextModuleHeap,
+            module::module_semantics::{
+                ModuleRequestRecord, source_text_module_records::SourceTextModuleHeap,
+            },
             script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
         },
@@ -180,6 +182,7 @@ pub struct Heap {
     #[cfg(feature = "weak-refs")]
     pub weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
     pub modules: Vec<Option<ModuleHeapData<'static>>>,
+    pub(crate) module_request_records: Vec<ModuleRequestRecord<'static>>,
     pub(crate) source_text_module_records: SourceTextModuleHeap,
     pub scripts: Vec<Option<ScriptRecord<'static>>>,
     pub string_iterators: Vec<Option<StringIteratorHeapData<'static>>>,
@@ -276,6 +279,7 @@ impl Heap {
             maps: Vec::with_capacity(128),
             map_iterators: Vec::with_capacity(128),
             modules: Vec::with_capacity(0),
+            module_request_records: Vec::with_capacity(0),
             numbers: Vec::with_capacity(1024),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
