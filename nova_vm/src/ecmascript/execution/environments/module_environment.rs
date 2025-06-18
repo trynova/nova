@@ -198,7 +198,16 @@ impl<'e> ModuleEnvironment<'e> {
         value: Value,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        self.get_declarative_env(agent)
+        let env_rec = agent.heap.environments.get_module_environment(self);
+        if env_rec.has_indirect_binding(name) {
+            let error_message = format!(
+                "Cannot assign to immutable binding '{}'.",
+                name.as_str(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
+        }
+        env_rec
+            .declarative_environment
             .set_mutable_binding(agent, name, value, true, gc)
     }
 
