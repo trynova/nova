@@ -3321,14 +3321,14 @@ fn with_typed_array<'a, T: Viewable>(
             .bind(gc.nogc())
             .into_i64()
     };
-    // 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
+    // 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
     let numeric_value = if T::IS_BIGINT {
         to_big_int(agent, scoped_value.get(agent), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
             .into_numeric()
     } else {
-        // 8. Else, let numericValue be ? ToNumber(value).
+        // 8. Else, let numericValue be ? ToNumber(value).
         to_number(agent, scoped_value.get(agent), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())

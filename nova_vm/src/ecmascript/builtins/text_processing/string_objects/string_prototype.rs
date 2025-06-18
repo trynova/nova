@@ -9,23 +9,15 @@ use unicode_normalization::{
     IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
 
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_reg_exp;
-use crate::ecmascript::abstract_operations::type_conversion::{
-    to_integer_or_infinity_number, to_string_primitive, try_to_integer_or_infinity, try_to_length,
-    try_to_string,
-};
-use crate::ecmascript::types::Primitive;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list, get_method},
-            testing_and_comparison::{is_callable, require_object_coercible},
+            operations_on_objects::{call_function, create_array_from_list, get_object_method},
+            testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
             type_conversion::{
-                is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
-                to_uint32,
+                is_trimmable_whitespace, to_integer_or_infinity, to_integer_or_infinity_number,
+                to_length, to_number, to_string, to_string_primitive, to_uint32,
+                try_to_integer_or_infinity, try_to_length, try_to_string,
             },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -34,7 +26,14 @@ use crate::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, IntoValue, Number, Object, Primitive, PropertyKey, String, Value,
+        },
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -1289,11 +1288,11 @@ impl StringPrototype {
             .scope(agent, nogc);
 
         let scoped_search_value = search_value.scope(agent, nogc);
-        // 2. If searchValue is neither undefined nor null, then
-        if !search_value.is_null() && !search_value.is_undefined() {
+        // 2. If searchValue is an Object, then
+        if let Ok(search_value) = Object::try_from(search_value) {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value.unbind(), symbol, gc.reborrow())
+            let replacer = get_object_method(agent, search_value.unbind(), symbol, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
 
@@ -1402,9 +1401,9 @@ impl StringPrototype {
 
         let scoped_search_value = search_value.scope(agent, nogc);
 
-        // 2. If searchValue is neither undefined nor null, then
-        if !search_value.is_null() && !search_value.is_undefined() {
-            // a. Let isRegExp be ? IsRegExp(searchValue).
+        // 2. If searchValue is an Object, then
+        if let Ok(search_value) = Object::try_from(search_value) {
+            // a. Let isRegExp be ? IsRegExp(searchValue).
             let is_reg_exp = false;
 
             // b. If isRegExp is true, then
@@ -1417,7 +1416,7 @@ impl StringPrototype {
 
             // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value.unbind(), symbol, gc.reborrow())
+            let replacer = get_object_method(agent, search_value.unbind(), symbol, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
 
@@ -1464,8 +1463,14 @@ impl StringPrototype {
             let mut position = 0;
 
             // 11. Repeat, while position is not not-found,
-            while let Some(pos) = subject[position..].find(search_str) {
+            while let Some(pos) = subject
+                .split_at_checked(position)
+                .and_then(|(_, str)| str.find(search_str))
+            {
+                // a. Append position to matchPositions.
                 match_positions.push(position + pos);
+                // b. Set position to StringIndexOf(string, searchString,
+                //    position + advanceBy).
                 position += advance_by + pos;
             }
 
@@ -1483,14 +1488,14 @@ impl StringPrototype {
             // 14. For each element p of matchPositions, do
             let functional_replace = functional_replace.scope(agent, gc.nogc());
             for p in match_positions {
-                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
+                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
                     functional_replace.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList::from_mut_slice(&mut [
                         search_string_root.get(agent).into_value(),
-                        Number::from(position as u32).into_value(),
+                        Number::from(p as u32).into_value(),
                         s.get(agent).into_value(),
                     ])),
                     gc.reborrow(),
@@ -1642,20 +1647,19 @@ impl StringPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
-        let separator = args.get(0).scope(agent, nogc);
+        let separator = args.get(0).bind(nogc);
+        let scoped_separator = separator.scope(agent, nogc);
         let limit = args.get(1).scope(agent, nogc);
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, nogc)
             .unbind()?
             .scope(agent, nogc);
 
-        // 2. If separator is neither undefined nor null, then
-
-        let stack_separator = separator.get(agent).bind(gc.nogc());
-        if !matches!(stack_separator, Value::Undefined | Value::Null) {
+        // 2. If separator is an object, then
+        if let Ok(separator) = Object::try_from(separator) {
             let symbol = WellKnownSymbolIndexes::Split.into();
             // a. Let splitter be ? GetMethod(separator, %Symbol.split%).
-            let splitter = get_method(agent, stack_separator.unbind(), symbol, gc.reborrow())
+            let splitter = get_object_method(agent, separator.unbind(), symbol, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
 
@@ -1665,7 +1669,7 @@ impl StringPrototype {
                 return call_function(
                     agent,
                     splitter.unbind(),
-                    separator.get(agent),
+                    scoped_separator.get(agent).into_value(),
                     Some(ArgumentsList::from_mut_slice(&mut [
                         o.get(agent),
                         limit.get(agent),
@@ -1681,19 +1685,22 @@ impl StringPrototype {
             .bind(gc.nogc());
         let scoped_s = s.scope(agent, gc.nogc());
 
-        let lim = limit.get(agent).bind(gc.nogc());
-        let lim = match limit.get(agent) {
+        // SAFETY: not shared.
+        let limit = unsafe { limit.take(agent).bind(gc.nogc()) };
+        let lim = match limit {
             // 4. If limit is undefined, lim is 2**32 - 1.
             Value::Undefined => u32::MAX,
             // else let lim be ℝ(? ToUint32(limit)).
             // Note: Fast path for integer parameter.
             Value::Integer(value) => value.into_i64() as u32,
-            _ => to_uint32(agent, lim.unbind(), gc.reborrow()).unbind()?,
+            _ => to_uint32(agent, limit.unbind(), gc.reborrow()).unbind()?,
         };
 
         // 5. Let R be ? ToString(separator).
-        let r = to_string(agent, separator.get(agent), gc.reborrow()).unbind()?;
+        let r = to_string(agent, scoped_separator.get(agent), gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
+        // SAFETY: not shared.
+        let separator = unsafe { scoped_separator.take(agent) }.bind(gc);
         let s = scoped_s.get(agent).bind(gc);
         let r = r.bind(gc);
 
@@ -1703,7 +1710,7 @@ impl StringPrototype {
         }
 
         // 7. If separator is undefined, return an array with the whole string
-        if separator.get(agent).is_undefined() {
+        if separator.is_undefined() {
             return Ok(create_array_from_list(agent, &[s.into_value()], gc).into_value());
         }
 

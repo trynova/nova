@@ -235,9 +235,9 @@ pub enum Instruction {
     /// Call PutValue() with the last reference on the reference stack and the
     /// result value.
     PutValue,
-    /// Store ResolveBinding() as the result value.
+    /// Store ResolveBinding() in the reference register.
     ResolveBinding,
-    /// Store ResolveThisBinding() as the result value.
+    /// Store ResolveThisBinding() in the result register.
     ResolveThisBinding,
     /// Stop bytecode execution, indicating a return from the current function.
     Return,

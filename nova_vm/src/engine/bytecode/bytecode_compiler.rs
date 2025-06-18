@@ -1901,7 +1901,15 @@ fn complex_object_pattern<'s>(
             }
             ast::PropertyKey::PrivateIdentifier(_) => todo!(),
             _ => {
-                property.key.to_expression().compile(ctx);
+                // Make a copy of the baseValue on the stack;
+                // EvaluatePropertyAccessWithExpressionKey pops the stack.
+                ctx.add_instruction(Instruction::StoreCopy);
+                ctx.add_instruction(Instruction::Load);
+                let expr = property.key.to_expression();
+                expr.compile(ctx);
+                if is_reference(expr) {
+                    ctx.add_instruction(Instruction::GetValue);
+                }
                 ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
             }
         }

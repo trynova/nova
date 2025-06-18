@@ -288,7 +288,10 @@ impl DeclarativeEnvironment<'_> {
         let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
-                let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
+                let error_message = format!(
+                    "Cannot assign to nonexisting binding '{}'.",
+                    name.as_str(agent)
+                );
                 return Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
                     error_message,
@@ -367,7 +370,10 @@ impl DeclarativeEnvironment<'_> {
             None => {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
-                let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
+                let error_message = format!(
+                    "Could not get value of binding '{}': binding is uninitialized.",
+                    name.as_str(agent)
+                );
                 Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
             }
         }

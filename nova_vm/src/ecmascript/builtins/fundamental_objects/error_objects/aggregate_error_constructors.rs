@@ -58,7 +58,7 @@ impl AggregateErrorConstructor {
             || agent.running_execution_context().function.unwrap(),
             |new_target| Function::try_from(new_target).unwrap(),
         );
-        // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%AggregateError.prototype%", « [[ErrorData]] »).
+        // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%AggregateError.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
             new_target.unbind(),

@@ -244,15 +244,19 @@ impl StringConstructor {
                 };
                 let next_cp = next_cp.into_i64();
                 // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-                if !(0..=0x10FFFF).contains(&next_cp) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::RangeError,
-                        format!("{next_cp:?} is not a valid code point"),
-                        gc.into_nogc(),
-                    ));
+                if (0..=0x10FFFF).contains(&next_cp) {
+                    if let Some(next_cp) = char::from_u32(next_cp as u32) {
+                        // d. Set result to the string-concatenation of result
+                        //    and UTF16EncodeCodePoint(ℝ(nextCP)).
+                        result.push(next_cp);
+                        continue;
+                    };
                 }
-                // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
-                result.push(char::from_u32(next_cp as u32).unwrap());
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{next_cp:?} is not a valid code point"),
+                    gc.into_nogc(),
+                ));
             }
         } else {
             let code_points = code_points

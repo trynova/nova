@@ -12,6 +12,7 @@ use oxc_span::SourceType;
 use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
+use crate::ecmascript::execution::get_this_environment;
 use crate::ecmascript::types::Primitive;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -21,8 +22,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            PrivateEnvironment, Realm, agent::ExceptionType, get_this_environment,
-            new_declarative_environment,
+            PrivateEnvironment, Realm, agent::ExceptionType, new_declarative_environment,
         },
         scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::{

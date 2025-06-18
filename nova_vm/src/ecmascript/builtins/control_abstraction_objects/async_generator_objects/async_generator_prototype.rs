@@ -2,26 +2,32 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
-use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, if_abrupt_reject_promise_m, PromiseCapability};
-use crate::ecmascript::execution::agent::JsError;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin,
+            promise_objects::promise_abstract_operations::promise_capability_records::{
+                PromiseCapability, if_abrupt_reject_promise, if_abrupt_reject_promise_m,
+            },
+        },
+        execution::{Agent, JsResult, Realm, agent::JsError},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };
 
-use super::AsyncGeneratorRequestCompletion;
-use super::async_generator_abstract_operations::{
-    async_generator_await_return, async_generator_enqueue, async_generator_resume,
-    async_generator_validate,
+use super::{
+    AsyncGeneratorRequestCompletion,
+    async_generator_abstract_operations::{
+        async_generator_await_return, async_generator_enqueue, async_generator_resume,
+        async_generator_validate,
+    },
 };
 
 pub(crate) struct AsyncGeneratorPrototype;
@@ -189,7 +195,7 @@ impl AsyncGeneratorPrototype {
         let mut completed = false;
         if generator.is_suspended_start(agent) {
             // a. Set generator.[[AsyncGeneratorState]] to completed.
-            agent[generator].async_generator_state = Some(AsyncGeneratorState::Completed);
+            generator.transition_to_complete(agent);
             // b. Set state to completed.
             completed = true;
         }

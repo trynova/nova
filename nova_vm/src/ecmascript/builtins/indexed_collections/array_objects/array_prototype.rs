@@ -3928,18 +3928,18 @@ impl ArrayPrototype {
             while k > 0 {
                 // i. Let from be ! ToString(𝔽(k - 1)).
                 let from = (k - 1).try_into().unwrap();
-                // ii. Let to be ! ToString(𝔽(k + argCount - 1)).
+                // ii. Let to be ! ToString(𝔽(k + argCount - 1)).
                 let to = (k + arg_count as i64 - 1).try_into().unwrap();
                 // iii. Let fromPresent be ? HasProperty(O, from).
                 let from_present =
                     has_property(agent, o.get(agent), from, gc.reborrow()).unbind()?;
                 // iv. If fromPresent is true, then
                 if from_present {
-                    // 1. Let fromValue be ? Get(O, from).
+                    // 1. Let fromValue be ? Get(O, from).
                     let from_value = get(agent, o.get(agent), from, gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc());
-                    // 2. Perform ? Set(O, to, fromValue, true).
+                    // 2. Perform ? Set(O, to, fromValue, true).
                     set(
                         agent,
                         o.get(agent),
@@ -3961,7 +3961,7 @@ impl ArrayPrototype {
             // d. Let j be +0𝔽.
             // e. For each element E of items, do
             for (j, e) in items.iter().enumerate() {
-                // i. Perform ? Set(O, ! ToString(j), E, true).
+                // i. Perform ? Set(O, ! ToString(j), E, true).
                 // ii. Set j to j + 1𝔽.
                 set(
                     agent,
@@ -3974,7 +3974,7 @@ impl ArrayPrototype {
                 .unbind()?;
             }
         }
-        // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
+        // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
         let len: Value = (len + arg_count as i64).try_into().unwrap();
         set(
             agent,

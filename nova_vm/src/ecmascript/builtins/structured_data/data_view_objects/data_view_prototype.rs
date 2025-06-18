@@ -361,7 +361,7 @@ impl DataViewPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
-        // 2. Return ? GetViewValue(v, byteOffset, true, int8).
+        // 2. Return ? GetViewValue(v, byteOffset, true, int8).
         get_view_value::<i8>(agent, this_value, byte_offset, true, gc).map(IntoValue::into_value)
     }
 
@@ -406,7 +406,7 @@ impl DataViewPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
-        // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
+        // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
         get_view_value::<u8>(agent, this_value, byte_offset, true, gc).map(IntoValue::into_value)
     }
 
