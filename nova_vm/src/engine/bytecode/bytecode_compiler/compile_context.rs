@@ -68,11 +68,11 @@ pub(crate) struct JumpIndex {
     pub(crate) index: usize,
 }
 
-/// Type of code being compiled by bytecode compiler.
+/// GeneratorKind of the currently compiled code.
 ///
-/// This affects generator yield behaviour.
+/// This affects generator yield and return behaviour.
 #[derive(PartialEq, Eq)]
-pub(crate) enum CodeExecutionKind {
+pub(crate) enum GeneratorKind {
     Sync,
     Async,
 }
@@ -101,10 +101,10 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(super) is_call_optional_chain_this: bool,
     /// Stores data needed to generate control flow graph transition points.
     control_flow_stack: Vec<ControlFlowStackEntry<'script>>,
-    /// Type of code being compiled.
+    /// GeneratorKind of the currently compiled code.
     ///
-    /// This affects generator yield behaviour.
-    execution_kind: CodeExecutionKind,
+    /// This affects generator yield and return behaviour.
+    generator_kind: Option<GeneratorKind>,
 }
 
 impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> {
@@ -119,20 +119,20 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             optional_chains: None,
             is_call_optional_chain_this: false,
             control_flow_stack: Vec::new(),
-            execution_kind: CodeExecutionKind::Sync,
+            generator_kind: None,
         }
     }
 
-    /// Set the compile context to be asynchronous.
+    /// Set the compile context to be a type of generator.
     ///
-    /// This affects generator yield behaviour.
-    pub(crate) fn set_async(&mut self) {
-        self.execution_kind = CodeExecutionKind::Async;
+    /// This affects generator yield and return behaviour.
+    pub(crate) fn set_generator_kind(&mut self, kind: GeneratorKind) {
+        self.generator_kind = Some(kind);
     }
 
-    /// Returns true if we're compiling asynchronous code.
-    pub(crate) fn is_async(&self) -> bool {
-        self.execution_kind == CodeExecutionKind::Async
+    /// Returns true if we're compiling an asynchronous generator.
+    pub(crate) fn is_async_generator(&self) -> bool {
+        self.generator_kind == Some(GeneratorKind::Async)
     }
 
     /// Get exclusive access to the Agent, and the GC scope, through the context.
@@ -624,6 +624,14 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// present in the finaliser stack, the method instead jumps to a
     /// finally-block that ends with a return.
     pub(super) fn compile_return(&mut self) {
+        if self.is_async_generator() {
+            // AsyncGenerators perform an Await before wrapping the result in a
+            // ReturnCompletion and returning it.
+            // Because this happens before the ReturnCompletion wrapping, it
+            // means that the Await instruction should be injected before the
+            // finalisers run.
+            self.add_instruction(Instruction::Await);
+        }
         let (stack_contains_finally_blocks, stack_contains_finalisers) = self
             .control_flow_stack
             .iter()
@@ -720,6 +728,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     pub(crate) fn do_implicit_return(&mut self) {
         if !self.is_unreachable() {
+            if self.is_async_generator() {
+                self.add_instruction(Instruction::Await);
+            }
             self.add_instruction(Instruction::Return);
         }
     }

@@ -3,11 +3,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
+use std::convert::Infallible;
 
 use data::PromiseState;
 
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::agent::JsError;
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
 use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
@@ -117,6 +119,18 @@ unsafe impl Bindable for Promise<'_> {
 impl<'a> From<Promise<'a>> for Value<'a> {
     fn from(value: Promise<'a>) -> Self {
         Value::Promise(value)
+    }
+}
+
+impl<'a> From<Promise<'a>> for JsResult<'a, Value<'a>> {
+    fn from(value: Promise<'a>) -> Self {
+        Ok(value.into_value())
+    }
+}
+
+impl<'a> From<Promise<'a>> for Result<Value<'a>, Infallible> {
+    fn from(value: Promise<'a>) -> Self {
+        Ok(value.into_value())
     }
 }
 

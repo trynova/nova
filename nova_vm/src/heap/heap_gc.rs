@@ -40,7 +40,7 @@ use crate::{
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReactionIdentifier,
+                async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::Generator,
                 promise_objects::promise_abstract_operations::{
                     promise_reaction_records::PromiseReaction,
@@ -381,7 +381,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 async_generators.get(index).mark_values(&mut queues);
             }
         });
-        let mut await_reaction_marks: Box<[AwaitReactionIdentifier]> =
+        let mut await_reaction_marks: Box<[AwaitReaction]> =
             queues.await_reactions.drain(..).collect();
         await_reaction_marks.sort();
         await_reaction_marks.iter().for_each(|&idx| {

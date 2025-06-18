@@ -2842,16 +2842,16 @@ impl Vm {
                 }
             }
             Instruction::IteratorReturn => {
-                let result = vm.result.take().expect("IteratorReturn with no error");
-                let result = with_vm_gc(
+                let result = vm.result.expect("IteratorReturn with no received value");
+                let value = with_vm_gc(
                     agent,
                     vm,
                     |agent, gc| ActiveIterator::new(agent, gc.nogc()).r#return(agent, result, gc),
                     gc,
                 )?;
-                if let Some(result) = result {
+                if let Some(value) = value {
                     // Return method was found and called successfully.
-                    vm.result = Some(result.unbind());
+                    vm.result = Some(value.unbind());
                 } else {
                     // No return method was found, we should jump to provided
                     // instruction.

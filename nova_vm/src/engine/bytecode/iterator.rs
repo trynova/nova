@@ -19,6 +19,10 @@ use crate::{
         builtins::{
             ArgumentsList, Array, ScopedArgumentsList,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            iteration::async_from_sync_iterator_objects::{
+                AsyncFromSyncIteratorPrototype, create_async_from_sync_iterator,
+            },
+            promise::Promise,
         },
         execution::{
             Agent, JsResult,
@@ -85,7 +89,9 @@ impl<'a> ActiveIterator<'a> {
                 .next(agent, gc)
                 .map(|r| convert_to_iter_result_object(agent, r).into_value()),
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
-                GenericIterator::new(self).call_next(agent, value, gc)
+                Ok(AsyncFromSyncGenericIterator::new(self)
+                    .call_next(agent, value, gc)
+                    .into_value())
             }
             VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).call_next(agent, value, gc)
@@ -111,8 +117,12 @@ impl<'a> ActiveIterator<'a> {
             VmIteratorRecord::ArrayValues(_) => {
                 ArrayValuesIterator::new(self).throw(agent, received_value, gc)
             }
-            VmIteratorRecord::AsyncFromSyncGenericIterator(_)
-            | VmIteratorRecord::GenericIterator(_) => {
+            VmIteratorRecord::AsyncFromSyncGenericIterator(_) => Ok(Some(
+                AsyncFromSyncGenericIterator::new(self)
+                    .throw(agent, received_value, gc)
+                    .into_value(),
+            )),
+            VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).throw(agent, received_value, gc)
             }
             _ => unreachable!(),
@@ -129,8 +139,12 @@ impl<'a> ActiveIterator<'a> {
             VmIteratorRecord::ArrayValues(_) => {
                 ArrayValuesIterator::new(self).r#return(agent, received_value, gc)
             }
-            VmIteratorRecord::AsyncFromSyncGenericIterator(_)
-            | VmIteratorRecord::GenericIterator(_) => {
+            VmIteratorRecord::AsyncFromSyncGenericIterator(_) => Ok(Some(
+                AsyncFromSyncGenericIterator::new(self)
+                    .r#return(agent, received_value, gc)
+                    .into_value(),
+            )),
+            VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).r#return(agent, received_value, gc)
             }
             _ => unreachable!(),
@@ -151,7 +165,8 @@ impl<'a> ActiveIterator<'a> {
             }
             VmIteratorRecord::ArrayValues(_) => ArrayValuesIterator::new(self).next(agent, gc),
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
-                GenericIterator::new(self).step_value(agent, gc)
+                // We should never call this for async iterators!
+                unreachable!()
             }
             VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).step_value(agent, gc)
@@ -486,11 +501,10 @@ impl<'a> VmIteratorRecord<'a> {
         // SAFETY: obj is not shared.
         let obj = unsafe { obj.take(agent) }.bind(gc.nogc());
         // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
+        let sync_iterator_record =
+            get_iterator_from_method(agent, obj.unbind(), sync_method.unbind(), gc)?;
         // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
-        Ok(
-            get_iterator_from_method(agent, obj.unbind(), sync_method.unbind(), gc)?
-                .into_vm_iterator_record(),
-        )
+        Ok(create_async_from_sync_iterator(sync_iterator_record))
     }
 }
 
@@ -1003,8 +1017,78 @@ impl<'a> GenericIterator<'a> {
 
     fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord {
         match self.iter.get(agent) {
-            VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter,
             VmIteratorRecord::GenericIterator(iter) => iter,
+            _ => unreachable!(),
+        }
+    }
+}
+
+struct AsyncFromSyncGenericIterator<'a> {
+    iter: ActiveIterator<'a>,
+}
+
+impl<'a> AsyncFromSyncGenericIterator<'a> {
+    fn new(iter: &'a ActiveIterator) -> Self {
+        Self {
+            iter: iter.reborrow(),
+        }
+    }
+
+    /// ### [27.1.6.2.1 %AsyncFromSyncIteratorPrototype%.next ( \[ value \] )](https://tc39.es/ecma262/#sec-%asyncfromsynciteratorprototype%.next)
+    fn call_next<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        value: Option<Value>,
+        gc: GcScope<'gc, '_>,
+    ) -> Promise<'gc> {
+        // 1. Let O be the this value.
+        // 2. Assert: O is an Object that has a [[SyncIteratorRecord]] internal slot.
+        // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
+        // 5. If value is present, then
+        let iter = self.get(agent);
+        let sync_iterator_record = iter.bind(gc.nogc());
+        AsyncFromSyncIteratorPrototype::next(agent, sync_iterator_record.unbind(), value, gc)
+    }
+
+    /// ### [27.1.6.2.2 %AsyncFromSyncIteratorPrototype%.return ( \[ value \] )](https://tc39.es/ecma262/#sec-%asyncfromsynciteratorprototype%.return)
+    fn r#return<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> Promise<'gc> {
+        // 1. Let O be the this value.
+        // 2. Assert: O is an Object that has a [[SyncIteratorRecord]] internal slot.
+        // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
+        // 5. Let syncIterator be syncIteratorRecord.[[Iterator]].
+        let iter = self.get(agent);
+        let sync_iterator = iter.iterator.bind(gc.nogc());
+        AsyncFromSyncIteratorPrototype::r#return(agent, sync_iterator.unbind(), value, gc)
+    }
+
+    /// ### [27.1.6.2.3 %AsyncFromSyncIteratorPrototype%.throw ( \[ value \] )](https://tc39.es/ecma262/#sec-%asyncfromsynciteratorprototype%.throw)
+    ///
+    /// > NOTE: In this specification, value is always provided, but is left
+    /// > optional for consistency with
+    /// > %AsyncFromSyncIteratorPrototype%.return ( [ value ] ).
+    fn throw<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> Promise<'gc> {
+        // 1. Let O be the this value.
+        // 2. Assert: O is an Object that has a [[SyncIteratorRecord]] internal slot.
+        // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
+        // 5. Let syncIterator be syncIteratorRecord.[[Iterator]].
+        let iter = self.get(agent);
+        let sync_iterator = iter.iterator.bind(gc.nogc());
+        AsyncFromSyncIteratorPrototype::throw(agent, sync_iterator.unbind(), value, gc)
+    }
+
+    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord {
+        match self.iter.get(agent) {
+            VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter,
             _ => unreachable!(),
         }
     }

@@ -398,3 +398,25 @@ pub(crate) fn if_abrupt_reject_promise<'gc, T: 'gc>(
         promise
     })
 }
+
+macro_rules! if_abrupt_reject_promise_m {
+    ($agent:ident, $value:ident, $capability:ident, $gc:ident) => {
+        // 1. Assert: value is a Completion Record.
+        match $value.unbind().bind($gc.nogc()) {
+            // 2. If value is an abrupt completion, then
+            Err(err) => {
+                // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
+                $capability.reject($agent, err.value().unbind(), $gc.nogc());
+                // b. Return capability.[[Promise]].
+                return $capability.promise.unbind().bind($gc.into_nogc()).into();
+            }
+            // 3. Else,
+            Ok(value) => {
+                // a. Set value to ! value.
+                value.unbind().bind($gc.nogc())
+            }
+        }
+    };
+}
+
+pub(crate) use if_abrupt_reject_promise_m;

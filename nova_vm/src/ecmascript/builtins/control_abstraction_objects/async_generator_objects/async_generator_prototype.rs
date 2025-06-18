@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
 use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, PromiseCapability};
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, if_abrupt_reject_promise_m, PromiseCapability};
 use crate::ecmascript::execution::agent::JsError;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
@@ -161,7 +161,7 @@ impl AsyncGeneratorPrototype {
         } else {
             // 10. Else,
             // a. Assert: state is either executing or draining-queue.
-            assert!(generator.is_draining_queue(agent) || generator.is_executing(agent));
+            assert!(generator.is_active(agent));
             // 11. Return promiseCapability.[[Promise]].
             Ok(promise.into_value().unbind())
         }
@@ -183,13 +183,7 @@ impl AsyncGeneratorPrototype {
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator =
-            match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
-                Ok(g) => g,
-                Err(p) => {
-                    return Ok(p.into_value().unbind());
-                }
-            };
+        let generator = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
         // 5. Let state be generator.[[AsyncGeneratorState]].
         // 6. If state is suspended-start, then
         let mut completed = false;

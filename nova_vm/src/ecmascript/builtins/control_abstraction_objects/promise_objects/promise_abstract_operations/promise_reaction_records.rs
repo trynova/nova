@@ -8,10 +8,10 @@ use crate::{
     ecmascript::{
         builtins::{
             async_generator_objects::AsyncGenerator,
-            control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionIdentifier,
+            control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
         },
         execution::Agent,
-        types::Function,
+        types::{Function, Object},
     },
     engine::{
         context::{Bindable, NoGcScope},
@@ -47,8 +47,14 @@ pub(crate) enum PromiseReactionType {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PromiseReactionHandler<'a> {
     JobCallback(Function<'a>),
-    Await(AwaitReactionIdentifier<'a>),
+    Await(AwaitReaction<'a>),
     AsyncGenerator(AsyncGenerator<'a>),
+    /// See `unwrap` Abstract Closure in step 9 of
+    /// AsyncFromSyncIteratorContinuation.
+    AsyncFromSyncIterator {
+        done: bool,
+    },
+    AsyncFromSyncIteratorClose(Object<'a>),
     Empty,
 }
 
@@ -58,6 +64,8 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             Self::JobCallback(function) => function.mark_values(queues),
             Self::Await(await_reaction_identifier) => await_reaction_identifier.mark_values(queues),
             Self::AsyncGenerator(async_generator) => async_generator.mark_values(queues),
+            Self::AsyncFromSyncIterator { done: _ } => {}
+            Self::AsyncFromSyncIteratorClose(object) => object.mark_values(queues),
             Self::Empty => {}
         }
     }
@@ -69,6 +77,8 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 await_reaction_identifier.sweep_values(compactions)
             }
             Self::AsyncGenerator(async_generator) => async_generator.sweep_values(compactions),
+            Self::AsyncFromSyncIterator { done: _ } => {}
+            Self::AsyncFromSyncIteratorClose(object) => object.sweep_values(compactions),
             Self::Empty => {}
         }
     }

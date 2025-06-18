@@ -29,6 +29,8 @@ use crate::{
 };
 use oxc_ast::ast::{self, Program, Statement};
 
+use super::bytecode_compiler::GeneratorKind;
+
 #[derive(Debug)]
 /// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
 /// be `Sync`. This is safe because the reference can only be obtained from the
@@ -187,8 +189,12 @@ impl<'gc> Executable<'gc> {
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         let mut ctx = CompileContext::new(agent, gc);
-        if data.is_async {
-            ctx.set_async();
+        if data.is_generator {
+            ctx.set_generator_kind(if data.is_async {
+                GeneratorKind::Async
+            } else {
+                GeneratorKind::Sync
+            });
         }
 
         let is_concise = data.is_concise_body;

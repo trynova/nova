@@ -151,12 +151,20 @@ fn for_in_of_body_evaluation<'s>(
     // 6. Repeat,
     let loop_start = ctx.get_jump_index_to_here();
     // a. Let nextResult be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
-    // b. If iteratorKind is ASYNC, set nextResult to ? Await(nextResult).
-    // c. If nextResult is not an Object, throw a TypeError exception.
-    // d. Let done be ? IteratorComplete(nextResult).
-    // e. If done is true, return V.
-    // f. Let nextValue be ? IteratorValue(nextResult).
-    let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
+    let jump_to_end = if iteration_kind == IterationKind::AsyncIterate {
+        ctx.add_instruction(Instruction::IteratorCallNextMethod);
+        // b. If iteratorKind is ASYNC, set nextResult to ? Await(nextResult).
+        ctx.add_instruction(Instruction::Await);
+        // c. If nextResult is not an Object, throw a TypeError exception.
+        // d. Let done be ? IteratorComplete(nextResult).
+        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
+        // e. If done is true, return V.
+        // f. Let nextValue be ? IteratorValue(nextResult).
+        ctx.add_instruction(Instruction::IteratorValue);
+        jump_to_end
+    } else {
+        ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue)
+    };
     // Note: stepping the iterator happens "outside" the loop in a sense;
     // errors thrown above do not close the iterator.
 

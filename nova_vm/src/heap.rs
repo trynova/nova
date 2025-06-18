@@ -58,7 +58,7 @@ use crate::{
             array_buffer::DetachKey,
             async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReaction,
+                async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorHeapData,
                 promise_objects::promise_abstract_operations::{
                     promise_reaction_records::PromiseReactionRecord,
@@ -122,7 +122,7 @@ pub struct Heap {
     pub arrays: Vec<Option<ArrayHeapData<'static>>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
     pub async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
-    pub(crate) await_reactions: Vec<Option<AwaitReaction<'static>>>,
+    pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
     pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,

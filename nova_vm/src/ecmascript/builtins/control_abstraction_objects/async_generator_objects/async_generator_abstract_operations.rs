@@ -195,7 +195,7 @@ pub(super) fn async_generator_resume(
     // 2. Let genContext be generator.[[AsyncGeneratorContext]].
     // 5. Set generator.[[AsyncGeneratorState]] to executing.
     assert!(generator.is_suspended_start(agent) || generator.is_suspended_yield(agent));
-    let (vm_or_args, gen_context, executable) = generator.transition_to_execution(agent, gc.nogc());
+    let (vm_or_args, gen_context, executable) = generator.transition_to_executing(agent, gc.nogc());
     let executable = executable.scope(agent, gc.nogc());
 
     // 3. Let callerContext be the running execution context.
@@ -213,12 +213,17 @@ pub(super) fn async_generator_resume(
         VmOrArguments::Arguments(mut args) => {
             Vm::execute(agent, executable, Some(&mut args), gc.reborrow())
         }
-        VmOrArguments::Vm(vm) => {
-            let AsyncGeneratorRequestCompletion::Ok(value) = completion else {
-                unreachable!()
-            };
-            vm.resume(agent, executable, value.unbind(), gc.reborrow())
-        }
+        VmOrArguments::Vm(vm) => match completion {
+            AsyncGeneratorRequestCompletion::Ok(value) => {
+                vm.resume(agent, executable, value.unbind(), gc.reborrow())
+            }
+            AsyncGeneratorRequestCompletion::Err(err) => {
+                vm.resume_throw(agent, executable, err.value().unbind(), gc.reborrow())
+            }
+            AsyncGeneratorRequestCompletion::Return(value) => {
+                vm.resume_return(agent, executable, value.unbind(), gc.reborrow())
+            }
+        },
     };
     // 8. Assert: result is never an abrupt completion.
     // 9. Assert: When we return here, genContext has already been removed from
@@ -280,14 +285,8 @@ pub(super) fn resume_handle_result(
         ExecutionResult::Yield { vm, yielded_value } => {
             // 27.5.3.7 Yield ( value )
             // If generatorKind is async, return ? AsyncGeneratorYield(? Await(value)).
-            async_generator_perform_await(
-                agent,
-                scoped_generator,
-                vm,
-                yielded_value,
-                AsyncGeneratorAwaitKind::Yield,
-                gc,
-            );
+            // NOTE: Await is performed in the bytecode.
+            async_generator_yield(agent, yielded_value, scoped_generator, vm, gc);
         }
         ExecutionResult::Await { vm, awaited_value } => {
             async_generator_perform_await(
@@ -357,16 +356,13 @@ fn async_generator_unwrap_yield_resumption(
             vm.resume_throw(agent, executable, e.value().unbind(), gc.reborrow())
         }
         AsyncGeneratorRequestCompletion::Return(value) => {
+            let executable = generator
+                .get(agent)
+                .get_executable(agent, gc.nogc())
+                .scope(agent, gc.nogc());
             // 2. Let awaited be Completion(Await(resumptionValue.[[Value]])).
-            async_generator_perform_await(
-                agent,
-                generator,
-                vm,
-                value.unbind(),
-                AsyncGeneratorAwaitKind::Return,
-                gc.reborrow(),
-            );
-            return;
+            // Note: the Await instruction is performed in the bytecode.
+            vm.resume_return(agent, executable, value.unbind(), gc.reborrow())
         }
     };
     resume_handle_result(agent, execution_result.unbind(), generator, gc);
@@ -382,7 +378,7 @@ pub(super) fn async_generator_yield(
     value: Value,
     generator: Scoped<AsyncGenerator>,
     vm: SuspendedVm,
-    mut gc: GcScope,
+    gc: GcScope,
 ) {
     // 1. Let genContext be the running execution context.
     let gen_context = agent.running_execution_context();
@@ -438,20 +434,6 @@ pub(super) fn async_generator_yield(
         //    which it is resumed.
         // e. Assert: If control reaches here, then genContext is the running execution context again.
         // f. Return ? AsyncGeneratorUnwrapYieldResumption(resumptionValue).
-
-        // Note: Yield performs an implicit await on the value.
-        // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
-        // 8. Remove asyncContext from the execution context stack and
-        //    restore the execution context that is at the top of the
-        //    execution context stack as the running execution context.
-        let handler = PromiseReactionHandler::AsyncGenerator(generator.unbind());
-        // 2. Let promise be ? PromiseResolve(%Promise%, value).
-        let promise = Promise::resolve(agent, value, gc.reborrow())
-            .unbind()
-            .bind(gc.nogc());
-
-        // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-        inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
     }
 }
 

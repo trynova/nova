@@ -78,7 +78,6 @@ use crate::{
                 },
                 generator_prototype::GeneratorPrototype,
                 iteration::{
-                    async_from_sync_iterator_prototype::AsyncFromSyncIteratorPrototype,
                     async_iterator_prototype::AsyncIteratorPrototype,
                     iterator_prototype::IteratorPrototype,
                 },
@@ -357,7 +356,6 @@ impl Intrinsics {
         FinalizationRegistryConstructor::create_intrinsic(agent, realm);
         IteratorPrototype::create_intrinsic(agent, realm);
         AsyncIteratorPrototype::create_intrinsic(agent, realm);
-        AsyncFromSyncIteratorPrototype::create_intrinsic(agent, realm);
         PromisePrototype::create_intrinsic(agent, realm);
         PromiseConstructor::create_intrinsic(agent, realm);
         GeneratorFunctionPrototype::create_intrinsic(agent, realm);
@@ -569,13 +567,6 @@ impl Intrinsics {
     /// %ArrayIteratorPrototype%
     pub(crate) fn array_iterator_prototype(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::ArrayIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
-    }
-
-    /// %AsyncFromSyncIteratorPrototype%
-    pub(crate) fn async_from_sync_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncFromSyncIteratorPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
@@ -1670,8 +1661,6 @@ impl HeapMarkAndSweep for Intrinsics {
         #[cfg(feature = "array-buffer")]
         self.array_buffer().mark_values(queues);
         self.array_iterator_prototype().mark_values(queues);
-        self.async_from_sync_iterator_prototype()
-            .mark_values(queues);
         self.async_function_prototype().mark_values(queues);
         self.async_function().mark_values(queues);
         self.async_generator_function_prototype()
