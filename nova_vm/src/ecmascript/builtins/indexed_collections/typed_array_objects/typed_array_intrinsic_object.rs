@@ -2497,7 +2497,7 @@ pub(crate) fn viewable_slice<'a, T: Viewable>(
     slice
 }
 
-fn viewable_slice_mut<'a, T: Viewable>(
+pub(crate) fn viewable_slice_mut<'a, T: Viewable>(
     agent: &'a mut Agent,
     ta: TypedArray,
     gc: NoGcScope,
@@ -3274,7 +3274,7 @@ fn filter_typed_array<'a, T: Viewable>(
     Ok(a.unbind())
 }
 
-fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
+pub(crate) fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
     src_slice: &[Src],
     dst_slice: &mut [Dst],
 ) {
@@ -3488,7 +3488,7 @@ fn subarray_typed_array<'a, T: Viewable>(
     )
 }
 
-fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
+fn set_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     source: Value,
