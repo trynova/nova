@@ -4291,8 +4291,6 @@
   "built-ins/String/prototype/replaceAll/getSubstitution-0x0024.js": "FAIL",
   "built-ins/String/prototype/replaceAll/getSubstitution-0x0024N.js": "FAIL",
   "built-ins/String/prototype/replaceAll/getSubstitution-0x0024NN.js": "FAIL",
-  "built-ins/String/prototype/replaceAll/replaceValue-call-each-match-position.js": "FAIL",
-  "built-ins/String/prototype/replaceAll/replaceValue-call-matching-empty.js": "CRASH",
   "built-ins/String/prototype/replaceAll/searchValue-flags-no-g-throws.js": "FAIL",
   "built-ins/String/prototype/replaceAll/searchValue-flags-null-undefined-throws.js": "FAIL",
   "built-ins/String/prototype/replaceAll/searchValue-flags-toString-abrupt.js": "FAIL",
