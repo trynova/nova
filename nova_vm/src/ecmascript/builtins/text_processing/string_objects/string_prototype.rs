@@ -1404,7 +1404,7 @@ impl StringPrototype {
 
         // 2. If searchValue is neither undefined nor null, then
         if !search_value.is_null() && !search_value.is_undefined() {
-            // a. Let isRegExp be ? IsRegExp(searchValue).
+            // a. Let isRegExp be ? IsRegExp(searchValue).
             let is_reg_exp = false;
 
             // b. If isRegExp is true, then
@@ -1464,8 +1464,14 @@ impl StringPrototype {
             let mut position = 0;
 
             // 11. Repeat, while position is not not-found,
-            while let Some(pos) = subject[position..].find(search_str) {
+            while let Some(pos) = subject
+                .split_at_checked(position)
+                .and_then(|(_, str)| str.find(search_str))
+            {
+                // a. Append position to matchPositions.
                 match_positions.push(position + pos);
+                // b. Set position to StringIndexOf(string, searchString,
+                //    position + advanceBy).
                 position += advance_by + pos;
             }
 
@@ -1483,14 +1489,14 @@ impl StringPrototype {
             // 14. For each element p of matchPositions, do
             let functional_replace = functional_replace.scope(agent, gc.nogc());
             for p in match_positions {
-                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
+                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
                     functional_replace.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList::from_mut_slice(&mut [
                         search_string_root.get(agent).into_value(),
-                        Number::from(position as u32).into_value(),
+                        Number::from(p as u32).into_value(),
                         s.get(agent).into_value(),
                     ])),
                     gc.reborrow(),

@@ -1219,7 +1219,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         };
         // 6. If trap is undefined, then
         let Some(trap) = trap else {
-            // a. Return ? target.[[Set]](P, V, Receiver).
+            // a. Return ? target.[[Set]](P, V, Receiver).
             return target.unbind().internal_set(
                 agent,
                 property_key.unbind(),
@@ -1228,7 +1228,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 gc,
             );
         };
-        // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
+        // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
         let scoped_value = value.scope(agent, gc.nogc());
         let p = property_key.convert_to_value(agent, gc.nogc());
         let argument = call_function(
@@ -1252,7 +1252,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return Ok(false);
         };
 
-        // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
         let target = scoped_target.get(agent).bind(gc.nogc());
         let property_key = scoped_property_key.get(agent).bind(gc.nogc());
         let target_desc = target
