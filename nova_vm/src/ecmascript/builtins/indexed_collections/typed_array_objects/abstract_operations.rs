@@ -41,6 +41,11 @@ use crate::{
     heap::CreateHeapData,
 };
 
+use super::typed_array_intrinsic_object::{
+    copy_between_different_type_typed_arrays, split_typed_array_views, viewable_slice,
+    viewable_slice_mut,
+};
+
 /// Matches a TypedArray and defines a type T in the expression which
 /// is the generic type of the viewable.
 #[macro_export]
@@ -457,7 +462,7 @@ pub(crate) fn typed_array_get_element_generic<'a>(
 /// The abstract operation TypedArrayGetElement takes arguments O (a
 /// TypedArray) and index (a Number) and returns a Number, a BigInt,
 /// or undefined.
-pub(crate) fn typed_array_get_element<'a, O: Viewable + std::fmt::Debug>(
+pub(crate) fn typed_array_get_element<'a, O: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     index: i64,
@@ -1573,29 +1578,6 @@ pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType
             gc.into_nogc(),
         ));
     };
-    // 18. If IsSharedArrayBuffer(srcBuffer) is true, IsSharedArrayBuffer(targetBuffer) is true, and srcBuffer.[[ArrayBufferData]] is targetBuffer.[[ArrayBufferData]], let sameSharedArrayBuffer be true; otherwise, let sameSharedArrayBuffer be false.
-    // TODO: SharedArrayBuffer that we can even take here.
-    // 19. If SameValue(srcBuffer, targetBuffer) is true or sameSharedArrayBuffer is true, then
-    let mut src_byte_index = if src_buffer == target_buffer {
-        // a. Let srcByteLength be TypedArrayByteLength(srcRecord).
-        let src_byte_length = typed_array_byte_length::<SrcType>(agent, &src_record, gc.nogc());
-        // b. Set srcBuffer to ? CloneArrayBuffer(srcBuffer, srcByteOffset, srcByteLength).
-        src_buffer = clone_array_buffer(
-            agent,
-            src_buffer,
-            src_byte_offset,
-            src_byte_length,
-            gc.nogc(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        // c. Let srcByteIndex be 0.
-        0
-    } else {
-        // 20. Else,
-        //  a. Let srcByteIndex be srcByteOffset.
-        src_byte_offset
-    };
     // 21. Let targetByteIndex be (targetOffset × targetElementSize) + targetByteOffset.
     let mut target_byte_index = (target_offset * target_element_size) + target_byte_offset;
     // 22. Let limit be targetByteIndex + (targetElementSize × srcLength).
@@ -1604,60 +1586,126 @@ pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType
     if core::any::TypeId::of::<SrcType>() == core::any::TypeId::of::<TargetType>() {
         // a. NOTE: The transfer must be performed in a manner that preserves the bit-level encoding of the source data.
         // Repeat, while targetByteIndex < limit,
-        while target_byte_index < limit {
-            // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
-            let value = get_value_from_buffer::<u8>(
+        // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
+        // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
+        // iii. Set srcByteIndex to srcByteIndex + 1.
+        // iv. Set targetByteIndex to targetByteIndex + 1.
+        if src_buffer == target_buffer {
+            let src_byte_length = typed_array_byte_length::<SrcType>(agent, &src_record, gc.nogc());
+            src_buffer = clone_array_buffer(
                 agent,
                 src_buffer,
-                src_byte_index,
-                true,
-                Ordering::Unordered,
-                None,
+                src_byte_offset,
+                src_byte_length,
+                gc.nogc(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // c. Let srcByteIndex be 0.
+            let mut src_byte_index = 0;
+            while target_byte_index < limit {
+                let value = get_value_from_buffer::<u8>(
+                    agent,
+                    src_buffer,
+                    src_byte_index,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                    gc.nogc(),
+                );
+                set_value_in_buffer::<u8>(
+                    agent,
+                    target_buffer,
+                    target_byte_index as usize,
+                    value,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                );
+                src_byte_index += 1;
+                target_byte_index += 1;
+            }
+        } else {
+            let (dst_slice, src_slice) = split_typed_array_views::<SrcType>(
+                agent,
+                target.get(agent),
+                source.get(agent),
                 gc.nogc(),
             );
-            // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
-            set_value_in_buffer::<u8>(
-                agent,
-                target_buffer,
-                target_byte_index as usize,
-                value,
-                true,
-                Ordering::Unordered,
-                None,
-            );
-            // iii. Set srcByteIndex to srcByteIndex + 1.
-            src_byte_index += 1;
-            // iv. Set targetByteIndex to targetByteIndex + 1.
-            target_byte_index += 1;
+            let target_offset = target_offset as usize;
+            let src_slice = &src_slice[..src_slice.len()];
+            let src_len = src_slice.len();
+            let dst_slice = &mut dst_slice[target_offset..target_offset + src_len];
+            dst_slice.copy_from_slice(src_slice);
         }
     } else {
         // 24. Else,
         //  a. Repeat, while targetByteIndex < limit,
-        while target_byte_index < limit {
-            // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, srcType, true, unordered).
-            let value = get_value_from_buffer::<SrcType>(
+        //  i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, srcType, true, unordered).
+        //  ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, targetType, value, true, unordered).
+        //  iii. Set srcByteIndex to srcByteIndex + srcElementSize.
+        //  iv. Set targetByteIndex to targetByteIndex + targetElementSize.
+        if src_buffer == target_buffer {
+            let mut src_byte_index = src_byte_offset;
+            let src_byte_length = typed_array_byte_length::<SrcType>(agent, &src_record, gc.nogc());
+            src_buffer = clone_array_buffer(
                 agent,
                 src_buffer,
-                src_byte_index,
-                true,
-                Ordering::Unordered,
-                None,
+                src_byte_offset,
+                src_byte_length,
                 gc.nogc(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            while target_byte_index < limit {
+                let value = get_value_from_buffer::<SrcType>(
+                    agent,
+                    src_buffer,
+                    src_byte_index,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                    gc.nogc(),
+                );
+                set_value_in_buffer::<TargetType>(
+                    agent,
+                    target_buffer,
+                    target_byte_index as usize,
+                    value,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                );
+                src_byte_index += src_element_size;
+                target_byte_index += target_element_size;
+            }
+        } else {
+            let gc = gc.nogc();
+            let target = target.get(agent);
+            let source = source.get(agent);
+            let a_buf = target.get_viewed_array_buffer(agent, gc);
+            let o_buf = src_buffer.as_slice(agent);
+            let a_buf = a_buf.as_slice(agent);
+            if !a_buf.is_empty() || !o_buf.is_empty() {
+                assert!(
+                    !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
+                    "Must not point to the same buffer"
+                );
+            }
+            let target_slice = viewable_slice_mut::<TargetType>(agent, target, gc);
+            let a_ptr = target_slice.as_mut_ptr();
+            let a_len = target_slice.len();
+            let src_slice = viewable_slice::<SrcType>(agent, source, gc);
+            // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+            let target_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
+            let target_offset = target_offset as usize;
+            let src_slice = &src_slice[..src_slice.len()];
+            let src_len = src_slice.len();
+            let target_slice = &mut target_aligned[target_offset..target_offset + src_len];
+            copy_between_different_type_typed_arrays::<SrcType, TargetType>(
+                src_slice,
+                target_slice,
             );
-            // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, targetType, value, true, unordered).
-            set_value_in_buffer::<TargetType>(
-                agent,
-                target_buffer,
-                target_byte_index as usize,
-                value,
-                true,
-                Ordering::Unordered,
-                None,
-            );
-            // iii. Set srcByteIndex to srcByteIndex + srcElementSize.
-            src_byte_index += src_element_size;
-            // iv. Set targetByteIndex to targetByteIndex + targetElementSize.
-            target_byte_index += target_element_size;
         }
     }
     // 25. Return unused.

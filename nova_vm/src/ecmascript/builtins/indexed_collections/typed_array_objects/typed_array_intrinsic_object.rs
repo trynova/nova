@@ -2497,7 +2497,7 @@ pub(crate) fn viewable_slice<'a, T: Viewable>(
     slice
 }
 
-fn viewable_slice_mut<'a, T: Viewable>(
+pub(crate) fn viewable_slice_mut<'a, T: Viewable>(
     agent: &'a mut Agent,
     ta: TypedArray,
     gc: NoGcScope,
@@ -3274,7 +3274,7 @@ fn filter_typed_array<'a, T: Viewable>(
     Ok(a.unbind())
 }
 
-fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
+pub(crate) fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
     src_slice: &[Src],
     dst_slice: &mut [Dst],
 ) {
@@ -3486,6 +3486,60 @@ fn subarray_typed_array<'a, T: Viewable>(
         length,
         gc,
     )
+}
+
+fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    o: TypedArray,
+    source: Value,
+    offset: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let o = o.bind(gc.nogc());
+    let source = source.bind(gc.nogc());
+    let offset = offset.bind(gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
+    let scoped_source = source.scope(agent, gc.nogc());
+    // 3. Assert: target has a [[ViewedArrayBuffer]] internal slot.
+    // 4. Let targetOffset be ? ToIntegerOrInfinity(offset).
+    let target_offset = to_integer_or_infinity(agent, offset.unbind(), gc.reborrow()).unbind()?;
+    // 5. If targetOffset < 0, throw a RangeError exception.
+    if target_offset.is_negative() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "invalid array length",
+            gc.into_nogc(),
+        ));
+    }
+    // 6. If source is an Object that has a [[TypedArrayName]] internal slot, then
+    if let Ok(source) = TypedArray::try_from(scoped_source.get(agent)).bind(gc.nogc()) {
+        // a. Perform ? SetTypedArrayFromTypedArray(target, targetOffset, source).
+        with_typed_array_viewable!(
+            source,
+            set_typed_array_from_typed_array::<T, V>(
+                agent,
+                scoped_o,
+                target_offset,
+                source.unbind(),
+                gc
+            ),
+            V
+        )?;
+    } else {
+        // 7. Else,
+        //  a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
+        with_typed_array_viewable!(
+            scoped_o.get(agent),
+            set_typed_array_from_array_like::<T>(
+                agent,
+                scoped_o,
+                target_offset,
+                scoped_source,
+                gc
+            )?
+        )
+    }
+    Ok(())
 }
 
 fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
@@ -3732,58 +3786,4 @@ fn slice_typed_array_same_buffer_different_type(
         // 5. Set n to n + 1.
         n += 1;
     }
-}
-
-fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
-    agent: &mut Agent,
-    o: TypedArray,
-    source: Value,
-    offset: Value,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    let o = o.bind(gc.nogc());
-    let source = source.bind(gc.nogc());
-    let offset = offset.bind(gc.nogc());
-    let scoped_o = o.scope(agent, gc.nogc());
-    let scoped_source = source.scope(agent, gc.nogc());
-    // 3. Assert: target has a [[ViewedArrayBuffer]] internal slot.
-    // 4. Let targetOffset be ? ToIntegerOrInfinity(offset).
-    let target_offset = to_integer_or_infinity(agent, offset.unbind(), gc.reborrow()).unbind()?;
-    // 5. If targetOffset < 0, throw a RangeError exception.
-    if target_offset.is_negative() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "invalid array length",
-            gc.into_nogc(),
-        ));
-    }
-    // 6. If source is an Object that has a [[TypedArrayName]] internal slot, then
-    if let Ok(source) = TypedArray::try_from(scoped_source.get(agent)).bind(gc.nogc()) {
-        // a. Perform ? SetTypedArrayFromTypedArray(target, targetOffset, source).
-        with_typed_array_viewable!(
-            source,
-            set_typed_array_from_typed_array::<T, V>(
-                agent,
-                scoped_o,
-                target_offset,
-                source.unbind(),
-                gc
-            ),
-            V
-        )?;
-    } else {
-        // 7. Else,
-        //  a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
-        with_typed_array_viewable!(
-            scoped_o.get(agent),
-            set_typed_array_from_array_like::<T>(
-                agent,
-                scoped_o,
-                target_offset,
-                scoped_source,
-                gc
-            )?
-        )
-    }
-    Ok(())
 }
