@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, GcScope};
+use crate::ecmascript::execution::agent::JsError;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
@@ -122,15 +123,18 @@ impl PromiseConstructor {
         };
         let new_target = new_target.unbind().bind(gc.nogc());
 
-        assert_eq!(
-            new_target,
-            agent
+        if new_target
+            != agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_object(),
-            "We currently don't support Promise subclassing."
-        );
+                .into_object()
+        {
+            return Err(throw_promise_subclassing_not_supported(
+                agent,
+                gc.into_nogc(),
+            ));
+        }
 
         // 2. If IsCallable(executor) is false, throw a TypeError exception.
         // TODO: Callable proxies
@@ -244,15 +248,15 @@ impl PromiseConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let r = arguments.get(0).bind(gc);
-        assert_eq!(
-            this_value,
-            agent
+        if this_value
+            != agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value(),
-            "We currently don't support Promise subclassing."
-        );
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(agent, gc));
+        }
 
         // 1. Let C be the this value.
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
@@ -269,15 +273,18 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        assert_eq!(
-            this_value,
-            agent
+        if this_value
+            != agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value(),
-            "We currently don't support Promise subclassing."
-        );
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(
+                agent,
+                gc.into_nogc(),
+            ));
+        }
 
         // 3. Return ? PromiseResolve(C, x).
         Ok(Promise::resolve(agent, arguments.get(0), gc).into_value())
@@ -303,15 +310,18 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         }
-        assert_eq!(
-            this_value,
-            agent
+        if this_value
+            != agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value(),
-            "We currently don't support Promise subclassing."
-        );
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(
+                agent,
+                gc.into_nogc(),
+            ));
+        }
 
         // 3. Let promiseCapability be ? NewPromiseCapability(C).
         // 4. Let status be Completion(Call(callbackfn, undefined, args)).
@@ -360,15 +370,15 @@ impl PromiseConstructor {
                 gc,
             ));
         }
-        assert_eq!(
-            this_value,
-            agent
+        if this_value
+            != agent
                 .current_realm_record()
                 .intrinsics()
                 .promise()
-                .into_value(),
-            "We currently don't support Promise subclassing."
-        );
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(agent, gc));
+        }
 
         // 1. Let C be the this value.
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
@@ -447,4 +457,15 @@ impl PromiseConstructor {
             .with_builtin_function_getter_property::<PromiseGetSpecies>()
             .build();
     }
+}
+
+fn throw_promise_subclassing_not_supported<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::Error,
+        "Promise subclassing is not supported",
+        gc,
+    )
 }
