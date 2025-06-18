@@ -91,7 +91,8 @@ pub(crate) enum IntrinsicObjectIndexes {
     // For-In Iterator objects are never directly accessible to ECMAScript code
     // ForInIteratorPrototype,
     AsyncIteratorPrototype,
-    AsyncFromSyncIteratorPrototype,
+    // Note: The AsyncFromSyncIteratorPrototype cannot be observed.
+    // AsyncFromSyncIteratorPrototype,
     // The %AsyncGeneratorPrototype% object is %AsyncGeneratorFunction.prototype.prototype%.
     // AsyncGeneratorFunctionPrototypePrototype,
     MapIteratorPrototype,

@@ -4,6 +4,9 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
+    create_iter_result_object, iterator_close_with_error,
+};
 use crate::engine::Global;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -143,7 +146,7 @@ impl PromiseReactionJob {
                     }
                     PromiseReactionType::Reject => {
                         // d.ii.1. Let handlerResult be ThrowCompletion(argument).
-                        (Err(JsError::new(argument.unbind())), capability)
+                        (Err(JsError::new(argument)), capability)
                     }
                 }
             }
@@ -187,6 +190,33 @@ impl PromiseReactionJob {
                     gc.reborrow(),
                 );
                 return Ok(());
+            }
+            PromiseReactionHandler::AsyncFromSyncIterator { done } => {
+                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                // 9. Let unwrap be a new Abstract Closure with parameters (v)
+                //    that captures done and performs the following steps when
+                //    called:
+                // a. Return CreateIteratorResultObject(v, done).
+                (
+                    Ok(create_iter_result_object(agent, argument, done).into_value()),
+                    capability,
+                )
+            }
+            PromiseReactionHandler::AsyncFromSyncIteratorClose(object) => {
+                let reaction = reaction.scope(agent, gc.nogc());
+                // a. Let closeIterator be a new Abstract Closure with
+                //    parameters (error) that captures syncIteratorRecord and
+                //    performs the following steps when called:
+                // i. Return ? IteratorClose(syncIteratorRecord, ThrowCompletion(error)).
+                let err = JsError::new(argument);
+                let err =
+                    iterator_close_with_error(agent, object.unbind(), err.unbind(), gc.reborrow())
+                        .unbind()
+                        .bind(gc.nogc());
+                // SAFETY: reaction is not shared.
+                let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
+                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                (Err(err), capability)
             }
         };
 
@@ -242,7 +272,10 @@ pub(crate) fn new_promise_reaction_job(
                 .realm,
         ),
         // 2. Let handlerRealm be null.
-        PromiseReactionHandler::AsyncGenerator(_) | PromiseReactionHandler::Empty => None,
+        PromiseReactionHandler::AsyncGenerator(_)
+        | PromiseReactionHandler::Empty
+        | PromiseReactionHandler::AsyncFromSyncIterator { .. }
+        | PromiseReactionHandler::AsyncFromSyncIteratorClose(_) => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

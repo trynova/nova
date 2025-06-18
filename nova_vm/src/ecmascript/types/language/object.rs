@@ -4108,7 +4108,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::EmbedderObject(embedder_object) => {
                 Ok(Self::EmbedderObject(embedder_object))
             }
-            HeapRootData::PromiseReaction(_)
+            HeapRootData::AwaitReaction(_)
+            | HeapRootData::PromiseReaction(_)
             | HeapRootData::Executable(_)
             | HeapRootData::Realm(_)
             | HeapRootData::Script(_)

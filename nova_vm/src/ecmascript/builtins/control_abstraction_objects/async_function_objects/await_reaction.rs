@@ -9,7 +9,7 @@ use core::{
 
 use crate::engine::{
     context::{Bindable, GcScope, GcToken, NoGcScope},
-    rootable::Scopable,
+    rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
 };
 use crate::{
     ecmascript::{
@@ -33,13 +33,13 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub(crate) struct AwaitReactionIdentifier<'a>(
+pub struct AwaitReaction<'a>(
     u32,
-    PhantomData<AwaitReaction<'static>>,
+    PhantomData<AwaitReactionRecord<'static>>,
     PhantomData<&'a GcToken>,
 );
 
-impl AwaitReactionIdentifier<'_> {
+impl AwaitReaction<'_> {
     pub(crate) const fn from_index(value: usize) -> Self {
         assert!(value <= u32::MAX as usize);
         Self::from_u32(value as u32)
@@ -49,7 +49,7 @@ impl AwaitReactionIdentifier<'_> {
         Self(value, PhantomData, PhantomData)
     }
 
-    pub(crate) fn last(scripts: &[Option<AwaitReaction>]) -> Self {
+    pub(crate) fn last(scripts: &[Option<AwaitReactionRecord>]) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
     }
@@ -69,31 +69,40 @@ impl AwaitReactionIdentifier<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
+        let reaction = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
-        let execution_context = agent[self].execution_context.take().unwrap();
+        let record = &mut agent[reaction];
+        let execution_context = record.execution_context.take().unwrap();
+        let vm = record.vm.take().unwrap();
+        let async_function = record.async_function.unwrap();
         agent.push_execution_context(execution_context);
 
+        let reaction = reaction.scope(agent, gc.nogc());
         // 3. d. Resume the suspended evaluation of asyncContext using NormalCompletion(v) as the result of the operation that suspended it.
         // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
-        let vm = agent[self].vm.take().unwrap();
-        let async_function = agent[self].async_function.unwrap();
         let execution_result = match reaction_type {
             PromiseReactionType::Fulfill => {
                 let executable = async_function
                     .get_executable(agent, gc.nogc())
                     .scope(agent, gc.nogc());
                 vm.resume(agent, executable, value.unbind(), gc.reborrow())
+                    .unbind()
+                    .bind(gc.nogc())
             }
             PromiseReactionType::Reject => {
                 let executable = async_function
                     .get_executable(agent, gc.nogc())
                     .scope(agent, gc.nogc());
                 vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
+                    .unbind()
+                    .bind(gc.nogc())
             }
         };
 
+        // SAFETY: reaction is not shared.
+        let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
         match execution_result {
             ExecutionResult::Return(result) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -103,10 +112,11 @@ impl AwaitReactionIdentifier<'_> {
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
                 //    f. Else if result is a return completion, then
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-                agent[self]
-                    .return_promise_capability
-                    .clone()
-                    .resolve(agent, result.unbind(), gc);
+                agent[reaction].return_promise_capability.clone().resolve(
+                    agent,
+                    result.unbind(),
+                    gc,
+                );
             }
             ExecutionResult::Throw(err) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -114,7 +124,7 @@ impl AwaitReactionIdentifier<'_> {
                 agent.pop_execution_context();
                 // 2. g. i. Assert: result is a throw completion.
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
-                agent[self].return_promise_capability.clone().reject(
+                agent[reaction].return_promise_capability.clone().reject(
                     agent,
                     err.value().unbind(),
                     gc.nogc(),
@@ -123,8 +133,8 @@ impl AwaitReactionIdentifier<'_> {
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-                agent[self].vm = Some(vm);
-                agent[self].execution_context = Some(agent.pop_execution_context().unwrap());
+                agent[reaction].vm = Some(vm);
+                agent[reaction].execution_context = Some(agent.pop_execution_context().unwrap());
 
                 // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
                 // which resume execution of the function.
@@ -141,24 +151,24 @@ impl AwaitReactionIdentifier<'_> {
     }
 }
 
-impl Index<AwaitReactionIdentifier<'_>> for Agent {
-    type Output = AwaitReaction<'static>;
+impl Index<AwaitReaction<'_>> for Agent {
+    type Output = AwaitReactionRecord<'static>;
 
-    fn index(&self, index: AwaitReactionIdentifier) -> &Self::Output {
+    fn index(&self, index: AwaitReaction) -> &Self::Output {
         &self.heap.await_reactions[index]
     }
 }
 
-impl IndexMut<AwaitReactionIdentifier<'_>> for Agent {
-    fn index_mut(&mut self, index: AwaitReactionIdentifier) -> &mut Self::Output {
+impl IndexMut<AwaitReaction<'_>> for Agent {
+    fn index_mut(&mut self, index: AwaitReaction) -> &mut Self::Output {
         &mut self.heap.await_reactions[index]
     }
 }
 
-impl Index<AwaitReactionIdentifier<'_>> for Vec<Option<AwaitReaction<'static>>> {
-    type Output = AwaitReaction<'static>;
+impl Index<AwaitReaction<'_>> for Vec<Option<AwaitReactionRecord<'static>>> {
+    type Output = AwaitReactionRecord<'static>;
 
-    fn index(&self, index: AwaitReactionIdentifier) -> &Self::Output {
+    fn index(&self, index: AwaitReaction) -> &Self::Output {
         self.get(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
             .as_ref()
@@ -166,8 +176,8 @@ impl Index<AwaitReactionIdentifier<'_>> for Vec<Option<AwaitReaction<'static>>> 
     }
 }
 
-impl IndexMut<AwaitReactionIdentifier<'_>> for Vec<Option<AwaitReaction<'static>>> {
-    fn index_mut(&mut self, index: AwaitReactionIdentifier) -> &mut Self::Output {
+impl IndexMut<AwaitReaction<'_>> for Vec<Option<AwaitReactionRecord<'static>>> {
+    fn index_mut(&mut self, index: AwaitReaction) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
             .as_mut()
@@ -175,29 +185,26 @@ impl IndexMut<AwaitReactionIdentifier<'_>> for Vec<Option<AwaitReaction<'static>
     }
 }
 
-impl HeapMarkAndSweep for AwaitReactionIdentifier<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.await_reactions.push(*self);
+impl Rootable for AwaitReaction<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::AwaitReaction(value.unbind()))
     }
 
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.await_reactions.shift_u32_index(&mut self.0);
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
     }
-}
 
-#[derive(Debug)]
-pub(crate) struct AwaitReaction<'a> {
-    pub(crate) vm: Option<SuspendedVm>,
-    pub(crate) async_function: Option<ECMAScriptFunction<'a>>,
-    pub(crate) execution_context: Option<ExecutionContext>,
-    pub(crate) return_promise_capability: PromiseCapability<'a>,
-}
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
 
-impl<'a> CreateHeapData<AwaitReaction<'a>, AwaitReactionIdentifier<'a>> for Heap {
-    fn create(&mut self, data: AwaitReaction<'a>) -> AwaitReactionIdentifier<'a> {
-        self.await_reactions.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<AwaitReaction<'static>>>();
-        AwaitReactionIdentifier::last(&self.await_reactions)
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::AwaitReaction(object) => Some(object),
+            _ => None,
+        }
     }
 }
 
@@ -217,6 +224,47 @@ unsafe impl Bindable for AwaitReaction<'_> {
 }
 
 impl HeapMarkAndSweep for AwaitReaction<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.await_reactions.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.await_reactions.shift_u32_index(&mut self.0);
+    }
+}
+
+#[derive(Debug)]
+pub struct AwaitReactionRecord<'a> {
+    pub(crate) vm: Option<SuspendedVm>,
+    pub(crate) async_function: Option<ECMAScriptFunction<'a>>,
+    pub(crate) execution_context: Option<ExecutionContext>,
+    pub(crate) return_promise_capability: PromiseCapability<'a>,
+}
+
+impl<'a> CreateHeapData<AwaitReactionRecord<'a>, AwaitReaction<'a>> for Heap {
+    fn create(&mut self, data: AwaitReactionRecord<'a>) -> AwaitReaction<'a> {
+        self.await_reactions.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<AwaitReactionRecord<'static>>>();
+        AwaitReaction::last(&self.await_reactions)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AwaitReactionRecord<'_> {
+    type Of<'a> = AwaitReactionRecord<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl HeapMarkAndSweep for AwaitReactionRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             vm,

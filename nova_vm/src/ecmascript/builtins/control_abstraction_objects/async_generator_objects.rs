@@ -65,6 +65,19 @@ impl AsyncGenerator<'_> {
         agent[self].executable.unwrap()
     }
 
+    /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
+    /// EXECUTING.
+    ///
+    /// > NOTE: In our implementation, EXECUTING is split into an extra
+    /// > EXECUTING-AWAIT state. This also checks for that.
+    pub(crate) fn is_active(self, agent: &Agent) -> bool {
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_active()
+    }
+
     pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
         agent[self]
             .async_generator_state
@@ -79,6 +92,14 @@ impl AsyncGenerator<'_> {
             .as_ref()
             .unwrap()
             .is_executing()
+    }
+
+    pub(crate) fn is_executing_await(self, agent: &Agent) -> bool {
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_executing_await()
     }
 
     pub(crate) fn is_suspended_start(self, agent: &Agent) -> bool {
@@ -107,7 +128,7 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn queue_is_empty(self, agent: &Agent) -> bool {
         match agent[self].async_generator_state.as_ref().unwrap() {
-            AsyncGeneratorState::Awaiting { queue, .. }
+            AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
@@ -122,7 +143,7 @@ impl AsyncGenerator<'_> {
         _gc: NoGcScope<'gc, '_>,
     ) -> &'a AsyncGeneratorRequest<'gc> {
         match agent[self].async_generator_state.as_mut().unwrap() {
-            AsyncGeneratorState::Awaiting { queue, .. }
+            AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
@@ -137,7 +158,7 @@ impl AsyncGenerator<'_> {
         gc: NoGcScope<'gc, '_>,
     ) -> AsyncGeneratorRequest<'gc> {
         match agent[self].async_generator_state.as_mut().unwrap() {
-            AsyncGeneratorState::Awaiting { queue, .. }
+            AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
@@ -148,7 +169,7 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest<'_>) {
         match agent[self].async_generator_state.as_mut().unwrap() {
-            AsyncGeneratorState::Awaiting { queue, .. }
+            AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
@@ -180,7 +201,7 @@ impl AsyncGenerator<'_> {
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
-        async_generator_state.replace(AsyncGeneratorState::Awaiting {
+        async_generator_state.replace(AsyncGeneratorState::ExecutingAwait {
             queue,
             vm,
             execution_context,
@@ -188,7 +209,7 @@ impl AsyncGenerator<'_> {
         });
     }
 
-    pub(crate) fn transition_to_execution<'gc>(
+    pub(crate) fn transition_to_executing<'gc>(
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
@@ -265,7 +286,7 @@ impl AsyncGenerator<'_> {
                 execution_context,
                 queue,
             } => (vm, execution_context, queue, AsyncGeneratorAwaitKind::Yield),
-            AsyncGeneratorState::Awaiting {
+            AsyncGeneratorState::ExecutingAwait {
                 vm,
                 execution_context,
                 queue,
@@ -468,7 +489,11 @@ pub(crate) enum AsyncGeneratorState<'a> {
         queue: VecDeque<AsyncGeneratorRequest<'a>>,
     },
     Executing(VecDeque<AsyncGeneratorRequest<'a>>),
-    Awaiting {
+    /// Custom addition to \[\[AsyncGeneratorState]]: this corresponds to an
+    /// Executing generator performing an Await; from the specification
+    /// perspective the generator is still executing but its execution context
+    /// is suspended.
+    ExecutingAwait {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
         queue: VecDeque<AsyncGeneratorRequest<'a>>,
@@ -479,6 +504,15 @@ pub(crate) enum AsyncGeneratorState<'a> {
 }
 
 impl AsyncGeneratorState<'_> {
+    pub(crate) fn is_active(&self) -> bool {
+        matches!(
+            self,
+            AsyncGeneratorState::DrainingQueue(_)
+                | AsyncGeneratorState::Executing(_)
+                | AsyncGeneratorState::ExecutingAwait { .. }
+        )
+    }
+
     pub(crate) fn is_completed(&self) -> bool {
         matches!(self, Self::Completed)
     }
@@ -489,6 +523,10 @@ impl AsyncGeneratorState<'_> {
 
     pub(crate) fn is_executing(&self) -> bool {
         matches!(self, AsyncGeneratorState::Executing(_))
+    }
+
+    pub(crate) fn is_executing_await(&self) -> bool {
+        matches!(self, AsyncGeneratorState::ExecutingAwait { .. })
     }
 
     pub(crate) fn is_suspended(&self) -> bool {
@@ -504,13 +542,6 @@ impl AsyncGeneratorState<'_> {
 
     pub(crate) fn is_suspended_yield(&self) -> bool {
         matches!(self, AsyncGeneratorState::SuspendedYield { .. })
-    }
-
-    pub(crate) fn is_active(&self) -> bool {
-        matches!(
-            self,
-            Self::Awaiting { .. } | Self::Executing { .. } | Self::DrainingQueue(_)
-        )
     }
 }
 
@@ -673,7 +704,7 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
                     req.mark_values(queues);
                 }
             }
-            AsyncGeneratorState::Awaiting {
+            AsyncGeneratorState::ExecutingAwait {
                 vm,
                 execution_context,
                 queue,
@@ -722,7 +753,7 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
                     req.sweep_values(compactions);
                 }
             }
-            AsyncGeneratorState::Awaiting {
+            AsyncGeneratorState::ExecutingAwait {
                 vm,
                 queue,
                 execution_context,

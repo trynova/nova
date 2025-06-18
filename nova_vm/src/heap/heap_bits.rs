@@ -33,7 +33,7 @@ use crate::ecmascript::{
         async_generator_objects::AsyncGenerator,
         bound_function::BoundFunction,
         control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReactionIdentifier,
+            async_function_objects::await_reaction::AwaitReaction,
             generator_objects::Generator,
             promise_objects::promise_abstract_operations::{
                 promise_reaction_records::PromiseReaction,
@@ -155,7 +155,7 @@ pub(crate) struct WorkQueues {
     pub arrays: Vec<Array<'static>>,
     pub array_iterators: Vec<ArrayIterator<'static>>,
     pub async_generators: Vec<AsyncGenerator<'static>>,
-    pub await_reactions: Vec<AwaitReactionIdentifier<'static>>,
+    pub await_reactions: Vec<AwaitReaction<'static>>,
     pub bigints: Vec<HeapBigInt<'static>>,
     pub bound_functions: Vec<BoundFunction<'static>>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction<'static>>,
@@ -941,6 +941,7 @@ pub(crate) struct CompactionLists {
     pub maps: CompactionList,
     pub map_iterators: CompactionList,
     pub modules: CompactionList,
+    pub module_environments: CompactionList,
     pub module_request_records: CompactionList,
     pub numbers: CompactionList,
     pub object_environments: CompactionList,
@@ -1031,6 +1032,7 @@ impl CompactionLists {
             executables: CompactionList::from_mark_bits(&bits.executables),
             maps: CompactionList::from_mark_bits(&bits.maps),
             map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
+            module_environments: CompactionList::from_mark_bits(&bits.module_environments),
             module_request_records: CompactionList::from_mark_bits(&bits.module_request_records),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
@@ -1175,6 +1177,41 @@ where
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.iter_mut()
             .for_each(|entry| entry.sweep_values(compactions))
+    }
+}
+
+impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapMarkAndSweep>
+    HeapMarkAndSweep for AHashMap<K, V>
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        for (key, value) in self.iter() {
+            key.mark_values(queues);
+            value.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let mut replacements = Vec::new();
+        // Sweep all values, while also sweeping keys and making note of all
+        // changes in them: Those need to be updated in a separate loop.
+        for (key, value) in self.iter_mut() {
+            value.sweep_values(compactions);
+            let old_key = *key;
+            let mut new_key = *key;
+            new_key.sweep_values(compactions);
+            if old_key != new_key {
+                replacements.push((old_key, new_key));
+            }
+        }
+        // Note: Replacement keys are in indeterminate order, we need to sort
+        // them so that "cascading" replacements are applied in the correct
+        // order.
+        replacements.sort();
+        for (old_key, new_key) in replacements.into_iter() {
+            let binding = self.remove(&old_key.into()).unwrap();
+            let did_insert = self.insert(new_key.into(), binding).is_none();
+            assert!(did_insert, "Failed to insert key {new_key:#?}");
+        }
     }
 }
 

@@ -595,8 +595,9 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                     is_lexical: false,
                     // Class code is always strict.
                     is_strict: true,
-                    // Constructors are never async.
+                    // Constructors are never async or generators.
                     is_async: false,
+                    is_generator: false,
                 };
                 constructor_ctx.compile_function_body(constructor_data);
                 let executable = constructor_ctx.finish();

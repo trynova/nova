@@ -15,7 +15,7 @@ use crate::{
         builtins::{
             ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
             control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReaction,
+                async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorState,
                 promise_objects::{
                     promise_abstract_operations::{
@@ -250,6 +250,7 @@ pub(crate) struct CompileFunctionBodyData<'a> {
     pub(crate) is_lexical: bool,
     pub(crate) is_concise_body: bool,
     pub(crate) is_async: bool,
+    pub(crate) is_generator: bool,
 }
 
 impl CompileFunctionBodyData<'_> {
@@ -269,6 +270,7 @@ impl CompileFunctionBodyData<'_> {
             is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
             is_concise_body: ecmascript_function.is_concise_arrow_function,
             is_async: ecmascript_function.is_async,
+            is_generator: ecmascript_function.is_generator,
         }
     }
 }
@@ -380,7 +382,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // NOTE: the execution context has to be cloned because it will be popped when we
             // return to `ECMAScriptFunction::internal_call`. Popping it here rather than
             // cloning it would mess up the execution context stack.
-            let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
+            let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReactionRecord {
                 vm: Some(vm),
                 async_function: Some(scoped_function_object.get(agent)),
                 execution_context: Some(agent.running_execution_context().clone()),

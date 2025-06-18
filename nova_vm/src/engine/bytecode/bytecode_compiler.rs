@@ -24,8 +24,8 @@ use crate::ecmascript::{
     types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
 };
 pub(crate) use compile_context::{
-    CompileContext, CompileEvaluation, CompileLabelledEvaluation, IndexType, JumpIndex,
-    NamedEvaluationParameter,
+    CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
+    JumpIndex, NamedEvaluationParameter,
 };
 use num_traits::Num;
 use oxc_ast::ast;
@@ -1141,7 +1141,7 @@ fn compile_delegate_yield_expression<'s>(
         .as_ref()
         .expect("Unhandled SyntaxError: yield * requires an argument");
     // 1. Let generatorKind be GetGeneratorKind().
-    let generator_kind_is_async = ctx.is_async();
+    let generator_kind_is_async = ctx.is_async_generator();
     // 2. Assert: generatorKind is either sync or async.
     // 3. Let exprRef be ? Evaluation of AssignmentExpression.
     assignment_expression.compile(ctx);
@@ -1150,9 +1150,14 @@ fn compile_delegate_yield_expression<'s>(
         ctx.add_instruction(Instruction::GetValue);
     }
     // 5. Let iteratorRecord be ? GetIterator(value, generatorKind).
-    ctx.add_instruction(Instruction::GetIteratorSync);
+    if generator_kind_is_async {
+        ctx.add_instruction(Instruction::GetIteratorAsync);
+    } else {
+        ctx.add_instruction(Instruction::GetIteratorSync);
+    }
     // 6. Let iterator be iteratorRecord.[[Iterator]].
     // 7. Let received be NormalCompletion(undefined).
+    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
     // 8. Repeat,
     let loop_start = ctx.get_jump_index_to_here();
     // a. If received is a normal completion, then
@@ -1355,7 +1360,7 @@ impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
         // 3. Return ? Yield(value).
         // ### 27.5.3.7 Yield ( value )
         // 1. Let generatorKind be GetGeneratorKind().
-        let generator_kind_is_async = ctx.is_async();
+        let generator_kind_is_async = ctx.is_async_generator();
         // 2. If generatorKind is async, return ? AsyncGeneratorYield(? Await(value)).
         if generator_kind_is_async {
             ctx.add_instruction(Instruction::Await);

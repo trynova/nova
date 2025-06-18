@@ -51,6 +51,7 @@ use crate::{
         abstract_operations::keyed_group::KeyedGroup,
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            async_function_objects::await_reaction::AwaitReaction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
@@ -120,6 +121,7 @@ pub mod private {
             builtins::{
                 ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
                 ECMAScriptFunction,
+                async_function_objects::await_reaction::AwaitReaction,
                 async_generator_objects::AsyncGenerator,
                 bound_function::BoundFunction,
                 embedder_object::EmbedderObject,
@@ -169,6 +171,7 @@ pub mod private {
     impl RootableSealed for ArrayBuffer<'_> {}
     impl RootableSealed for ArrayIterator<'_> {}
     impl RootableSealed for AsyncGenerator<'_> {}
+    impl RootableSealed for AwaitReaction<'_> {}
     impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction<'_> {}
     impl RootableSealed for BuiltinConstructorFunction<'_> {}
@@ -528,6 +531,7 @@ pub enum HeapRootData {
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
     Executable(Executable<'static>),
+    AwaitReaction(AwaitReaction<'static>),
     PromiseReaction(PromiseReaction<'static>),
     Realm(Realm<'static>),
     Script(Script<'static>),
@@ -735,6 +739,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
             HeapRootData::Executable(exe) => exe.mark_values(queues),
+            HeapRootData::AwaitReaction(await_reaction) => await_reaction.mark_values(queues),
             HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
             HeapRootData::Realm(realm) => realm.mark_values(queues),
             HeapRootData::Script(script) => script.mark_values(queues),
@@ -854,6 +859,7 @@ impl HeapMarkAndSweep for HeapRootData {
                 embedder_object.sweep_values(compactions)
             }
             HeapRootData::Executable(exe) => exe.sweep_values(compactions),
+            HeapRootData::AwaitReaction(await_reaction) => await_reaction.sweep_values(compactions),
             HeapRootData::PromiseReaction(promise_reaction) => {
                 promise_reaction.sweep_values(compactions)
             }

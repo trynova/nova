@@ -357,22 +357,48 @@ pub(crate) fn initialize_import_binding(
     // 4. Return unused.
 }
 
-impl HeapMarkAndSweep for ModuleEnvironment<'_> {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
-        todo!()
+impl HeapMarkAndSweep for ModuleEnvironment<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.module_environments.push(*self);
     }
 
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        todo!()
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions
+            .module_environments
+            .shift_non_zero_u32_index(&mut self.0);
     }
 }
 
 impl HeapMarkAndSweep for ModuleEnvironmentRecord {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
-        todo!()
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            declarative_environment,
+            indirect_bindings,
+        } = self;
+        declarative_environment.mark_values(queues);
+        indirect_bindings.mark_values(queues);
     }
 
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        todo!()
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            declarative_environment,
+            indirect_bindings,
+        } = self;
+        declarative_environment.sweep_values(compactions);
+        indirect_bindings.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for IndirectBinding<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self { m, n2 } = self;
+        m.mark_values(queues);
+        n2.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self { m, n2 } = self;
+        m.sweep_values(compactions);
+        n2.sweep_values(compactions);
     }
 }
