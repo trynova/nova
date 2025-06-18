@@ -44,9 +44,9 @@ use crate::{
 /// syncIteratorRecord (an Iterator Record) and returns an Iterator Record. It
 /// is used to create an async Iterator Record from a synchronous Iterator
 /// Record.
-pub(crate) fn create_async_from_sync_iterator<'a>(
-    sync_iterator_record: MaybeInvalidIteratorRecord<'a>,
-) -> VmIteratorRecord<'a> {
+pub(crate) fn create_async_from_sync_iterator(
+    sync_iterator_record: MaybeInvalidIteratorRecord,
+) -> VmIteratorRecord {
     // 1. Let asyncIterator be OrdinaryObjectCreate(%AsyncFromSyncIteratorPrototype%, « [[SyncIteratorRecord]] »).
     // 2. Set asyncIterator.[[SyncIteratorRecord]] to syncIteratorRecord.
     let iterator = sync_iterator_record.iterator;

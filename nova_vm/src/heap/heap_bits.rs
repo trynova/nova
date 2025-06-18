@@ -1208,8 +1208,8 @@ impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapMar
         // order.
         replacements.sort();
         for (old_key, new_key) in replacements.into_iter() {
-            let binding = self.remove(&old_key.into()).unwrap();
-            let did_insert = self.insert(new_key.into(), binding).is_none();
+            let binding = self.remove(&old_key).unwrap();
+            let did_insert = self.insert(new_key, binding).is_none();
             assert!(did_insert, "Failed to insert key {new_key:#?}");
         }
     }
