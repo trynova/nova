@@ -563,7 +563,7 @@ fn async_generator_drain_queue(
         // a. Set generator.[[AsyncGeneratorState]] to completed.
         agent[generator]
             .async_generator_state
-            .replace(AsyncGeneratorState::Completed);
+            .replace(AsyncGeneratorState::Completed(Default::default()));
         // b. Return unused.
         return;
     }
@@ -602,7 +602,7 @@ fn async_generator_drain_queue(
                 // 1. Set generator.[[AsyncGeneratorState]] to completed.
                 agent[generator]
                     .async_generator_state
-                    .replace(AsyncGeneratorState::Completed);
+                    .replace(AsyncGeneratorState::Completed(Default::default()));
                 // 2. Set done to true.
                 return;
             }

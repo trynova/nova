@@ -132,8 +132,8 @@ impl AsyncGenerator<'_> {
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.is_empty(),
-            AsyncGeneratorState::Completed => unreachable!(),
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => queue.is_empty(),
         }
     }
 
@@ -147,8 +147,8 @@ impl AsyncGenerator<'_> {
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.front().unwrap(),
-            AsyncGeneratorState::Completed => unreachable!(),
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => queue.front().unwrap(),
         }
     }
 
@@ -162,8 +162,8 @@ impl AsyncGenerator<'_> {
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap().bind(gc),
-            AsyncGeneratorState::Completed => unreachable!(),
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => queue.pop_front().unwrap().bind(gc),
         }
     }
 
@@ -173,8 +173,8 @@ impl AsyncGenerator<'_> {
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request.unbind()),
-            AsyncGeneratorState::Completed => unreachable!(),
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => queue.push_back(request.unbind()),
         }
     }
 
@@ -184,10 +184,25 @@ impl AsyncGenerator<'_> {
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
-            | AsyncGeneratorState::Executing(queue) => queue,
+            | AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::Completed(queue) => queue,
             _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::DrainingQueue(queue));
+    }
+
+    pub(crate) fn transition_to_complete(self, agent: &mut Agent) {
+        let async_generator_state = &mut agent[self].async_generator_state;
+        let state = async_generator_state.take().unwrap();
+        let queue = match state {
+            AsyncGeneratorState::SuspendedStart { queue, .. }
+            | AsyncGeneratorState::SuspendedYield { queue, .. }
+            | AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::ExecutingAwait { queue, .. }
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => queue,
+        };
+        async_generator_state.replace(AsyncGeneratorState::Completed(queue));
     }
 
     pub(crate) fn transition_to_awaiting(
@@ -500,7 +515,7 @@ pub(crate) enum AsyncGeneratorState<'a> {
         kind: AsyncGeneratorAwaitKind,
     },
     DrainingQueue(VecDeque<AsyncGeneratorRequest<'a>>),
-    Completed,
+    Completed(VecDeque<AsyncGeneratorRequest<'a>>),
 }
 
 impl AsyncGeneratorState<'_> {
@@ -514,7 +529,7 @@ impl AsyncGeneratorState<'_> {
     }
 
     pub(crate) fn is_completed(&self) -> bool {
-        matches!(self, Self::Completed)
+        matches!(self, Self::Completed(_))
     }
 
     pub(crate) fn is_draining_queue(&self) -> bool {
@@ -721,12 +736,13 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
                     req.mark_values(queues);
                 }
             }
-            AsyncGeneratorState::Executing(queue) | AsyncGeneratorState::DrainingQueue(queue) => {
+            AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => {
                 for req in queue {
                     req.mark_values(queues);
                 }
             }
-            AsyncGeneratorState::Completed => {}
         }
     }
 
@@ -770,12 +786,13 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
                     req.sweep_values(compactions);
                 }
             }
-            AsyncGeneratorState::Executing(queue) | AsyncGeneratorState::DrainingQueue(queue) => {
+            AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::DrainingQueue(queue)
+            | AsyncGeneratorState::Completed(queue) => {
                 for req in queue {
                     req.sweep_values(compactions);
                 }
             }
-            AsyncGeneratorState::Completed => {}
         }
     }
 }
