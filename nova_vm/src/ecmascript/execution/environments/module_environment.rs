@@ -324,6 +324,40 @@ pub(crate) fn create_import_binding(
 
 /// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
 ///
+/// Note: this version does not assert that the target module will have a
+/// direct binding for the target name. It always creates an indirect binding.
+pub(crate) fn create_indirect_import_binding(
+    agent: &mut Agent,
+    env_rec: ModuleEnvironment,
+    n: String,
+    m: AbstractModule,
+    n2: String,
+) {
+    // 1. Assert: envRec does not already have a binding for N.
+    debug_assert!(!env_rec.has_binding(agent, n));
+    let envs = &mut agent.heap.environments;
+    // 2. Assert: When M.[[Environment]] is instantiated, it will have a direct
+    //    binding for N2.
+    // 3. Create an immutable indirect binding in envRec for N that
+    //    references M and N2 as its target binding and record that the
+    //    binding is initialized.
+    let created_new = envs
+        .get_module_environment_mut(env_rec)
+        .indirect_bindings
+        .insert(
+            n.unbind(),
+            IndirectBinding {
+                m: m.unbind(),
+                n2: n2.unbind(),
+            },
+        )
+        .is_none();
+    debug_assert!(created_new);
+    // 4. Return unused.
+}
+
+/// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
+///
 /// > NOTE: Performs the initializing of a previously created import binding.
 pub(crate) fn initialize_import_binding(
     agent: &mut Agent,

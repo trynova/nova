@@ -27,7 +27,8 @@ use crate::{
             Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
             Realm,
             agent::{ExceptionType, JsError},
-            create_import_binding, initialize_import_binding, new_module_environment,
+            create_import_binding, create_indirect_import_binding, initialize_import_binding,
+            new_module_environment,
         },
         scripts_and_modules::{
             ScriptOrModule,
@@ -1097,8 +1098,8 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             let resolution = imported_module.resolve_export(agent, import_name, &mut vec![], gc);
             // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
             let Some(ResolvedBinding::Resolved {
-                module,
-                binding_name,
+                module: resolution_module,
+                binding_name: resolution_binding_name,
             }) = resolution
             else {
                 return Err(agent.throw_exception_with_static_message(
@@ -1108,9 +1109,9 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 ));
             };
             // iii. If resolution.[[BindingName]] is namespace, then
-            let Some(binding_name) = binding_name else {
+            let Some(resolution_binding_name) = resolution_binding_name else {
                 // 1. Let namespace be GetModuleNamespace(resolution.[[Module]]).
-                let namespace = get_module_namespace(agent, module, gc);
+                let namespace = get_module_namespace(agent, resolution_module, gc);
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
@@ -1118,8 +1119,33 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 continue;
             };
             // iv. Else,
-            // 1. Perform CreateImportBinding(env, in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-            create_import_binding(agent, env, r#in.local_name, module, binding_name, gc);
+            // 1. Perform CreateImportBinding(env, in.[[LocalName]],
+            //    resolution.[[Module]], resolution.[[BindingName]]).
+            if resolution_module == module.into() {
+                // NOTE: The module environment does not contain any binding
+                // names whatsoever yet; this means that if we're trying to
+                // import from the module itself then we'll not find any
+                // binding to check that the target module will have a direct
+                // binding for the binding name. We have to just trust that
+                // that is the case here and create an indirect binding without
+                // checking.
+                create_indirect_import_binding(
+                    agent,
+                    env,
+                    r#in.local_name,
+                    resolution_module,
+                    resolution_binding_name,
+                );
+            } else {
+                create_import_binding(
+                    agent,
+                    env,
+                    r#in.local_name,
+                    resolution_module,
+                    resolution_binding_name,
+                    gc,
+                );
+            }
         }
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
