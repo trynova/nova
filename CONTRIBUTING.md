@@ -44,7 +44,7 @@ are:
 
 When reviewing PRs, use conventional comments to plainly describe your
 intention. Prefixing a comment with `issue:` means that you do not think the PR
-can be merged as-is and needs fixing. `needs (nonblocking):` means that you
+can be merged as-is and needs fixing. `issue (nonblocking):` means that you
 think there is a problem in the code, but it can (possibly should) be fixed as a
 followup or at a later date, and does not block merging. `nitpick:` is your
 personal hobby-horse, `question:` is pure curiosity or not understanding the
