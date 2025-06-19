@@ -11,7 +11,7 @@ use super::{CompileContext, CompileEvaluation, is_reference};
 impl<'s> CompileEvaluation<'s> for ast::WithStatement<'s> {
     /// ### [14.11.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-with-statement-runtime-semantics-evaluation)
     ///
-    /// ```
+    /// ```text
     /// WithStatement : with ( Expression ) Statement
     /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {

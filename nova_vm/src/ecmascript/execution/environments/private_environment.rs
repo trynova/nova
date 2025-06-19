@@ -441,7 +441,7 @@ impl PrivateEnvironment<'_> {
                 .iter_mut()
                 .find(|p| p.get_key() == private_name)
                 .expect("Didn't add PrivateName but couldn't find field definition");
-            match (existing_field.clone(), closure) {
+            match (*existing_field, closure) {
                 (PrivateField::Getter { key, get }, PrivateMethod::Setter(set))
                 | (PrivateField::Setter { key, set }, PrivateMethod::Getter(get)) => {
                     *existing_field = PrivateField::Accessor { key, get, set }.unbind();
