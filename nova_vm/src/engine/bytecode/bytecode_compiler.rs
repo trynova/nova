@@ -1080,8 +1080,11 @@ impl<'s> CompileEvaluation<'s> for ast::Super {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
-    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        todo!()
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let (agent, gc) = ctx.get_agent_and_gc();
+        let message = String::from_static_str(agent, "tagged templates not supported", gc);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
+        ctx.add_instruction_with_immediate(Instruction::ThrowError, ExceptionType::Error as usize);
     }
 }
 
