@@ -1592,7 +1592,7 @@ impl Vm {
                 target
                     .get_or_create_backing_object(agent)
                     .property_storage()
-                    .initialize_private_elements(agent, gc);
+                    .initialize_private_elements(agent, gc)?;
             }
             Instruction::ClassInitializePrivateValue => {
                 let gc = gc.into_nogc();

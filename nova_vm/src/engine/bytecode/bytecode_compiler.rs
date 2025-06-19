@@ -12,6 +12,7 @@ mod finaliser_stack;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
 mod labelled_statement;
+mod with_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 use crate::ecmascript::execution::agent::ExceptionType;
@@ -988,8 +989,11 @@ impl<'s> CompileEvaluation<'s> for ast::ConditionalExpression<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::ImportExpression<'s> {
-    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        todo!()
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let (agent, gc) = ctx.get_agent_and_gc();
+        let message = String::from_static_str(agent, "dynamic import not supported", gc);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
+        ctx.add_instruction_with_immediate(Instruction::ThrowError, ExceptionType::Error as usize);
     }
 }
 
@@ -1077,8 +1081,11 @@ impl<'s> CompileEvaluation<'s> for ast::Super {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
-    fn compile(&'s self, _ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        todo!()
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let (agent, gc) = ctx.get_agent_and_gc();
+        let message = String::from_static_str(agent, "tagged templates not supported", gc);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
+        ctx.add_instruction_with_immediate(Instruction::ThrowError, ExceptionType::Error as usize);
     }
 }
 
@@ -1899,7 +1906,8 @@ fn complex_object_pattern<'s>(
                     identifier_string,
                 );
             }
-            ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+            // Note: private field aren't valid in this context.
+            ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
             _ => {
                 // Make a copy of the baseValue on the stack;
                 // EvaluatePropertyAccessWithExpressionKey pops the stack.
@@ -2695,7 +2703,7 @@ impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
             Self::LabeledStatement(statement) => statement.compile_labelled(None, ctx),
             Self::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
             Self::WhileStatement(statement) => statement.compile_labelled(None, ctx),
-            Self::WithStatement(_) => todo!(),
+            Self::WithStatement(st) => st.compile(ctx),
             Self::ClassDeclaration(x) => x.compile(ctx),
             Self::ImportDeclaration(_) => {
                 // Note: Import declarations do not perform any runtime work.
