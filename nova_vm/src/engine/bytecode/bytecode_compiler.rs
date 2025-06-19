@@ -12,6 +12,7 @@ mod finaliser_stack;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
 mod labelled_statement;
+mod with_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 use crate::ecmascript::execution::agent::ExceptionType;
@@ -2702,7 +2703,7 @@ impl<'s> CompileEvaluation<'s> for ast::Statement<'s> {
             Self::LabeledStatement(statement) => statement.compile_labelled(None, ctx),
             Self::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
             Self::WhileStatement(statement) => statement.compile_labelled(None, ctx),
-            Self::WithStatement(_) => todo!(),
+            Self::WithStatement(st) => st.compile(ctx),
             Self::ClassDeclaration(x) => x.compile(ctx),
             Self::ImportDeclaration(_) => {
                 // Note: Import declarations do not perform any runtime work.
