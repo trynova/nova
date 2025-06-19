@@ -234,7 +234,7 @@ supremely optimal since we cannot prove it one way or the other.
 ## What are all the `bind(gc.nogc())`, `unbind()`, `scope(agent, gc.nogc())` and other those calls?
 
 Those are part of the garbage collector. See the
-[contributor's guide to the garbage collector](./GARBAGE_COLLECTOR.md) for
+[contributor's guide to the garbage collector](https://github.com/trynova/nova/blob/main/GARBAGE_COLLECTOR.md) for
 details.
 
 ## List of active development ideas
