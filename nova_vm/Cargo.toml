@@ -73,6 +73,7 @@ annex-b-regexp = ["regexp"]
 proposals = [
     "proposal-float16array",
     "proposal-math-sum",
+    "proposal-math-clamp",
     "proposal-is-error",
     "proposal-atomics-microwait",
 ]
@@ -80,6 +81,8 @@ proposals = [
 proposal-float16array = []
 # Enables the [Math.sumPrecise proposal](https://tc39.es/proposal-math-sum/)
 proposal-math-sum = []
+# Enables the [Math.clamp proposal](https://tc39.es/proposal-math-clamp/)
+proposal-math-clamp = []
 # Enables the [Error.isError proposal](https://tc39.es/proposal-is-error/)
 proposal-is-error = []
 # Enables the [Atomics.pause proposal](https://tc39.es/proposal-atomics-microwait/)

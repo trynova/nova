@@ -79,6 +79,7 @@ cbrt
 ceil
 charAt
 charCodeAt
+clamp
 clear
 clz32
 codePointAt

@@ -19,15 +19,6 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
-#[cfg(feature = "proposal-math-sum")]
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_iterator_objects::{get_iterator, iterator_step_value},
-        testing_and_comparison::require_object_coercible,
-    },
-    execution::agent::ExceptionType,
-};
-
 pub(crate) struct MathObject;
 
 struct MathObjectAbs;
@@ -332,6 +323,17 @@ impl Builtin for MathObjectSumPrecise {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sum_precise);
+}
+
+#[cfg(feature = "proposal-math-clamp")]
+struct MathObjectClamp;
+#[cfg(feature = "proposal-math-clamp")]
+impl Builtin for MathObjectClamp {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clamp;
+
+    const LENGTH: u8 = 3;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::clamp);
 }
 
 impl MathObject {
@@ -1702,9 +1704,15 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        use crate::ecmascript::abstract_operations::{
-            operations_on_iterator_objects::{IteratorRecord, iterator_close_with_error},
-            operations_on_objects::throw_not_callable,
+        use crate::ecmascript::{
+            abstract_operations::{
+                operations_on_iterator_objects::{
+                    IteratorRecord, get_iterator, iterator_close_with_error, iterator_step_value,
+                },
+                operations_on_objects::throw_not_callable,
+                testing_and_comparison::require_object_coercible,
+            },
+            execution::agent::ExceptionType,
         };
 
         let items = arguments.get(0).bind(gc.nogc());
@@ -1835,6 +1843,96 @@ impl MathObject {
         }
     }
 
+    /// ### [1 Math.clamp ( value, min, max )](https://tc39.es/proposal-math-clamp/#sec-math.clamp)
+    ///
+    /// This function returns the Number value that is the result of
+    /// constraining number between the bounds defined by min and max.
+    #[cfg(feature = "proposal-math-clamp")]
+    fn clamp<'gc>(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        use crate::ecmascript::execution::agent::ExceptionType;
+
+        let value = arguments.get(0).bind(gc.nogc());
+        let min = arguments.get(1).bind(gc.nogc());
+        let max = arguments.get(2).bind(gc.nogc());
+
+        // 1. If value is not a Number, throw a TypeError exception.
+        let Ok(value_f) = Number::try_from(value).map(|v| v.into_f64(agent)) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "the `value` argument must be a Number",
+                gc.into_nogc(),
+            ));
+        };
+
+        // 2. If min is not a Number, throw a TypeError exception.
+        let Ok(min_f) = Number::try_from(min).map(|v| v.into_f64(agent)) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "the `min` argument must be a Number",
+                gc.into_nogc(),
+            ));
+        };
+
+        // 3. If max is not a Number, throw a TypeError exception.
+        let Ok(max_f) = Number::try_from(max).map(|v| v.into_f64(agent)) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "the `max` argument must be a Number",
+                gc.into_nogc(),
+            ));
+        };
+
+        // 4. If min is NaN, return NaN.
+        // 5. If max is NaN, return NaN.
+        // 6. If value is NaN, return NaN.
+        if value.is_nan(agent) || min.is_nan(agent) || max.is_nan(agent) {
+            return Ok(Value::nan());
+        }
+
+        // 7. If min is max, return min.
+        if min_f == max_f {
+            return Ok(min.unbind());
+        }
+
+        // 8. If value is -0𝔽 and min is +0𝔽, return +0𝔽.
+        if value.is_neg_zero(agent) && min.is_pos_zero(agent) {
+            return Ok(Value::pos_zero());
+        }
+
+        // 9. If value is +0𝔽 and min is -0𝔽, return +0𝔽.
+        if value.is_pos_zero(agent) && min.is_neg_zero(agent) {
+            return Ok(Value::pos_zero());
+        }
+
+        // 10. If value < min, return min.
+        if value_f < min_f {
+            return Ok(min.unbind());
+        }
+
+        // 11. If value is -0𝔽 and max is +0𝔽, return -0𝔽.
+        if value.is_pos_zero(agent) && max.is_neg_zero(agent) {
+            return Ok(Value::neg_zero());
+        }
+
+        // 12. If value is +0𝔽 and max is -0𝔽, return -0𝔽.
+        if value.is_neg_zero(agent) && max.is_pos_zero(agent) {
+            return Ok(Value::neg_zero());
+        }
+
+        // 13. If value > max, return max.
+        if value_f > max_f {
+            return Ok(max.unbind());
+        }
+
+        // 14. Return value.
+        Ok(value.unbind())
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
@@ -1845,6 +1943,9 @@ impl MathObject {
             property_capacity += 1;
         }
         if cfg!(feature = "proposal-math-sum") {
+            property_capacity += 1;
+        }
+        if cfg!(feature = "proposal-math-clamp") {
             property_capacity += 1;
         }
 
@@ -1994,6 +2095,9 @@ impl MathObject {
 
         #[cfg(feature = "proposal-math-sum")]
         let builder = builder.with_builtin_function_property::<MathObjectSumPrecise>();
+
+        #[cfg(feature = "proposal-math-clamp")]
+        let builder = builder.with_builtin_function_property::<MathObjectClamp>();
 
         builder.build();
     }
