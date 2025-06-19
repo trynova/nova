@@ -1905,7 +1905,8 @@ fn complex_object_pattern<'s>(
                     identifier_string,
                 );
             }
-            ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+            // Note: private field aren't valid in this context.
+            ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
             _ => {
                 // Make a copy of the baseValue on the stack;
                 // EvaluatePropertyAccessWithExpressionKey pops the stack.
