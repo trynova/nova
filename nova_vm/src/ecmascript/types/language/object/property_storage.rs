@@ -10,7 +10,7 @@ use ahash::AHashMap;
 use crate::{
     Heap,
     ecmascript::{
-        execution::{Agent, PrivateField, RealmRecord},
+        execution::{Agent, JsResult, PrivateField, RealmRecord, agent::ExceptionType},
         types::{IntoValue, PrivateName, PropertyDescriptor, Value},
     },
     engine::context::{Bindable, NoGcScope},
@@ -85,7 +85,11 @@ impl<'a> PropertyStorage<'a> {
 
     /// Copy all PrivateMethods and reserve PrivateName fields from the current
     /// private environment to this object property storage.
-    pub(crate) fn initialize_private_elements(self, agent: &mut Agent, gc: NoGcScope) {
+    pub(crate) fn initialize_private_elements<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()> {
         let private_env = agent
             .current_private_environment(gc)
             .expect("Expected PrivateEnvironment to be set");
@@ -100,7 +104,18 @@ impl<'a> PropertyStorage<'a> {
         let private_env = environments.get_private_environment(private_env);
         let props = &mut objects[object].property_storage;
         let private_fields = private_env.get_instance_private_fields(gc);
+        if props
+            .keys(elements)
+            .contains(&private_fields[0].get_key().into())
+        {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "attempted to initialize private elements twice",
+                gc,
+            ));
+        }
         Self::insert_private_fields(props, elements, alloc_counter, private_fields);
+        Ok(())
     }
 
     fn insert_private_fields(

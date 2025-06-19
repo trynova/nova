@@ -191,7 +191,7 @@ pub struct PrivateEnvironmentRecord {
     names: AHashMap<String<'static>, PrivateName>,
     /// ### \[\[PrivateMethods]]
     ///
-    /// This stores the instanec private methods of a class. Per specification,
+    /// This stores the instance private methods of a class. Per specification,
     /// these should be stored on the constructor function but we do not want
     /// to keep that sort of memory around for each
     private_fields: Vec<PrivateField<'static>>,
@@ -436,7 +436,18 @@ impl PrivateEnvironment<'_> {
             record.instance_private_field_count -= 1;
             record.instance_private_method_count += 1;
         } else {
-            todo!("Support getter/setter PrivateName pairs");
+            let existing_field = record
+                .private_fields
+                .iter_mut()
+                .find(|p| p.get_key() == private_name)
+                .expect("Didn't add PrivateName but couldn't find field definition");
+            match (existing_field.clone(), closure) {
+                (PrivateField::Getter { key, get }, PrivateMethod::Setter(set))
+                | (PrivateField::Setter { key, set }, PrivateMethod::Getter(get)) => {
+                    *existing_field = PrivateField::Accessor { key, get, set }.unbind();
+                }
+                _ => unreachable!(),
+            }
         }
     }
 
