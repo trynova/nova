@@ -371,8 +371,10 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectAssignmentTarget<'s> {
                 ctx.add_instruction(Instruction::Store);
             }
         }
-        if let Some(_rest) = &self.rest {
-            todo!()
+        if let Some(rest) = &self.rest {
+            rest.target.compile(ctx);
+            ctx.add_instruction(Instruction::StoreCopy);
+            ctx.add_instruction(Instruction::CopyDataProperties);
         }
     }
 }
