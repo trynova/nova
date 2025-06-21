@@ -278,7 +278,7 @@ pub(crate) fn array_set_length<'a>(
     array_heap_data.elements.len = new_len;
     // 17. For each own property key P of A such that P is an array index and ! ToUint32(P) ≥ newLen, in descending numeric index order, do
     debug_assert!(old_len > new_len);
-    for i in new_len + 1..old_len {
+    for i in new_len..old_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
         let elements = &mut elements[&old_elements];
         // TODO: Handle unwritable properties and property descriptors.
@@ -382,7 +382,7 @@ pub(crate) fn array_try_set_length(
     array_heap_data.elements.len = new_len;
     // 17. For each own property key P of A such that P is an array index and ! ToUint32(P) ≥ newLen, in descending numeric index order, do
     debug_assert!(old_len > new_len);
-    for i in new_len + 1..old_len {
+    for i in new_len..old_len {
         // a. Let deleteSucceeded be ! A.[[Delete]](P).
         let elements = &mut elements[&old_elements];
         // TODO: Handle unwritable properties and property descriptors.
