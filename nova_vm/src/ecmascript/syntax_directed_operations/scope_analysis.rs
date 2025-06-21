@@ -454,9 +454,9 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     },
                     ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) => {},
                     // ExportDeclaration : export default AssignmentExpression ;
-                    _ => f(LexicallyScopedDeclaration::DefaultExport),
-
+                    _ => {},
                 }
+                f(LexicallyScopedDeclaration::DefaultExport)
             }
             Statement::TSEnumDeclaration(_) |
             Statement::TSExportAssignment(_) |
