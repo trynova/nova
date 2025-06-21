@@ -10783,7 +10783,6 @@
   "language/literals/regexp/unicode-escape-nls-err.js": "FAIL",
   "language/literals/regexp/y-assertion-start.js": "FAIL",
   "language/module-code/eval-rqstd-order.js": "FAIL",
-  "language/module-code/eval-this.js": "CRASH",
   "language/module-code/export-expname-binding-index.js": "CRASH",
   "language/module-code/import-attributes/allow-nlt-before-with.js": "FAIL",
   "language/module-code/import-attributes/import-attribute-key-identifiername.js": "FAIL",
