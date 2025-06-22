@@ -422,11 +422,13 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                         if decl.kind.is_var() {
                             return;
                         }
-                        // ExportDeclaration : export Declaration
-                        // 1. Return a List whose sole element is DeclarationPart of Declaration.
-                        debug_assert_eq!(decl.declarations.len(), 1);
-                        f(LexicallyScopedDeclaration::Variable(decl.declarations.first().unwrap()));
+
+                        for decl in &decl.declarations {
+                            f(LexicallyScopedDeclaration::Variable(decl));
+                        }
                     },
+                    // ExportDeclaration : export Declaration
+                    // 1. Return a List whose sole element is DeclarationPart of Declaration.
                     Declaration::FunctionDeclaration(decl) => {
                         f(LexicallyScopedDeclaration::Function(decl));
                     },
