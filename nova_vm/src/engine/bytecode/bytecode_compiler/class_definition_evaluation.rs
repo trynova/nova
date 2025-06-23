@@ -123,7 +123,7 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 // Now we have proto on the stack followed be null (protoParent).
                 ctx.add_instruction(Instruction::Swap);
                 // Now we have null (protoParent) followed by proto.
-                ctx.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Store);
                 // Now null is in the result register and proto is at the top of
                 // the stack.
                 ctx.add_instruction(Instruction::ObjectSetPrototype);
