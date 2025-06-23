@@ -282,7 +282,9 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.min_value
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MIN_VALUE.into())
-                    .with_value_creator_readonly(|agent| agent.heap.create(f64::MIN).into())
+                    .with_value_creator_readonly(|agent| {
+                        agent.heap.create(f64::MIN_POSITIVE).into()
+                    })
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
