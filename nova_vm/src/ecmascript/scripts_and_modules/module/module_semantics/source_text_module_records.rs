@@ -1408,7 +1408,11 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             // 10. Else,
             // a. Assert: capability is a PromiseCapability Record.
             // b. Perform AsyncBlockStart(capability, module.[[ECMAScriptCode]], moduleContext).
-            todo!("AsyncBlockStart");
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::Error,
+                "Top-level await is not yet supported",
+                gc.into_nogc(),
+            ));
         }
         // 11. Return unused.
         Ok(())
