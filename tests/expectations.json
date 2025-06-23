@@ -11055,7 +11055,7 @@
   "language/module-code/top-level-await/top-level-ticks.js": "FAIL",
   "language/module-code/top-level-await/void-await-expr.js": "FAIL",
   "language/module-code/top-level-await/while-dynamic-evaluation.js": "FAIL",
-  "language/module-code/verify-dfs.js": "CRASH",
+  "language/module-code/verify-dfs.js": "FAIL",
   "language/reserved-words/await-script.js": "FAIL",
   "language/source-text/6.1.js": "CRASH",
   "language/statementList/eval-block-regexp-literal-flags.js": "FAIL",
