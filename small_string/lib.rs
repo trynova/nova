@@ -1,7 +1,6 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-#![no_std]
 
 use core::cmp::Ordering;
 
@@ -53,12 +52,36 @@ impl SmallString {
         position as usize
     }
 
+    /// Returns true if the SmallString contains only ASCII characters.
+    pub const fn is_ascii(&self) -> bool {
+        self.bytes[0] == 0xFF
+            && self.bytes[0] <= 127
+            && self.bytes[1] == 0xFF
+            && self.bytes[1] <= 127
+            && self.bytes[2] == 0xFF
+            && self.bytes[2] <= 127
+            && self.bytes[3] == 0xFF
+            && self.bytes[3] <= 127
+            && self.bytes[4] == 0xFF
+            && self.bytes[4] <= 127
+            && self.bytes[5] == 0xFF
+            && self.bytes[5] <= 127
+            && self.bytes[6] == 0xFF
+            && self.bytes[6] <= 127
+    }
+
     pub fn utf16_len(&self) -> usize {
+        if self.is_ascii() {
+            return self.len();
+        }
         self.as_str().chars().map(char::len_utf16).sum()
     }
 
     // TODO: This should return a wtf8::CodePoint.
     pub fn utf16_char(&self, idx: usize) -> char {
+        if self.is_ascii() {
+            return self.as_str().as_bytes()[idx].into();
+        }
         let mut u16_i = 0;
         for ch in self.as_str().chars() {
             if idx == u16_i {
@@ -72,6 +95,9 @@ impl SmallString {
     }
 
     pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
+        if self.is_ascii() {
+            return Some(utf16_idx);
+        }
         let mut current_utf16_index = 0;
         for (idx, ch) in self.as_str().char_indices() {
             match current_utf16_index.cmp(&utf16_idx) {
@@ -82,11 +108,17 @@ impl SmallString {
                 }
             }
         }
-        assert_eq!(utf16_idx, current_utf16_index);
+        if current_utf16_index > utf16_idx {
+            return None;
+        }
+        debug_assert_eq!(utf16_idx, current_utf16_index);
         Some(self.len())
     }
 
     pub fn utf16_index(&self, utf8_idx: usize) -> usize {
+        if self.is_ascii() {
+            return utf8_idx;
+        }
         let mut utf16_idx = 0;
         for (idx, ch) in self.as_str().char_indices() {
             if idx == utf8_idx {
