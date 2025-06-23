@@ -46,7 +46,7 @@ use crate::{
                 module_lexically_scoped_declarations, module_var_scoped_declarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
     },
     engine::{
         Executable, Scoped, Vm,
@@ -97,7 +97,7 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     ///
     /// An object exposed through the import.meta meta property. It is empty
     /// until it is accessed by ECMAScript code.
-    import_meta: Option<Object<'a>>,
+    import_meta: Option<OrdinaryObject<'a>>,
     /// ### \[\[ImportEntries]]
     ///
     /// A List of ImportEntry records derived from the code of this module.
@@ -231,6 +231,25 @@ impl<'m> SourceTextModule<'m> {
                 self.get(agent).ecmascript_code.body.as_slice(),
             )
         }
+    }
+
+    /// ### \[\[ImportMeta]]
+    pub(crate) fn get_import_meta(self, agent: &Agent) -> Option<OrdinaryObject<'m>> {
+        self.get(agent).import_meta
+    }
+
+    /// Set \[\[ImportMeta]]
+    ///
+    /// ## Panics
+    ///
+    /// Panics if \[\[ImportMeta]] is already set.
+    pub(crate) fn set_import_meta(self, agent: &mut Agent, object: OrdinaryObject<'m>) {
+        assert!(
+            self.get_mut(agent)
+                .import_meta
+                .replace(object.unbind())
+                .is_none()
+        );
     }
 
     /// ### \[\[ImportEntries]]

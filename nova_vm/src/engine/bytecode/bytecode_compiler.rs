@@ -1001,9 +1001,11 @@ impl<'s> CompileEvaluation<'s> for ast::MetaProperty<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.meta.name == "new" && self.property.name == "target" {
             ctx.add_instruction(Instruction::GetNewTarget);
+        } else if self.meta.name == "import" && self.property.name == "meta" {
+            ctx.add_instruction(Instruction::ImportMeta);
         } else {
-            todo!();
-        }
+            unreachable!()
+        };
     }
 }
 

@@ -455,6 +455,8 @@ pub enum Instruction {
     AsyncIteratorCloseWithError,
     /// Store GetNewTarget() as the result value.
     GetNewTarget,
+    /// Store `import.meta` object as the result value.
+    ImportMeta,
     /// Throw a TypeError if the result register does not contain an Object.
     ///
     /// The error message is provided as an identifier.
@@ -1228,6 +1230,7 @@ impl TryFrom<u8> for Instruction {
         const ITERATORCLOSEWITHERROR: u8 = Instruction::IteratorCloseWithError.as_u8();
         const ASYNCITERATORCLOSEWITHERROR: u8 = Instruction::AsyncIteratorCloseWithError.as_u8();
         const GETNEWTARGET: u8 = Instruction::GetNewTarget.as_u8();
+        const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
         match value {
             ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
@@ -1426,6 +1429,7 @@ impl TryFrom<u8> for Instruction {
             ITERATORCLOSEWITHERROR => Ok(Instruction::IteratorCloseWithError),
             ASYNCITERATORCLOSEWITHERROR => Ok(Instruction::AsyncIteratorCloseWithError),
             GETNEWTARGET => Ok(Instruction::GetNewTarget),
+            IMPORTMETA => Ok(Instruction::ImportMeta),
             VERIFYISOBJECT => Ok(Instruction::VerifyIsObject),
             _ => Err(()),
         }
