@@ -1933,6 +1933,9 @@ fn complex_object_pattern<'s>(
         property.value.compile(ctx);
     }
 
+    // Don't keep the object on the stack.
+    ctx.add_instruction(Instruction::Store);
+
     if let Some(rest) = &object_pattern.rest {
         let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
             unreachable!()
@@ -1952,9 +1955,6 @@ fn complex_object_pattern<'s>(
         } else {
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
-    } else {
-        // Don't keep the object on the stack.
-        ctx.add_instruction(Instruction::Store);
     }
     ctx.lexical_binding_state = lexical_binding_state;
 }
