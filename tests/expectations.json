@@ -12475,7 +12475,6 @@
   "staging/sm/expressions/nullish-coalescing.js": "FAIL",
   "staging/sm/expressions/object-literal-__proto__.js": "FAIL",
   "staging/sm/expressions/object-literal-computed-property-evaluation.js": "FAIL",
-  "staging/sm/expressions/optional-chain-class-heritage.js": "CRASH",
   "staging/sm/expressions/optional-chain.js": "FAIL",
   "staging/sm/expressions/tagged-template-constant-folding.js": "FAIL",
   "staging/sm/extensions/RegExp-error-message-skip-selfhosted-frames.js": "FAIL",
