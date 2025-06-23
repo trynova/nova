@@ -39,6 +39,7 @@ use crate::{
             source_code::SourceCode,
         },
         syntax_directed_operations::{
+            contains::{Contains, ContainsSymbol},
             miscellaneous::instantiate_function_object,
             scope_analysis::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
@@ -1763,7 +1764,7 @@ pub fn parse_module<'a>(
     }
 
     // 11. Let async be body Contains await.
-    let r#async = false;
+    let r#async = body.contains(ContainsSymbol::Await);
     // 12. Return Source Text Module Record {
     Ok(agent.heap.create(SourceTextModuleRecord {
         // [[Realm]]: realm,
