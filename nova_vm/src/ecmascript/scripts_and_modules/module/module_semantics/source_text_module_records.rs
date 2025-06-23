@@ -39,13 +39,14 @@ use crate::{
             source_code::SourceCode,
         },
         syntax_directed_operations::{
+            contains::{Contains, ContainsSymbol},
             miscellaneous::instantiate_function_object,
             scope_analysis::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
                 module_lexically_scoped_declarations, module_var_scoped_declarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
     },
     engine::{
         Executable, Scoped, Vm,
@@ -96,7 +97,7 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     ///
     /// An object exposed through the import.meta meta property. It is empty
     /// until it is accessed by ECMAScript code.
-    import_meta: Option<Object<'a>>,
+    import_meta: Option<OrdinaryObject<'a>>,
     /// ### \[\[ImportEntries]]
     ///
     /// A List of ImportEntry records derived from the code of this module.
@@ -230,6 +231,25 @@ impl<'m> SourceTextModule<'m> {
                 self.get(agent).ecmascript_code.body.as_slice(),
             )
         }
+    }
+
+    /// ### \[\[ImportMeta]]
+    pub(crate) fn get_import_meta(self, agent: &Agent) -> Option<OrdinaryObject<'m>> {
+        self.get(agent).import_meta
+    }
+
+    /// Set \[\[ImportMeta]]
+    ///
+    /// ## Panics
+    ///
+    /// Panics if \[\[ImportMeta]] is already set.
+    pub(crate) fn set_import_meta(self, agent: &mut Agent, object: OrdinaryObject<'m>) {
+        assert!(
+            self.get_mut(agent)
+                .import_meta
+                .replace(object.unbind())
+                .is_none()
+        );
     }
 
     /// ### \[\[ImportEntries]]
@@ -1407,7 +1427,11 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             // 10. Else,
             // a. Assert: capability is a PromiseCapability Record.
             // b. Perform AsyncBlockStart(capability, module.[[ECMAScriptCode]], moduleContext).
-            todo!("AsyncBlockStart");
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::Error,
+                "Top-level await is not yet supported",
+                gc.into_nogc(),
+            ));
         }
         // 11. Return unused.
         Ok(())
@@ -1763,7 +1787,7 @@ pub fn parse_module<'a>(
     }
 
     // 11. Let async be body Contains await.
-    let r#async = false;
+    let r#async = body.contains(ContainsSymbol::Await);
     // 12. Return Source Text Module Record {
     Ok(agent.heap.create(SourceTextModuleRecord {
         // [[Realm]]: realm,

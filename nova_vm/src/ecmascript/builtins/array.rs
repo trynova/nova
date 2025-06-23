@@ -685,7 +685,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            TryResult::Continue(true)
+            TryResult::Continue(false)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
@@ -741,7 +741,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             Default::default()
         };
         let elements = &agent[self].elements;
-        let mut keys = Vec::with_capacity(elements.len() as usize + backing_keys.len());
+        let mut keys = Vec::with_capacity(elements.len() as usize + 1 + backing_keys.len());
 
         let elements_data = &agent[elements];
 
@@ -751,6 +751,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             }
         }
 
+        keys.push(BUILTIN_STRING_MEMORY.length.to_property_key());
         keys.extend(backing_keys);
 
         TryResult::Continue(keys)

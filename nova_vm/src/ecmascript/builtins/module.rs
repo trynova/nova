@@ -24,6 +24,7 @@ use crate::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
+        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -221,15 +222,16 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
-                // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
-                    PropertyKey::Integer(_)
-                    | PropertyKey::Symbol(_)
-                    | PropertyKey::PrivateName(_) => unreachable!(),
+                    PropertyKey::Integer(data) => {
+                        String::from_string(agent, format!("{}", data.into_i64()), gc)
+                    }
+                    PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
                 };
+                // 2. Let exports be O.[[Exports]].
+                let exports: &[String] = &agent[self].exports;
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
@@ -279,14 +281,16 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
-                // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
-                    PropertyKey::Integer(_) => todo!(),
+                    PropertyKey::Integer(data) => {
+                        String::from_string(agent, format!("{}", data.into_i64()), gc.nogc())
+                    }
                     PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
                 };
+                // 2. Let exports be O.[[Exports]].
+                let exports: &[String] = &agent[self].exports;
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
@@ -320,18 +324,23 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                TryResult::Continue(
-                    symbol == WellKnownSymbolIndexes::ToStringTag.into()
-                        && property_descriptor
-                            == PropertyDescriptor {
-                                value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
-                                writable: Some(false),
-                                get: None,
-                                set: None,
-                                enumerable: Some(false),
-                                configurable: Some(false),
-                            },
-                )
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    // Note: it's always okay for a field to not exist on the
+                    // descriptor. It just means that the defineOwnProperty
+                    // isn't trying to change it. Hence the map_or checks below.
+                    TryResult::Continue(
+                        property_descriptor
+                            .value
+                            .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into_value())
+                            && property_descriptor.writable.is_none_or(|v| !v)
+                            && property_descriptor.get.is_none()
+                            && property_descriptor.set.is_none()
+                            && property_descriptor.enumerable.is_none_or(|v| !v)
+                            && property_descriptor.configurable.is_none_or(|v| !v),
+                    )
+                } else {
+                    TryResult::Continue(false)
+                }
             }
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -382,16 +391,22 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                Ok(symbol == WellKnownSymbolIndexes::ToStringTag.into()
-                    && property_descriptor
-                        == PropertyDescriptor {
-                            value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
-                            writable: Some(false),
-                            get: None,
-                            set: None,
-                            enumerable: Some(false),
-                            configurable: Some(false),
-                        })
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    // Note: it's always okay for a field to not exist on the
+                    // descriptor. It just means that the defineOwnProperty
+                    // isn't trying to change it. Hence the is_none_or usage
+                    // below.
+                    Ok(property_descriptor
+                        .value
+                        .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into_value())
+                        && property_descriptor.writable.is_none_or(|v| !v)
+                        && property_descriptor.get.is_none()
+                        && property_descriptor.set.is_none()
+                        && property_descriptor.enumerable.is_none_or(|v| !v)
+                        && property_descriptor.configurable.is_none_or(|v| !v))
+                } else {
+                    Ok(false)
+                }
             }
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -474,6 +489,16 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::PrivateName(_) => unreachable!(),
         }
+    }
+
+    fn internal_has_property<'gc>(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, bool> {
+        let gc = gc.into_nogc();
+        Ok(unwrap_try(self.try_has_property(agent, property_key, gc)))
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)

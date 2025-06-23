@@ -31,8 +31,8 @@ use crate::{
             source_code::SourceCode,
         },
         types::{
-            Function, IntoValue, Object, PrivateName, Reference, String, Symbol, Value,
-            ValueRootRepr,
+            Function, IntoValue, Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
+            String, Symbol, Value, ValueRootRepr,
         },
     },
     engine::{
@@ -280,6 +280,51 @@ pub trait HostHooks: core::fmt::Debug {
         gc: NoGcScope<'gc, '_>,
     ) {
         unimplemented!();
+    }
+
+    /// ### [13.3.12.1.1 HostGetImportMetaProperties ( moduleRecord )](https://tc39.es/ecma262/#sec-hostgetimportmetaproperties)
+    ///
+    /// The host-defined abstract operation HostGetImportMetaProperties takes
+    /// argument moduleRecord (a Module Record) and returns a List of Records
+    /// with fields \[\[Key]] (a property key) and \[\[Value]] (an ECMAScript
+    /// language value). It allows hosts to provide property keys and values
+    /// for the object returned from `import.meta`.
+    ///
+    /// The default implementation of HostGetImportMetaProperties is to return
+    /// a new empty List.
+    #[allow(unused_variables)]
+    fn get_import_meta_properties<'gc>(
+        &self,
+        agent: &mut Agent,
+        module_record: SourceTextModule,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Vec<(PropertyKey<'gc>, Value<'gc>)> {
+        Default::default()
+    }
+
+    /// ### [13.3.12.1.2 HostFinalizeImportMeta ( importMeta, moduleRecord )](https://tc39.es/ecma262/#sec-hostfinalizeimportmeta)
+    ///
+    /// The host-defined abstract operation HostFinalizeImportMeta takes
+    /// arguments importMeta (an Object) and moduleRecord (a Module Record) and
+    /// returns unused. It allows hosts to perform any extraordinary operations
+    /// to prepare the object returned from import.meta.
+    ///
+    /// Most hosts will be able to simply define HostGetImportMetaProperties,
+    /// and leave HostFinalizeImportMeta with its default behaviour. However,
+    /// HostFinalizeImportMeta provides an "escape hatch" for hosts which need
+    /// to directly manipulate the object before it is exposed to ECMAScript
+    /// code.
+    ///
+    /// The default implementation of HostFinalizeImportMeta is to return
+    /// unused.
+    #[allow(unused_variables)]
+    fn finalize_import_meta(
+        &self,
+        agent: &mut Agent,
+        import_meta: OrdinaryObject,
+        module_record: SourceTextModule,
+        gc: NoGcScope,
+    ) {
     }
 
     /// Get access to the Host data, useful to share state between calls of built-in functions.
@@ -825,6 +870,22 @@ impl Agent {
             .unwrap()
             .function
             .unwrap()
+            .bind(gc)
+    }
+
+    /// ### [9.4.1 GetActiveScriptOrModule ( )](https://tc39.es/ecma262/#sec-getactivescriptormodule)
+    ///
+    /// The abstract operation GetActiveScriptOrModule takes no arguments and
+    /// returns a Script Record, a Module Record, or null. It is used to
+    /// determine the running script or module, based on the running execution
+    /// context.
+    pub(crate) fn get_active_script_or_module<'a>(
+        &self,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<ScriptOrModule<'a>> {
+        self.execution_context_stack
+            .last()?
+            .script_or_module
             .bind(gc)
     }
 

@@ -1864,8 +1864,9 @@ fn ordinary_enumerable_own_keys<'gc>(
                     result_keys.push(key.bind(gc));
                 }
             }
-            PropertyKey::Symbol(_) => {
-                // Symbol keys are never considered enumerable.
+            PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => {
+                // Symbol keys and private names are never considered
+                // enumerable.
                 continue;
             }
             // a. Append P to keys.

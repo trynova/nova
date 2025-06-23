@@ -50,6 +50,7 @@ use crate::{
             new_declarative_environment, new_private_environment, resolve_private_identifier,
             resolve_this_binding,
         },
+        scripts_and_modules::ScriptOrModule,
         types::{
             BUILTIN_STRING_MEMORY, Base, BigInt, Function, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject,
@@ -72,7 +73,7 @@ use crate::{
         rootable::Scopable,
         unwrap_try,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, ObjectEntry, WellKnownSymbolIndexes, WorkQueues},
 };
 
 use super::iterator::{ActiveIterator, throw_iterator_returned_non_object};
@@ -3045,6 +3046,50 @@ impl Vm {
                         .map_or(Value::Undefined, |v| v.into_value())
                         .unbind(),
                 );
+            }
+            Instruction::ImportMeta => {
+                let gc = gc.into_nogc();
+                // 1. Let module be GetActiveScriptOrModule().
+                let module = agent.get_active_script_or_module(gc);
+                // 2. Assert: module is a Source Text Module Record.
+                let Some(ScriptOrModule::SourceTextModule(module)) = module else {
+                    unreachable!()
+                };
+                // 3. Let importMeta be module.[[ImportMeta]].
+                let import_meta = module.get_import_meta(agent);
+                // 4. If importMeta is empty, then
+                let import_meta = match import_meta {
+                    None => {
+                        // b. Let importMetaValues be HostGetImportMetaProperties(module).
+                        let import_meta_values = agent
+                            .host_hooks
+                            .get_import_meta_properties(agent, module, gc);
+                        // a. Set importMeta to OrdinaryObjectCreate(null).
+                        // c. For each Record { [[Key]], [[Value]] } p of importMetaValues, do
+                        // i. Perform ! CreateDataPropertyOrThrow(importMeta, p.[[Key]], p.[[Value]]).
+                        let import_meta = agent.heap.create_null_object(
+                            &import_meta_values
+                                .into_iter()
+                                .map(|(key, value)| ObjectEntry::new_data_entry(key, value))
+                                .collect::<Box<[ObjectEntry]>>(),
+                        );
+                        // d. Perform HostFinalizeImportMeta(importMeta, module).
+                        agent
+                            .host_hooks
+                            .finalize_import_meta(agent, import_meta, module, gc);
+                        // e. Set module.[[ImportMeta]] to importMeta.
+                        module.set_import_meta(agent, import_meta);
+                        // f. Return importMeta.
+                        import_meta
+                    }
+                    Some(import_meta) => {
+                        // 5. Else,
+                        // a. Assert: importMeta is an Object.
+                        // b. Return importMeta.
+                        import_meta
+                    }
+                };
+                vm.result = Some(import_meta.into_value().unbind());
             }
             Instruction::VerifyIsObject => {
                 let result = vm.result.unwrap();

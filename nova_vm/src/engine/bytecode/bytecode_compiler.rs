@@ -1001,9 +1001,11 @@ impl<'s> CompileEvaluation<'s> for ast::MetaProperty<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.meta.name == "new" && self.property.name == "target" {
             ctx.add_instruction(Instruction::GetNewTarget);
+        } else if self.meta.name == "import" && self.property.name == "meta" {
+            ctx.add_instruction(Instruction::ImportMeta);
         } else {
-            todo!();
-        }
+            unreachable!()
+        };
     }
 }
 
@@ -1166,6 +1168,7 @@ fn compile_delegate_yield_expression<'s>(
     // 7. Let received be NormalCompletion(undefined).
     ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
     // 8. Repeat,
+    // We should be +0 try-catch block here.
     let loop_start = ctx.get_jump_index_to_here();
     // a. If received is a normal completion, then
 
@@ -1193,18 +1196,25 @@ fn compile_delegate_yield_expression<'s>(
         // ).
         ctx.add_instruction(Instruction::IteratorValue);
     }
+    // +1
     let jump_to_throw_handling = ctx.enter_try_catch_block();
+    // We should be +1 try-catch block here.
     // vii. Else, set received to Completion(GeneratorYield(innerResult)).
+    ctx.add_instruction(Instruction::Debug);
     ctx.add_instruction(Instruction::Yield);
     // Note: generators can be resumed with a Return instruction. For those
     // cases we need to generate Return handling here.
     let jump_over_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-    let return_label = ctx.get_jump_index_to_here();
-    let (jump_to_continue, jump_to_throw_handling_from_return_yield) = {
+    let (return_label, jump_to_continue, jump_to_throw_handling_from_return_yield) = {
         // ### Return result handling
+        // We should be +1 try-catch block here.
+        let return_label = ctx.get_jump_index_to_here();
         // c. Else,
         // i. Assert: received is a return completion.
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        ctx.add_instruction(Instruction::Debug);
+        // +0
+        ctx.exit_try_catch_block();
+        ctx.add_instruction(Instruction::Debug);
         let jump_over_return_call = ctx.add_instruction_with_jump_slot(Instruction::IteratorReturn);
         // ii. Let return be ? GetMethod(iterator, "return").
         // iii. If return is undefined, then ... (jump over return call)
@@ -1231,7 +1241,10 @@ fn compile_delegate_yield_expression<'s>(
         // x. Else, set received to
         //    Completion(GeneratorYield(innerReturnResult)).
         // NOTE: If Yield throws, we jump to throw handling.
+        // +1
         let jump_to_throw_handling = ctx.enter_try_catch_block();
+        // We should be +1 try-catch block here.
+        ctx.add_instruction(Instruction::Debug);
         ctx.add_instruction(Instruction::Yield);
         // NOTE: If Yield continues normally, we jump to continue.
         let jump_to_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -1244,9 +1257,12 @@ fn compile_delegate_yield_expression<'s>(
         // catch block and pops the exception stack, or will go to continue
         // where exit-try-catch-block is done again, or will go to return
         // where we start with a PoExceptionJumpTarget.
+        // +0
         ctx.exit_try_catch_block();
 
+        // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_return_call);
+        ctx.add_instruction(Instruction::Debug);
         // 1. Set value to received.[[Value]].
         // 2. If generatorKind is async, then
         if generator_kind_is_async {
@@ -1256,17 +1272,21 @@ fn compile_delegate_yield_expression<'s>(
         ctx.set_jump_target_here(jump_to_return);
         // 3. Return ReturnCompletion(value).
         ctx.compile_return();
-        (jump_to_continue, jump_to_throw_handling)
+        (return_label, jump_to_continue, jump_to_throw_handling)
     };
 
     ctx.set_jump_target_here(jump_over_return);
     ctx.set_jump_target_here(jump_to_continue);
     let continue_label = ctx.get_jump_index_to_here();
+    // We should be +1 try-catch block here.
     // NOTE: this here is the last part of the normal completion handling.
-    ctx.exit_try_catch_block();
+    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+    // We should be +0 try-catch block here.
+    ctx.add_instruction(Instruction::Debug);
     ctx.add_jump_instruction_to_index(Instruction::Jump, loop_start);
     {
         // ### Throw result handling
+        // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_to_throw_handling);
         ctx.set_jump_target_here(jump_to_throw_handling_from_return_yield);
         let throw_label = ctx.get_jump_index_to_here();
@@ -1297,8 +1317,11 @@ fn compile_delegate_yield_expression<'s>(
         }
         // 8. Else, set received to Completion(GeneratorYield(innerResult)).
         // NOTE: If Yield throws, we jump back up to throw handling.
+        // +1
         let jump_to_catch_block = ctx.enter_try_catch_block();
+        // We should be +1 try-catch block here.
         ctx.set_jump_target(jump_to_catch_block, throw_label);
+        ctx.add_instruction(Instruction::Debug);
         ctx.add_instruction(Instruction::Yield);
         // NOTE: If Yield continues normally, we jump to continue.
         let jump_to_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -1308,10 +1331,13 @@ fn compile_delegate_yield_expression<'s>(
         // Note: We purposefully exit the yield catch block here: this will pop
         // the CompileContext bookkeeping but will not add an instruction
         // because this instruction address is currently unreachable.
+        // +0
         ctx.exit_try_catch_block();
 
         // iii. Else,
+        // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_throw_call);
+        ctx.add_instruction(Instruction::Debug);
         // 1. NOTE: If iterator does not have a throw method, this throw is
         //    going to terminate the yield* loop. But first we need to give
         //    iterator a chance to clean up.
@@ -1343,6 +1369,7 @@ fn compile_delegate_yield_expression<'s>(
         );
         ctx.set_jump_target_here(jump_to_end);
     }
+    // We should be +0 try-catch block here.
     ctx.set_jump_target_here(jump_to_end);
 }
 
@@ -1931,6 +1958,9 @@ fn complex_object_pattern<'s>(
         property.value.compile(ctx);
     }
 
+    // Don't keep the object on the stack.
+    ctx.add_instruction(Instruction::Store);
+
     if let Some(rest) = &object_pattern.rest {
         let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
             unreachable!()
@@ -1950,9 +1980,6 @@ fn complex_object_pattern<'s>(
         } else {
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
-    } else {
-        // Don't keep the object on the stack.
-        ctx.add_instruction(Instruction::Store);
     }
     ctx.lexical_binding_state = lexical_binding_state;
 }

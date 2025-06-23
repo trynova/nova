@@ -291,22 +291,32 @@ pub(crate) fn create_import_binding(
 ) {
     // 1. Assert: envRec does not already have a binding for N.
     debug_assert!(!env_rec.has_binding(agent, n));
-    let m_environment = m
-        .environment(agent, gc)
-        .expect("Attempted to access unlinked module's environment");
+    let m_environment = m.environment(agent, gc);
     let envs = &mut agent.heap.environments;
-    // 2. Assert: When M.[[Environment]] is instantiated, it will have a direct
-    //    binding for N2.
-    let m_decl_env = m_environment.get_declarative_env(envs);
-    let m_decl_env = envs.get_declarative_environment_mut(m_decl_env);
-    let m_direct_binding = m_decl_env.get_binding(n2);
-    let Some(m_direct_binding) = m_direct_binding else {
-        unreachable!();
+    let can_be_direct_binding = if let Some(m_environment) = m_environment {
+        // 2. Assert: When M.[[Environment]] is instantiated, it will have a
+        //    direct binding for N2.
+        let m_decl_env = m_environment.get_declarative_env(envs);
+        let m_decl_env = envs.get_declarative_environment_mut(m_decl_env);
+        let m_direct_binding = m_decl_env.get_binding(n2);
+        let Some(m_direct_binding) = m_direct_binding else {
+            unreachable!();
+        };
+        !m_direct_binding.mutable
+    } else {
+        // We enter this path when the target module is our current module's
+        // parent, ie. this is a circular import. All circular bindings are
+        // must be indirect as we cannot know if we're pointing to immutable or
+        // mutable data.
+        false
     };
-    if m_direct_binding.mutable {
-        // Optimisation: only mutable bindings need to have indirect bindings.
-        // Constants can be initialised once and only once as direct "copy"
-        // bindings.
+    if can_be_direct_binding {
+        // Optimisation: references to immutable bindings can be initialised as
+        // direct bindings, as the data behind them can never change. The data
+        // for the direct binding will be initialised when the module is about
+        // to be evaluated.
+        env_rec.create_immutable_binding(envs, n);
+    } else {
         // 3. Create an immutable indirect binding in envRec for N that
         //    references M and N2 as its target binding and record that the
         //    binding is initialized.
@@ -322,11 +332,6 @@ pub(crate) fn create_import_binding(
             )
             .is_none();
         debug_assert!(created_new);
-    } else {
-        // Optimisation: indirect bindings to constants are not necessary. We
-        // can create a normal direct binding that will be initialised when the
-        // module is about to be evaluated.
-        env_rec.create_immutable_binding(envs, n);
     }
     // 4. Return unused.
 }
