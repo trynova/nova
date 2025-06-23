@@ -95,14 +95,12 @@ impl Contains for ast::BindingPattern<'_> {
                 e.properties
                     .iter()
                     .any(|p| p.key.contains(symbol) || p.value.contains(symbol))
-                    || e.rest
-                        .as_ref()
-                        .map_or(false, |e| e.argument.contains(symbol))
+                    || e.rest.as_ref().is_some_and(|e| e.argument.contains(symbol))
             }
             ast::BindingPatternKind::ArrayPattern(e) => e
                 .elements
                 .iter()
-                .any(|e| e.as_ref().map_or(false, |e| e.contains(symbol))),
+                .any(|e| e.as_ref().is_some_and(|e| e.contains(symbol))),
             ast::BindingPatternKind::AssignmentPattern(e) => {
                 e.left.contains(symbol) || e.right.contains(symbol)
             }
@@ -252,7 +250,7 @@ impl Contains for ast::ArrayAssignmentTarget<'_> {
         }) || self
             .rest
             .as_ref()
-            .map_or(false, |e| e.target.contains(symbol))
+            .is_some_and(|e| e.target.contains(symbol))
     }
 }
 
@@ -275,7 +273,7 @@ impl Contains for ast::ObjectAssignmentTarget<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
         self.properties.iter().any(|e| match e {
             ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(e) => {
-                e.init.as_ref().map_or(false, |e| e.contains(symbol))
+                e.init.as_ref().is_some_and(|e| e.contains(symbol))
             }
             ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(e) => {
                 e.contains(symbol)
@@ -315,7 +313,7 @@ impl Contains for ast::ConditionalExpression<'_> {
 
 impl Contains for ast::ImportExpression<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.options.as_ref().map_or(false, |e| e.contains(symbol)) || self.source.contains(symbol)
+        self.options.as_ref().is_some_and(|e| e.contains(symbol)) || self.source.contains(symbol)
     }
 }
 
@@ -389,7 +387,7 @@ impl Contains for ast::YieldExpression<'_> {
         if symbol == ContainsSymbol::Yield {
             return true;
         }
-        self.argument.as_ref().map_or(false, |e| e.contains(symbol))
+        self.argument.as_ref().is_some_and(|e| e.contains(symbol))
     }
 }
 
@@ -502,9 +500,9 @@ impl Contains for ast::ForOfStatement<'_> {
 
 impl Contains for ast::ForStatement<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.init.as_ref().map_or(false, |e| e.contains(symbol))
-            || self.test.as_ref().map_or(false, |e| e.contains(symbol))
-            || self.update.as_ref().map_or(false, |e| e.contains(symbol))
+        self.init.as_ref().is_some_and(|e| e.contains(symbol))
+            || self.test.as_ref().is_some_and(|e| e.contains(symbol))
+            || self.update.as_ref().is_some_and(|e| e.contains(symbol))
             || self.body.contains(symbol)
     }
 }
@@ -525,7 +523,7 @@ impl Contains for ast::IfStatement<'_> {
             || self
                 .alternate
                 .as_ref()
-                .map_or(false, |st| st.contains(symbol))
+                .is_some_and(|st| st.contains(symbol))
     }
 }
 
@@ -537,7 +535,7 @@ impl Contains for ast::LabeledStatement<'_> {
 
 impl Contains for ast::ReturnStatement<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.argument.as_ref().map_or(false, |e| e.contains(symbol))
+        self.argument.as_ref().is_some_and(|e| e.contains(symbol))
     }
 }
 
@@ -549,7 +547,7 @@ impl Contains for ast::SwitchStatement<'_> {
 
 impl Contains for ast::SwitchCase<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.test.as_ref().map_or(false, |e| e.contains(symbol))
+        self.test.as_ref().is_some_and(|e| e.contains(symbol))
             || self.consequent.iter().any(|st| st.contains(symbol))
     }
 }
@@ -563,11 +561,11 @@ impl Contains for ast::ThrowStatement<'_> {
 impl Contains for ast::TryStatement<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
         self.block.contains(symbol)
-            || self.handler.as_ref().map_or(false, |e| e.contains(symbol))
+            || self.handler.as_ref().is_some_and(|e| e.contains(symbol))
             || self
                 .finalizer
                 .as_ref()
-                .map_or(false, |st| st.contains(symbol))
+                .is_some_and(|st| st.contains(symbol))
     }
 }
 
@@ -575,7 +573,7 @@ impl Contains for ast::CatchClause<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
         self.param
             .as_ref()
-            .map_or(false, |e| e.pattern.contains(symbol))
+            .is_some_and(|e| e.pattern.contains(symbol))
             || self.body.contains(symbol)
     }
 }
@@ -600,7 +598,7 @@ impl Contains for ast::VariableDeclaration<'_> {
 
 impl Contains for ast::VariableDeclarator<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.init.as_ref().map_or(false, |e| e.contains(symbol)) || self.id.contains(symbol)
+        self.init.as_ref().is_some_and(|e| e.contains(symbol)) || self.id.contains(symbol)
     }
 }
 
@@ -647,7 +645,7 @@ impl Contains for ast::ExportDefaultDeclaration<'_> {
 
 impl Contains for ast::ExportNamedDeclaration<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.declaration.as_ref().map_or(false, |e| match e {
+        self.declaration.as_ref().is_some_and(|e| match e {
             ast::Declaration::VariableDeclaration(e) => e.contains(symbol),
             ast::Declaration::FunctionDeclaration(f) => f.contains(symbol),
             ast::Declaration::ClassDeclaration(c) => c.contains(symbol),

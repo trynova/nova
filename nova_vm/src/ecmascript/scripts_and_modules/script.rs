@@ -713,6 +713,7 @@ mod test {
     use crate::ecmascript::builtins::{Array, BuiltinFunctionArgs, create_builtin_function};
     use crate::ecmascript::execution::JsResult;
     use crate::ecmascript::execution::agent::ExceptionType;
+    use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
     use crate::engine::context::{Bindable, GcScope};
     use crate::engine::rootable::Scopable;
     use crate::engine::unwrap_try;
@@ -1042,7 +1043,9 @@ mod test {
         .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        assert!(unwrap_try(result.try_own_property_keys(&mut agent, gc.nogc())).is_empty());
+        let keys = unwrap_try(result.try_own_property_keys(&mut agent, gc.nogc()));
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], BUILTIN_STRING_MEMORY.length.to_property_key());
     }
 
     #[test]

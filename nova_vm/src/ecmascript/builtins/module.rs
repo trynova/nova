@@ -331,12 +331,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(
                         property_descriptor
                             .value
-                            .map_or(true, |v| v == BUILTIN_STRING_MEMORY.Module.into_value())
-                            && property_descriptor.writable.map_or(true, |v| !v)
-                            && property_descriptor.get == None
-                            && property_descriptor.set == None
-                            && property_descriptor.enumerable.map_or(true, |v| !v)
-                            && property_descriptor.configurable.map_or(true, |v| !v),
+                            .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into_value())
+                            && property_descriptor.writable.is_none_or(|v| !v)
+                            && property_descriptor.get.is_none()
+                            && property_descriptor.set.is_none()
+                            && property_descriptor.enumerable.is_none_or(|v| !v)
+                            && property_descriptor.configurable.is_none_or(|v| !v),
                     )
                 } else {
                     TryResult::Continue(false)
@@ -394,15 +394,16 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
                     // Note: it's always okay for a field to not exist on the
                     // descriptor. It just means that the defineOwnProperty
-                    // isn't trying to change it. Hence the map_or checks below.
+                    // isn't trying to change it. Hence the is_none_or usage
+                    // below.
                     Ok(property_descriptor
                         .value
-                        .map_or(true, |v| v == BUILTIN_STRING_MEMORY.Module.into_value())
-                        && property_descriptor.writable.map_or(true, |v| !v)
-                        && property_descriptor.get == None
-                        && property_descriptor.set == None
-                        && property_descriptor.enumerable.map_or(true, |v| !v)
-                        && property_descriptor.configurable.map_or(true, |v| !v))
+                        .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into_value())
+                        && property_descriptor.writable.is_none_or(|v| !v)
+                        && property_descriptor.get.is_none()
+                        && property_descriptor.set.is_none()
+                        && property_descriptor.enumerable.is_none_or(|v| !v)
+                        && property_descriptor.configurable.is_none_or(|v| !v))
                 } else {
                     Ok(false)
                 }
