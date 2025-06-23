@@ -12159,7 +12159,6 @@
   "staging/sm/PrivateName/illegal-in-class-context.js": "FAIL",
   "staging/sm/PrivateName/illegal-in-identifier-context.js": "FAIL",
   "staging/sm/PrivateName/modify-non-extensible.js": "FAIL",
-  "staging/sm/PrivateName/not-iterable.js": "CRASH",
   "staging/sm/PrivateName/proxy-1.js": "FAIL",
   "staging/sm/PrivateName/proxy-init-set.js": "FAIL",
   "staging/sm/PrivateName/read-private-eval.js": "FAIL",
