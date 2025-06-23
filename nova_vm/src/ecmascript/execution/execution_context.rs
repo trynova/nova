@@ -164,11 +164,10 @@ pub(crate) fn resolve_this_binding<'a>(
     let env_rec = get_this_environment(agent, gc);
     // 2. Return ? envRec.GetThisBinding().
     match env_rec {
-        Environment::Declarative(_) => unreachable!(),
-        Environment::Function(idx) => idx.unbind().get_this_binding(agent, gc),
-        Environment::Global(idx) => Ok(idx.unbind().get_this_binding(agent, gc).into_value()),
-        Environment::Module(_) => unreachable!(),
-        Environment::Object(_) => unreachable!(),
+        Environment::Function(e) => e.unbind().get_this_binding(agent, gc),
+        Environment::Global(e) => Ok(e.unbind().get_this_binding(agent, gc).into_value()),
+        Environment::Module(_) => Ok(Value::Undefined),
+        Environment::Declarative(_) | Environment::Object(_) => unreachable!(),
     }
 }
 

@@ -614,6 +614,10 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // Note: this has already been performed by the
         // ClassInitializePrivateElements instruction earlier.
         // 31. For each element elementRecord of staticElements, do
+        let has_static_elements = !static_elements.is_empty();
+        if has_static_elements {
+            ctx.enter_class_static_block();
+        }
         for element_record in static_elements {
             match element_record {
                 // a. If elementRecord is a ClassFieldDefinition Record, then
@@ -643,6 +647,9 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
             //     i. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
             //     ii. Return ? result.
         }
+        if has_static_elements {
+            ctx.exit_class_static_block();
+        }
         // Note: We finally leave classEnv here. See step 26.
         ctx.exit_lexical_scope();
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
@@ -654,13 +661,14 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
         if self.is_declaration() {
-            let class_identifier = class_identifier.unwrap();
-            // 4. Let env be the running execution context's LexicalEnvironment.
-            // 5. Perform ? InitializeBoundName(className, value, env).
-            // => a. Perform ! environment.InitializeBinding(name, value).
-            ctx.add_instruction(Instruction::StoreCopy);
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
-            ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            if let Some(class_identifier) = class_identifier {
+                // 4. Let env be the running execution context's LexicalEnvironment.
+                // 5. Perform ? InitializeBoundName(className, value, env).
+                // => a. Perform ! environment.InitializeBinding(name, value).
+                ctx.add_instruction(Instruction::StoreCopy);
+                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
+                ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            }
         }
 
         ctx.add_instruction(Instruction::Store);
