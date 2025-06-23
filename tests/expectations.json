@@ -10391,7 +10391,6 @@
   "language/expressions/object/dstr/gen-meth-obj-ptrn-prop-id-init-unresolvable.js": "FAIL",
   "language/expressions/object/dstr/gen-meth-obj-ptrn-prop-obj-value-null.js": "FAIL",
   "language/expressions/object/dstr/gen-meth-obj-ptrn-prop-obj-value-undef.js": "FAIL",
-  "language/expressions/object/dstr/object-rest-proxy-gopd-not-called-on-excluded-keys.js": "CRASH",
   "language/expressions/object/fn-name-accessor-get.js": "FAIL",
   "language/expressions/object/fn-name-accessor-set.js": "FAIL",
   "language/expressions/object/identifier-shorthand-static-init-await-valid.js": "FAIL",
