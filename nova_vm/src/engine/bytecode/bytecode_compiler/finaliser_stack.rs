@@ -362,9 +362,12 @@ pub(super) fn compile_async_iterator_exit(executable: &mut ExecutableContext) {
 }
 
 impl ControlFlowSwitchEntry {
-    pub(super) fn compile(self, break_target: JumpIndex, ctx: &mut ExecutableContext) {
-        for break_source in self.breaks {
-            ctx.set_jump_target(break_source, break_target.clone());
+    pub(super) fn compile(self, ctx: &mut ExecutableContext) {
+        // Note: iterate breaks in reverse, in case the last one is our current
+        // instruction. If that is the case, we can remove the last Jump and
+        // make it a fallthrough.
+        for break_source in self.breaks.into_iter().rev() {
+            ctx.set_jump_target_here(break_source);
         }
     }
 }
@@ -373,15 +376,22 @@ impl ControlFlowLoopEntry {
     pub(super) fn compile(
         self,
         continue_target: JumpIndex,
-        break_target: JumpIndex,
+        compile_break: impl FnOnce(&mut ExecutableContext),
         ctx: &mut ExecutableContext,
     ) {
-        for break_source in self.breaks {
-            ctx.set_jump_target(break_source, break_target.clone());
-        }
         for continue_source in self.continues {
             ctx.set_jump_target(continue_source, continue_target.clone());
         }
+        if self.breaks.is_empty() {
+            return;
+        }
+        // Note: iterate breaks in reverse, in case the last one is our current
+        // instruction. If that is the case, we can remove the last Jump and
+        // make it a fallthrough.
+        for break_source in self.breaks.into_iter().rev() {
+            ctx.set_jump_target_here(break_source);
+        }
+        compile_break(ctx);
     }
 
     pub(super) fn has_breaks(&self) -> bool {

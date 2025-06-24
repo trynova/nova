@@ -199,8 +199,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             unreachable!()
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
-            let break_target = self.get_jump_index_to_here();
-            incoming_control_flows.compile(break_target, &mut self.executable);
+            incoming_control_flows.compile(&mut self.executable);
         }
     }
 
@@ -468,8 +467,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             unreachable!()
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
-            let break_target = self.get_jump_index_to_here();
-            incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
+            incoming_control_flows.compile(continue_target, |_| {}, &mut self.executable);
         }
     }
 
@@ -494,8 +492,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             unreachable!()
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
-            let break_target = self.get_jump_index_to_here();
-            incoming_control_flows.compile(break_target, &mut self.executable);
+            incoming_control_flows.compile(&mut self.executable);
         }
     }
 
@@ -528,14 +525,16 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             return;
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
-            let break_target = self.get_jump_index_to_here();
-            if incoming_control_flows.has_breaks() {
-                // When breaking out of iterator, it needs to be closed and its
-                // exception handler removed.
-                self.add_instruction(Instruction::PopExceptionJumpTarget);
-                self.add_instruction(Instruction::IteratorClose);
-            }
-            incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
+            incoming_control_flows.compile(
+                continue_target,
+                |ctx| {
+                    // When breaking out of iterator, it needs to be closed and its
+                    // exception handler removed.
+                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                    ctx.add_instruction(Instruction::IteratorClose);
+                },
+                &mut self.executable,
+            );
         }
     }
 
@@ -562,9 +561,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             unreachable!()
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
-            let break_target = self.get_jump_index_to_here();
-            compile_async_iterator_exit(&mut self.executable);
-            incoming_control_flows.compile(continue_target, break_target, &mut self.executable);
+            incoming_control_flows.compile(
+                continue_target,
+                compile_async_iterator_exit,
+                &mut self.executable,
+            );
         }
     }
 

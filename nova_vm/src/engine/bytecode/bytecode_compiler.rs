@@ -2444,6 +2444,12 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             ctx.add_instruction(Instruction::GetValue);
         }
         ctx.add_instruction(Instruction::Load);
+        if self.cases.is_empty() {
+            // CaseBlock : { }
+            // 1. Return undefined.
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+            return;
+        }
         ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
@@ -2466,8 +2472,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             };
             // Duplicate the switchValue on the stack. One will remain, one is
             // used by the IsStrictlyEqual
-            ctx.add_instruction(Instruction::Store);
-            ctx.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::StoreCopy);
             ctx.add_instruction(Instruction::Load);
             // 2. Let exprRef be ? Evaluation of the Expression of C.
             test.compile(ctx);
@@ -2481,16 +2486,26 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue));
         }
 
-        if has_default {
+        let jump_to_end = if has_default {
             // 10. If foundInB is true, return V.
             // 11. Let defaultR be Completion(Evaluation of DefaultClause).
             jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::Jump));
-        }
+            None
+        } else {
+            Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+        };
 
         let mut index = 0;
         for (i, case) in self.cases.iter().enumerate() {
             let fallthrough_jump = if i != 0 {
-                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                // OPTIMISATION: if previous case ended with a break or an
+                // otherwise terminal instruction, we don't need a fallthrough
+                // jump at the beginning of the next case.
+                if ctx.is_unreachable() {
+                    None
+                } else {
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                }
             } else {
                 None
             };
@@ -2505,6 +2520,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             };
             ctx.set_jump_target_here(jump_index.clone());
 
+            // 1. Let V be undefined.
             // Pop the switchValue from the stack.
             ctx.add_instruction(Instruction::Store);
             // And override it with undefined
@@ -2514,9 +2530,18 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
                 ctx.set_jump_target_here(fallthrough_jump);
             }
 
+            // i. Let R be Completion(Evaluation of C).
             for ele in &case.consequent {
                 ele.compile(ctx);
             }
+            // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
+            // if !ctx.is_unreachable() {
+            //     ctx.add_instruction(Instruction::LoadReplace);
+            // }
+        }
+
+        if let Some(jump_to_end) = jump_to_end {
+            ctx.set_jump_target_here(jump_to_end);
         }
 
         if did_enter_declarative_environment {
@@ -2524,6 +2549,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
         }
 
         ctx.exit_switch();
+        // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
+        // ctx.add_instruction(Instruction::UpdateEmpty);
         // 9. Return R.
     }
 }
