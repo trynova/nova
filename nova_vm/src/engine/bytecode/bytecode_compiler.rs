@@ -2444,6 +2444,12 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             ctx.add_instruction(Instruction::GetValue);
         }
         ctx.add_instruction(Instruction::Load);
+        if self.cases.is_empty() {
+            // CaseBlock : { }
+            // 1. Return undefined.
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+            return;
+        }
         ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
@@ -2466,8 +2472,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             };
             // Duplicate the switchValue on the stack. One will remain, one is
             // used by the IsStrictlyEqual
-            ctx.add_instruction(Instruction::Store);
-            ctx.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::StoreCopy);
             ctx.add_instruction(Instruction::Load);
             // 2. Let exprRef be ? Evaluation of the Expression of C.
             test.compile(ctx);
@@ -2481,16 +2486,26 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue));
         }
 
-        if has_default {
+        let jump_to_end = if has_default {
             // 10. If foundInB is true, return V.
             // 11. Let defaultR be Completion(Evaluation of DefaultClause).
             jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::Jump));
-        }
+            None
+        } else {
+            Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+        };
 
         let mut index = 0;
         for (i, case) in self.cases.iter().enumerate() {
             let fallthrough_jump = if i != 0 {
-                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                // OPTIMISATION: if previous case ended with a break or an
+                // otherwise terminal instruction, we don't need a fallthrough
+                // jump at the beginning of the next case.
+                if ctx.is_unreachable() {
+                    None
+                } else {
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                }
             } else {
                 None
             };
@@ -2505,6 +2520,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             };
             ctx.set_jump_target_here(jump_index.clone());
 
+            // 1. Let V be undefined.
             // Pop the switchValue from the stack.
             ctx.add_instruction(Instruction::Store);
             // And override it with undefined
@@ -2514,9 +2530,18 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
                 ctx.set_jump_target_here(fallthrough_jump);
             }
 
+            // i. Let R be Completion(Evaluation of C).
             for ele in &case.consequent {
                 ele.compile(ctx);
             }
+            // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
+            // if !ctx.is_unreachable() {
+            //     ctx.add_instruction(Instruction::LoadReplace);
+            // }
+        }
+
+        if let Some(jump_to_end) = jump_to_end {
+            ctx.set_jump_target_here(jump_to_end);
         }
 
         if did_enter_declarative_environment {
@@ -2524,6 +2549,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
         }
 
         ctx.exit_switch();
+        // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
+        // ctx.add_instruction(Instruction::UpdateEmpty);
         // 9. Return R.
     }
 }
@@ -2623,6 +2650,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
         ctx.enter_loop(label_set.cloned());
 
         // 1. Let V be undefined.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        ctx.add_instruction(Instruction::Load);
         // 2. Repeat
         let continue_target = ctx.get_jump_index_to_here();
 
@@ -2644,14 +2673,18 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
 
         // d. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
+        // f. If stmtResult.[[Value]] is not EMPTY, set V to
+        //    stmtResult.[[Value]].
+        ctx.add_instruction(Instruction::LoadReplace);
 
         ctx.add_jump_instruction_to_index(Instruction::Jump, continue_target.clone());
-        // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
-        // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
         if let Some(end_jump) = end_jump {
             ctx.set_jump_target_here(end_jump);
         }
         ctx.exit_loop(continue_target);
+        // e. If LoopContinues(stmtResult, labelSet) is false,
+        //    return ? UpdateEmpty(stmtResult, V).
+        ctx.add_instruction(Instruction::UpdateEmpty);
     }
 }
 
@@ -2661,30 +2694,43 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
+        // 1. Let V be undefined.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        ctx.add_instruction(Instruction::Load);
+        // 2. Repeat,
         ctx.enter_loop(label_set.cloned());
         let start_jump = ctx.get_jump_index_to_here();
+        // a. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
-
         let continue_target = ctx.get_jump_index_to_here();
+        // c. If stmtResult.[[Value]] is not empty, set V to
+        //    stmtResult.[[Value]].
+        ctx.add_instruction(Instruction::LoadReplace);
 
-        // jump over loop jump if test fails
-        // OPTIMISATION: do {} while(true) loops are still somewhat common,
-        // skip the test.
-        let end_jump = if !is_boolean_literal_true(&self.test) {
+        if is_boolean_literal_true(&self.test) {
+            // OPTIMISATION: do {} while(true) loops are still somewhat common,
+            // skip the test.
+            ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
+        } else if is_boolean_literal_false(&self.test) {
+            // OPTIMISATION: do {} while(false) loops appear in tests; this is
+            // a dumb optimisation.
+        } else {
+            // d. Let exprRef be ? Evaluation of Expression.
             self.test.compile(ctx);
+            // e. Let exprValue be ? GetValue(exprRef).
             if is_reference(&self.test) {
                 ctx.add_instruction(Instruction::GetValue);
             }
 
-            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
-        } else {
-            None
-        };
-        ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
-        if let Some(end_jump) = end_jump {
-            ctx.set_jump_target_here(end_jump);
+            // f. If ToBoolean(exprValue) is false, return V.
+            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
+            ctx.set_jump_target_here(jump_to_end);
         }
         ctx.exit_loop(continue_target);
+        // b. If LoopContinues(stmtResult, labelSet) is false,
+        //    return ? UpdateEmpty(stmtResult, V).
+        ctx.add_instruction(Instruction::UpdateEmpty);
     }
 }
 
