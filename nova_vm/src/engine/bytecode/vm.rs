@@ -600,6 +600,25 @@ impl Vm {
                 vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
                 vm.stack.push(temp);
             }
+            Instruction::LoadReplace => {
+                // Take result, if present, and replace the top of the stack
+                // value with it.
+                if let Some(result) = vm.result.take() {
+                    let temp = vm
+                        .stack
+                        .last_mut()
+                        .expect("Trying to replace top of empty stack");
+                    *temp = result;
+                }
+            }
+            Instruction::UpdateEmpty => {
+                // Take top of the stack value, set it as the result if no
+                // result exists yet.
+                let temp = vm.stack.pop().expect("Trying to pop from empty stack");
+                if vm.result.is_none() {
+                    vm.result = Some(temp);
+                }
+            }
             Instruction::Return => {
                 return Ok(ContinuationKind::Return);
             }

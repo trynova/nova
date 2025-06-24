@@ -205,6 +205,12 @@ pub enum Instruction {
     LoadConstant,
     /// Swaps the last value in the stack and the result value.
     LoadStoreSwap,
+    /// Load the result value, if present, to the top of the stack, replacing
+    /// the previous top of the stack value.
+    LoadReplace,
+    /// Perform UpdateEmpty with the value coming from the top of the stack,
+    /// and the Completion Record \[\[Value]] being the result value.
+    UpdateEmpty,
     /// Swap the last two values on the stack.
     Swap,
     /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
@@ -1162,6 +1168,8 @@ impl TryFrom<u8> for Instruction {
         const LOADCOPY: u8 = Instruction::LoadCopy.as_u8();
         const LOADCONSTANT: u8 = Instruction::LoadConstant.as_u8();
         const LOADSTORESWAP: u8 = Instruction::LoadStoreSwap.as_u8();
+        const LOADREPLACE: u8 = Instruction::LoadReplace.as_u8();
+        const UPDATEEMPTY: u8 = Instruction::UpdateEmpty.as_u8();
         const SWAP: u8 = Instruction::Swap.as_u8();
         const LOGICALNOT: u8 = Instruction::LogicalNot.as_u8();
         const OBJECTCREATE: u8 = Instruction::ObjectCreate.as_u8();
@@ -1363,6 +1371,8 @@ impl TryFrom<u8> for Instruction {
             LOADCOPY => Ok(Instruction::LoadCopy),
             LOADCONSTANT => Ok(Instruction::LoadConstant),
             LOADSTORESWAP => Ok(Instruction::LoadStoreSwap),
+            LOADREPLACE => Ok(Instruction::LoadReplace),
+            UPDATEEMPTY => Ok(Instruction::UpdateEmpty),
             SWAP => Ok(Instruction::Swap),
             LOGICALNOT => Ok(Instruction::LogicalNot),
             OBJECTCREATE => Ok(Instruction::ObjectCreate),

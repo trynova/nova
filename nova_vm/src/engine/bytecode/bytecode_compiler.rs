@@ -2661,30 +2661,43 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
+        // 1. Let V be undefined.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        ctx.add_instruction(Instruction::Load);
+        // 2. Repeat,
         ctx.enter_loop(label_set.cloned());
         let start_jump = ctx.get_jump_index_to_here();
+        // a. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
-
         let continue_target = ctx.get_jump_index_to_here();
+        // c. If stmtResult.[[Value]] is not empty, set V to
+        //    stmtResult.[[Value]].
+        ctx.add_instruction(Instruction::LoadReplace);
 
-        // jump over loop jump if test fails
-        // OPTIMISATION: do {} while(true) loops are still somewhat common,
-        // skip the test.
-        let end_jump = if !is_boolean_literal_true(&self.test) {
+        if is_boolean_literal_true(&self.test) {
+            // OPTIMISATION: do {} while(true) loops are still somewhat common,
+            // skip the test.
+            ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
+        } else if is_boolean_literal_false(&self.test) {
+            // OPTIMISATION: do {} while(false) loops appear in tests; this is
+            // a dumb optimisation.
+        } else {
+            // d. Let exprRef be ? Evaluation of Expression.
             self.test.compile(ctx);
+            // e. Let exprValue be ? GetValue(exprRef).
             if is_reference(&self.test) {
                 ctx.add_instruction(Instruction::GetValue);
             }
 
-            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
-        } else {
-            None
-        };
-        ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
-        if let Some(end_jump) = end_jump {
-            ctx.set_jump_target_here(end_jump);
+            // f. If ToBoolean(exprValue) is false, return V.
+            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
+            ctx.set_jump_target_here(jump_to_end);
         }
         ctx.exit_loop(continue_target);
+        // b. If LoopContinues(stmtResult, labelSet) is false,
+        //    return ? UpdateEmpty(stmtResult, V).
+        ctx.add_instruction(Instruction::UpdateEmpty);
     }
 }
 
