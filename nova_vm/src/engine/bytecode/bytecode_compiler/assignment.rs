@@ -373,8 +373,12 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectAssignmentTarget<'s> {
         }
         if let Some(rest) = &self.rest {
             rest.target.compile(ctx);
-            ctx.add_instruction(Instruction::StoreCopy);
-            ctx.add_instruction(Instruction::CopyDataProperties);
+            ctx.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::ObjectCreate);
+            ctx.add_instruction_with_immediate(
+                Instruction::CopyDataPropertiesIntoObject,
+                self.properties.len(),
+            );
         }
     }
 }
