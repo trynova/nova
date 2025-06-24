@@ -42,7 +42,7 @@ pub(super) fn get_template_object<'a>(
     // 7. Let count be the number of elements in the List cookedStrings.
     // 8. Assert: count ≤ 2**32 - 1.
     let len = template_literal.quasis.len();
-    debug_assert!(len <= 2usize.pow(32) - 1);
+    debug_assert!(len < 2usize.pow(32));
     // 9. Let template be ! ArrayCreate(count).
     let template = array_create(agent, len, len, None, gc).unwrap();
     // 10. Let rawObj be ! ArrayCreate(count).

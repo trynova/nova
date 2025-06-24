@@ -607,7 +607,7 @@ impl<'gc> String<'gc> {
 
     /// Find existing heap String or return the strings hash.
     fn find_equal_string_direct(
-        strings: &mut Vec<Option<StringHeapData>>,
+        strings: &mut [Option<StringHeapData>],
         string_lookup_table: &mut HashTable<HeapString<'static>>,
         string_hasher: &ahash::RandomState,
         message: &str,
