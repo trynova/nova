@@ -2623,6 +2623,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
         ctx.enter_loop(label_set.cloned());
 
         // 1. Let V be undefined.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        ctx.add_instruction(Instruction::Load);
         // 2. Repeat
         let continue_target = ctx.get_jump_index_to_here();
 
@@ -2644,14 +2646,18 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
 
         // d. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
+        // f. If stmtResult.[[Value]] is not EMPTY, set V to
+        //    stmtResult.[[Value]].
+        ctx.add_instruction(Instruction::LoadReplace);
 
         ctx.add_jump_instruction_to_index(Instruction::Jump, continue_target.clone());
-        // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
-        // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
         if let Some(end_jump) = end_jump {
             ctx.set_jump_target_here(end_jump);
         }
         ctx.exit_loop(continue_target);
+        // e. If LoopContinues(stmtResult, labelSet) is false,
+        //    return ? UpdateEmpty(stmtResult, V).
+        ctx.add_instruction(Instruction::UpdateEmpty);
     }
 }
 
