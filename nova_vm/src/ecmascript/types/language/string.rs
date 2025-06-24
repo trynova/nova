@@ -29,7 +29,8 @@ use crate::{
 };
 
 pub use data::StringHeapData;
-use wtf8::Wtf8Buf;
+use hashbrown::HashTable;
+use wtf8::{Wtf8, Wtf8Buf};
 
 /// String data allocated onto the Agent heap.
 ///
@@ -573,6 +574,54 @@ impl<'a> String<'a> {
 impl<'gc> String<'gc> {
     pub fn from_str(agent: &mut Agent, str: &str, _gc: NoGcScope<'gc, '_>) -> Self {
         agent.heap.create(str)
+    }
+
+    pub(crate) fn from_str_direct(
+        strings: &mut Vec<Option<StringHeapData>>,
+        string_lookup_table: &mut HashTable<HeapString<'static>>,
+        string_hasher: &ahash::RandomState,
+        alloc_counter: &mut usize,
+        str: &str,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Self {
+        if let Ok(value) = String::try_from(str) {
+            value.bind(gc)
+        } else {
+            let found =
+                Self::find_equal_string_direct(strings, string_lookup_table, string_hasher, str);
+            match found {
+                Ok(string) => string,
+                Err(hash) => {
+                    let data = StringHeapData::from_str(str);
+                    strings.push(Some(data));
+                    *alloc_counter += core::mem::size_of::<Option<StringHeapData>>();
+                    let index = StringIndex::last(strings);
+                    let heap_string = HeapString(index);
+                    *alloc_counter += core::mem::size_of::<HeapString>();
+                    string_lookup_table.insert_unique(hash, heap_string, |_| hash);
+                    String::String(heap_string).bind(gc)
+                }
+            }
+        }
+    }
+
+    /// Find existing heap String or return the strings hash.
+    fn find_equal_string_direct(
+        strings: &mut Vec<Option<StringHeapData>>,
+        string_lookup_table: &mut HashTable<HeapString<'static>>,
+        string_hasher: &ahash::RandomState,
+        message: &str,
+    ) -> Result<String<'static>, u64> {
+        debug_assert!(message.len() > 7);
+        let message = Wtf8::from_str(message);
+        let hash = string_hasher.hash_one(message);
+        string_lookup_table
+            .find(hash, |heap_string| {
+                let heap_str = strings[heap_string.get_index()].as_ref().unwrap().as_wtf8();
+                heap_str == message
+            })
+            .map(|&heap_string| heap_string.into())
+            .ok_or(hash)
     }
 
     pub fn from_string(

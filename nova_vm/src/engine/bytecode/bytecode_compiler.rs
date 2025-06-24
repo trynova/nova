@@ -12,6 +12,7 @@ mod finaliser_stack;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
 mod labelled_statement;
+mod template_literals;
 mod with_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
@@ -32,6 +33,7 @@ use num_traits::Num;
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
+use template_literals::get_template_object;
 
 impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
     fn compile_labelled(
@@ -1083,11 +1085,82 @@ impl<'s> CompileEvaluation<'s> for ast::Super {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
+    /// ### [13.3.11 Tagged Templates](https://tc39.es/ecma262/#sec-tagged-templates)
+    ///
+    /// > NOTE: A tagged template is a function call where the arguments of the
+    /// > call are derived from a TemplateLiteral (13.2.8). The actual
+    /// > arguments include a template object (13.2.8.4) and the values
+    /// > produced by evaluating the expressions embedded within the
+    /// > TemplateLiteral.
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let (agent, gc) = ctx.get_agent_and_gc();
-        let message = String::from_static_str(agent, "tagged templates not supported", gc);
-        ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
-        ctx.add_instruction_with_immediate(Instruction::ThrowError, ExceptionType::Error as usize);
+        //  MemberExpression : MemberExpression TemplateLiteral
+        //  CallExpression : CallExpression TemplateLiteral
+
+        // 1. Let tagRef be ? Evaluation of MemberExpression/CallExpression.
+        self.tag.compile(ctx);
+        // 2. Let tagFunc be ? GetValue(tagRef).
+        let need_pop_reference = if is_reference(&self.tag) {
+            ctx.add_instruction(Instruction::GetValueKeepReference);
+            if !self.quasi.is_no_substitution_template() {
+                ctx.add_instruction(Instruction::PushReference);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        // Load tagFunc to the stack.
+        ctx.add_instruction(Instruction::Load);
+
+        // 3. Let thisCall be this MemberExpression.
+        // 4. Let tailCall be IsInTailPosition(thisCall).
+        // 5. Return ? EvaluateCall(tagFunc, tagRef, TemplateLiteral, tailCall).
+        //    3. Let argList be ? ArgumentListEvaluation of arguments.
+
+        // ### 13.3.8.1 Runtime Semantics: ArgumentListEvaluation
+
+        //  TemplateLiteral : NoSubstitutionTemplate
+        let mut num_arguments = 0;
+        if self.quasi.is_no_substitution_template() {
+            // 1. Let templateLiteral be this TemplateLiteral.
+            // 2. Let siteObj be GetTemplateObject(templateLiteral).
+            let (agent, gc) = ctx.get_agent_and_gc();
+            let site_obj = get_template_object(agent, &self.quasi, gc);
+            // 3. Return « siteObj ».
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
+            num_arguments += 1;
+        } else {
+            // TemplateLiteral : SubstitutionTemplate
+
+            // 1. Let templateLiteral be this TemplateLiteral.
+            // 2. Let siteObj be GetTemplateObject(templateLiteral).
+            let (agent, gc) = ctx.get_agent_and_gc();
+            let site_obj = get_template_object(agent, &self.quasi, gc);
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
+            num_arguments += 1;
+            // 3. Let remaining be ? ArgumentListEvaluation of SubstitutionTemplate.
+            // 4. Return the list-concatenation of « siteObj » and remaining.
+
+            // SubstitutionTemplate : TemplateHead Expression TemplateSpans
+            for expression in self.quasi.expressions.iter() {
+                // 1. Let firstSubRef be ? Evaluation of Expression.
+                expression.compile(ctx);
+                // 2. Let firstSub be ? GetValue(firstSubRef).
+                if is_reference(expression) {
+                    ctx.add_instruction(Instruction::GetValue);
+                }
+                // 3. Let restSub be ? SubstitutionEvaluation of TemplateSpans.
+                ctx.add_instruction(Instruction::Load);
+                num_arguments += 1;
+                // 4. Assert: restSub is a possibly empty List.
+                // 5. Return the list-concatenation of « firstSub » and restSub.
+            }
+        }
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PopReference);
+        }
+        ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
     }
 }
 
