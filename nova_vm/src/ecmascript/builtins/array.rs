@@ -338,6 +338,11 @@ impl<'a> InternalSlots<'a> for Array<'a> {
 }
 
 impl<'a> InternalMethods<'a> for Array<'a> {
+    fn try_prevent_extensions(self, agent: &mut Agent, _gc: NoGcScope) -> TryResult<bool> {
+        self.internal_set_extensible(agent, false);
+        TryResult::Continue(true)
+    }
+
     fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
