@@ -519,6 +519,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         else {
             unreachable!()
         };
+        // Note: if we have a continue target it means that this is a for-of
+        // loop where UpdateEmpty is performed as the last step in the work
+        // before closing the iterator.
+        let needs_update_empty = continue_target.is_some();
         let Some(continue_target) = continue_target else {
             // Array destructuring.
             assert!(incoming_control_flows.is_none());
@@ -531,6 +535,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                     // When breaking out of iterator, it needs to be closed and its
                     // exception handler removed.
                     ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                    if needs_update_empty {
+                        ctx.add_instruction(Instruction::UpdateEmpty);
+                    }
                     ctx.add_instruction(Instruction::IteratorClose);
                 },
                 &mut self.executable,

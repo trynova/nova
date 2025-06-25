@@ -124,6 +124,8 @@ fn for_in_of_body_evaluation<'s>(
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
     // 2. Let oldEnv be the running execution context's LexicalEnvironment.
     // 3. Let V be undefined.
+    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+    ctx.add_instruction(Instruction::Load);
     // 4. Let destructuring be IsDestructuring of lhs.
     let destructuring = if let ast::ForStatementLeft::VariableDeclaration(lhs) = lhs {
         assert_eq!(lhs.declarations.len(), 1);
@@ -221,11 +223,7 @@ fn for_in_of_body_evaluation<'s>(
                         else {
                             unreachable!()
                         };
-                        let identifier = ctx.create_string(binding_identifier.name.as_str());
-                        ctx.add_instruction_with_identifier(
-                            Instruction::ResolveBinding,
-                            identifier,
-                        );
+                        binding_identifier.compile(ctx);
                     }
                     ast::ForStatementLeft::AssignmentTargetIdentifier(id) => {
                         id.compile(ctx);
@@ -377,6 +375,8 @@ fn for_in_of_body_evaluation<'s>(
 
     // l. Corollary: If LoopContinues(result, labelSet) is true, then
     //    jump to loop start.
+    // m. If result.[[Value]] is not empty, set V to result.[[Value]].
+    ctx.add_instruction(Instruction::LoadReplace);
     ctx.add_jump_instruction_to_index(Instruction::Jump, loop_start);
     // Note: this block is here for handling of exceptions iterator loops;
     // these need to perform (Async)IteratorClose. ENUMERATE iteration does not
@@ -408,20 +408,26 @@ fn for_in_of_body_evaluation<'s>(
     match iteration_kind {
         // i. If iterationKind is ENUMERATE, then
         // 1. Return ? UpdateEmpty(result, V).
-        // TODO: This is probably a no-op.
-        IterationKind::Enumerate => ctx.exit_loop(continue_target),
+        IterationKind::Enumerate => {
+            ctx.exit_loop(continue_target);
+            ctx.add_instruction(Instruction::UpdateEmpty);
+        }
         // ii. Else,
         // 1. Assert: iterationKind is ITERATE.
         // 2. Set status to Completion(UpdateEmpty(result, V)).
-        // TODO: This is probably a no-op.
         // 4. Return ? IteratorClose(iteratorRecord, status).
         IterationKind::Iterate => ctx.exit_iterator(Some(continue_target)),
         // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
         IterationKind::AsyncIterate => ctx.exit_async_iterator(continue_target),
     }
 
-    // m. If result.[[Value]] is not EMPTY, set V to result.[[Value]].
+    let jump_over_return_v = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+    // ### See above: this ist he "done is true" path.
+    // d. Let done be ? IteratorComplete(nextResult).
+    // e. If done is true, return V.
     ctx.set_jump_target_here(jump_to_end);
+    ctx.add_instruction(Instruction::Store);
+    ctx.set_jump_target_here(jump_over_return_v);
     if let Some(key_result) = key_result {
         ctx.set_jump_target_here(key_result)
     }
