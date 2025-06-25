@@ -569,9 +569,9 @@ impl<'a> Number<'a> {
 
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => agent[n.unbind()] % 2.0 == 1.0,
-            Number::Integer(n) => Into::<i64>::into(n) % 2 == 1,
-            Number::SmallF64(n) => n.into_f64() % 2.0 == 1.0,
+            Number::Number(n) => agent[n.unbind()].rem_euclid(2.0) == 1.0,
+            Number::Integer(n) => i64::from(n).rem_euclid(2) == 1,
+            Number::SmallF64(n) => n.into_f64().rem_euclid(2.0) == 1.0,
         }
     }
 
