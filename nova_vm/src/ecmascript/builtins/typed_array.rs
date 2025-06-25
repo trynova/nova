@@ -913,6 +913,29 @@ impl HeapSweepWeakReference for TypedArrayIndex<'static> {
     }
 }
 
+impl<'a> TryFrom<Object<'a>> for TypedArray<'a> {
+    type Error = ();
+
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Object::Uint8Array(t) => Ok(Self::Uint8Array(t)),
+            Object::Int8Array(t) => Ok(Self::Int8Array(t)),
+            Object::Uint8ClampedArray(t) => Ok(Self::Uint8ClampedArray(t)),
+            Object::Int16Array(t) => Ok(Self::Int16Array(t)),
+            Object::Uint16Array(t) => Ok(Self::Uint16Array(t)),
+            Object::Int32Array(t) => Ok(Self::Int32Array(t)),
+            Object::Uint32Array(t) => Ok(Self::Uint32Array(t)),
+            Object::BigInt64Array(t) => Ok(Self::BigInt64Array(t)),
+            Object::BigUint64Array(t) => Ok(Self::BigUint64Array(t)),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(t) => Ok(Self::Float16Array(t)),
+            Object::Float32Array(t) => Ok(Self::Float32Array(t)),
+            Object::Float64Array(t) => Ok(Self::Float64Array(t)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl HeapMarkAndSweep for TypedArray<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
