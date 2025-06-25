@@ -401,7 +401,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             key,
         );
-        ctx.add_instruction(Instruction::GetValue);
+        ctx.add_instruction(Instruction::GetValueKeepReference);
+        ctx.add_instruction(Instruction::PushReference);
         if let Some(init) = &self.init {
             ctx.add_instruction(Instruction::LoadCopy);
             ctx.add_instruction(Instruction::IsUndefined);
