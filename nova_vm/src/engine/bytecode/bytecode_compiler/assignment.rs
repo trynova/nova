@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod destructuring_assignment;
+
 use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
 use crate::engine::Instruction;
@@ -292,12 +294,94 @@ impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        ctx.add_instruction(Instruction::Debug);
         ctx.add_instruction(Instruction::GetIteratorSync);
+        ctx.add_instruction(Instruction::Debug);
         let jump_to_iterator_error_handler = ctx.enter_iterator(None);
         for element in &self.elements {
-            ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
             if let Some(element) = element {
-                element.compile(ctx);
+                // AssignmentElement : DestructuringAssignmentTarget Initializer (opt)
+
+                // 1. If DestructuringAssignmentTarget is neither an ObjectLiteral nor an ArrayLiteral, then
+                if let ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(element) =
+                    element
+                {
+                    // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
+                    let needs_pop_reference =
+                        if let Some(binding) = element.binding.as_simple_assignment_target() {
+                            binding.compile(ctx);
+                            if element.init.is_literal() {
+                                false
+                            } else {
+                                ctx.add_instruction(Instruction::PushReference);
+                                true
+                            }
+                        } else {
+                            false
+                        };
+                    // 2. Let value be undefined.
+                    // 3. If iteratorRecord.[[Done]] is false, then
+                    // a. Let next be ? IteratorStepValue(iteratorRecord).
+                    ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+                    // b. If next is not done, then
+                    // i. Set value to next.
+                    // 4. If Initializer is present and value is undefined, then
+                    //    ...
+                    compile_initializer(element, ctx);
+                    // 5. Else,
+                    // a. Let v be value.
+                    // 6. If DestructuringAssignmentTarget is either an ObjectLiteral or an ArrayLiteral, then
+                    if let Some(nested_assignment_pattern) =
+                        element.binding.as_assignment_target_pattern()
+                    {
+                        // a. Let nestedAssignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
+                        // b. Return ? DestructuringAssignmentEvaluation of nestedAssignmentPattern with argument v.
+                        nested_assignment_pattern.compile(ctx);
+                    } else {
+                        if needs_pop_reference {
+                            ctx.add_instruction(Instruction::PopReference);
+                        }
+                        // 7. Return ? PutValue(lRef, v).
+                        ctx.add_instruction(Instruction::PutValue);
+                    }
+                } else if let Some(element) = element.as_simple_assignment_target() {
+                    // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
+                    element.compile(ctx);
+                    // 2. Let value be undefined.
+                    // 3. If iteratorRecord.[[Done]] is false, then
+                    // a. Let next be ? IteratorStepValue(iteratorRecord).
+                    ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+                    // b. If next is not done, then
+                    // i. Set value to next.
+                    // 4. If Initializer is present and value is undefined, then
+                    //    ...
+                    // 5. Else,
+                    // a. Let v be value.
+                    // 7. Return ? PutValue(lRef, v).
+                    ctx.add_instruction(Instruction::PutValue);
+                } else {
+                    // 2. Let value be undefined.
+                    // 3. If iteratorRecord.[[Done]] is false, then
+                    // a. Let next be ? IteratorStepValue(iteratorRecord).
+                    ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+                    // b. If next is not done, then
+                    // i. Set value to next.
+                    // 4. If Initializer is present and value is undefined, then
+                    //    ...
+                    // 5. Else,
+                    // a. Let v be value.
+                    // 6. If DestructuringAssignmentTarget is either an ObjectLiteral or an ArrayLiteral, then
+                    // a. Let nestedAssignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
+                    // b. Return ? DestructuringAssignmentEvaluation of nestedAssignmentPattern with argument v.
+                    let nested_assignment_pattern = element.to_assignment_target_pattern();
+                    nested_assignment_pattern.compile(ctx);
+                }
+            } else {
+                // Elision : ,
+                // 1. If iteratorRecord.[[Done]] is false, then
+                // a. Perform ? IteratorStep(iteratorRecord).
+                ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+                // 2. Return unused.
             }
         }
         if let Some(rest) = &self.rest {
@@ -629,6 +713,47 @@ impl<'s> CompileEvaluation<'s> for ast::PropertyKey<'s> {
     }
 }
 
+fn compile_initializer<'s>(
+    target: &'s ast::AssignmentTargetWithDefault<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    // result: value
+    // stack: []
+    ctx.add_instruction(Instruction::LoadCopy);
+    ctx.add_instruction(Instruction::IsUndefined);
+    // result: value === undefined
+    // stack: [value]
+    let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+    // result: None
+    // stack: [value]
+    ctx.add_instruction(Instruction::Store);
+    // result: value
+    // stack: []
+    if is_anonymous_function_definition(&target.init) {
+        if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) = &target.binding {
+            let identifier_string = ctx.create_string(identifier.name.as_str());
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
+            ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+        }
+    }
+    target.init.compile(ctx);
+    ctx.name_identifier = None;
+    if is_reference(&target.init) {
+        ctx.add_instruction(Instruction::GetValue);
+    }
+    // result: init
+    // stack: []
+    ctx.add_instruction(Instruction::Load);
+    // result: None
+    // stack: [init]
+    ctx.set_jump_target_here(jump_slot);
+    // result: None
+    // stack: [value / init]
+    ctx.add_instruction(Instruction::Store);
+    // result: value / init
+    // stack: []
+}
+
 impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
     /// ## Register states
     ///
@@ -652,42 +777,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
             ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
                 // result: value
                 // stack: []
-                ctx.add_instruction(Instruction::LoadCopy);
-                ctx.add_instruction(Instruction::IsUndefined);
-                // result: value === undefined
-                // stack: [value]
-                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-                // result: None
-                // stack: [value]
-                ctx.add_instruction(Instruction::Store);
-                // result: value
-                // stack: []
-                if is_anonymous_function_definition(&target.init) {
-                    if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
-                        &target.binding
-                    {
-                        let identifier_string = ctx.create_string(identifier.name.as_str());
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            identifier_string,
-                        );
-                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-                    }
-                }
-                target.init.compile(ctx);
-                ctx.name_identifier = None;
-                if is_reference(&target.init) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
-                // result: init
-                // stack: []
-                ctx.add_instruction(Instruction::Load);
-                // result: None
-                // stack: [init]
-                ctx.set_jump_target_here(jump_slot);
-                // result: None
-                // stack: [value / init]
-                ctx.add_instruction(Instruction::Store);
+                compile_initializer(target, ctx);
                 // result: value / init
                 // stack: []
                 target.binding.compile(ctx);

@@ -113,10 +113,6 @@ fn for_in_of_body_evaluation<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     lhs: &'s ast::ForStatementLeft<'s>,
     stmt: &'s ast::Statement<'s>,
-    // In the spec, keyResult contains the iteratorRecord.
-    // For us that is on the iterator stack but we do have a potential jump to
-    // the end from an undefined or null for-in iterator target value.
-    key_result: Option<JumpIndex>,
     iteration_kind: IterationKind,
     lhs_kind: LeftHandSideKind,
     label_set: Option<&Vec<&'s ast::LabelIdentifier<'s>>>,
@@ -224,59 +220,14 @@ fn for_in_of_body_evaluation<'s>(
                             unreachable!()
                         };
                         binding_identifier.compile(ctx);
+                        // 2. If lhsRef is an abrupt completion, then
+                        // a. Let status be lhsRef.
+                        // 3. Else,
+                        // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
+                        ctx.add_instruction(Instruction::PutValue);
                     }
-                    ast::ForStatementLeft::AssignmentTargetIdentifier(id) => {
-                        id.compile(ctx);
-                    }
-                    ast::ForStatementLeft::ComputedMemberExpression(expr) => {
-                        ctx.add_instruction(Instruction::Load);
-                        expr.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    ast::ForStatementLeft::StaticMemberExpression(expr) => {
-                        ctx.add_instruction(Instruction::Load);
-                        expr.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    ast::ForStatementLeft::PrivateFieldExpression(expr) => {
-                        ctx.add_instruction(Instruction::Load);
-                        expr.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    #[cfg(feature = "typescript")]
-                    ast::ForStatementLeft::TSNonNullExpression(expr) => {
-                        ctx.add_instruction(Instruction::Load);
-                        expr.expression.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    #[cfg(feature = "typescript")]
-                    ast::ForStatementLeft::TSAsExpression(expr) => {
-                        ctx.add_instruction(Instruction::Load);
-                        expr.expression.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    #[cfg(feature = "typescript")]
-                    ast::ForStatementLeft::TSSatisfiesExpression(expr) => {
-                        ctx.add_instruction(Instruction::Load);
-                        expr.expression.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    #[cfg(not(feature = "typescript"))]
-                    ast::ForStatementLeft::TSNonNullExpression(_)
-                    | ast::ForStatementLeft::TSAsExpression(_)
-                    | ast::ForStatementLeft::TSSatisfiesExpression(_) => unreachable!(),
-                    // Note: Assignments are handled above so these are
-                    // unreachable.
-                    ast::ForStatementLeft::ArrayAssignmentTarget(_)
-                    | ast::ForStatementLeft::ObjectAssignmentTarget(_)
-                    | ast::ForStatementLeft::TSTypeAssertion(_) => unreachable!(),
+                    _ => lhs.to_assignment_target().compile(ctx),
                 }
-
-                // 2. If lhsRef is an abrupt completion, then
-                // a. Let status be lhsRef.
-                // 3. Else,
-                // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
-                ctx.add_instruction(Instruction::PutValue);
             }
         }
         LeftHandSideKind::LexicalBinding => {
@@ -428,9 +379,6 @@ fn for_in_of_body_evaluation<'s>(
     ctx.set_jump_target_here(jump_to_end);
     ctx.add_instruction(Instruction::Store);
     ctx.set_jump_target_here(jump_over_return_v);
-    if let Some(key_result) = key_result {
-        ctx.set_jump_target_here(key_result)
-    }
 }
 
 fn get_for_statement_left_hand_side_kind<'gc>(
@@ -479,6 +427,9 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
         let lhs_kind =
             get_for_statement_left_hand_side_kind(&self.left, &mut uninitialized_bound_names, ctx);
 
+        // for-in loops have a path to  skip the entire ForIn/OfBodyEvaluation
+        // and just return an empty Break result (which will break the closest
+        // labelled statement and turn into undefined).
         let key_result = for_in_of_head_evaluation(
             ctx,
             uninitialized_bound_names,
@@ -489,11 +440,11 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
             ctx,
             &self.left,
             &self.body,
-            key_result,
             IterationKind::Enumerate,
             lhs_kind,
             label_set.as_deref(),
         );
+        ctx.set_jump_target_here(key_result.unwrap())
     }
 }
 
@@ -523,7 +474,6 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForOfStatement<'s> {
             ctx,
             &self.left,
             &self.body,
-            None,
             iteration_kind,
             lhs_kind,
             label_set.as_deref(),
