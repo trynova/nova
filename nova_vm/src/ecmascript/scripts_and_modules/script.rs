@@ -2020,7 +2020,9 @@ mod test {
         );
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
-            .unwrap();
-        assert_eq!(result, Value::Undefined);
+            .unwrap()
+            .unbind()
+            .bind(gc.nogc());
+        assert_eq!(result, Value::from_static_str(&mut agent, "c", gc.nogc()));
     }
 }
