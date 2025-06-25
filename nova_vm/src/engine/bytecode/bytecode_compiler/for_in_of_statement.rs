@@ -373,7 +373,7 @@ fn for_in_of_body_evaluation<'s>(
     }
 
     let jump_over_return_v = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-    // ### See above: this ist he "done is true" path.
+    // ### See above: this is the "done is true" path.
     // d. Let done be ? IteratorComplete(nextResult).
     // e. If done is true, return V.
     ctx.set_jump_target_here(jump_to_end);
