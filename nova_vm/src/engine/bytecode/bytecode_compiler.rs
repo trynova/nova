@@ -125,6 +125,16 @@ impl<'s> CompileEvaluation<'s> for ast::BindingIdentifier<'s> {
     }
 }
 
+impl<'s> CompileEvaluation<'s> for ast::IdentifierName<'s> {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        let identifier = ctx.create_string(self.name.as_str());
+        ctx.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            identifier,
+        );
+    }
+}
+
 impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
     /// ### ['a 13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
@@ -840,17 +850,14 @@ impl<'s> CompileEvaluation<'s> for ast::StaticMemberExpression<'s> {
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
-        let identifier = ctx.create_string(self.property.name.as_str());
         if self.object.is_super() {
+            let identifier = ctx.create_string(self.property.name.as_str());
             ctx.add_instruction_with_identifier(
                 Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
                 identifier,
             );
         } else {
-            ctx.add_instruction_with_identifier(
-                Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                identifier,
-            );
+            self.property.compile(ctx);
         }
     }
 }
@@ -1273,7 +1280,6 @@ fn compile_delegate_yield_expression<'s>(
     let jump_to_throw_handling = ctx.enter_try_catch_block();
     // We should be +1 try-catch block here.
     // vii. Else, set received to Completion(GeneratorYield(innerResult)).
-    ctx.add_instruction(Instruction::Debug);
     ctx.add_instruction(Instruction::Yield);
     // Note: generators can be resumed with a Return instruction. For those
     // cases we need to generate Return handling here.
@@ -1284,10 +1290,8 @@ fn compile_delegate_yield_expression<'s>(
         let return_label = ctx.get_jump_index_to_here();
         // c. Else,
         // i. Assert: received is a return completion.
-        ctx.add_instruction(Instruction::Debug);
         // +0
         ctx.exit_try_catch_block();
-        ctx.add_instruction(Instruction::Debug);
         let jump_over_return_call = ctx.add_instruction_with_jump_slot(Instruction::IteratorReturn);
         // ii. Let return be ? GetMethod(iterator, "return").
         // iii. If return is undefined, then ... (jump over return call)
@@ -1317,7 +1321,6 @@ fn compile_delegate_yield_expression<'s>(
         // +1
         let jump_to_throw_handling = ctx.enter_try_catch_block();
         // We should be +1 try-catch block here.
-        ctx.add_instruction(Instruction::Debug);
         ctx.add_instruction(Instruction::Yield);
         // NOTE: If Yield continues normally, we jump to continue.
         let jump_to_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -1335,7 +1338,6 @@ fn compile_delegate_yield_expression<'s>(
 
         // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_return_call);
-        ctx.add_instruction(Instruction::Debug);
         // 1. Set value to received.[[Value]].
         // 2. If generatorKind is async, then
         if generator_kind_is_async {
@@ -1355,7 +1357,6 @@ fn compile_delegate_yield_expression<'s>(
     // NOTE: this here is the last part of the normal completion handling.
     ctx.add_instruction(Instruction::PopExceptionJumpTarget);
     // We should be +0 try-catch block here.
-    ctx.add_instruction(Instruction::Debug);
     ctx.add_jump_instruction_to_index(Instruction::Jump, loop_start);
     {
         // ### Throw result handling
@@ -1394,7 +1395,6 @@ fn compile_delegate_yield_expression<'s>(
         let jump_to_catch_block = ctx.enter_try_catch_block();
         // We should be +1 try-catch block here.
         ctx.set_jump_target(jump_to_catch_block, throw_label);
-        ctx.add_instruction(Instruction::Debug);
         ctx.add_instruction(Instruction::Yield);
         // NOTE: If Yield continues normally, we jump to continue.
         let jump_to_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -1410,7 +1410,6 @@ fn compile_delegate_yield_expression<'s>(
         // iii. Else,
         // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_throw_call);
-        ctx.add_instruction(Instruction::Debug);
         // 1. NOTE: If iterator does not have a throw method, this throw is
         //    going to terminate the yield* loop. But first we need to give
         //    iterator a chance to clean up.
@@ -1999,12 +1998,10 @@ fn complex_object_pattern<'s>(
     for property in &object_pattern.properties {
         match &property.key {
             ast::PropertyKey::StaticIdentifier(identifier) => {
+                // Make a copy of the baseValue in the result register;
+                // EvaluatePropertyAccessWithIdentifierKey uses it.
                 ctx.add_instruction(Instruction::StoreCopy);
-                let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(
-                    Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                    identifier_string,
-                );
+                identifier.compile(ctx);
             }
             // Note: private field aren't valid in this context.
             ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),

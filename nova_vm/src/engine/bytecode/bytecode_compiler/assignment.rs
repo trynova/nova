@@ -210,62 +210,49 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
+    /// ## Register states
+    ///
+    /// ### Entry condition
+    /// ```text
+    /// result: value
+    /// stack: []
+    /// reference: None
+    /// reference stack: []
+    /// ```
+    ///
+    /// ### Exit condition
+    /// ```text
+    /// result: None
+    /// stack: []
+    /// reference: None
+    /// reference stack: []
+    /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        match self {
-            ast::AssignmentTarget::ArrayAssignmentTarget(array) => {
-                array.compile(ctx);
-            }
-            ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
-                identifier.compile(ctx);
-                ctx.add_instruction(Instruction::PutValue);
-            }
-            ast::AssignmentTarget::ComputedMemberExpression(expression) => {
+        // result: value
+        // stack: []
+        if let Some(target) = self.as_simple_assignment_target() {
+            let needs_load_store = target.is_member_expression();
+            if needs_load_store {
                 ctx.add_instruction(Instruction::Load);
-                expression.compile(ctx);
+                // result: None
+                // stack: [value]
+            }
+            target.compile(ctx);
+            if needs_load_store {
+                // result: None
+                // stack: [value]
+                // reference: &target
                 ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::PutValue);
             }
-            ast::AssignmentTarget::ObjectAssignmentTarget(object) => {
-                object.compile(ctx);
-            }
-            ast::AssignmentTarget::PrivateFieldExpression(expression) => {
-                ctx.add_instruction(Instruction::Load);
-                expression.compile(ctx);
-                ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::PutValue);
-            }
-            ast::AssignmentTarget::StaticMemberExpression(expression) => {
-                ctx.add_instruction(Instruction::Load);
-                expression.compile(ctx);
-                ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::PutValue);
-            }
-            #[cfg(feature = "typescript")]
-            ast::AssignmentTarget::TSNonNullExpression(x) => {
-                ctx.add_instruction(Instruction::Load);
-                x.expression.compile(ctx);
-                ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::PutValue);
-            }
-            #[cfg(feature = "typescript")]
-            ast::AssignmentTarget::TSAsExpression(x) => {
-                ctx.add_instruction(Instruction::Load);
-                x.expression.compile(ctx);
-                ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::PutValue);
-            }
-            #[cfg(feature = "typescript")]
-            ast::AssignmentTarget::TSSatisfiesExpression(x) => {
-                ctx.add_instruction(Instruction::Load);
-                x.expression.compile(ctx);
-                ctx.add_instruction(Instruction::Store);
-                ctx.add_instruction(Instruction::PutValue);
-            }
-            #[cfg(not(feature = "typescript"))]
-            ast::AssignmentTarget::TSAsExpression(_)
-            | ast::AssignmentTarget::TSNonNullExpression(_)
-            | ast::AssignmentTarget::TSSatisfiesExpression(_) => unreachable!(),
-            ast::AssignmentTarget::TSTypeAssertion(_) => unreachable!(),
+            // result: value
+            // stack: []
+            // reference: &target
+            ctx.add_instruction(Instruction::PutValue);
+            // result: None
+            // stack: []
+            // reference: None
+        } else {
+            self.to_assignment_target_pattern().compile(ctx);
         }
     }
 }
@@ -353,56 +340,208 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::ObjectAssignmentTarget<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        // result: source
+        // stack: []
+
         ctx.add_instruction(Instruction::ToObject);
-        if self.properties.len() > 1 || self.rest.is_some() {
-            ctx.add_instruction(Instruction::LoadCopy);
-        }
-        for (index, property) in self.properties.iter().enumerate() {
-            property.compile(ctx);
-            let offset = if self.rest.is_some() {
-                index + 1
+        // result: source (converted to object)
+        // stack: []
+
+        // Each property and the rest binding require access to the source as
+        // object: thus, we effectively need to create a copy of it on the
+        // stack before each property call _except_ for the very last one
+        // (including the rest binding; before rest we never need a copy as it
+        // is always the last one).
+        let has_rest = self.rest.is_some();
+        let store_copy_cutoff = if has_rest {
+            if self.properties.is_empty() {
+                // Only rest: we don't need to bother with properties or anything.
+                compile_assignment_target_rest(self.rest.as_ref().unwrap(), ctx, 0);
+                return;
             } else {
-                index + 2
-            };
-            #[allow(clippy::comparison_chain)]
-            if offset < self.properties.len() {
-                ctx.add_instruction(Instruction::StoreCopy);
-            } else if offset == self.properties.len() {
-                ctx.add_instruction(Instruction::Store);
+                // Properties and rest: we need to create a copy of source on
+                // the stack, and our cutoff happens on the last property:
+                // before it we need to StoreCopy, at cutoff we use Store.
+                ctx.add_instruction(Instruction::LoadCopy);
+                self.properties.len() - 1
+            }
+        } else {
+            if self.properties.is_empty() {
+                // No rest and no properties: we've done all we need to do.
+                return;
+            }
+            if self.properties.len() == 1 {
+                // Only one property: we can just compile the property directly.
+                compile_assignment_target_property(self.properties.first().unwrap(), ctx, false);
+                return;
+            } else {
+                // At least two properties: we need to create a copy of source
+                // on the stack, and our cutoff happens on the second to last
+                // property: before it we need to StoreCopy, at cutoff we use
+                // Store, and the last property does nothing.
+                ctx.add_instruction(Instruction::LoadCopy);
+                self.properties.len() - 2
+            }
+        };
+        // result: source
+        // stack: [source?]
+        for (index, property) in self.properties.iter().enumerate() {
+            // result: source
+            // stack: [source?]
+            compile_assignment_target_property(property, ctx, has_rest);
+            // result: None
+            // stack: [source?]
+            match index.cmp(&store_copy_cutoff) {
+                std::cmp::Ordering::Less => {
+                    // If index is less than the cutoff, there are still more
+                    // properties coming after this that need the source. Thus
+                    // we must perform a StoreCopy to get source back into
+                    // result without removing it from stack.
+                    ctx.add_instruction(Instruction::StoreCopy);
+                    // result: source
+                    // stack: [source]
+                }
+                std::cmp::Ordering::Equal => {
+                    // If index is equal to cutoff, it means that the next
+                    // property is the last one that needs the source. Thus we
+                    // perform a Store to get the source back into result while
+                    // removing it from stack.
+                    ctx.add_instruction(Instruction::Store);
+                    // result: source
+                    // stack: []
+                }
+                std::cmp::Ordering::Greater => {
+                    // If index is greater than cutoff, it means that this is
+                    // the last property, no rest property exists after this,
+                    // and the stack is empty. We need do nothing here.
+                    // result: None
+                    // stack: []
+                }
             }
         }
-        if let Some(_rest) = &self.rest {
-            todo!()
+        if let Some(rest) = &self.rest {
+            // result: source
+            // stack: []
+            compile_assignment_target_rest(rest, ctx, self.properties.len());
         }
+        // result: None
+        // stack: []
+        // reference: None
+        // reference stack: []
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetProperty<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        match self {
-            ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(identifier) => {
-                identifier.compile(ctx);
+fn compile_assignment_target_property<'s>(
+    property: &'s ast::AssignmentTargetProperty<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    has_rest: bool,
+) {
+    match property {
+        ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(identifier) => {
+            // result: source
+            // stack: [source?]
+            let key = ctx.create_string(identifier.binding.name.as_str());
+            ctx.add_instruction_with_identifier(
+                Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                key,
+            );
+            // result: None
+            // stack: [source?]
+            // reference: &source.identifier
+            if has_rest {
+                ctx.add_instruction(Instruction::GetValueKeepReference);
+                ctx.add_instruction(Instruction::PushReference);
+                // result: source.identifier
+                // stack: [source?]
+                // reference: None
+                // reference stack: [&source.identifier]
+            } else {
+                ctx.add_instruction(Instruction::GetValue);
+                // result: source.identifier
+                // stack: [source?]
+                // reference: None
+                // reference stack: []
             }
-            ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(property) => {
-                property.compile(ctx);
+            identifier.compile(ctx);
+            // result: None
+            // stack: [source?]
+            // reference: None
+            // reference stack: [&source.identifier?]
+        }
+        ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(property) => {
+            // result: source
+            // stack: [source?]
+            property.name.compile(ctx);
+            // result: None
+            // stack: [source?]
+            // reference: &source.property
+            if has_rest {
+                ctx.add_instruction(Instruction::GetValueKeepReference);
+                ctx.add_instruction(Instruction::PushReference);
+                // result: source.property
+                // stack: [source?]
+                // reference: None
+                // reference stack: [&source.property]
+            } else {
+                ctx.add_instruction(Instruction::GetValue);
+                // result: source.property
+                // stack: [source?]
+                // reference: None
+                // reference stack: []
             }
+            property.binding.compile(ctx);
+            // result: None
+            // stack: [source?]
+            // reference: None
+            // reference stack: [&source.property?]
         }
     }
+    // result: None
+    // stack: [source?]
+    // reference: None
+    // reference stack: [&source.property?]
+}
+
+fn compile_assignment_target_rest<'s>(
+    rest: &'s ast::AssignmentTargetRest<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    property_count: usize,
+) {
+    // result: source
+    // stack: []
+    // reference: None
+    // reference stack: [...source.properties]
+    ctx.add_instruction_with_immediate(Instruction::CopyDataPropertiesIntoObject, property_count);
+    // result: object copy
+    // stack: []
+    // reference: None
+    // reference stack: []
+    rest.target.compile(ctx);
+    // result: None
+    // stack: []
+    // reference: None
+    // reference stack: []
 }
 
 impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let key = ctx.create_string(self.binding.name.as_str());
-        ctx.add_instruction_with_identifier(
-            Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            key,
-        );
-        ctx.add_instruction(Instruction::GetValue);
+        // result: binding
+        // stack: []
+
+        // Note: the caller is expected to handle the self.binding side of
+        // this! When we enter here, self.binding property access result should
+        // be in the result register.
         if let Some(init) = &self.init {
             ctx.add_instruction(Instruction::LoadCopy);
+            // result: binding
+            // stack: [binding]
             ctx.add_instruction(Instruction::IsUndefined);
+            // result: binding === undefined
+            // stack: [binding]
             let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
             ctx.add_instruction(Instruction::Store);
+            // result: binding
+            // stack: []
             if is_anonymous_function_definition(init) {
                 let identifier_string = ctx.create_string(self.binding.name.as_str());
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
@@ -413,49 +552,116 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
             if is_reference(init) {
                 ctx.add_instruction(Instruction::GetValue);
             }
+            // result: init
+            // stack: []
             ctx.add_instruction(Instruction::Load);
+            // result: None
+            // stack: [init]
             ctx.set_jump_target_here(jump_slot);
+            // result: None
+            // stack: [binding / init]
             ctx.add_instruction(Instruction::Store);
+            // result: binding / init
+            // stack: []
         }
         self.binding.compile(ctx);
+        // result: binding / init
+        // stack: []
+        // reference: &binding
         ctx.add_instruction(Instruction::PutValue);
+        // result: None
+        // stack: []
+        // reference: None
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyProperty<'s> {
+impl<'s> CompileEvaluation<'s> for ast::PropertyKey<'s> {
+    /// ## Register states
+    ///
+    /// ### Entry condition
+    /// ```text
+    /// result: source
+    /// stack: []
+    /// reference: None
+    /// reference stack: []
+    /// ```
+    ///
+    /// ### Exit condition
+    /// ```text
+    /// result: None
+    /// stack: []
+    /// reference: &source.property
+    /// reference stack: []
+    /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        match &self.name {
+        // result: source
+        // stack: []
+        match self {
             ast::PropertyKey::StaticIdentifier(identifier) => {
                 let key = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     key,
                 );
+                // result: None
+                // stack: []
+                // reference: &source.identifier
             }
-            ast::PropertyKey::PrivateIdentifier(_) => todo!(),
+            // Note: Private names are not allowed in this position.
+            ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
             _ => {
                 ctx.add_instruction(Instruction::Load);
-                let name = self.name.to_expression();
-                name.compile(ctx);
-                if is_reference(name) {
+                // result: None
+                // stack: [source]
+                let expr = self.to_expression();
+                expr.compile(ctx);
+                if is_reference(expr) {
                     ctx.add_instruction(Instruction::GetValue);
                 }
+                // result: expr
+                // stack: [source]
                 ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                // result: None
+                // stack: []
+                // reference: &source[expr]
             }
         }
-        ctx.add_instruction(Instruction::GetValue);
-        self.binding.compile(ctx);
     }
 }
 
 impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
+    /// ## Register states
+    ///
+    /// ### Entry condition
+    /// ```text
+    /// result: value
+    /// stack: []
+    /// reference: None
+    /// reference stack: []
+    /// ```
+    ///
+    /// ### Exit condition
+    /// ```text
+    /// result: None
+    /// stack: []
+    /// reference: &source.property
+    /// reference stack: []
+    /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         match self {
             ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
+                // result: value
+                // stack: []
                 ctx.add_instruction(Instruction::LoadCopy);
                 ctx.add_instruction(Instruction::IsUndefined);
+                // result: value === undefined
+                // stack: [value]
                 let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                // result: None
+                // stack: [value]
                 ctx.add_instruction(Instruction::Store);
+                // result: value
+                // stack: []
                 if is_anonymous_function_definition(&target.init) {
                     if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
                         &target.binding
@@ -473,13 +679,27 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
                 if is_reference(&target.init) {
                     ctx.add_instruction(Instruction::GetValue);
                 }
+                // result: init
+                // stack: []
                 ctx.add_instruction(Instruction::Load);
+                // result: None
+                // stack: [init]
                 ctx.set_jump_target_here(jump_slot);
+                // result: None
+                // stack: [value / init]
                 ctx.add_instruction(Instruction::Store);
+                // result: value / init
+                // stack: []
                 target.binding.compile(ctx);
+                // result: None
+                // stack: []
             }
             _ => {
+                // result: value
+                // stack: []
                 self.to_assignment_target().compile(ctx);
+                // result: None
+                // stack: []
             }
         }
     }
