@@ -459,6 +459,8 @@ pub enum Instruction {
     /// Instruction::Throw;
     /// ```
     AsyncIteratorCloseWithError,
+    /// Pop the current iterator from the iterator stack.
+    IteratorPop,
     /// Store GetNewTarget() as the result value.
     GetNewTarget,
     /// Store `import.meta` object as the result value.
@@ -1237,6 +1239,7 @@ impl TryFrom<u8> for Instruction {
         const ASYNCITERATORCLOSE: u8 = Instruction::AsyncIteratorClose.as_u8();
         const ITERATORCLOSEWITHERROR: u8 = Instruction::IteratorCloseWithError.as_u8();
         const ASYNCITERATORCLOSEWITHERROR: u8 = Instruction::AsyncIteratorCloseWithError.as_u8();
+        const ITERATORPOP: u8 = Instruction::IteratorPop.as_u8();
         const GETNEWTARGET: u8 = Instruction::GetNewTarget.as_u8();
         const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
@@ -1438,6 +1441,7 @@ impl TryFrom<u8> for Instruction {
             ASYNCITERATORCLOSE => Ok(Instruction::AsyncIteratorClose),
             ITERATORCLOSEWITHERROR => Ok(Instruction::IteratorCloseWithError),
             ASYNCITERATORCLOSEWITHERROR => Ok(Instruction::AsyncIteratorCloseWithError),
+            ITERATORPOP => Ok(Instruction::IteratorPop),
             GETNEWTARGET => Ok(Instruction::GetNewTarget),
             IMPORTMETA => Ok(Instruction::ImportMeta),
             VERIFYISOBJECT => Ok(Instruction::VerifyIsObject),

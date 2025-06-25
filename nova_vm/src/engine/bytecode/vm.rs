@@ -3051,6 +3051,9 @@ impl Vm {
                         .unbind(),
                 );
             }
+            Instruction::IteratorPop => {
+                let _ = vm.pop_iterator(gc.nogc());
+            }
             Instruction::GetNewTarget => {
                 // 1. Let envRec be GetThisEnvironment().
                 let env_rec = get_this_environment(agent, gc.nogc());

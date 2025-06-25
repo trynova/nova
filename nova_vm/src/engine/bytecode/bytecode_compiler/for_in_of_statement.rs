@@ -369,7 +369,7 @@ fn for_in_of_body_evaluation<'s>(
         // 4. Return ? IteratorClose(iteratorRecord, status).
         IterationKind::Iterate => ctx.exit_iterator(Some(continue_target)),
         // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
-        IterationKind::AsyncIterate => ctx.exit_async_iterator(continue_target),
+        IterationKind::AsyncIterate => ctx.exit_async_iterator(Some(continue_target)),
     }
 
     let jump_over_return_v = ctx.add_instruction_with_jump_slot(Instruction::Jump);

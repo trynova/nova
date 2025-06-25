@@ -294,9 +294,7 @@ impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        ctx.add_instruction(Instruction::Debug);
         ctx.add_instruction(Instruction::GetIteratorSync);
-        ctx.add_instruction(Instruction::Debug);
         let jump_to_iterator_error_handler = ctx.enter_iterator(None);
         for element in &self.elements {
             if let Some(element) = element {

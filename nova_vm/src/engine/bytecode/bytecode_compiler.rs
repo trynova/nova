@@ -1244,6 +1244,9 @@ fn compile_delegate_yield_expression<'s>(
     } else {
         ctx.add_instruction(Instruction::GetIteratorSync);
     }
+    // If a ? throw happens after this, we need to pop the iterator before
+    // allowing the error to continue onwards.
+    let jump_to_iterator_pop = ctx.enter_try_catch_block();
     // 6. Let iterator be iteratorRecord.[[Iterator]].
     // 7. Let received be NormalCompletion(undefined).
     ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -1358,7 +1361,7 @@ fn compile_delegate_yield_expression<'s>(
     ctx.add_instruction(Instruction::PopExceptionJumpTarget);
     // We should be +0 try-catch block here.
     ctx.add_jump_instruction_to_index(Instruction::Jump, loop_start);
-    {
+    let jump_to_end_from_throw_handling = {
         // ### Throw result handling
         // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_to_throw_handling);
@@ -1407,9 +1410,23 @@ fn compile_delegate_yield_expression<'s>(
         // +0
         ctx.exit_try_catch_block();
 
+        {
+            // Overall catch block to pop the iterator and rethrow. We compile
+            // it here because there's already catch handling herabouts and we
+            // happen to have an unreachable area of code here.
+            ctx.set_jump_target_here(jump_to_iterator_pop);
+            ctx.add_instruction(Instruction::IteratorPop);
+            ctx.add_instruction(Instruction::Throw);
+        }
+
         // iii. Else,
         // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_throw_call);
+        // Note: AsyncIteratorClose / IteratorClose will pop the iterator
+        // stack. Thus, even if they throw an error we must make sure they
+        // don't visit the overall catch block, so we need to pop the
+        // execution jump target stack here.
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
         // 1. NOTE: If iterator does not have a throw method, this throw is
         //    going to terminate the yield* loop. But first we need to give
         //    iterator a chance to clean up.
@@ -1439,10 +1456,15 @@ fn compile_delegate_yield_expression<'s>(
             Instruction::ThrowError,
             ExceptionType::TypeError as usize,
         );
-        ctx.set_jump_target_here(jump_to_end);
-    }
+        jump_to_end
+    };
+
     // We should be +0 try-catch block here.
     ctx.set_jump_target_here(jump_to_end);
+    ctx.set_jump_target_here(jump_to_end_from_throw_handling);
+    // Pop the overall catch block and the iterator.
+    ctx.exit_try_catch_block();
+    ctx.add_instruction(Instruction::IteratorPop);
 }
 
 impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
