@@ -519,8 +519,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         else {
             unreachable!()
         };
+        // Note: if we have a continue target it means that this is a for-of
+        // loop where UpdateEmpty is performed as the last step in the work
+        // before closing the iterator.
         let Some(continue_target) = continue_target else {
-            // Array destructuring.
+            // Array destructuring or yield.
             assert!(incoming_control_flows.is_none());
             return;
         };
@@ -531,6 +534,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                     // When breaking out of iterator, it needs to be closed and its
                     // exception handler removed.
                     ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                    ctx.add_instruction(Instruction::UpdateEmpty);
                     ctx.add_instruction(Instruction::IteratorClose);
                 },
                 &mut self.executable,
@@ -552,13 +556,18 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Exit a for-await-of loop.
-    pub(super) fn exit_async_iterator(&mut self, continue_target: JumpIndex) {
+    pub(super) fn exit_async_iterator(&mut self, continue_target: Option<JumpIndex>) {
         let Some(ControlFlowStackEntry::AsyncIterator {
             label_set: _,
             incoming_control_flows,
         }) = self.control_flow_stack.pop()
         else {
             unreachable!()
+        };
+        let Some(continue_target) = continue_target else {
+            // Yield in an async iterator cannot have incoming control flows.
+            assert!(incoming_control_flows.is_none());
+            return;
         };
         if let Some(incoming_control_flows) = incoming_control_flows {
             incoming_control_flows.compile(

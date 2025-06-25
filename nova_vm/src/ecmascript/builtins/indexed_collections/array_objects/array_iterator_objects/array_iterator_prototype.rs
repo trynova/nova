@@ -168,19 +168,19 @@ impl ArrayIteratorPrototype {
         let len: i64 = match array {
             // i. If array has a [[TypedArrayName]] internal slot, then
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(array)
-            | Object::Uint8Array(array)
-            | Object::Uint8ClampedArray(array)
-            | Object::Int16Array(array)
-            | Object::Uint16Array(array)
-            | Object::Int32Array(array)
-            | Object::Uint32Array(array)
-            | Object::BigInt64Array(array)
-            | Object::BigUint64Array(array)
-            | Object::Float32Array(array)
-            | Object::Float64Array(array) => handle_typed_array!(array.into()),
+            Object::Int8Array(_)
+            | Object::Uint8Array(_)
+            | Object::Uint8ClampedArray(_)
+            | Object::Int16Array(_)
+            | Object::Uint16Array(_)
+            | Object::Int32Array(_)
+            | Object::Uint32Array(_)
+            | Object::BigInt64Array(_)
+            | Object::BigUint64Array(_)
+            | Object::Float32Array(_)
+            | Object::Float64Array(_) => handle_typed_array!(array.try_into().unwrap()),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(array) => handle_typed_array!(array.into()),
+            Object::Float16Array(_) => handle_typed_array!(array.try_into().unwrap()),
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),

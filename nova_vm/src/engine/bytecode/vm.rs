@@ -249,8 +249,8 @@ impl SuspendedVm {
         if agent.options.print_internals {
             eprintln!("Resuming function with return\n");
         }
-        // Following a yield point, the next instruction is a Jump over our
-        // Return handling. We need to ignore that.
+        // Following a yield point, the next instruction is a Jump to the
+        // Normal continue handling. We need to ignore that.
         let next_instruction = executable.get_instruction(agent, &mut self.ip);
         assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
         let peek_next_instruction = executable.get_instructions(agent).get(self.ip).copied();
@@ -3050,6 +3050,9 @@ impl Vm {
                         .into_value()
                         .unbind(),
                 );
+            }
+            Instruction::IteratorPop => {
+                let _ = vm.pop_iterator(gc.nogc());
             }
             Instruction::GetNewTarget => {
                 // 1. Let envRec be GetThisEnvironment().
