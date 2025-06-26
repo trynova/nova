@@ -93,7 +93,9 @@ pub(crate) fn instantiation<'s>(
     //   d. Assert: The VariableEnvironment of calleeContext and calleeEnv are the same Environment Record.
     //   e. Set the LexicalEnvironment of calleeContext to env.
     if !strict && has_parameter_expressions {
-        ctx.enter_lexical_scope();
+        // Note: these are not lexical scopes per-se, just something we "start
+        // with". Thus, we do not use ctx.enter_lexical_scope().
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
     }
 
     // 21. For each String paramName of parameterNames, do
@@ -162,25 +164,26 @@ pub(crate) fn instantiation<'s>(
     //   a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and undefined.
     // 26. Else,
     //   a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and env.
-    if !formals.has_parameter() {
-        // Remove the arguments iterator from the iterator stack.
-        ctx.add_instruction(Instruction::IteratorClose)
-    } else if has_parameter_expressions {
-        complex_array_pattern(
-            ctx,
-            formals.items.iter().map(|param| Some(&param.pattern)),
-            formals.rest.as_deref(),
-            !has_duplicates,
-        );
-    } else {
-        simple_array_pattern(
-            ctx,
-            formals.items.iter().map(|param| Some(&param.pattern)),
-            formals.rest.as_deref(),
-            formals.items.len(),
-            !has_duplicates,
-        );
+    if formals.has_parameter() {
+        if has_parameter_expressions {
+            complex_array_pattern(
+                ctx,
+                formals.items.iter().map(|param| Some(&param.pattern)),
+                formals.rest.as_deref(),
+                !has_duplicates,
+            );
+        } else {
+            simple_array_pattern(
+                ctx,
+                formals.items.iter().map(|param| Some(&param.pattern)),
+                formals.rest.as_deref(),
+                formals.items.len(),
+                !has_duplicates,
+            );
+        }
     }
+    // Remove the arguments iterator from the iterator stack.
+    ctx.add_instruction(Instruction::IteratorPop);
 
     // 27. If hasParameterExpressions is false, then
     if !has_parameter_expressions {
@@ -211,7 +214,9 @@ pub(crate) fn instantiation<'s>(
         //   a. Let lexEnv be varEnv.
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
         if !strict {
-            ctx.enter_lexical_scope();
+            // Note: these are not lexical scopes per-se, just something we
+            // "start with". Thus, we do not use ctx.enter_lexical_scope().
+            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         }
     } else {
         // 28. Else,

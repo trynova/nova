@@ -294,8 +294,8 @@ impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        ctx.add_instruction(Instruction::GetIteratorSync);
-        let jump_to_iterator_error_handler = ctx.enter_iterator(None);
+        let jump_to_iterator_pop = ctx.push_sync_iterator();
+        let jump_to_iterator_close_handler = ctx.enter_array_destructuring();
         for element in &self.elements {
             if let Some(element) = element {
                 // AssignmentElement : DestructuringAssignmentTarget Initializer (opt)
@@ -405,18 +405,22 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
         }
         // Note: An error during IteratorClose should not jump into
         // IteratorCloseWithError, hence we pop exception jump target here.
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-        ctx.add_instruction(Instruction::IteratorClose);
+        ctx.exit_array_destructuring();
+        ctx.pop_iterator_stack();
         let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         // 3. If status is an abrupt completion, then
         {
-            ctx.set_jump_target_here(jump_to_iterator_error_handler);
+            ctx.set_jump_target_here(jump_to_iterator_close_handler);
             // a. If iteratorRecord.[[Done]] is false, return
             //    ? IteratorClose(iteratorRecord, status).
+            // Note: removing jump_to_iterator_pop catch handler.
+            ctx.add_instruction(Instruction::PopExceptionJumpTarget);
             ctx.add_instruction(Instruction::IteratorCloseWithError);
+            ctx.set_jump_target_here(jump_to_iterator_pop);
+            ctx.add_instruction(Instruction::IteratorPop);
+            ctx.add_instruction(Instruction::Throw);
         }
         ctx.set_jump_target_here(jump_over_catch);
-        ctx.exit_iterator(None);
     }
 }
 

@@ -14,10 +14,7 @@ use oxc_syntax::operator::BinaryOperator;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{
-                async_vm_iterator_close_with_error, iterator_close_with_error, iterator_complete,
-                iterator_value,
-            },
+            operations_on_iterator_objects::{iterator_complete, iterator_value},
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
                 copy_data_properties_into_object, create_data_property_or_throw,
@@ -2486,7 +2483,6 @@ impl Vm {
                     None
                 };
                 execute_simple_array_binding(agent, vm, executable, env, gc.reborrow()).unbind()?;
-                vm.pop_iterator(gc.nogc());
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.get_first_bool();
@@ -2716,28 +2712,16 @@ impl Vm {
                     |agent, gc| ActiveIterator::new(agent, gc.nogc()).step_value(agent, gc),
                     gc.reborrow(),
                 )
-                .unbind()
+                .unbind()?
                 .bind(gc.nogc());
-                match result {
-                    Ok(result) => {
-                        vm.result = result.unbind();
-                        if result.is_none() {
-                            // Iterator finished: pop the iterator from the stack
-                            // and jump to escape the iterator loop.
-                            vm.pop_iterator(gc.nogc());
-                            let ip = instr.get_jump_slot();
-                            if agent.options.print_internals {
-                                eprintln!("Iterator finished, jumping to {ip}");
-                            }
-                            vm.ip = ip;
-                        }
+                vm.result = result.unbind();
+                if result.is_none() {
+                    // Iterator finished: jump to escape the iterator loop.
+                    let ip = instr.get_jump_slot();
+                    if agent.options.print_internals {
+                        eprintln!("Iterator finished, jumping to {ip}");
                     }
-                    Err(err) => {
-                        // Iterator threw an error: pop the iterator from the stack
-                        // and rethrow the error.
-                        vm.pop_iterator(gc.nogc());
-                        return Err(err.unbind());
-                    }
+                    vm.ip = ip;
                 }
             }
             Instruction::IteratorStepValueOrUndefined => {
@@ -2866,7 +2850,9 @@ impl Vm {
                 let value = with_vm_gc(
                     agent,
                     vm,
-                    |agent, gc| ActiveIterator::new(agent, gc.nogc()).r#return(agent, result, gc),
+                    |agent, gc| {
+                        ActiveIterator::new(agent, gc.nogc()).r#return(agent, Some(result), gc)
+                    },
                     gc,
                 )?;
                 if let Some(value) = value {
@@ -2927,35 +2913,43 @@ impl Vm {
                 vm.result = Some(unsafe { array.take(agent).into_value() });
             }
             Instruction::IteratorClose => {
-                let iter = vm.pop_iterator(gc.nogc()).unbind();
-                if !iter.requires_return_call(agent, gc.nogc()) {
+                if !vm
+                    .get_active_iterator()
+                    .requires_return_call(agent, gc.nogc())
+                {
                     return Ok(ContinuationKind::Normal);
                 }
-                let result = vm.result.take().unwrap_or(Value::Undefined);
                 let result = with_vm_gc(
                     agent,
                     vm,
-                    |agent, gc| iter.close_with_value(agent, result, gc),
-                    gc,
-                )?;
-                vm.result = Some(result.unbind());
+                    |agent, gc| ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                if let Some(result) = result {
+                    // We did get innerResult from return method call: we have
+                    // to check that it is an object.
+                    verify_is_object(agent, result.unbind(), gc.into_nogc())?;
+                }
             }
             Instruction::AsyncIteratorClose => {
-                let iter = vm.pop_iterator(gc.nogc());
-                if !iter.requires_return_call(agent, gc.nogc()) {
+                if !vm
+                    .get_active_iterator()
+                    .requires_return_call(agent, gc.nogc())
+                {
                     // Skip over VerifyIsObject, message, and Store.
                     vm.ip += 4;
                     return Ok(ContinuationKind::Normal);
                 }
-                let result = {
-                    let iter = iter.unbind();
-                    with_vm_gc(
-                        agent,
-                        vm,
-                        |agent, gc| iter.async_close_with_value(agent, gc),
-                        gc,
-                    )?
-                };
+                let result = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 if let Some(result) = result {
                     // AsyncIteratorClose
                     // Iterator return method did return a value: we should
@@ -2970,40 +2964,39 @@ impl Vm {
                 }
             }
             Instruction::IteratorCloseWithError => {
-                let iter = vm.pop_iterator(gc.nogc());
-                if let VmIteratorRecord::GenericIterator(iterator_record) = iter {
-                    let result = vm.result.take().unwrap();
-                    let iterator = iterator_record.iterator.unbind();
-                    // Drop iterator so we can move gc.
-                    drop(iter);
-                    return Err(with_vm_gc(
+                // If our current active iterator requires a return call,
+                // perform said call.
+                if vm
+                    .get_active_iterator()
+                    .requires_return_call(agent, gc.nogc())
+                {
+                    // We don't care if the return call throws an error or not,
+                    // nor if its returned value is an object or not: the
+                    // original throw completion will be rethrown before that.
+                    let _ = with_vm_gc(
                         agent,
                         vm,
-                        |agent, gc| {
-                            iterator_close_with_error(agent, iterator, JsError::new(result), gc)
-                        },
+                        |agent, gc| ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc),
                         gc,
-                    ));
+                    );
                 }
-                return Err(JsError::new(vm.result.take().unwrap()));
+                // Continue to the next instruction which should either be a
+                // throw or an IteratorPop followed by a throw.
             }
             Instruction::AsyncIteratorCloseWithError => {
-                let iter = vm.pop_iterator(gc.nogc());
-                if let VmIteratorRecord::GenericIterator(iterator_record)
-                | VmIteratorRecord::AsyncFromSyncGenericIterator(iterator_record) = iter
+                if vm
+                    .get_active_iterator()
+                    .requires_return_call(agent, gc.nogc())
                 {
-                    let inner_result_value = {
-                        let iterator = iterator_record.iterator.unbind();
-                        // Drop iterator so we can move gc.
-                        drop(iter);
-                        with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| async_vm_iterator_close_with_error(agent, iterator, gc),
-                            gc,
-                        )
-                    };
-                    if let Some(value) = inner_result_value {
+                    let inner_result_value = with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc),
+                        gc.reborrow(),
+                    )
+                    .unbind()
+                    .bind(gc.nogc());
+                    if let Ok(Some(value)) = inner_result_value {
                         // ### 7.4.13 AsyncIteratorClose
                         // 4.d. If innerResult is a normal completion, set
                         //    innerResult to Completion(Await(innerResult.[[Value]])).
@@ -3035,10 +3028,12 @@ impl Vm {
                         return Ok(ContinuationKind::Await);
                     }
                 }
-                // If the iterator did not find any "return" method or
-                // trying to get the return method threw an error, then we
-                // should synchronously rethrow our original error.
-                return Err(JsError::new(vm.result.take().unwrap()));
+                // If we did not find a return method or get a value to await
+                // then we'll skip the PopExceptionJumpTarget and Store
+                // instructions, and go straight to rethrow handling. Note, we
+                // do not manually rethrow as there may be more steps between
+                // this and the final Throw instruction.
+                vm.ip += 2;
             }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
             Instruction::CreateUnmappedArgumentsObject => {
@@ -3729,6 +3724,24 @@ fn set_class_name<'a>(
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
         set_class_name(agent, vm, name.into_value().unbind(), gc)
+    }
+}
+
+fn verify_is_object<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    if !value.is_object() {
+        let message =
+            String::from_static_str(agent, "iterator.return() returned a non-object value", gc);
+        return Err(agent.throw_exception_with_message(
+            ExceptionType::TypeError,
+            message.unbind(),
+            gc,
+        ));
+    } else {
+        Ok(())
     }
 }
 

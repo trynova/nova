@@ -531,6 +531,18 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
             return;
         }
         ctx.add_instruction(Instruction::Load);
+        let jump_to_update_empty = if self
+            .elements
+            .iter()
+            .all(|e| e.is_elision() || e.as_expression().is_some_and(|e| e.is_literal()))
+        {
+            // Note: if all elements are elisions or literals, then the
+            // whole ArrayExpression is infallible.
+            None
+        } else {
+            Some(ctx.enter_try_catch_block())
+        };
+        let mut jumps_to_pop_iterator = vec![];
         for ele in &self.elements {
             match ele {
                 ast::ArrayExpressionElement::SpreadElement(spread) => {
@@ -538,7 +550,7 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
                     if is_reference(&spread.argument) {
                         ctx.add_instruction(Instruction::GetValue);
                     }
-                    ctx.add_instruction(Instruction::GetIteratorSync);
+                    jumps_to_pop_iterator.push(ctx.push_sync_iterator());
 
                     let iteration_start = ctx.get_jump_index_to_here();
                     let iteration_end =
@@ -546,6 +558,7 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
                     ctx.add_instruction(Instruction::ArrayPush);
                     ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
                     ctx.set_jump_target_here(iteration_end);
+                    ctx.pop_iterator_stack();
                 }
                 ast::ArrayExpressionElement::Elision(_) => {
                     ctx.add_instruction(Instruction::ArrayElision);
@@ -560,6 +573,34 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
                 }
             }
         }
+        if let Some(jump_to_update_empty) = jump_to_update_empty {
+            // Note: if our ArrayExpression is fallible, then we need to
+            // compile our catch block here and (unfortunately) also jump over
+            // it as well.
+            ctx.exit_try_catch_block();
+            let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+            // ## Catch block
+            if !jumps_to_pop_iterator.is_empty() {
+                for jump in jumps_to_pop_iterator {
+                    ctx.set_jump_target_here(jump);
+                }
+                // Rest iterator threw an error: pop the jump_to_update_empty
+                // exception handler and the failing iterator off their stacks.
+                // Note: IteratorPop is infallible, so we can pop here safely.
+                ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                ctx.add_instruction(Instruction::IteratorPop);
+            }
+            ctx.set_jump_target_here(jump_to_update_empty);
+            // Note: we use UpdateEmpty to pop the Array off the stack here,
+            // since the result register is always non-empty in throw paths.
+            ctx.add_instruction(Instruction::UpdateEmpty);
+            ctx.add_instruction(Instruction::Throw);
+            ctx.set_jump_target_here(jump_over_catch);
+        } else {
+            // If we have an infallible loop, it cannot contain a spread
+            // element.
+            debug_assert!(jumps_to_pop_iterator.is_empty());
+        }
         ctx.add_instruction(Instruction::Store);
     }
 }
@@ -568,6 +609,25 @@ fn compile_arguments<'s>(
     arguments: &'s [ast::Argument<'s>],
     ctx: &mut CompileContext<'_, 's, '_, '_>,
 ) -> usize {
+    let mut jumps_to_static_unwind = if arguments.len() == 1
+        && arguments.get(0).unwrap().is_expression()
+        || arguments
+            .iter()
+            .all(|arg| arg.as_expression().is_some_and(|expr| expr.is_literal()))
+    {
+        // If we have just one non-spread argument, or all parameters are
+        // literals (have no side-effects whatsoever) then we know the
+        // arguments compilation is infallible (or fails with no items pushed
+        // onto the stack), and we don't need a try-catch block here.
+        None
+    } else {
+        // We'll need at most IndexType::MAX unwind sites.
+        Some(Vec::with_capacity(
+            arguments.len().min(IndexType::MAX as usize),
+        ))
+    };
+    let mut jump_to_dynamic_unwind = None;
+    let mut jump_to_iterator_pop = None;
     // If the arguments don't contain the spread operator, then we can know the
     // number of arguments at compile-time and we can pass it as an argument to
     // the call instruction.
@@ -582,13 +642,14 @@ fn compile_arguments<'s>(
         if let ast::Argument::SpreadElement(spread) = argument {
             if let Some(num_arguments) = known_num_arguments.take() {
                 ctx.add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
+                jump_to_dynamic_unwind = Some(ctx.enter_try_catch_block());
             }
 
             spread.argument.compile(ctx);
             if is_reference(&spread.argument) {
                 ctx.add_instruction(Instruction::GetValue);
             }
-            ctx.add_instruction(Instruction::GetIteratorSync);
+            jump_to_iterator_pop = Some(ctx.push_sync_iterator());
 
             let iteration_start = ctx.get_jump_index_to_here();
             let iteration_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
@@ -601,8 +662,10 @@ fn compile_arguments<'s>(
             // stack: [num + 1, value, ...args]
             ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
             ctx.set_jump_target_here(iteration_end);
+            ctx.pop_iterator_stack();
         } else {
             let expression = argument.to_expression();
+
             expression.compile(ctx);
             if is_reference(expression) {
                 ctx.add_instruction(Instruction::GetValue);
@@ -612,7 +675,33 @@ fn compile_arguments<'s>(
                 // stack: [value, ...args]
 
                 if *num_arguments < IndexType::MAX - 1 {
+                    // If we know the number of arguments statically and we need
+                    // unwinding, then we need to push something to the static
+                    // unwinding jumps here as we've loaded one extra value to
+                    // the stack.
                     *num_arguments += 1;
+                    if let Some(jumps_to_static_unwind) = jumps_to_static_unwind.as_mut() {
+                        // If the next argument is a literal, then we won't
+                        // need a catch handler for it.
+                        let next_index = *num_arguments as usize;
+                        if let Some(next_argument) = arguments.get(next_index) {
+                            // Next argument exists; we might need a catch
+                            // handler.
+                            if next_argument
+                                .as_expression()
+                                .is_some_and(|e| e.is_literal())
+                            {
+                                // Next argument is a literal: it doesn't need
+                                // catch but a subsequent arg might, and it
+                                // needs to know how many values we pushed onto
+                                // the stack. Hence, a None is pushed here.
+                                jumps_to_static_unwind.push(None);
+                            } else {
+                                // Next argument isn't a literal; needs catch.
+                                jumps_to_static_unwind.push(Some(ctx.enter_try_catch_block()));
+                            }
+                        }
+                    }
                 } else {
                     // If we overflow, we switch to tracking the number on the
                     // result value.
@@ -622,6 +711,7 @@ fn compile_arguments<'s>(
                         Instruction::LoadConstant,
                         Value::from(IndexType::MAX),
                     );
+                    jump_to_dynamic_unwind = Some(ctx.enter_try_catch_block());
                     // stack: [num + 1, value, ...args]
                 }
             } else {
@@ -636,7 +726,7 @@ fn compile_arguments<'s>(
         }
     }
 
-    if let Some(num_arguments) = known_num_arguments {
+    let result = if let Some(num_arguments) = known_num_arguments {
         assert_ne!(num_arguments, IndexType::MAX);
         num_arguments as usize
     } else {
@@ -644,7 +734,122 @@ fn compile_arguments<'s>(
         ctx.add_instruction(Instruction::Store);
         // result: num; stack: [...args]
         IndexType::MAX as usize
+    };
+
+    // Exit our try-catch blocks.
+    if jump_to_dynamic_unwind.is_some() {
+        ctx.exit_try_catch_block();
     }
+    if let Some(jumps_to_static_unwind) = jumps_to_static_unwind.as_ref() {
+        for e in jumps_to_static_unwind.iter() {
+            if e.is_some() {
+                ctx.exit_try_catch_block();
+            }
+        }
+    }
+
+    if let Some(mut jumps_to_static_unwind) = jumps_to_static_unwind {
+        let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        // ## Catch block
+        if let Some(jump_to_iterator_pop) = jump_to_iterator_pop {
+            debug_assert!(jump_to_dynamic_unwind.is_some());
+            ctx.set_jump_target_here(jump_to_iterator_pop);
+            // Arguments spread threw an error: we need to pop the
+            // jump_to_dynamic_unwind exception handler, pop the iterator
+            // stack, and then continue into the jump_to_dynamic_unwind
+            // catch block.
+            ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+            ctx.add_instruction(Instruction::IteratorPop);
+        }
+        if let Some(jump_to_dynamic_unwind) = jump_to_dynamic_unwind {
+            ctx.set_jump_target_here(jump_to_dynamic_unwind);
+            // When we enter the catch block with a dynamic number of
+            // arguments, our stack situation looks like this:
+            // result: error; stack: [num, ...args]
+            // We need to remove our statically known exception jump targets
+            // and then pop off the dynamic number of arguments from the stack.
+            // Finally, we of course need to rethrow our error.
+            for e in jumps_to_static_unwind.iter() {
+                // Pop all the static exception targets.
+                if e.is_some() {
+                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                }
+            }
+            // result: error; stack: [num, ...args]
+            ctx.add_instruction(Instruction::LoadStoreSwap);
+
+            let continue_stack_unwind = ctx.get_jump_index_to_here();
+            // result: num; stack: [error, ...args]
+            ctx.add_instruction(Instruction::LoadCopy);
+            // result: num; stack: [num, error, ...args]
+            let finish_stack_unwind = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            // result: None; stack: [num, error, ...args]
+            ctx.add_instruction(Instruction::Store);
+            // result: num; stack: [error, ...args]
+            ctx.add_instruction(Instruction::Decrement);
+            // result: num - 1; stack: [error, ...args]
+            ctx.add_instruction(Instruction::Swap);
+            // result: num - 1; stack: [args[0], error, ...args[1..]]
+            ctx.add_instruction(Instruction::UpdateEmpty);
+            // result: num - 1; stack: [error, ...args[1..]]
+            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_stack_unwind);
+
+            // === BREAK HERE - CONTROL FLOW NEVER PASSES THROUGH HERE ===
+            ctx.set_jump_target_here(finish_stack_unwind);
+            // result: None; stack: [num, error]
+            ctx.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
+            // result: error; stack: []
+            ctx.add_instruction(Instruction::Throw);
+        }
+        // Here is the static unwind logic: here we know exactly how many items
+        // we've pushed to the stack (and when we threw an error). Each static
+        // unwind jump target should thus drop one argument from stack and, if
+        // it is not the first one, pop the next exception target.
+        // result: error; stack: [...args]
+        let mut is_first = true;
+        while let Some(jump_to_static_unwind) = jumps_to_static_unwind.pop() {
+            if let Some(jump_to_static_unwind) = jump_to_static_unwind {
+                if !is_first {
+                    // Pop this jump target the stack if we're not the first one.
+                    // This is needed for fall-through cases.
+                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                }
+                is_first = false;
+                ctx.set_jump_target_here(jump_to_static_unwind);
+            }
+            // Note: it's possible that jump_to_static_unwind entries are None,
+            // meaning that the argument was infallible. In that case we're
+            // only interested in popping the value off the stack, but that
+            // also is only needed if a previous exception jump target already
+            // existed. eg. `foo(a, b, 1, 2, 3)` can only ever need to pop off
+            // `a`, whereas `foo(a, 1, 2, 3, b)` may only ever need to pop off
+            // `a, 1, 2, 3`, and `foo(a, 1, 2, b, 3, c)` may need to pop off
+            // either `a, 1, 2`, or `a, 1, 2, b, 3`.
+            if !is_first {
+                // result: error; stack: [args[0], ...args[1..]]
+                ctx.add_instruction(Instruction::UpdateEmpty);
+                // result: error; stack: [...args[1..]]
+            }
+        }
+        if is_first {
+            // If we made it through the static unwind bit without encountering
+            // a single JumpIndex, it means that all statically knowable
+            // parameters are infallible or fail on an empty stack: This means
+            // we don't need a rethrow as this location is unreachable.
+            debug_assert!(ctx.is_unreachable());
+        } else {
+            // Now it is finally time to rethrow our original error!
+            ctx.add_instruction(Instruction::Throw);
+        }
+        ctx.set_jump_target_here(jump_over_catch);
+    } else {
+        // If we have no need for a stack-unwind catch block, we should have no
+        // need for an iterator pop or dynamic unwind either.
+        debug_assert!(jump_to_iterator_pop.is_none());
+        debug_assert!(jump_to_dynamic_unwind.is_none());
+    }
+    result
 }
 
 impl<'s> CompileEvaluation<'s> for ast::CallExpression<'s> {
@@ -1239,14 +1444,13 @@ fn compile_delegate_yield_expression<'s>(
         ctx.add_instruction(Instruction::GetValue);
     }
     // 5. Let iteratorRecord be ? GetIterator(value, generatorKind).
-    if generator_kind_is_async {
-        ctx.add_instruction(Instruction::GetIteratorAsync);
-    } else {
-        ctx.add_instruction(Instruction::GetIteratorSync);
-    }
     // If a ? throw happens after this, we need to pop the iterator before
     // allowing the error to continue onwards.
-    let jump_to_iterator_pop = ctx.enter_try_catch_block();
+    let jump_to_iterator_pop = if generator_kind_is_async {
+        ctx.push_async_iterator()
+    } else {
+        ctx.push_sync_iterator()
+    };
     // 6. Let iterator be iteratorRecord.[[Iterator]].
     // 7. Let received be NormalCompletion(undefined).
     ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -1348,9 +1552,6 @@ fn compile_delegate_yield_expression<'s>(
         ctx.set_jump_target_here(jump_over_return_call);
         // 1. Set value to received.[[Value]].
         ctx.set_jump_target_here(jump_to_return);
-        // We're exiting the iterator here with compile_return; we should pop
-        // the iterator before we leave.
-        ctx.add_instruction(Instruction::IteratorPop);
         // 2. If generatorKind is async, then
         // a. Set value to ? Await(value).
         // Note: compile_return performs await on value in async generators.
@@ -1387,11 +1588,6 @@ fn compile_delegate_yield_expression<'s>(
         // iii. Else,
         // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_throw_call);
-        // Note: AsyncIteratorClose / IteratorClose will pop the iterator
-        // stack. Thus, even if they throw an error we must make sure they
-        // don't visit the overall catch block, so we need to pop the
-        // execution jump target stack here.
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
         // 1. NOTE: If iterator does not have a throw method, this throw is
         //    going to terminate the yield* loop. But first we need to give
         //    iterator a chance to clean up.
@@ -1411,6 +1607,9 @@ fn compile_delegate_yield_expression<'s>(
             // 4. Else, perform ? IteratorClose(iteratorRecord, closeCompletion).
             ctx.add_instruction(Instruction::IteratorClose);
         }
+        // Pop the overall catch block and pop the iterator.
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        ctx.add_instruction(Instruction::IteratorPop);
         // 5. NOTE: The next step throws a TypeError to indicate that there was
         //    a yield* protocol violation: iterator does not have a throw
         //    method.
@@ -1433,8 +1632,7 @@ fn compile_delegate_yield_expression<'s>(
     // We should be +0 try-catch block here.
     ctx.set_jump_target_here(jump_to_end);
     // Pop the overall catch block and the iterator.
-    ctx.exit_try_catch_block();
-    ctx.add_instruction(Instruction::IteratorPop);
+    ctx.pop_iterator_stack();
 }
 
 impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
@@ -1527,7 +1725,7 @@ impl<'s> CompileEvaluation<'s> for ast::Expression<'s> {
             ast::Expression::ThisExpression(x) => x.compile(ctx),
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
             ast::Expression::UpdateExpression(x) => x.compile(ctx),
-            ast::Expression::YieldExpression(x) => x.compile(ctx), // TODO: Implement this expression.
+            ast::Expression::YieldExpression(x) => x.compile(ctx),
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
             #[cfg(feature = "typescript")]
             ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
@@ -1621,36 +1819,34 @@ impl<'s> CompileEvaluation<'s> for ast::ReturnStatement<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        // if (test) consequent
+        // 1. Let exprRef be ? Evaluation of Expression.
         self.test.compile(ctx);
+        // 2. Let exprValue be ToBoolean(? GetValue(exprRef)).
         if is_reference(&self.test) {
             ctx.add_instruction(Instruction::GetValue);
         }
-        // jump over consequent if test fails
+        // 3. If exprValue is true, then
         let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        ctx.enter_if_statement();
+        // a. Let stmtCompletion be Completion(Evaluation of the first Statement).
         self.consequent.compile(ctx);
-        let mut jump_over_else = None;
+        ctx.exit_if_statement(false);
+        // 4. Else,
+        let jump_over_else = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         if let Some(alternate) = &self.alternate {
-            // Optimisation: If the an else branch exists, the consequent
-            // branch needs to end in a jump over it. But if the consequent
-            // branch ends in a terminal statement that jump becomes unnecessary.
-            if !ctx.is_unreachable() {
-                jump_over_else = Some(ctx.add_instruction_with_jump_slot(Instruction::Jump));
-            }
-
-            // Jump to else-branch when if test fails.
             ctx.set_jump_target_here(jump_to_else);
+            // a. Let stmtCompletion be Completion(Evaluation of the second Statement).
+            ctx.enter_if_statement();
             alternate.compile(ctx);
+            ctx.exit_if_statement(false);
         } else {
-            // Jump over if-branch when if test fails.
             ctx.set_jump_target_here(jump_to_else);
+            // 3. If exprValue is false, then
+            // a. Return undefined.
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            // 5. Return ? UpdateEmpty(stmtCompletion, undefined).
         }
-
-        // Jump over else-branch at the end of if-branch if necessary.
-        // (See optimisation above for when it is not needed.)
-        if let Some(jump_over_else) = jump_over_else {
-            ctx.set_jump_target_here(jump_over_else);
-        }
+        ctx.set_jump_target_here(jump_over_else);
     }
 }
 
@@ -1662,14 +1858,22 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
             // ArrayAssignmentPattern : [ ]
             // 1. Let iteratorRecord be ? GetIterator(value, sync).
             // 2. Return ? IteratorClose(iteratorRecord, NormalCompletion(unused)).
-            ctx.add_instruction(Instruction::GetIteratorSync);
+            let jump_to_catch = ctx.push_sync_iterator();
             ctx.add_instruction(Instruction::IteratorClose);
+            ctx.pop_iterator_stack();
+            let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+            {
+                // Catch block
+                ctx.set_jump_target_here(jump_to_catch);
+                ctx.add_instruction(Instruction::IteratorPop);
+                ctx.add_instruction(Instruction::Throw);
+            }
+            ctx.set_jump_target_here(jump_over_catch);
             return;
         }
 
         // 1. Let iteratorRecord be ? GetIterator(value, sync).
-        ctx.add_instruction(Instruction::GetIteratorSync);
-        let jump_to_catch = ctx.enter_iterator(None);
+        let jump_to_catch = ctx.push_sync_iterator();
         // 2. Let result be Completion(IteratorBindingInitialization of
         //    ArrayBindingPattern with arguments iteratorRecord and
         //    environment).
@@ -1695,14 +1899,16 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayPattern<'s> {
         // complex array binding injects it on its own. We don't need to do
         // anything special here.
         // 4. Return ? result.
-        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        ctx.pop_iterator_stack();
         let jump_over_catch_and_exit = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         {
-            // catch handling, we have to call IteratorClose with the error.
+            // catch handling, we have to call IteratorClose with the error,
+            // then pop the iterator and rethrow our error.
             ctx.set_jump_target_here(jump_to_catch);
             ctx.add_instruction(Instruction::IteratorCloseWithError);
+            ctx.add_instruction(Instruction::IteratorPop);
+            ctx.add_instruction(Instruction::Throw);
         }
-        ctx.exit_iterator(None);
         ctx.set_jump_target_here(jump_over_catch_and_exit);
     }
 }
@@ -2353,8 +2559,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
         if let Some(init) = &self.init {
             match init {
                 ast::ForStatementInit::VariableDeclaration(init) => {
-                    is_lexical = init.kind.is_lexical();
-                    if is_lexical {
+                    if init.kind.is_lexical() {
+                        is_lexical = true;
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
                         ctx.enter_lexical_scope();
@@ -2395,100 +2601,134 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
             }
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
-        let create_per_iteration_env = if !per_iteration_lets.is_empty() {
-            Some(|ctx: &mut CompileContext<'_, '_, 'gc, '_>| {
-                if per_iteration_lets.len() == 1 {
-                    // NOTE: Optimization for the usual case of a single let
-                    // binding. We do not need to push and pop from the stack
-                    // in this case but can use the result register directly.
-                    // There are rather easy further optimizations available as
-                    // well around creating a sibling environment directly,
-                    // creating an initialized mutable binding directly, and
-                    // importantly: The whole loop environment is unnecessary
-                    // if the loop contains no closures (that capture the
-                    // per-iteration lets).
+        let create_per_iteration_env = !per_iteration_lets.is_empty();
 
-                    let binding = *per_iteration_lets.first().unwrap();
-                    // Get value of binding from lastIterationEnv.
-                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
-                    ctx.add_instruction(Instruction::GetValue);
-                    // Note: here we do not use exit & enter lexical
-                    // environment helpers as we'd just immediately exit again.
-                    ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-                    ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, binding);
-                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                } else {
-                    for bn in &per_iteration_lets {
-                        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
-                        ctx.add_instruction(Instruction::GetValue);
-                        ctx.add_instruction(Instruction::Load);
-                    }
-                    // Note: here we do not use exit & enter lexical
-                    // environment helpers as we'd just immediately exit again.
-                    ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
-                    ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-                    for bn in per_iteration_lets.iter().rev() {
-                        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, *bn);
-                        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
-                        ctx.add_instruction(Instruction::Store);
-                        ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                    }
-                }
-            })
-        } else {
-            None
-        };
-
-        if let Some(create_per_iteration_env) = create_per_iteration_env {
-            create_per_iteration_env(ctx);
+        // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+        if create_per_iteration_env {
+            create_per_iteration_environment(ctx, &per_iteration_lets);
         }
 
+        // 1. Let V be undefined.
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        ctx.add_instruction(Instruction::Load);
         // 3. Repeat,
-        ctx.enter_loop(label_set.cloned());
-        let loop_jump = ctx.get_jump_index_to_here();
+        let jump_to_catch = ctx.enter_loop(label_set.cloned());
+        let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        let continue_label = ctx.get_jump_index_to_here();
+        // Note: to save one Jump in continue cases, the LoopContinues work is
+        // here.
+        // d. If result.[[Value]] is not empty, set V to result.[[Value]].
+        ctx.add_instruction(Instruction::LoadReplace);
+        // e. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+        if create_per_iteration_env {
+            create_per_iteration_environment(ctx, &per_iteration_lets);
+        }
+        // f. If increment is not empty, then
+        if let Some(update) = &self.update {
+            // i. Let incRef be ? Evaluation of increment.
+            update.compile(ctx);
+            // ii. Perform ? GetValue(incRef).
+            if is_reference(update) {
+                ctx.add_instruction(Instruction::GetValue);
+            }
+        }
+
+        ctx.set_jump_target_here(jump_over_continue);
+
+        // a. If test is not empty, then
         let end_jump = if let Some(test) = &self.test {
+            // i. Let testRef be ? Evaluation of test.
             test.compile(ctx);
+            // ii. Let testValue be ? GetValue(testRef).
             if is_reference(test) {
                 ctx.add_instruction(Instruction::GetValue);
             }
+            // iii. If ToBoolean(testValue) is false, return V.
             // jump over consequent if test fails
             Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
         } else {
             None
         };
 
+        // b. Let result be Completion(Evaluation of stmt).
         self.body.compile(ctx);
+        if !ctx.is_unreachable() {
+            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+        }
+        // c. If LoopContinues(result, labelSet) is false,
+        //    return ? UpdateEmpty(result, V).
+        // d. If result.[[Value]] is not empty, set V to result.[[Value]].
+        // e. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+        // f. If increment is not empty, then
 
-        let continue_target = if create_per_iteration_env.is_none() && self.update.is_none() {
-            // If there is no work to be done at the end of the loop, continue
-            // can just jump straight to the beginning.
-            loop_jump.clone()
-        } else {
-            let continue_target = ctx.get_jump_index_to_here();
-            if let Some(create_per_iteration_env) = create_per_iteration_env {
-                create_per_iteration_env(ctx);
-            }
+        {
+            // ## Catch block
+            ctx.set_jump_target_here(jump_to_catch);
+            // Error was thrown: this means loop continues is false:
+            // > c. If LoopContinues(result, labelSet) is false,
+            // >    return ? UpdateEmpty(result, V).
+            ctx.add_instruction(Instruction::UpdateEmpty);
+            ctx.add_instruction(Instruction::Throw);
+        }
 
-            if let Some(update) = &self.update {
-                update.compile(ctx);
-            }
-
-            continue_target
-        };
-
-        ctx.add_jump_instruction_to_index(Instruction::Jump, loop_jump);
+        // iii. If ToBoolean(testValue) is false, return V.
         if let Some(end_jump) = end_jump {
             ctx.set_jump_target_here(end_jump);
         }
-
-        ctx.exit_loop(continue_target);
+        // Note: exit_loop performs UpdateEmpty; if we jumped here from test
+        // failure then result is currently empty and UpdateEmpty will pop V
+        // into the result register.
+        ctx.exit_loop(continue_label);
 
         if is_lexical {
             // Lexical binding loops have an extra declarative environment that
             // we need to exit from once we exit the loop.
             ctx.exit_lexical_scope();
+        }
+    }
+}
+
+fn create_per_iteration_environment<'gc>(
+    ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    per_iteration_lets: &[String<'gc>],
+) {
+    if per_iteration_lets.len() == 1 {
+        // NOTE: Optimization for the usual case of a single let
+        // binding. We do not need to push and pop from the stack
+        // in this case but can use the result register directly.
+        // There are rather easy further optimizations available as
+        // well around creating a sibling environment directly,
+        // creating an initialized mutable binding directly, and
+        // importantly: The whole loop environment is unnecessary
+        // if the loop contains no closures (that capture the
+        // per-iteration lets).
+
+        let binding = *per_iteration_lets.first().unwrap();
+        // Get value of binding from lastIterationEnv.
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+        ctx.add_instruction(Instruction::GetValue);
+        // Note: here we do not use exit & enter lexical
+        // environment helpers as we'd just immediately exit again.
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, binding);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+        ctx.add_instruction(Instruction::InitializeReferencedBinding);
+    } else {
+        for bn in per_iteration_lets {
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+            ctx.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::Load);
+        }
+        // Note: here we do not use exit & enter lexical
+        // environment helpers as we'd just immediately exit again.
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        for bn in per_iteration_lets.iter().rev() {
+            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, *bn);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+            ctx.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
     }
 }
@@ -2709,13 +2949,18 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
-        ctx.enter_loop(label_set.cloned());
+        let jump_to_catch = ctx.enter_loop(label_set.cloned());
 
         // 1. Let V be undefined.
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         ctx.add_instruction(Instruction::Load);
         // 2. Repeat
-        let continue_target = ctx.get_jump_index_to_here();
+        let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        let continue_label = ctx.get_jump_index_to_here();
+        // f. If stmtResult.[[Value]] is not EMPTY, set V to
+        //    stmtResult.[[Value]].
+        ctx.add_instruction(Instruction::LoadReplace);
+        ctx.set_jump_target_here(jump_over_continue);
 
         // a. Let exprRef be ? Evaluation of Expression.
         // OPTIMISATION: while(true) loops are pretty common, skip the test.
@@ -2735,18 +2980,29 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
 
         // d. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
+        if !ctx.is_unreachable() {
+            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+        }
+        {
+            // ## Catch block
+            ctx.set_jump_target_here(jump_to_catch);
+            // Error was thrown: this means loop continues is false:
+            // > c. If LoopContinues(result, labelSet) is false,
+            // >    return ? UpdateEmpty(result, V).
+            ctx.add_instruction(Instruction::UpdateEmpty);
+            ctx.add_instruction(Instruction::Throw);
+        }
         // f. If stmtResult.[[Value]] is not EMPTY, set V to
         //    stmtResult.[[Value]].
-        ctx.add_instruction(Instruction::LoadReplace);
 
-        ctx.add_jump_instruction_to_index(Instruction::Jump, continue_target.clone());
+        // c. If ToBoolean(exprValue) is false, return V.
         if let Some(end_jump) = end_jump {
             ctx.set_jump_target_here(end_jump);
         }
-        ctx.exit_loop(continue_target);
-        // e. If LoopContinues(stmtResult, labelSet) is false,
-        //    return ? UpdateEmpty(stmtResult, V).
-        ctx.add_instruction(Instruction::UpdateEmpty);
+        // Note: exit_loop performs UpdateEmpty; if we jumped here from test
+        // failure then result is currently empty and UpdateEmpty will pop V
+        // into the result register.
+        ctx.exit_loop(continue_label);
     }
 }
 
@@ -2760,22 +3016,25 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         ctx.add_instruction(Instruction::Load);
         // 2. Repeat,
-        ctx.enter_loop(label_set.cloned());
-        let start_jump = ctx.get_jump_index_to_here();
-        // a. Let stmtResult be Completion(Evaluation of Statement).
-        self.body.compile(ctx);
-        let continue_target = ctx.get_jump_index_to_here();
+        let jump_to_catch = ctx.enter_loop(label_set.cloned());
+        let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        // Note: to save one Jump in continue cases, the LoopContinues work is
+        // here.
         // c. If stmtResult.[[Value]] is not empty, set V to
         //    stmtResult.[[Value]].
+        let continue_label = ctx.get_jump_index_to_here();
         ctx.add_instruction(Instruction::LoadReplace);
-
-        if is_boolean_literal_true(&self.test) {
+        let jump_to_end = if is_boolean_literal_true(&self.test) {
             // OPTIMISATION: do {} while(true) loops are still somewhat common,
             // skip the test.
-            ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
+            // f. If ToBoolean(exprValue) is false, return V.
+            None
         } else if is_boolean_literal_false(&self.test) {
             // OPTIMISATION: do {} while(false) loops appear in tests; this is
-            // a dumb optimisation.
+            // a dumb optimisation: continue can never return to the beginning
+            // of the loop.
+            // f. If ToBoolean(exprValue) is false, return V.
+            Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
         } else {
             // d. Let exprRef be ? Evaluation of Expression.
             self.test.compile(ctx);
@@ -2785,14 +3044,35 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
             }
 
             // f. If ToBoolean(exprValue) is false, return V.
-            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-            ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
-            ctx.set_jump_target_here(jump_to_end);
-        }
-        ctx.exit_loop(continue_target);
+            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+        };
+
+        ctx.set_jump_target_here(jump_over_continue);
+        // a. Let stmtResult be Completion(Evaluation of Statement).
+        self.body.compile(ctx);
         // b. If LoopContinues(stmtResult, labelSet) is false,
         //    return ? UpdateEmpty(stmtResult, V).
-        ctx.add_instruction(Instruction::UpdateEmpty);
+        if !ctx.is_unreachable() {
+            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+        }
+
+        {
+            // ## Catch block
+            ctx.set_jump_target_here(jump_to_catch);
+            // Error was thrown: this means loop continues is false:
+            // > b. If LoopContinues(stmtResult, labelSet) is false,
+            // >    return ? UpdateEmpty(stmtResult, V).
+            ctx.add_instruction(Instruction::UpdateEmpty);
+            ctx.add_instruction(Instruction::Throw);
+        }
+        // f. If ToBoolean(exprValue) is false, return V.
+        if let Some(jump_to_end) = jump_to_end {
+            ctx.set_jump_target_here(jump_to_end);
+        }
+        // Note: exit_loop performs UpdateEmpty; if we jumped here from test
+        // failure then result is currently empty and UpdateEmpty will pop V
+        // into the result register.
+        ctx.exit_loop(continue_label);
     }
 }
 
