@@ -423,7 +423,8 @@ pub enum Instruction {
     /// jump to the provided instruction.
     IteratorReturn,
     /// Consume the remainder of the iterator, and produce a new array with
-    /// those elements. This pops the iterator off the iterator stack.
+    /// those elements. This replaces the iterator with a special exhausted
+    /// iterator after use.
     IteratorRestIntoArray,
     /// Perform CloseIterator on the current iterator
     IteratorClose,
@@ -433,7 +434,8 @@ pub enum Instruction {
     /// as a thrown value.
     ///
     /// This will call the `return` method of the current iterator, ignoring
-    /// all errors, and then rethrows the current result.
+    /// all errors, and then continues with the thrown value still as the
+    /// current result.
     IteratorCloseWithError,
     /// Perform AsyncCloseIterator on the current iterator with the current
     /// result as a thrown value.
@@ -441,15 +443,13 @@ pub enum Instruction {
     /// This will call the `return` method of the current iterator. If the
     /// method is found and returns a value, then the current result is stored
     /// onto the stack, a special "ignore thrown error and next instruction"
-    /// exception jump target handler is installed, and then execution is
-    /// continued. If an error is thrown or no method exists, then the current
+    /// exception jump target handler is installed, and then an await is
+    /// performed. If an error is thrown or no method exists, then the current
     /// result is rethrown immediately.
     ///
     /// This instruction should always be followed by the following bytecode
     /// snippet:
     /// ```rust,ignore
-    /// // Perform the await if needed.
-    /// Instruction::Await;
     /// // Pop the special exception jump target handler if await didn't throw.
     /// // Note: this is skipped by the special handler if Await did throw.
     /// Instruction::PopExceptionJumpTarget;
@@ -477,12 +477,7 @@ impl Instruction {
     pub const fn is_terminal(self) -> bool {
         matches!(
             self,
-            Self::Jump
-                | Self::Return
-                | Self::Throw
-                | Self::ThrowError
-                | Self::IteratorCloseWithError
-                | Self::AsyncIteratorCloseWithError
+            Self::Jump | Self::Return | Self::Throw | Self::ThrowError
         )
     }
 

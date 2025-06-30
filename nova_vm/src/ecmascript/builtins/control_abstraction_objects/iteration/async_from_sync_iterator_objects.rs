@@ -118,7 +118,7 @@ impl AsyncFromSyncIteratorPrototype {
     pub(crate) fn r#return<'gc>(
         agent: &mut Agent,
         sync_iterator: Object,
-        value: Value,
+        value: Option<Value>,
         mut gc: GcScope<'gc, '_>,
     ) -> Promise<'gc> {
         let value = value.bind(gc.nogc());
@@ -133,7 +133,7 @@ impl AsyncFromSyncIteratorPrototype {
             .scope(agent, gc.nogc());
         // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
         // 5. Let syncIterator be syncIteratorRecord.[[Iterator]].
-        let value = value.scope(agent, gc.nogc());
+        let value = value.map(|v| v.scope(agent, gc.nogc()));
         // 6. Let return be Completion(GetMethod(syncIterator, "return")).
         let r#return = get_object_method(
             agent,
@@ -144,7 +144,7 @@ impl AsyncFromSyncIteratorPrototype {
         .unbind()
         .bind(gc.nogc());
 
-        let value = value.get(agent).bind(gc.nogc());
+        let value = value.map(|v| v.get(agent).bind(gc.nogc()));
 
         // 7. IfAbruptRejectPromise(return, promiseCapability).
         let promise_capability = PromiseCapability {
@@ -155,7 +155,8 @@ impl AsyncFromSyncIteratorPrototype {
         // 8. If return is undefined, then
         let Some(r#return) = r#return else {
             // a. Let iteratorResult be CreateIteratorResultObject(value, true).
-            let iterator_result = create_iter_result_object(agent, value, true);
+            let iterator_result =
+                create_iter_result_object(agent, value.unwrap_or(Value::Undefined), true);
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
             unwrap_try(promise_capability.try_resolve(
                 agent,
@@ -170,15 +171,18 @@ impl AsyncFromSyncIteratorPrototype {
         // a. Let result be Completion(Call(return, syncIterator, « value »)).
         // 10. Else,
         // a. Let result be Completion(Call(return, syncIterator)).
-        let result = call_function(
-            agent,
-            r#return.unbind(),
-            scoped_sync_iterator.get(agent).into_value(),
-            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
-            gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        let result = {
+            let mut value = value.unbind();
+            call_function(
+                agent,
+                r#return.unbind(),
+                scoped_sync_iterator.get(agent).into_value(),
+                value.as_mut().map(ArgumentsList::from_mut_value),
+                gc.reborrow(),
+            )
+            .unbind()
+            .bind(gc.nogc())
+        };
         // 11. IfAbruptRejectPromise(result, promiseCapability).
         let promise_capability = PromiseCapability {
             promise: scoped_promise.get(agent).bind(gc.nogc()),

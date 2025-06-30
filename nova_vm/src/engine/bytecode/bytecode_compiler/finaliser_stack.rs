@@ -15,7 +15,7 @@
 
 use oxc_ast::ast::LabelIdentifier;
 
-use crate::engine::Instruction;
+use crate::{ecmascript::types::Value, engine::Instruction};
 
 use super::{JumpIndex, executable_context::ExecutableContext};
 
@@ -52,12 +52,14 @@ pub(super) enum ControlFlowStackEntry<'a> {
     PrivateScope,
     /// A try-catch block was entered.
     CatchBlock,
+    /// An if-statement was entered.
+    IfStatement,
     /// A try-finally-block was entered.
     FinallyBlock {
         jump_to_catch: JumpIndex,
         incoming_control_flows: Option<Box<ControlFlowFinallyEntry<'a>>>,
     },
-    /// Traditional for-, while-, or for-in loop. Does not require finalisation.
+    /// Traditional for or while loop. Does not require finalisation.
     Loop {
         label_set: Option<Vec<&'a LabelIdentifier<'a>>>,
         incoming_control_flows: Option<Box<ControlFlowLoopEntry>>,
@@ -67,6 +69,12 @@ pub(super) enum ControlFlowStackEntry<'a> {
         label_set: Option<Vec<&'a LabelIdentifier<'a>>>,
         incoming_control_flows: Option<Box<ControlFlowSwitchEntry>>,
     },
+    /// An iterator stack entry. Requires popping the iterator from the
+    /// iterator stack on exit.
+    IteratorStackEntry,
+    /// An iterator stack entry for array destructuring. Requires closing and
+    /// popping the iterator stack on exit.
+    ArrayDestructuring,
     /// Synchronous for-of loop. Requires closing the iterator on exit.
     Iterator {
         label_set: Option<Vec<&'a LabelIdentifier<'a>>>,
@@ -216,7 +224,10 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
-            | ControlFlowStackEntry::CatchBlock { .. } => false,
+            | ControlFlowStackEntry::CatchBlock
+            | ControlFlowStackEntry::IfStatement
+            | ControlFlowStackEntry::IteratorStackEntry { .. }
+            | ControlFlowStackEntry::ArrayDestructuring => false,
             // Finally-block needs to intercept every break and continue.
             ControlFlowStackEntry::FinallyBlock { .. } => true,
             ControlFlowStackEntry::Loop { label_set, .. }
@@ -246,8 +257,11 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
+            | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::CatchBlock { .. }
-            | ControlFlowStackEntry::Switch { .. } => false,
+            | ControlFlowStackEntry::Switch { .. }
+            | ControlFlowStackEntry::IteratorStackEntry
+            | ControlFlowStackEntry::ArrayDestructuring => false,
             // Finally-block needs to intercept every break and continue.
             ControlFlowStackEntry::FinallyBlock { .. } => true,
             ControlFlowStackEntry::Loop { label_set, .. }
@@ -271,43 +285,49 @@ impl<'a> ControlFlowStackEntry<'a> {
     /// Return cannot target any block in particular, but finally-blocks do
     /// intercept returns and thus are an indirect target for them.
     pub(super) fn is_return_target(&self) -> bool {
-        match self {
-            ControlFlowStackEntry::LabelledStatement { .. }
-            | ControlFlowStackEntry::LexicalScope
-            | ControlFlowStackEntry::VariableScope
-            | ControlFlowStackEntry::PrivateScope
-            | ControlFlowStackEntry::CatchBlock { .. }
-            | ControlFlowStackEntry::Switch { .. }
-            | ControlFlowStackEntry::Loop { .. }
-            | ControlFlowStackEntry::Iterator { .. }
-            | ControlFlowStackEntry::AsyncIterator { .. } => false,
-            // Finally-block needs to intercept return.
-            ControlFlowStackEntry::FinallyBlock { .. } => true,
-        }
+        // Finally-block needs to intercept return.
+        matches!(self, ControlFlowStackEntry::FinallyBlock { .. })
     }
 
     /// Returns true if the entry requires finalisation on return.
     pub(super) fn requires_return_finalisation(&self, will_perform_other_finalisers: bool) -> bool {
         match self {
+            // Exiting these cannot be observed by users.
             ControlFlowStackEntry::LabelledStatement { .. }
             | ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::Loop { .. }
             | ControlFlowStackEntry::Switch { .. } => false,
-            // User-controlled finally-blocks, and iterator closes must be
-            // called on return.
-            ControlFlowStackEntry::Iterator { .. }
+            // If-statements, user-controlled finally-blocks, and iterator
+            // closes must be called on return.
+            ControlFlowStackEntry::IfStatement
+            | ControlFlowStackEntry::ArrayDestructuring
+            | ControlFlowStackEntry::Iterator { .. }
             | ControlFlowStackEntry::AsyncIterator { .. }
             | ControlFlowStackEntry::FinallyBlock { .. } => true,
-            // Catch blocks don't require finalisation on
-            // their own, but they can affect iterator and finally block work
-            // if those throw errors.
-            ControlFlowStackEntry::CatchBlock => will_perform_other_finalisers,
+            // Catch blocks and the iterator stack don't require finalisation
+            // on their own, but they do affect iterator closing and finally
+            // block work.
+            ControlFlowStackEntry::CatchBlock | ControlFlowStackEntry::IteratorStackEntry => {
+                will_perform_other_finalisers
+            }
         }
     }
 
-    pub(super) fn compile_exit(&self, executable: &mut ExecutableContext) {
+    /// Returns true if the entry sets a defined value to the result register
+    /// in compile_exit.
+    pub(super) fn sets_result_during_exit(&self) -> bool {
+        matches!(
+            self,
+            ControlFlowStackEntry::IfStatement
+                | ControlFlowStackEntry::Loop { .. }
+                | ControlFlowStackEntry::Iterator { .. }
+                | ControlFlowStackEntry::AsyncIterator { .. }
+        )
+    }
+
+    pub(super) fn compile_exit(&self, executable: &mut ExecutableContext, has_result: bool) {
         match self {
             ControlFlowStackEntry::LabelledStatement { .. } => {
                 // Labelled statements don't need finalisation.
@@ -321,6 +341,15 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::PrivateScope => {
                 executable.add_instruction(Instruction::ExitPrivateEnvironment);
             }
+            ControlFlowStackEntry::IfStatement => {
+                if has_result {
+                    // OPTIMISATION: if we statically know we have a result,
+                    // then we don't need to perform our
+                    // `UpdateEmpty(V, undefined)`.
+                    return;
+                }
+                compile_if_statement_exit(executable);
+            }
             ControlFlowStackEntry::CatchBlock { .. } => {
                 executable.add_instruction(Instruction::PopExceptionJumpTarget);
             }
@@ -328,13 +357,21 @@ impl<'a> ControlFlowStackEntry<'a> {
                 // Finally-blocks should always intercept incoming work.
                 unreachable!()
             }
-            ControlFlowStackEntry::Loop { .. } | ControlFlowStackEntry::Switch { .. } => {
-                // Loops and switches don't need finalisation.
+            ControlFlowStackEntry::Switch { .. } => {
+                // Switches don't need finalisation.
+            }
+            ControlFlowStackEntry::IteratorStackEntry => {
+                // Enumerator loops need to pop the iterator stack.
+                compile_iterator_pop(executable);
+            }
+            ControlFlowStackEntry::ArrayDestructuring => {
+                compile_array_destructuring_exit(executable);
+            }
+            ControlFlowStackEntry::Loop { .. } => {
+                compile_loop_exit(executable);
             }
             ControlFlowStackEntry::Iterator { .. } => {
-                // Iterators have to be closed and their catch handler popped.
-                executable.add_instruction(Instruction::PopExceptionJumpTarget);
-                executable.add_instruction(Instruction::IteratorClose);
+                compile_sync_iterator_exit(executable);
             }
             ControlFlowStackEntry::AsyncIterator { .. } => {
                 compile_async_iterator_exit(executable);
@@ -343,14 +380,66 @@ impl<'a> ControlFlowStackEntry<'a> {
     }
 }
 
+pub(super) fn compile_iterator_pop(executable: &mut ExecutableContext) {
+    executable.add_instruction(Instruction::PopExceptionJumpTarget);
+    executable.add_instruction(Instruction::IteratorPop);
+}
+
+/// Helper method to compile if-statement exit handling.
+///
+/// If-statements have to perform `UpdateEmpty(V, undefined)` at the end of the
+/// statement.
+pub(super) fn compile_if_statement_exit(executable: &mut ExecutableContext) {
+    executable.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+    executable.add_instruction(Instruction::UpdateEmpty);
+}
+
+/// Helper method to compile loop exit handling.
+///
+/// Loops have an exception handler for exceptional loop exit handling: that
+/// needs to be removed. Next, the loop will have placed a JavaScript Value `V`
+/// onto the stack: this needs to be popped and it should become our result if
+/// the exit was reached with an empty result value.
+pub(super) fn compile_loop_exit(executable: &mut ExecutableContext) {
+    // When breaking out of a loop its exception handler needs to be removed
+    // and the pushed JavaScript stack value popped.
+    executable.add_instruction(Instruction::PopExceptionJumpTarget);
+    executable.add_instruction(Instruction::UpdateEmpty);
+}
+
+/// Helper method to compile array destructuring iterator exit handling.
+///
+/// Iterators have an exception handler for exceptional loop exit handling:
+/// that needs to be removed. Array destructuring iterators must always be
+/// closed as well.
+pub(super) fn compile_array_destructuring_exit(executable: &mut ExecutableContext) {
+    executable.add_instruction(Instruction::PopExceptionJumpTarget);
+    executable.add_instruction(Instruction::IteratorClose);
+}
+
+/// Helper method to compile sync iterator exit handling.
+///
+/// Iterators have an exception handler for exceptional loop exit handling:
+/// that needs to be removed. Next, the iterator will have placed a JavaScript
+/// Value `V` onto the stack: this needs to be popped and it should become our
+/// result if the exit was reached with an empty result value. Finally, the
+/// iterator's "return" function, if found, must be called and its result
+/// ignored.
+pub(super) fn compile_sync_iterator_exit(executable: &mut ExecutableContext) {
+    compile_loop_exit(executable);
+    executable.add_instruction(Instruction::IteratorClose);
+}
+
 /// Helper method to compile async iterator exit handling.
 ///
-/// Async iterators have to be closed and the "return" function result, if any,
-/// awaited. Any errors thrown during this process are immediately rethrown,
-/// and if the process finishes successfully then the original result will be
-/// restored as the result value.
+/// Iterators have an exception handler for exceptional loop exit handling:
+/// that needs to be removed. Next, the iterator will have placed a JavaScript
+/// Value `V` onto the stack: this needs to be popped and it should become our
+/// result if the exit was reached with an empty result value. Finally, the
+/// iterator's "return" function, if found, must be called and its result
+/// awaited.
 pub(super) fn compile_async_iterator_exit(executable: &mut ExecutableContext) {
-    executable.add_instruction(Instruction::PopExceptionJumpTarget);
+    compile_loop_exit(executable);
     executable.add_instruction(Instruction::AsyncIteratorClose);
     // If async iterator close returned a Value, then it'll push the previous
     // result value into the stack and perform an implicit Await.
@@ -382,7 +471,7 @@ impl ControlFlowLoopEntry {
         for continue_source in self.continues {
             ctx.set_jump_target(continue_source, continue_target.clone());
         }
-        if self.breaks.is_empty() {
+        if ctx.is_unreachable() && self.breaks.is_empty() {
             return;
         }
         // Note: iterate breaks in reverse, in case the last one is our current

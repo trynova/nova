@@ -41,6 +41,12 @@ pub(super) fn execute_simple_array_binding<'a>(
         let mut break_after_bind = false;
 
         let value = match instr.kind {
+            Instruction::Debug => {
+                if agent.options.print_internals {
+                    eprintln!("Debug: {vm:#?}");
+                }
+                continue;
+            }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternGetValue
             | Instruction::BindingPatternSkip => {
@@ -203,7 +209,11 @@ pub(super) fn execute_simple_array_binding<'a>(
                 agent,
                 vm,
                 |agent, gc| {
-                    ActiveIterator::new(agent, gc.nogc()).r#return(agent, Value::Undefined, gc)
+                    ActiveIterator::new(agent, gc.nogc()).r#return(
+                        agent,
+                        Some(Value::Undefined),
+                        gc,
+                    )
                 },
                 gc,
             )?;
@@ -231,6 +241,11 @@ pub(super) fn execute_simple_object_binding<'a>(
             eprintln!("Executing: {:?}", instr.kind);
         }
         match instr.kind {
+            Instruction::Debug => {
+                if agent.options.print_internals {
+                    eprintln!("Debug: {vm:#?}");
+                }
+            }
             Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
                 with_vm_gc(
                     agent,
@@ -392,9 +407,17 @@ pub(super) fn execute_nested_simple_binding<'a>(
             .unbind()?
             .bind(gc.nogc());
             vm.iterator_stack.push(result.unbind());
-            let result =
-                execute_simple_array_binding(agent, vm, executable, environment.clone(), gc);
-            vm.iterator_stack.pop().unwrap();
+            let result = execute_simple_array_binding(
+                agent,
+                vm,
+                executable,
+                environment.clone(),
+                gc.reborrow(),
+            )
+            .unbind();
+            let gc = gc.into_nogc();
+            let result = result.bind(gc);
+            vm.pop_iterator(gc);
             result
         }
         Instruction::BeginSimpleObjectBindingPattern => {

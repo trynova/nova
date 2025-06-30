@@ -132,7 +132,7 @@ impl<'a> ActiveIterator<'a> {
     pub(super) fn r#return<'gc>(
         &mut self,
         agent: &mut Agent,
-        received_value: Value,
+        received_value: Option<Value>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         match self.get(agent) {
@@ -144,8 +144,9 @@ impl<'a> ActiveIterator<'a> {
                     .r#return(agent, received_value, gc)
                     .into_value(),
             )),
-            VmIteratorRecord::GenericIterator(_) => {
-                GenericIterator::new(self).r#return(agent, received_value, gc)
+            VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
+            | VmIteratorRecord::InvalidIterator { iterator } => {
+                GenericIterator::r#return(agent, *iterator, received_value, gc)
             }
             _ => unreachable!(),
         }
@@ -234,50 +235,12 @@ impl<'a> VmIteratorRecord<'a> {
             | VmIteratorRecord::SliceIterator(_)
             | VmIteratorRecord::EmptySliceIterator => false,
             VmIteratorRecord::ArrayValues(_) => {
-                // Note: no one can access the array values iterator while it is
-                // iterating so we know its prototype is the intrinsic
-                // ArrayIteratorPrototype. But that may have a return method
-                // set on it by a horrible-horrible person somewhere.
-                // TODO: This should actually maybe be the proto of the Array's
-                // realm?
-                let array_iterator_prototype = agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .array_iterator_prototype();
-                // IteratorClose calls GetMethod on the iterator: if a
-                // non-nullable value is found this way then things happen.
-                match array_iterator_prototype.try_get(
-                    agent,
-                    BUILTIN_STRING_MEMORY.r#return.into(),
-                    array_iterator_prototype.into_value(),
-                    gc,
-                ) {
-                    TryResult::Continue(return_method) => {
-                        !return_method.is_undefined() && !return_method.is_null()
-                    }
-                    // Note: here it's still possible that we won't actually
-                    // call a return method but this break already means that
-                    // the user can observe the ArrayIterator object.
-                    TryResult::Break(_) => true,
-                }
+                array_iterator_record_requires_return_call(agent, gc)
             }
             VmIteratorRecord::InvalidIterator { iterator }
             | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
             | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
-                match iterator.try_get(
-                    agent,
-                    BUILTIN_STRING_MEMORY.r#return.into(),
-                    iterator.into_value(),
-                    gc,
-                ) {
-                    TryResult::Continue(return_method) => {
-                        !return_method.is_undefined() && !return_method.is_null()
-                    }
-                    // Note: here it's still possible that we won't actually
-                    // call a return method but this break already means that
-                    // we'll need garbage collection.
-                    TryResult::Break(_) => true,
-                }
+                generic_iterator_record_requires_return_call(agent, *iterator, gc)
             }
         }
     }
@@ -756,7 +719,7 @@ impl<'a> ArrayValuesIterator<'a> {
     fn r#return<'gc>(
         &mut self,
         agent: &mut Agent,
-        _received_value: Value,
+        _received_value: Option<Value>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         // 1. Let return be ? GetMethod(iterator, "return").
@@ -980,14 +943,17 @@ impl<'a> GenericIterator<'a> {
     }
 
     fn r#return<'gc>(
-        &mut self,
         agent: &mut Agent,
-        received_value: Value,
+        iterator: Object,
+        value: Option<Value>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
-        let received_value = received_value.scope(agent, gc.nogc());
-        let iterator = self.get(agent).iterator.bind(gc.nogc());
-        // 1. Let return be ? GetMethod(iterator, "return").
+        let value = value.map(|v| v.scope(agent, gc.nogc()));
+        let iterator = iterator.bind(gc.nogc());
+        let scoped_iterator = iterator.scope(agent, gc.nogc());
+        // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
+        // 2. Let iterator be iteratorRecord.[[Iterator]].
+        // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
         let r#return = get_object_method(
             agent,
             iterator.unbind(),
@@ -996,21 +962,27 @@ impl<'a> GenericIterator<'a> {
         )
         .unbind()?
         .bind(gc.nogc());
-        // 2. If return is not undefined, then
+        // 4. If completion is a throw completion, return ? completion.
+        // 5. If innerResult is a throw completion, return ? innerResult.
+        // 4. If innerResult is a normal completion, then
+        // a. Let return be innerResult.[[Value]].
+        // b. If return is undefined, ...
         if let Some(r#return) = r#return {
-            let iterator = self.get(agent).iterator.bind(gc.nogc());
-            // i. Return Call(return, iterator, « received.[[Value]] »).
+            let iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+            // c. Set innerResult to Completion(Call(return, iterator)).
+            // d. If innerResult is a normal completion, set innerResult to
+            //    Completion(innerResult.[[Value]]).
+            // SAFETY: not shared.
+            let mut value = value.map(|v| unsafe { v.take(agent) });
             Ok(Some(call_function(
                 agent,
                 r#return.unbind(),
                 iterator.into_value().unbind(),
-                // SAFETY: not shared.
-                Some(ArgumentsList::from_mut_value(&mut unsafe {
-                    received_value.take(agent)
-                })),
+                value.as_mut().map(ArgumentsList::from_mut_value),
                 gc,
             )?))
         } else {
+            // ... return ? completion.
             Ok(None)
         }
     }
@@ -1054,7 +1026,7 @@ impl<'a> AsyncFromSyncGenericIterator<'a> {
     fn r#return<'gc>(
         &mut self,
         agent: &mut Agent,
-        value: Value,
+        value: Option<Value>,
         gc: GcScope<'gc, '_>,
     ) -> Promise<'gc> {
         // 1. Let O be the this value.
@@ -1091,6 +1063,56 @@ impl<'a> AsyncFromSyncGenericIterator<'a> {
             VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter,
             _ => unreachable!(),
         }
+    }
+}
+
+fn array_iterator_record_requires_return_call(agent: &mut Agent, gc: NoGcScope) -> bool {
+    // Note: no one can access the array values iterator while it is
+    // iterating so we know its prototype is the intrinsic
+    // ArrayIteratorPrototype. But that may have a return method
+    // set on it by a horrible-horrible person somewhere.
+    // TODO: This should actually maybe be the proto of the Array's
+    // realm?
+    let array_iterator_prototype = agent
+        .current_realm_record()
+        .intrinsics()
+        .array_iterator_prototype();
+    // IteratorClose calls GetMethod on the iterator: if a
+    // non-nullable value is found this way then things happen.
+    match array_iterator_prototype.try_get(
+        agent,
+        BUILTIN_STRING_MEMORY.r#return.into(),
+        array_iterator_prototype.into_value(),
+        gc,
+    ) {
+        TryResult::Continue(return_method) => {
+            !return_method.is_undefined() && !return_method.is_null()
+        }
+        // Note: here it's still possible that we won't actually
+        // call a return method but this break already means that
+        // the user can observe the ArrayIterator object.
+        TryResult::Break(_) => true,
+    }
+}
+
+fn generic_iterator_record_requires_return_call(
+    agent: &mut Agent,
+    iterator: Object,
+    gc: NoGcScope,
+) -> bool {
+    match iterator.try_get(
+        agent,
+        BUILTIN_STRING_MEMORY.r#return.into(),
+        iterator.into_value(),
+        gc,
+    ) {
+        TryResult::Continue(return_method) => {
+            !return_method.is_undefined() && !return_method.is_null()
+        }
+        // Note: here it's still possible that we won't actually
+        // call a return method but this break already means that
+        // we'll need garbage collection.
+        TryResult::Break(_) => true,
     }
 }
 
