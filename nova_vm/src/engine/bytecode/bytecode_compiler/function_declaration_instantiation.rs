@@ -24,6 +24,29 @@ use crate::{
 
 use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
 
+/// ### [10.2.11 FunctionDeclarationInstantiation ( func, argumentsList )](https://tc39.es/ecma262/#sec-functiondeclarationinstantiation)
+///
+/// The abstract operation FunctionDeclarationInstantiation takes arguments
+/// func (an ECMAScript function object) and argumentsList (a List of
+/// ECMAScript language values) and returns either a normal completion
+/// containing unused or a throw completion. func is the function object for
+/// which the execution context is being established.
+///
+/// > NOTE 1: When an execution context is established for evaluating an
+/// > ECMAScript function a new Function Environment Record is created and
+/// > bindings for each formal parameter are instantiated in that Environment
+/// > Record. Each declaration in the function body is also instantiated. If
+/// > the function's formal parameters do not include any default value
+/// > initializers then the body declarations are instantiated in the same
+/// > Environment Record as the parameters. If default value parameter
+/// > initializers exist, a second Environment Record is created for the body
+/// > declarations. Formal parameters and functions are initialized as part of
+/// > FunctionDeclarationInstantiation. All other bindings are initialized
+/// > during evaluation of the function body.
+///
+/// > NOTE 2: B.3.2 provides an extension to the above algorithm that is
+/// > necessary for backwards compatibility with web browser implementations of
+/// > ECMAScript that predate ECMAScript 2015.
 pub(crate) fn instantiation<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     formals: &'s FormalParameters<'s>,
@@ -31,8 +54,13 @@ pub(crate) fn instantiation<'s>(
     strict: bool,
     is_lexical: bool,
 ) {
+    // 1. Let calleeContext be the running execution context.
+    // 2. Let code be func.[[ECMAScriptCode]].
+    // 3. Let strict be func.[[Strict]].
+    // 4. Let formals be func.[[FormalParameters]].
     // 5. Let parameterNames be the BoundNames of formals.
-    // 6. If parameterNames has any duplicate entries, let hasDuplicates be true. Otherwise, let hasDuplicates be false.
+    // 6. If parameterNames has any duplicate entries, let hasDuplicates be
+    //    true. Otherwise, let hasDuplicates be false.
     let mut parameter_names = AHashSet::with_capacity(formals.parameters_count());
     let mut has_duplicates = false;
     formals.bound_names(&mut |identifier| {
@@ -84,13 +112,18 @@ pub(crate) fn instantiation<'s>(
                     .contains(&Atom::from("arguments"))));
 
     // 19. If strict is true or hasParameterExpressions is false, then
-    //   a. NOTE: Only a single Environment Record is needed for the parameters, since calls to eval in strict mode code cannot create new bindings which are visible outside of the eval.
+    //   a. NOTE: Only a single Environment Record is needed for the parameters,
+    //      since calls to eval in strict mode code cannot create new bindings
+    //      which are visible outside of the eval.
     //   b. Let env be the LexicalEnvironment of calleeContext.
     // 20. Else,
-    //   a. NOTE: A separate Environment Record is needed to ensure that bindings created by direct eval calls in the formal parameter list are outside the environment where parameters are declared.
+    //   a. NOTE: A separate Environment Record is needed to ensure that
+    //      bindings created by direct eval calls in the formal parameter list
+    //      are outside the environment where parameters are declared.
     //   b. Let calleeEnv be the LexicalEnvironment of calleeContext.
     //   c. Let env be NewDeclarativeEnvironment(calleeEnv).
-    //   d. Assert: The VariableEnvironment of calleeContext and calleeEnv are the same Environment Record.
+    //   d. Assert: The VariableEnvironment of calleeContext and calleeEnv are
+    //      the same Environment Record.
     //   e. Set the LexicalEnvironment of calleeContext to env.
     if !strict && has_parameter_expressions {
         // Note: these are not lexical scopes per-se, just something we "start
@@ -103,9 +136,12 @@ pub(crate) fn instantiation<'s>(
     // names are iterated, so it's fine for `parameter_names` to be a set.
     for param_name in &parameter_names {
         // a. Let alreadyDeclared be ! env.HasBinding(paramName).
-        // b. NOTE: Early errors ensure that duplicate parameter names can only occur in non-strict functions that do not have parameter default values or rest parameters.
+        // b. NOTE: Early errors ensure that duplicate parameter names can only
+        //    occur in non-strict functions that do not have parameter default
+        //    values or rest parameters.
         // c. If alreadyDeclared is false, then
-        // NOTE: Since `parameter_names` is a set, `alreadyDeclared` here should always be false.
+        // NOTE: Since `parameter_names` is a set, `alreadyDeclared` here
+        // should always be false.
 
         // i. Perform ! env.CreateMutableBinding(paramName, false).
         let param_name = ctx.create_string(param_name);
@@ -124,8 +160,12 @@ pub(crate) fn instantiation<'s>(
         // a. If strict is true or simpleParameterList is false, then
         //     i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
         // b. Else,
-        //     i. NOTE: A mapped argument object is only provided for non-strict functions that don't have a rest parameter, any parameter default value initializers, or any destructured parameters.
-        //     ii. Let ao be CreateMappedArgumentsObject(func, formals, argumentsList, env).
+        //     i. NOTE: A mapped argument object is only provided for
+        //        non-strict functions that don't have a rest parameter, any
+        //        parameter default value initializers, or any destructured
+        //        parameters.
+        //     ii. Let ao be CreateMappedArgumentsObject(func, formals,
+        //         argumentsList, env).
         // TODO: Currently, we always create an unmapped arguments object, even
         // in non-strict mode.
         ctx.add_instruction(Instruction::CreateUnmappedArgumentsObject);
@@ -133,7 +173,8 @@ pub(crate) fn instantiation<'s>(
         // c. If strict is true, then
         if strict {
             // i. Perform ! env.CreateImmutableBinding("arguments", false).
-            // ii. NOTE: In strict mode code early errors prevent attempting to assign to this binding, so its mutability is not observable.
+            // ii. NOTE: In strict mode code early errors prevent attempting to
+            //     assign to this binding, so its mutability is not observable.
             ctx.add_instruction_with_identifier(
                 Instruction::CreateImmutableBinding,
                 BUILTIN_STRING_MEMORY.arguments,
@@ -154,16 +195,19 @@ pub(crate) fn instantiation<'s>(
         );
         ctx.add_instruction(Instruction::InitializeReferencedBinding);
 
-        // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
+        // f. Let parameterBindings be the list-concatenation of parameterNames
+        //    and « "arguments" ».
         // NOTE: reusing `parameter_names` for `parameterBindings`.
         parameter_names.insert("arguments".into());
     }
 
     // 24. Let iteratorRecord be CreateListIteratorRecord(argumentsList).
     // 25. If hasDuplicates is true, then
-    //   a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and undefined.
+    //   a. Perform ? IteratorBindingInitialization of formals with arguments
+    //      iteratorRecord and undefined.
     // 26. Else,
-    //   a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and env.
+    //   a. Perform ? IteratorBindingInitialization of formals with arguments
+    //      iteratorRecord and env.
     if formals.has_parameter() {
         if has_parameter_expressions {
             complex_array_pattern(
@@ -187,7 +231,8 @@ pub(crate) fn instantiation<'s>(
 
     // 27. If hasParameterExpressions is false, then
     if !has_parameter_expressions {
-        // a. NOTE: Only a single Environment Record is needed for the parameters and top-level vars.
+        // a. NOTE: Only a single Environment Record is needed for the
+        //    parameters and top-level vars.
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
         // c. For each element n of varNames, do
@@ -220,7 +265,9 @@ pub(crate) fn instantiation<'s>(
         }
     } else {
         // 28. Else,
-        // a. NOTE: A separate Environment Record is needed to ensure that closures created by expressions in the formal parameter list do not have visibility of declarations in the function body.
+        // a. NOTE: A separate Environment Record is needed to ensure that
+        //    closures created by expressions in the formal parameter list do
+        //    not have visibility of declarations in the function body.
         // b. Let varEnv be NewDeclarativeEnvironment(env).
         // c. Set the VariableEnvironment of calleeContext to varEnv.
         // NOTE: Since this step operates on a variable environment, rather than
@@ -239,7 +286,8 @@ pub(crate) fn instantiation<'s>(
             }
             // 1. Append n to instantiatedVarNames.
             instantiated_var_names.insert(n);
-            // 3. If parameterBindings does not contain n, or if functionNames contains n, then
+            // 3. If parameterBindings does not contain n, or if functionNames
+            //    contains n, then
             let n_string = ctx.create_string(&n);
             if !parameter_names.contains(&n) || functions.contains_key(&n) {
                 // a. Let initialValue be undefined.
@@ -254,17 +302,21 @@ pub(crate) fn instantiation<'s>(
 
             // 2. Perform ! varEnv.CreateMutableBinding(n, false).
             // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
-            // 6. NOTE: A var with the same name as a formal parameter initially has the same value as the corresponding initialized parameter.
+            // 6. NOTE: A var with the same name as a formal parameter
+            //    initially has the same value as the corresponding initialized
+            //    parameter.
             ctx.add_instruction_with_constant(Instruction::LoadConstant, n_string);
         }
 
         // 30. If strict is false, then
         //   a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
-        //   b. NOTE: Non-strict functions use a separate Environment Record for top-level lexical
-        //      declarations so that a direct eval can determine whether any var scoped declarations
-        //      introduced by the eval code conflict with pre-existing top-level lexically scoped
-        //      declarations. This is not needed for strict functions because a strict direct eval
-        //      always places all declarations into a new Environment Record.
+        //   b. NOTE: Non-strict functions use a separate Environment Record
+        //      for top-level lexical declarations so that a direct eval can
+        //      determine whether any var scoped declarations introduced by the
+        //      eval code conflict with pre-existing top-level lexically scoped
+        //      declarations. This is not needed for strict functions because a
+        //      strict direct eval always places all declarations into a new
+        //      Environment Record.
         // 31. Else,
         //   a. Let lexEnv be varEnv.
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
@@ -278,7 +330,10 @@ pub(crate) fn instantiation<'s>(
     // 33. Let lexDeclarations be the LexicallyScopedDeclarations of code.
     // 34. For each element d of lexDeclarations, do
     for d in function_body_lexically_scoped_decarations(body) {
-        // a. NOTE: A lexically declared name cannot be the same as a function/generator declaration, formal parameter, or a var name. Lexically declared names are only instantiated here but not initialized.
+        // a. NOTE: A lexically declared name cannot be the same as a
+        //    function/generator declaration, formal parameter, or a var name.
+        //    Lexically declared names are only instantiated here but not
+        //    initialized.
         // b. For each element dn of the BoundNames of d, do
         match d {
             // i. If IsConstantDeclaration of d is true, then
@@ -312,7 +367,8 @@ pub(crate) fn instantiation<'s>(
 
     // 36. For each Parse Node f of functionsToInitialize, do
     for f in functions.values() {
-        // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
+        // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv
+        //    and privateEnv.
         f.compile(ctx);
         // a. Let fn be the sole element of the BoundNames of f.
         let f_name = ctx.create_string(&f.id.as_ref().unwrap().name);

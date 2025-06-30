@@ -25,7 +25,6 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
-            generator_objects::VmOrArguments,
             make_constructor,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ordinary_function_create,
@@ -321,12 +320,11 @@ pub(crate) fn evaluate_async_function_body<'a>(
     let promise = promise.scope(agent, gc.nogc());
     // 2. Let declResult be Completion(FunctionDeclarationInstantiation(functionObject, argumentsList)).
     // 3. If declResult is an abrupt completion, then
-    //if let Err(err) = function_declaration_instantiation(agent, function_object, arguments_list) {
-    //    // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « declResult.[[Value]] »).
-    //    promise_capability.reject(agent, err.value());
-    //} else {
     // 4. Else,
     // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
+    // Note: FunctionDeclarationInstantiation is performed as the first part of
+    // the compiled function body; we do not need to run it and
+    // AsyncFunctionStart separately.
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
@@ -337,8 +335,8 @@ pub(crate) fn evaluate_async_function_body<'a>(
     };
     let exe = exe.scope(agent, gc.nogc());
 
-    // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
-    // an await.
+    // AsyncFunctionStart will run the function until it returns, throws or
+    // gets suspended with an await.
     match Vm::execute(
         agent,
         exe,
@@ -420,13 +418,15 @@ pub(crate) fn evaluate_generator_body<'gc>(
 ) -> JsResult<'gc, Value<'gc>> {
     let mut arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
-    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
 
-    // Note: Rooting here is 99% unnecessary: OrdinaryCreateFromConstructor
-    // [[Get]]'s the "prototype" property of the constructor which is very
-    // unlikely to be a getter. It's just easier this way.
-    let scoped_function_object = function_object.scope(agent, gc.nogc());
+    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+        exe.scope(agent, gc.nogc())
+    } else {
+        let data = CompileFunctionBodyData::new(agent, function_object);
+        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        exe.scope(agent, gc.nogc())
+    };
 
     // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
     // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
@@ -448,33 +448,75 @@ pub(crate) fn evaluate_generator_body<'gc>(
                 },
                 gc.reborrow(),
             )
-            .unbind()?
+            .unbind()
             .bind(gc.nogc());
         arguments_list = args;
         generator
     };
-    let generator = generator.unbind();
-    let gc = gc.into_nogc();
-    let generator = generator.bind(gc);
-    let Object::Generator(generator) = generator else {
-        unreachable!()
+
+    // Note: we cannot throw our possible error yet, as that would be an
+    // observable difference in the execution order.
+    let generator = match generator {
+        Ok(generator) => {
+            let Object::Generator(generator) = generator else {
+                unreachable!()
+            };
+            Ok(generator.scope(agent, gc.nogc()))
+        }
+        Err(err) => Err(err.scope(agent, gc.nogc())),
     };
 
+    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+    // Note: FunctionDeclarationInstantiation is done at the beginning of the
+    // bytecode, followed by a Yield.
+    let vm = match Vm::execute(
+        agent,
+        exe.clone(),
+        Some(arguments_list.unbind().as_mut_slice()),
+        gc.reborrow(),
+    ) {
+        ExecutionResult::Throw(err) => {
+            // Drop the scoped generator/error.
+            // SAFETY: generator and error are not shared.
+            unsafe {
+                match generator {
+                    Ok(generator) => {
+                        let _ = generator.take(agent);
+                    }
+                    Err(err) => {
+                        let _ = err.take(agent);
+                    }
+                }
+            }
+            return Err(err.unbind().bind(gc.into_nogc()));
+        }
+        ExecutionResult::Yield { vm, yielded_value } => {
+            debug_assert!(yielded_value.is_undefined());
+            vm
+        }
+        _ => unreachable!(),
+    };
+    //}
+
+    let gc = gc.into_nogc();
+
+    // Unwrap the scoped generator/error.
+    // SAFETY: generator and error are not shared.
+    let generator = unsafe {
+        match generator {
+            Ok(generator) => Ok(generator.take(agent).bind(gc)),
+            Err(err) => Err(err.take(agent).bind(gc)),
+        }
+    }?;
+
     // 4. Perform GeneratorStart(G, FunctionBody).
-    // SAFETY: We're alive so SourceCode must be too.
-    let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
-    let executable = Executable::compile_function_body(agent, data, gc);
-    agent[generator].generator_state = Some(GeneratorState::Suspended(SuspendedGeneratorState {
-        vm_or_args: VmOrArguments::Arguments(
-            arguments_list
-                .as_slice()
-                .to_vec()
-                .unbind()
-                .into_boxed_slice(),
-        ),
-        executable: executable.unbind(),
-        execution_context: agent.running_execution_context().clone(),
-    }));
+    agent[generator].generator_state =
+        Some(GeneratorState::SuspendedStart(SuspendedGeneratorState {
+            vm,
+            // SAFETY: exe is not shared.
+            executable: unsafe { exe.take(agent) },
+            execution_context: agent.running_execution_context().clone(),
+        }));
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
     Ok(generator.into_value())
@@ -494,9 +536,16 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
 ) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     let mut arguments_list = arguments_list.bind(gc.nogc());
-    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
 
-    let scoped_function_object = function_object.scope(agent, gc.nogc());
+    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+        exe.scope(agent, gc.nogc())
+    } else {
+        let data = CompileFunctionBodyData::new(agent, function_object);
+        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        exe.scope(agent, gc.nogc())
+    };
+
     // 2. Let generator be ? OrdinaryCreateFromConstructor(functionObject,
     //    "%AsyncGeneratorPrototype%", « [[AsyncGeneratorState]],
     //    [[AsyncGeneratorContext]], [[AsyncGeneratorQueue]],
@@ -517,40 +566,74 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
                 },
                 gc.reborrow(),
             )
-            .unbind()?
+            .unbind()
             .bind(gc.nogc());
         arguments_list = args.bind(gc.nogc());
         generator
     };
-    let Object::AsyncGenerator(generator) = generator else {
-        unreachable!()
+
+    // Note: we cannot throw our possible error yet, as that would be an
+    // observable difference in the execution order.
+    let generator = match generator {
+        Ok(generator) => {
+            let Object::AsyncGenerator(generator) = generator else {
+                unreachable!()
+            };
+            Ok(generator.scope(agent, gc.nogc()))
+        }
+        Err(err) => Err(err.scope(agent, gc.nogc())),
     };
-    let generator = generator.unbind();
-    let arguments_list = arguments_list.unbind();
+
+    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+    // Note: FunctionDeclarationInstantiation is done at the beginning of the
+    // bytecode, followed by a Yield.
+    let vm = match Vm::execute(
+        agent,
+        exe.clone(),
+        Some(arguments_list.unbind().as_mut_slice()),
+        gc.reborrow(),
+    ) {
+        ExecutionResult::Throw(err) => {
+            // Drop the scoped generator/error.
+            // SAFETY: generator and error are not shared.
+            unsafe {
+                match generator {
+                    Ok(generator) => {
+                        let _ = generator.take(agent);
+                    }
+                    Err(err) => {
+                        let _ = err.take(agent);
+                    }
+                }
+            }
+            return Err(err.unbind().bind(gc.into_nogc()));
+        }
+        ExecutionResult::Yield { vm, yielded_value } => {
+            debug_assert!(yielded_value.is_undefined());
+            vm
+        }
+        _ => unreachable!(),
+    };
+    //}
+
     let gc = gc.into_nogc();
-    let generator = generator.bind(gc);
-    let arguments_list = arguments_list.bind(gc);
+
+    // Unwrap the scoped generator/error.
+    // SAFETY: generator and error are not shared.
+    let generator = unsafe {
+        match generator {
+            Ok(generator) => Ok(generator.take(agent).bind(gc)),
+            Err(err) => Err(err.take(agent).bind(gc)),
+        }
+    }?;
 
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
-    // SAFETY: scoped_function_object is never shared.
-    let function_object = unsafe { scoped_function_object.take(agent).bind(gc) };
-    let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
-        exe.bind(gc)
-    } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data, gc);
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
-        exe
-    };
-    agent[generator].executable = Some(executable.unbind());
+    // SAFETY: exe is not shared.
+    agent[generator].executable = Some(unsafe { exe.take(agent) });
     agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
-        arguments: arguments_list
-            .as_slice()
-            .to_vec()
-            .unbind()
-            .into_boxed_slice(),
+        vm,
         execution_context: agent.running_execution_context().clone(),
         queue: VecDeque::new(),
     });

@@ -17,7 +17,6 @@ pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 use crate::{
     ecmascript::{
         builtins::control_abstraction_objects::{
-            generator_objects::VmOrArguments,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
@@ -228,31 +227,23 @@ impl AsyncGenerator<'_> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> (VmOrArguments, ExecutionContext, Executable<'gc>) {
+    ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
         let async_generator_state = &mut agent[self].async_generator_state;
-        let (vm_or_args, execution_context, queue) = match async_generator_state.take().unwrap() {
-            AsyncGeneratorState::SuspendedStart {
-                arguments,
-                execution_context,
-                queue,
-            } => (
-                VmOrArguments::Arguments(arguments),
-                execution_context,
-                queue,
-            ),
-            AsyncGeneratorState::SuspendedYield {
+        let (vm, execution_context, queue) = match async_generator_state.take() {
+            Some(AsyncGeneratorState::SuspendedStart {
                 vm,
                 execution_context,
                 queue,
-            } => (VmOrArguments::Vm(vm), execution_context, queue),
+            }) => (vm, execution_context, queue),
+            Some(AsyncGeneratorState::SuspendedYield {
+                vm,
+                execution_context,
+                queue,
+            }) => (vm, execution_context, queue),
             _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::Executing(queue));
-        (
-            vm_or_args,
-            execution_context,
-            self.get_executable(agent, gc),
-        )
+        (vm, execution_context, self.get_executable(agent, gc))
     }
 
     pub(crate) fn transition_to_suspended(
@@ -494,7 +485,7 @@ pub(crate) enum AsyncGeneratorAwaitKind {
 #[derive(Debug)]
 pub(crate) enum AsyncGeneratorState<'a> {
     SuspendedStart {
-        arguments: Box<[Value<'static>]>,
+        vm: SuspendedVm,
         execution_context: ExecutionContext,
         queue: VecDeque<AsyncGeneratorRequest<'a>>,
     },
@@ -709,17 +700,11 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
         };
         match generator_state {
             AsyncGeneratorState::SuspendedStart {
-                arguments,
+                vm,
                 execution_context,
                 queue,
-            } => {
-                arguments.mark_values(queues);
-                execution_context.mark_values(queues);
-                for req in queue {
-                    req.mark_values(queues);
-                }
             }
-            AsyncGeneratorState::ExecutingAwait {
+            | AsyncGeneratorState::ExecutingAwait {
                 vm,
                 execution_context,
                 queue,
@@ -759,17 +744,11 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
         };
         match generator_state {
             AsyncGeneratorState::SuspendedStart {
-                arguments,
+                vm,
                 execution_context,
                 queue,
-            } => {
-                arguments.sweep_values(compactions);
-                execution_context.sweep_values(compactions);
-                for req in queue {
-                    req.sweep_values(compactions);
-                }
             }
-            AsyncGeneratorState::ExecutingAwait {
+            | AsyncGeneratorState::ExecutingAwait {
                 vm,
                 queue,
                 execution_context,
