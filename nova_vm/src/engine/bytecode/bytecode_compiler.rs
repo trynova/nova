@@ -1026,8 +1026,9 @@ impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the member expression: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
-        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+        // 1. Let baseReference be ? Evaluation of expression.
         self.expression.compile(ctx);
+        // 2. Let baseValue be ? GetValue(baseReference).
         if is_reference(&self.expression) {
             ctx.add_instruction(Instruction::GetValue);
         }
@@ -1040,6 +1041,7 @@ impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
         if self.object.is_super() {
             ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
         } else {
+            // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
             ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
         }
     }

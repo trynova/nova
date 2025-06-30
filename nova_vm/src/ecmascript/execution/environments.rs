@@ -53,7 +53,7 @@ pub(crate) use private_environment::{
 };
 
 use crate::{
-    ecmascript::types::{Base, IntoValue, Object, Reference, String, Value},
+    ecmascript::types::{IntoValue, Object, Reference, String, Value},
     engine::{
         TryResult,
         context::{Bindable, GcScope, GcToken, NoGcScope},
@@ -840,16 +840,11 @@ pub(crate) fn try_get_identifier_reference<'a>(
     // 3. If exists is true, then
     if exists {
         // a. Return the Reference Record {
-        TryResult::Continue(Reference {
-            // [[Base]]: env,
-            base: Base::Environment(env.unbind()),
-            // [[ReferencedName]]: name,
-            referenced_name: name.into(),
-            // [[Strict]]: strict,
-            strict,
-            // [[ThisValue]]: EMPTY
-            this_value: None,
-        })
+        // [[ReferencedName]]: name,
+        // [[Base]]: env,
+        // [[Strict]]: strict,
+        TryResult::Continue(Reference::new_variable_reference(env, name, strict))
+        // [[ThisValue]]: EMPTY
         // }.
     }
     // 4. Else,
@@ -859,16 +854,11 @@ pub(crate) fn try_get_identifier_reference<'a>(
 
         let Some(outer) = outer else {
             // a. Return the Reference Record {
-            return TryResult::Continue(Reference {
-                // [[Base]]: UNRESOLVABLE,
-                base: Base::Unresolvable,
-                // [[ReferencedName]]: name,
-                referenced_name: name.into(),
-                // [[Strict]]: strict,
-                strict,
-                // [[ThisValue]]: EMPTY
-                this_value: None,
-            });
+            // [[Base]]: UNRESOLVABLE,
+            // [[ReferencedName]]: name,
+            // [[Strict]]: strict,
+            return TryResult::Continue(Reference::new_unresolvable_reference(name, strict));
+            // [[ThisValue]]: EMPTY
             // }.
         };
 
@@ -897,16 +887,11 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     let Some(mut env) = env else {
         let name = name.unbind().bind(gc.into_nogc());
         // a. Return the Reference Record {
-        return Ok(Reference {
-            // [[Base]]: UNRESOLVABLE,
-            base: Base::Unresolvable,
-            // [[ReferencedName]]: name,
-            referenced_name: name.into(),
-            // [[Strict]]: strict,
-            strict,
-            // [[ThisValue]]: EMPTY
-            this_value: None,
-        });
+        // [[Base]]: UNRESOLVABLE,
+        // [[ReferencedName]]: name,
+        // [[Strict]]: strict,
+        return Ok(Reference::new_unresolvable_reference(name, strict));
+        // [[ThisValue]]: EMPTY
         // }.
     };
 
@@ -932,16 +917,11 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         let name = name.unbind();
         let gc = gc.into_nogc();
         // a. Return the Reference Record {
-        Ok(Reference {
-            // [[Base]]: env,
-            base: Base::Environment(env.bind(gc)),
-            // [[ReferencedName]]: name,
-            referenced_name: name.bind(gc).into(),
-            // [[Strict]]: strict,
-            strict,
-            // [[ThisValue]]: EMPTY
-            this_value: None,
-        })
+        // [[Base]]: env,
+        // [[ReferencedName]]: name,
+        // [[Strict]]: strict,
+        Ok(Reference::new_variable_reference(env, name, strict).bind(gc))
+        // [[ThisValue]]: EMPTY
         // }.
     }
     // 4. Else,
