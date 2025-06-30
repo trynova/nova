@@ -65,7 +65,7 @@ impl DeclarativeEnvironmentRecord {
     /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     pub(super) fn create_mutable_binding(&mut self, name: String, is_deletable: bool) {
         // 1. Assert: envRec does not already have a binding for N.
-        debug_assert!(!self.has_binding(name));
+        assert!(!self.has_binding(name));
 
         // 2. Create a mutable binding in envRec for N and record that it is
         // uninitialized. If D is true, record that the newly created binding

@@ -23,7 +23,7 @@ use crate::{
         types::{IntoValue, Value},
     },
     engine::{
-        ExecutionResult, Scoped, SuspendedVm, Vm,
+        ExecutionResult, Scoped, SuspendedVm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -32,7 +32,7 @@ use crate::{
 
 use super::{
     AsyncGenerator, AsyncGeneratorAwaitKind, AsyncGeneratorRequest,
-    AsyncGeneratorRequestCompletion, AsyncGeneratorState, VmOrArguments,
+    AsyncGeneratorRequestCompletion, AsyncGeneratorState,
 };
 
 /// ### [27.6.3.2 AsyncGeneratorStart ( generator, generatorBody )](https://tc39.es/ecma262/#sec-asyncgeneratorstart)
@@ -195,7 +195,7 @@ pub(super) fn async_generator_resume(
     // 2. Let genContext be generator.[[AsyncGeneratorContext]].
     // 5. Set generator.[[AsyncGeneratorState]] to executing.
     assert!(generator.is_suspended_start(agent) || generator.is_suspended_yield(agent));
-    let (vm_or_args, gen_context, executable) = generator.transition_to_executing(agent, gc.nogc());
+    let (vm, gen_context, executable) = generator.transition_to_executing(agent, gc.nogc());
     let executable = executable.scope(agent, gc.nogc());
 
     // 3. Let callerContext be the running execution context.
@@ -209,21 +209,16 @@ pub(super) fn async_generator_resume(
     // 7. Resume the suspended evaluation of genContext using completion as the
     //    result of the operation that suspended it. Let result be the
     //    Completion Record returned by the resumed computation.
-    let execution_result = match vm_or_args {
-        VmOrArguments::Arguments(mut args) => {
-            Vm::execute(agent, executable, Some(&mut args), gc.reborrow())
+    let execution_result = match completion {
+        AsyncGeneratorRequestCompletion::Ok(value) => {
+            vm.resume(agent, executable, value.unbind(), gc.reborrow())
         }
-        VmOrArguments::Vm(vm) => match completion {
-            AsyncGeneratorRequestCompletion::Ok(value) => {
-                vm.resume(agent, executable, value.unbind(), gc.reborrow())
-            }
-            AsyncGeneratorRequestCompletion::Err(err) => {
-                vm.resume_throw(agent, executable, err.value().unbind(), gc.reborrow())
-            }
-            AsyncGeneratorRequestCompletion::Return(value) => {
-                vm.resume_return(agent, executable, value.unbind(), gc.reborrow())
-            }
-        },
+        AsyncGeneratorRequestCompletion::Err(err) => {
+            vm.resume_throw(agent, executable, err.value().unbind(), gc.reborrow())
+        }
+        AsyncGeneratorRequestCompletion::Return(value) => {
+            vm.resume_return(agent, executable, value.unbind(), gc.reborrow())
+        }
     };
     // 8. Assert: result is never an abrupt completion.
     // 9. Assert: When we return here, genContext has already been removed from

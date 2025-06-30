@@ -138,6 +138,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.generator_kind = Some(kind);
     }
 
+    /// Returns true if we're compiling a generator (sync or async).
+    pub(crate) fn is_generator(&self) -> bool {
+        self.generator_kind.is_some()
+    }
+
     /// Returns true if we're compiling an asynchronous generator.
     pub(crate) fn is_async_generator(&self) -> bool {
         self.generator_kind == Some(GeneratorKind::Async)
@@ -802,6 +807,13 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             data.is_strict,
             data.is_lexical,
         );
+
+        if self.is_generator() {
+            // Perform a Yield after FunctionDeclarationInstantiation; this is
+            // when the Generator object actually gets created.
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            self.add_instruction(Instruction::Yield);
+        }
 
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during

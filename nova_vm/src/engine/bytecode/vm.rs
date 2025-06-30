@@ -2073,7 +2073,7 @@ impl Vm {
                 // 1. Let env be GetThisEnvironment().
                 // 2. Assert: env.HasSuperBinding() is true.
                 // 3. Assert: env is a Function Environment Record.
-                debug_assert!(env.has_super_binding(agent));
+                assert!(env.has_super_binding(agent));
                 let Environment::Function(env) = env else {
                     unreachable!()
                 };
