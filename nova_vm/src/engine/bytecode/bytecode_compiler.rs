@@ -610,7 +610,7 @@ fn compile_arguments<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
 ) -> usize {
     let mut jumps_to_static_unwind = if arguments.len() == 1
-        && arguments.get(0).unwrap().is_expression()
+        && arguments.first().unwrap().is_expression()
         || arguments
             .iter()
             .all(|arg| arg.as_expression().is_some_and(|expr| expr.is_literal()))

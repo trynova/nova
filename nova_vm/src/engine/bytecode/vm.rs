@@ -3735,11 +3735,7 @@ fn verify_is_object<'a>(
     if !value.is_object() {
         let message =
             String::from_static_str(agent, "iterator.return() returned a non-object value", gc);
-        return Err(agent.throw_exception_with_message(
-            ExceptionType::TypeError,
-            message.unbind(),
-            gc,
-        ));
+        Err(agent.throw_exception_with_message(ExceptionType::TypeError, message.unbind(), gc))
     } else {
         Ok(())
     }
