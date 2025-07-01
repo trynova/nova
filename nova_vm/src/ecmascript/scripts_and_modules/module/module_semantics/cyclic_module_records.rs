@@ -6,7 +6,10 @@
 
 use crate::{
     ecmascript::{
-        builtins::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+        builtins::{
+            promise::Promise,
+            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+        },
         execution::{Agent, JsResult, agent::JsError},
         scripts_and_modules::{
             module::module_semantics::{
@@ -397,6 +400,19 @@ pub struct GraphLoadingStateRecord<'a> {
     //
     // It contains host-defined data to pass from the LoadRequestedModules caller to HostLoadImportedModule.
     pub(super) host_defined: Option<HostDefined>,
+}
+
+impl<'a> GraphLoadingStateRecord<'a> {
+    /// Used by dynamic import; this is against the spec and not a good look.
+    pub(crate) fn from_promise(promise: Promise<'a>) -> Self {
+        Self {
+            promise_capability: PromiseCapability::from_promise(promise, true),
+            is_loading: false,
+            pending_modules_count: 0,
+            visited: vec![],
+            host_defined: None,
+        }
+    }
 }
 
 /// ### [16.2.1.6.1.1.1 InnerModuleLoading ( state, module )](https://tc39.es/ecma262/#sec-InnerModuleLoading)

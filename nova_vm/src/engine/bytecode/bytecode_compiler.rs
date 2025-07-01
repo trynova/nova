@@ -1205,11 +1205,45 @@ impl<'s> CompileEvaluation<'s> for ast::ConditionalExpression<'s> {
 }
 
 impl<'s> CompileEvaluation<'s> for ast::ImportExpression<'s> {
+    /// ### [13.3.10.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-import-call-runtime-semantics-evaluation)
+    ///
+    /// ```text
+    /// ImportCall : import ( AssignmentExpression , (opt) )
+    ///
+    /// 1. Return ? EvaluateImportCall(AssignmentExpression).
+    /// ```
+    ///
+    /// ```text
+    /// ImportCall : import ( AssignmentExpression , AssignmentExpression , (opt) )
+    ///
+    /// 1. Return ? EvaluateImportCall(the first AssignmentExpression, the second AssignmentExpression).
+    /// ```
+    ///
+    /// ### [13.3.10.2 EvaluateImportCall ( specifierExpression \[ , optionsExpression \] )](https://tc39.es/ecma262/#sec-evaluate-import-call)
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let (agent, gc) = ctx.get_agent_and_gc();
-        let message = String::from_static_str(agent, "dynamic import not supported", gc);
-        ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
-        ctx.add_instruction_with_immediate(Instruction::ThrowError, ExceptionType::Error as usize);
+        // Note: referrer cannot change dynamically, so we don't need to get it
+        // right here and now; we'll defer that to after all the other steps.
+        // 3. Let specifierRef be ? Evaluation of specifierExpression.
+        self.source.compile(ctx);
+        // 4. Let specifier be ? GetValue(specifierRef).
+        if is_reference(&self.source) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+        ctx.add_instruction(Instruction::Load);
+        // 5. If optionsExpression is present, then
+        if let Some(options) = &self.options {
+            // a. Let optionsRef be ? Evaluation of optionsExpression.
+            options.compile(ctx);
+            // b. Let options be ? GetValue(optionsRef).
+            if is_reference(options) {
+                ctx.add_instruction(Instruction::GetValue);
+            }
+        }
+        // 6. Else,
+        // a. Let options be undefined.
+        // Note: we don't store an undefined constant; the ImportCall
+        // instruction can take care of that.
+        ctx.add_instruction(Instruction::ImportCall);
     }
 }
 

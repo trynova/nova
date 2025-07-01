@@ -4,15 +4,17 @@
 
 mod intrinsics;
 
-use super::new_global_environment;
-use super::{Agent, ExecutionContext, JsResult, environments::GlobalEnvironment};
-use crate::ecmascript::scripts_and_modules::module::module_semantics::ModuleRequest;
-use crate::ecmascript::scripts_and_modules::script::HostDefined;
+use super::{
+    Agent, ExecutionContext, JsResult, environments::GlobalEnvironment, new_global_environment,
+};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
-        scripts_and_modules::module::module_semantics::{
-            LoadedModules, abstract_module_records::AbstractModule,
+        scripts_and_modules::{
+            module::module_semantics::{
+                LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
+            },
+            script::HostDefined,
         },
         types::{
             BUILTIN_STRING_MEMORY, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor,

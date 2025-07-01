@@ -9,8 +9,10 @@ use crate::{
         builtins::{
             async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
+            promise::Promise,
         },
         execution::Agent,
+        scripts_and_modules::module::module_semantics::abstract_module_records::AbstractModule,
         types::{Function, Object},
     },
     engine::{
@@ -55,6 +57,14 @@ pub(crate) enum PromiseReactionHandler<'a> {
         done: bool,
     },
     AsyncFromSyncIteratorClose(Object<'a>),
+    DynamicImport {
+        promise: Promise<'a>,
+        module: AbstractModule<'a>,
+    },
+    DynamicImportEvaluate {
+        promise: Promise<'a>,
+        module: AbstractModule<'a>,
+    },
     Empty,
 }
 
@@ -66,6 +76,11 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             Self::AsyncGenerator(async_generator) => async_generator.mark_values(queues),
             Self::AsyncFromSyncIterator { done: _ } => {}
             Self::AsyncFromSyncIteratorClose(object) => object.mark_values(queues),
+            Self::DynamicImport { promise, module }
+            | Self::DynamicImportEvaluate { promise, module } => {
+                promise.mark_values(queues);
+                module.mark_values(queues);
+            }
             Self::Empty => {}
         }
     }
@@ -79,6 +94,11 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             Self::AsyncGenerator(async_generator) => async_generator.sweep_values(compactions),
             Self::AsyncFromSyncIterator { done: _ } => {}
             Self::AsyncFromSyncIteratorClose(object) => object.sweep_values(compactions),
+            Self::DynamicImport { promise, module }
+            | Self::DynamicImportEvaluate { promise, module } => {
+                promise.sweep_values(compactions);
+                module.sweep_values(compactions);
+            }
             Self::Empty => {}
         }
     }

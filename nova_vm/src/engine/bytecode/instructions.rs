@@ -465,6 +465,10 @@ pub enum Instruction {
     IteratorPop,
     /// Store GetNewTarget() as the result value.
     GetNewTarget,
+    /// Perform EvaluateImportCall with specifier at the top of the stack, and
+    /// options (optionally) in the result register. Pops the stack and places
+    /// a dynamic import Promise into the result register.
+    ImportCall,
     /// Store `import.meta` object as the result value.
     ImportMeta,
     /// Throw a TypeError if the result register does not contain an Object.
@@ -1239,6 +1243,7 @@ impl TryFrom<u8> for Instruction {
         const ASYNCITERATORCLOSEWITHERROR: u8 = Instruction::AsyncIteratorCloseWithError.as_u8();
         const ITERATORPOP: u8 = Instruction::IteratorPop.as_u8();
         const GETNEWTARGET: u8 = Instruction::GetNewTarget.as_u8();
+        const IMPORTCALL: u8 = Instruction::ImportCall.as_u8();
         const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
         match value {
@@ -1442,6 +1447,7 @@ impl TryFrom<u8> for Instruction {
             ASYNCITERATORCLOSEWITHERROR => Ok(Instruction::AsyncIteratorCloseWithError),
             ITERATORPOP => Ok(Instruction::IteratorPop),
             GETNEWTARGET => Ok(Instruction::GetNewTarget),
+            IMPORTCALL => Ok(Instruction::ImportCall),
             IMPORTMETA => Ok(Instruction::ImportMeta),
             VERIFYISOBJECT => Ok(Instruction::VerifyIsObject),
             _ => Err(()),
