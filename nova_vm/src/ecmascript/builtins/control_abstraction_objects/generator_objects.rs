@@ -584,9 +584,7 @@ impl HeapMarkAndSweep for GeneratorHeapData<'static> {
             generator_state,
         } = self;
         object_index.mark_values(queues);
-        if let Some(GeneratorState::SuspendedYield(state)) = generator_state {
-            state.mark_values(queues);
-        }
+        generator_state.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -595,8 +593,26 @@ impl HeapMarkAndSweep for GeneratorHeapData<'static> {
             generator_state,
         } = self;
         object_index.sweep_values(compactions);
-        if let Some(GeneratorState::SuspendedYield(state)) = generator_state {
-            state.sweep_values(compactions);
+        generator_state.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for GeneratorState {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            GeneratorState::SuspendedStart(s) | GeneratorState::SuspendedYield(s) => {
+                s.mark_values(queues)
+            }
+            GeneratorState::Executing | GeneratorState::Completed => {}
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            GeneratorState::SuspendedStart(s) | GeneratorState::SuspendedYield(s) => {
+                s.sweep_values(compactions)
+            }
+            GeneratorState::Executing | GeneratorState::Completed => {}
         }
     }
 }

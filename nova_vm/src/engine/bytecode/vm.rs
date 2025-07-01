@@ -202,6 +202,16 @@ pub(crate) struct SuspendedVm {
 }
 
 impl SuspendedVm {
+    /// Returns true if the suspended VM is safe to keep past a GC safepoint.
+    ///
+    /// This requires that the VMs stacks are all empty.
+    pub(crate) fn is_gc_safe(&self) -> bool {
+        self.stack.is_empty()
+            && self.reference_stack.is_empty()
+            && self.iterator_stack.is_empty()
+            && self.exception_jump_target_stack.is_empty()
+    }
+
     pub(crate) fn resume<'gc>(
         self,
         agent: &mut Agent,

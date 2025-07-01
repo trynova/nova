@@ -16,9 +16,8 @@ pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 
 use crate::{
     ecmascript::{
-        builtins::control_abstraction_objects::{
+        builtins::control_abstraction_objects::
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
-        },
         execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
