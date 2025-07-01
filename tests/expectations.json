@@ -10350,7 +10350,6 @@
   "language/statementList/eval-fn-regexp-literal-flags.js": "FAIL",
   "language/statementList/eval-fn-regexp-literal.js": "FAIL",
   "language/statements/async-function/evaluation-mapped-arguments.js": "FAIL",
-  "language/statements/async-generator/return-undefined-implicit-and-explicit.js": "FAIL",
   "language/statements/async-generator/yield-star-return-then-getter-ticks.js": "FAIL",
   "language/statements/await-using/throws-if-initializer-not-object.js": "CRASH",
   "language/statements/block/tco-stmt-list.js": "CRASH",
