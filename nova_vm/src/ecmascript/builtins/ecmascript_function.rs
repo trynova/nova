@@ -975,16 +975,31 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     // 19. Set F.[[PrivateMethods]] to a new empty List.
     // 20. Set F.[[ClassFieldInitializerName]] to EMPTY.
     // 21. Let len be the ExpectedArgumentCount of ParameterList.
-    let len = params
-        .parameters_list
-        .items
-        .iter()
-        .filter(|par| !par.pattern.kind.is_assignment_pattern())
-        .count();
+    let len = expected_arguments_count(params.parameters_list);
     // 22. Perform SetFunctionLength(F, len).
     set_ecmascript_function_length(agent, &mut function, len, gc).unwrap();
     // 23. Return F.
     agent.heap.create(function)
+}
+
+/// ### [15.1.5 Static Semantics: ExpectedArgumentCount](https://tc39.es/ecma262/#sec-static-semantics-expectedargumentcount)
+fn expected_arguments_count(params: &FormalParameters) -> usize {
+    // FormalParameterList : FormalParameterList , FormalParameter
+
+    // 1. Let count be the ExpectedArgumentCount of FormalParameterList.
+    let mut count = 0;
+    // 2. If HasInitializer of FormalParameterList is true or HasInitializer of
+    //    FormalParameter is true, return count.
+    // 3. Return count + 1.
+    for param in params.items.iter() {
+        if param.pattern.kind.is_assignment_pattern() {
+            // FormalParameterList : FormalParameter
+            // 1. If HasInitializer of FormalParameter is true, return 0.
+            break;
+        }
+        count += 1;
+    }
+    return count;
 }
 
 /// ### [10.2.5 MakeConstructor ( F \[ , writablePrototype \[ , prototype \] \] )](https://tc39.es/ecma262/#sec-makeconstructor)
