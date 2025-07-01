@@ -1558,7 +1558,7 @@ fn compile_delegate_yield_expression<'s>(
         // a. Set value to ? Await(value).
         // Note: compile_return performs await on value in async generators.
         // 3. Return ReturnCompletion(value).
-        ctx.compile_return();
+        ctx.compile_return(true);
     }
     // b. Else if received is a throw completion, then
     {
@@ -1682,7 +1682,7 @@ impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
         // Note: generators can be resumed with a Return instruction. For those
         // cases we need to generate Return handling here.
         let jump_over_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        ctx.compile_return();
+        ctx.compile_return(true);
         ctx.set_jump_target_here(jump_over_return);
     }
 }
@@ -1815,7 +1815,7 @@ impl<'s> CompileEvaluation<'s> for ast::ReturnStatement<'s> {
         } else {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        ctx.compile_return();
+        ctx.compile_return(self.argument.is_some());
     }
 }
 
