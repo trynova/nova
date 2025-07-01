@@ -54,8 +54,10 @@ pub(super) enum ControlFlowStackEntry<'a> {
     CatchBlock,
     /// An if-statement was entered.
     IfStatement,
+    /// A finally-block was entered. A pending result exists on the stack.
+    FinallyBlock,
     /// A try-finally-block was entered.
-    FinallyBlock {
+    TryFinallyBlock {
         jump_to_catch: JumpIndex,
         incoming_control_flows: Option<Box<ControlFlowFinallyEntry<'a>>>,
     },
@@ -95,7 +97,7 @@ impl<'a> ControlFlowStackEntry<'a> {
         break_source: JumpIndex,
     ) {
         match self {
-            ControlFlowStackEntry::FinallyBlock {
+            ControlFlowStackEntry::TryFinallyBlock {
                 incoming_control_flows,
                 ..
             } => {
@@ -156,7 +158,7 @@ impl<'a> ControlFlowStackEntry<'a> {
         continue_source: JumpIndex,
     ) {
         match self {
-            ControlFlowStackEntry::FinallyBlock {
+            ControlFlowStackEntry::TryFinallyBlock {
                 incoming_control_flows,
                 ..
             } => {
@@ -198,7 +200,7 @@ impl<'a> ControlFlowStackEntry<'a> {
     }
 
     pub(super) fn add_return_source(&mut self, return_source: JumpIndex) {
-        let ControlFlowStackEntry::FinallyBlock {
+        let ControlFlowStackEntry::TryFinallyBlock {
             incoming_control_flows,
             ..
         } = self
@@ -226,10 +228,11 @@ impl<'a> ControlFlowStackEntry<'a> {
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::CatchBlock
             | ControlFlowStackEntry::IfStatement
+            | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IteratorStackEntry { .. }
             | ControlFlowStackEntry::ArrayDestructuring => false,
             // Finally-block needs to intercept every break and continue.
-            ControlFlowStackEntry::FinallyBlock { .. } => true,
+            ControlFlowStackEntry::TryFinallyBlock { .. } => true,
             ControlFlowStackEntry::Loop { label_set, .. }
             | ControlFlowStackEntry::Switch { label_set, .. }
             | ControlFlowStackEntry::Iterator { label_set, .. }
@@ -257,13 +260,14 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
+            | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::CatchBlock { .. }
             | ControlFlowStackEntry::Switch { .. }
             | ControlFlowStackEntry::IteratorStackEntry
             | ControlFlowStackEntry::ArrayDestructuring => false,
             // Finally-block needs to intercept every break and continue.
-            ControlFlowStackEntry::FinallyBlock { .. } => true,
+            ControlFlowStackEntry::TryFinallyBlock { .. } => true,
             ControlFlowStackEntry::Loop { label_set, .. }
             | ControlFlowStackEntry::Iterator { label_set, .. }
             | ControlFlowStackEntry::AsyncIterator { label_set, .. } => {
@@ -286,7 +290,7 @@ impl<'a> ControlFlowStackEntry<'a> {
     /// intercept returns and thus are an indirect target for them.
     pub(super) fn is_return_target(&self) -> bool {
         // Finally-block needs to intercept return.
-        matches!(self, ControlFlowStackEntry::FinallyBlock { .. })
+        matches!(self, ControlFlowStackEntry::TryFinallyBlock { .. })
     }
 
     /// Returns true if the entry requires finalisation on return.
@@ -299,13 +303,15 @@ impl<'a> ControlFlowStackEntry<'a> {
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::Loop { .. }
             | ControlFlowStackEntry::Switch { .. } => false,
-            // If-statements, user-controlled finally-blocks, and iterator
-            // closes must be called on return.
+            // If-statements, finally-blocks results, user-controlled
+            // try-finally-blocks, and iterator closes must be called on
+            // return.
             ControlFlowStackEntry::IfStatement
+            | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::ArrayDestructuring
             | ControlFlowStackEntry::Iterator { .. }
             | ControlFlowStackEntry::AsyncIterator { .. }
-            | ControlFlowStackEntry::FinallyBlock { .. } => true,
+            | ControlFlowStackEntry::TryFinallyBlock { .. } => true,
             // Catch blocks and the iterator stack don't require finalisation
             // on their own, but they do affect iterator closing and finally
             // block work.
@@ -350,10 +356,26 @@ impl<'a> ControlFlowStackEntry<'a> {
                 }
                 compile_if_statement_exit(executable);
             }
+            ControlFlowStackEntry::FinallyBlock => {
+                // Exiting a finally-block abruptly should always drop the
+                // result from the stack. If we know we have a result, that
+                // is easiest with UpdateEmpty.
+                if has_result {
+                    executable.add_instruction(Instruction::UpdateEmpty);
+                } else {
+                    // If we might not have a result, we need to improvise.
+                    // First ensure we have a result, either the previous one
+                    // or a new undefined value.
+                    compile_if_statement_exit(executable);
+                    // Then perform the UpdateEmpty to functionally drop our
+                    // result.
+                    executable.add_instruction(Instruction::UpdateEmpty);
+                }
+            }
             ControlFlowStackEntry::CatchBlock { .. } => {
                 executable.add_instruction(Instruction::PopExceptionJumpTarget);
             }
-            ControlFlowStackEntry::FinallyBlock { .. } => {
+            ControlFlowStackEntry::TryFinallyBlock { .. } => {
                 // Finally-blocks should always intercept incoming work.
                 unreachable!()
             }

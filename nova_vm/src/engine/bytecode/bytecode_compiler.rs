@@ -2448,8 +2448,6 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     ctx.add_instruction(Instruction::PutValue);
 
                     // 6. Return EMPTY.
-                    // Store Undefined as the result value.
-                    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 }
             }
             ast::VariableDeclarationKind::Let | ast::VariableDeclarationKind::Const => {
@@ -2488,10 +2486,6 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                         );
                         ctx.add_instruction(Instruction::InitializeReferencedBinding);
                         // 3. Return empty.
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            Value::Undefined,
-                        );
                         continue;
                     };
 
@@ -2522,7 +2516,6 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     }
                     ctx.add_instruction(Instruction::InitializeReferencedBinding);
                     // 6. Return empty.
-                    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 }
             }
             ast::VariableDeclarationKind::Using => todo!(),
@@ -2871,6 +2864,7 @@ impl<'s> CompileEvaluation<'s> for ast::ThrowStatement<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        ctx.add_instruction(Instruction::Empty);
         if self.finalizer.is_some() {
             ctx.enter_try_finally_block();
         }
@@ -2882,8 +2876,7 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
         };
         // 1. Let B be Completion(Evaluation of Block).
         self.block.compile(ctx);
-        // 2. If B is a throw completion, let C be
-        //    Completion(CatchClauseEvaluation of Catch with argument B.[[Value]]).
+        // 2. If B is a throw completion,
         let jump_over_catch_blocks = if let Some(catch_clause) = &self.handler {
             ctx.exit_try_catch_block();
             // OPTIMISATION: If the end of the try-block is unreachable, we
@@ -2895,43 +2888,12 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
             };
             ctx.set_jump_target_here(jump_to_catch.unwrap());
 
-            // 14.15.2 Runtime Semantics: CatchClauseEvaluation
-            if let Some(exception_param) = &catch_clause.param {
-                // 1. Let oldEnv be the running execution context's LexicalEnvironment.
-                // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
-                // 4. Set the running execution context's LexicalEnvironment to catchEnv.
-                // Note: We skip the declarative environment if there is no catch
-                // param as it's not observable.
-                ctx.enter_lexical_scope();
-
-                // 3. For each element argName of the BoundNames of CatchParameter, do
-                // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
-                exception_param.pattern.bound_names(&mut |arg_name| {
-                    let arg_name = ctx.create_string(arg_name.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::CreateMutableBinding,
-                        arg_name,
-                    );
-                });
-                // 5. Let status be Completion(BindingInitialization of
-                //    CatchParameter with arguments thrownValue and catchEnv).
-                let lexical_binding_state = ctx.lexical_binding_state;
-                ctx.lexical_binding_state = true;
-                exception_param.pattern.compile(ctx);
-                ctx.lexical_binding_state = lexical_binding_state;
-                // 6. If status is an abrupt completion, then
-                // a. Set the running execution context's LexicalEnvironment to oldEnv.
-                // b. Return ? status.
-            }
-            // 7. Let B be Completion(Evaluation of Block).
-            catch_clause.body.compile(ctx);
-            // 8. Set the running execution context's LexicalEnvironment to oldEnv.
-            if catch_clause.param.is_some() {
-                ctx.exit_lexical_scope();
-            }
+            // let C be Completion(CatchClauseEvaluation of Catch with argument B.[[Value]]).
+            catch_clause_evaluation(catch_clause, ctx);
             // 9. Return ? B.
             jump_over_catch_blocks
         } else {
+            // 3. Else, let C be B.
             assert!(jump_to_catch.is_none());
             None
         };
@@ -2942,6 +2904,48 @@ impl<'s> CompileEvaluation<'s> for ast::TryStatement<'s> {
             // finally block then we'll have to handle the jump out ourselves.
             ctx.set_jump_target_here(jump_over_catch_blocks);
         }
+        if !ctx.is_unreachable() {
+            // 4. Return ? UpdateEmpty(C, undefined).
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+            ctx.add_instruction(Instruction::UpdateEmpty);
+        }
+    }
+}
+
+fn catch_clause_evaluation<'s>(
+    catch_clause: &'s ast::CatchClause<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    // 14.15.2 Runtime Semantics: CatchClauseEvaluation
+    if let Some(exception_param) = &catch_clause.param {
+        // 1. Let oldEnv be the running execution context's LexicalEnvironment.
+        // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
+        // 4. Set the running execution context's LexicalEnvironment to catchEnv.
+        // Note: We skip the declarative environment if there is no catch
+        // param as it's not observable.
+        ctx.enter_lexical_scope();
+
+        // 3. For each element argName of the BoundNames of CatchParameter, do
+        // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
+        exception_param.pattern.bound_names(&mut |arg_name| {
+            let arg_name = ctx.create_string(arg_name.name.as_str());
+            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, arg_name);
+        });
+        // 5. Let status be Completion(BindingInitialization of
+        //    CatchParameter with arguments thrownValue and catchEnv).
+        let lexical_binding_state = ctx.lexical_binding_state;
+        ctx.lexical_binding_state = true;
+        exception_param.pattern.compile(ctx);
+        ctx.lexical_binding_state = lexical_binding_state;
+        // 6. If status is an abrupt completion, then
+        // a. Set the running execution context's LexicalEnvironment to oldEnv.
+        // b. Return ? status.
+    }
+    // 7. Let B be Completion(Evaluation of Block).
+    catch_clause.body.compile(ctx);
+    // 8. Set the running execution context's LexicalEnvironment to oldEnv.
+    if catch_clause.param.is_some() {
+        ctx.exit_lexical_scope();
     }
 }
 

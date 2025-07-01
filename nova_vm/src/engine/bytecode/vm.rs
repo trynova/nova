@@ -1689,6 +1689,9 @@ impl Vm {
                 vm.stack.push(a);
                 vm.stack.push(b);
             }
+            Instruction::Empty => {
+                vm.result = None;
+            }
             Instruction::DirectEvalCall => {
                 let func = with_vm_gc(
                     agent,
