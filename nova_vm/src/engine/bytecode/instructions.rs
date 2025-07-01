@@ -213,6 +213,8 @@ pub enum Instruction {
     UpdateEmpty,
     /// Swap the last two values on the stack.
     Swap,
+    /// Empty the result register.
+    Empty,
     /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
     LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
@@ -1168,6 +1170,7 @@ impl TryFrom<u8> for Instruction {
         const LOADREPLACE: u8 = Instruction::LoadReplace.as_u8();
         const UPDATEEMPTY: u8 = Instruction::UpdateEmpty.as_u8();
         const SWAP: u8 = Instruction::Swap.as_u8();
+        const EMPTY: u8 = Instruction::Empty.as_u8();
         const LOGICALNOT: u8 = Instruction::LogicalNot.as_u8();
         const OBJECTCREATE: u8 = Instruction::ObjectCreate.as_u8();
         const OBJECTDEFINEPROPERTY: u8 = Instruction::ObjectDefineProperty.as_u8();
@@ -1372,6 +1375,7 @@ impl TryFrom<u8> for Instruction {
             LOADREPLACE => Ok(Instruction::LoadReplace),
             UPDATEEMPTY => Ok(Instruction::UpdateEmpty),
             SWAP => Ok(Instruction::Swap),
+            EMPTY => Ok(Instruction::Empty),
             LOGICALNOT => Ok(Instruction::LogicalNot),
             OBJECTCREATE => Ok(Instruction::ObjectCreate),
             OBJECTDEFINEPROPERTY => Ok(Instruction::ObjectDefineProperty),

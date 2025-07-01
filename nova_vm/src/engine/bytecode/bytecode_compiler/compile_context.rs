@@ -317,7 +317,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         let jump_to_catch =
             self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
         self.control_flow_stack
-            .push(ControlFlowStackEntry::FinallyBlock {
+            .push(ControlFlowStackEntry::TryFinallyBlock {
                 jump_to_catch,
                 incoming_control_flows: None,
             });
@@ -329,7 +329,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         block: &'script ast::BlockStatement<'script>,
         jump_over_catch_blocks: Option<JumpIndex>,
     ) {
-        let Some(ControlFlowStackEntry::FinallyBlock {
+        let Some(ControlFlowStackEntry::TryFinallyBlock {
             jump_to_catch,
             incoming_control_flows,
         }) = self.control_flow_stack.pop()
@@ -360,8 +360,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             }
             // First we have to pop off the special finally-exception target.
             self.add_instruction(Instruction::PopExceptionJumpTarget);
+
             // Then we compile the finally-block.
+            self.enter_finally_block(false);
             block.compile(self);
+            self.exit_finally_block();
             // And continue on our merry way!
         } else {
             // No preceding catch-block exists or the try-block's end is
@@ -374,7 +377,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 // We are reachable, so let's compile the normal finally-block
                 // version here.
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
+                self.enter_finally_block(false);
                 block.compile(self);
+                self.exit_finally_block();
+
                 // We need to jump over the abrupt completion handling blocks,
                 // unless of course we're now unreachable here!
                 if !self.is_unreachable() {
@@ -408,15 +414,17 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         // A catch-version of finally stores the caught error and rethrows
         // it after performing the finally-work.
         self.set_jump_target_here(jump_to_catch);
-        self.add_instruction(Instruction::Load);
-        // Compile the finally-block.
+
+        // Compile the finally-block...
+        self.enter_finally_block(true);
         block.compile(self);
+        self.exit_finally_block();
+        // ... and rethrow the error.
         let end_of_finally_block_is_unreachable = self.is_unreachable();
         if !end_of_finally_block_is_unreachable {
-            // Take the error back from the stack and rethrow.
-            self.add_instruction(Instruction::Store);
             self.add_instruction(Instruction::Throw);
         }
+
         // Then, for each incoming control flow (break or continue), we need to
         // generate a finally block for them as well.
         if let Some(incoming_control_flows) = incoming_control_flows {
@@ -425,10 +433,14 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.set_jump_target_here(break_source);
                 // Exit from the finally-block's grasp.
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
-                // Compile the finally-block.
+
+                // Compile the finally-block...
+                self.enter_finally_block(false);
                 block.compile(self);
+                self.exit_finally_block();
+
+                // ... then send the break on to its real target.
                 if !end_of_finally_block_is_unreachable {
-                    // Then send the break on to its real target.
                     self.compile_break(label);
                 }
             }
@@ -438,10 +450,14 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.set_jump_target_here(continue_source);
                 // Exit from the finally-block's grasp.
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
-                // Compile the finally-block.
+
+                // Compile the finally-block...
+                self.enter_finally_block(false);
                 block.compile(self);
+                self.exit_finally_block();
+
+                // ... then send the continue on to its real target.
                 if !end_of_finally_block_is_unreachable {
-                    // Then send the continue on to its real target.
                     self.compile_continue(label);
                 }
             }
@@ -451,14 +467,16 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                     self.set_jump_target_here(return_source);
                 }
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
-                // Load the return result onto the stack.
-                self.add_instruction(Instruction::Load);
+
+                // Compile the finally-block...
+                self.enter_finally_block(true);
                 block.compile(self);
+                self.exit_finally_block();
+
+                // ... then send the return on to its real target.
                 if !end_of_finally_block_is_unreachable {
-                    // Store the return result back into the result register.
-                    self.add_instruction(Instruction::Store);
                     // Note: at this point we shouldn't inject a new Await here
-                    // anymore.
+                    // anymore, hence we pass false as `has_param`.
                     self.compile_return(false);
                 }
             }
@@ -483,6 +501,36 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         };
         if !self.is_unreachable() && !has_result {
             compile_if_statement_exit(&mut self.executable);
+        }
+    }
+
+    /// Enter a finally block; a result value is present in the result register
+    /// and must be stored onto the stack. When the block is exited, the result
+    /// must be popped off the stack (and taken as the result of the
+    /// fall-through case).
+    pub(super) fn enter_finally_block(&mut self, has_result: bool) {
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::FinallyBlock);
+        if has_result {
+            // We can load our result onto the stack directly.
+            self.add_instruction(Instruction::Load);
+        } else {
+            // Our result might be empty currently; loading directly would
+            // crash.
+            self.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+            self.add_instruction(Instruction::UpdateEmpty);
+            self.add_instruction(Instruction::Load);
+        }
+    }
+
+    /// Exit a finally block; a result value is present on the stack and must
+    /// be returned into the result register in the fall-through case.
+    pub(super) fn exit_finally_block(&mut self) {
+        let Some(ControlFlowStackEntry::FinallyBlock) = self.control_flow_stack.pop() else {
+            unreachable!()
+        };
+        if !self.is_unreachable() {
+            self.add_instruction(Instruction::Store);
         }
     }
 
