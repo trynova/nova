@@ -1043,7 +1043,7 @@ impl Vm {
                 // 1. If V is not a Reference Record, return V.
                 let reference = vm.reference.as_ref().unwrap();
 
-                let reference = if is_property_reference(&reference)
+                let reference = if is_property_reference(reference)
                     && !reference.is_static_property_reference()
                 {
                     // Expression reference; we need to convert to PropertyKey

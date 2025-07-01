@@ -359,13 +359,13 @@ impl<'a> Reference<'a> {
     }
 
     pub(crate) fn is_static_property_reference(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Reference::Property(_)
-            | Reference::PropertyStrict(_)
-            | Reference::Super(_)
-            | Reference::SuperStrict(_) => true,
-            _ => false,
-        }
+                | Reference::PropertyStrict(_)
+                | Reference::Super(_)
+                | Reference::SuperStrict(_)
+        )
     }
 
     /// ### \[\[Strict]]

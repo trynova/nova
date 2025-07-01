@@ -999,7 +999,7 @@ fn expected_arguments_count(params: &FormalParameters) -> usize {
         }
         count += 1;
     }
-    return count;
+    count
 }
 
 /// ### [10.2.5 MakeConstructor ( F \[ , writablePrototype \[ , prototype \] \] )](https://tc39.es/ecma262/#sec-makeconstructor)
