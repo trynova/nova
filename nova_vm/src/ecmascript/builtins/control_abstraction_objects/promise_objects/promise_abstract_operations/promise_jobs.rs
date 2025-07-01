@@ -7,6 +7,9 @@
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
     create_iter_result_object, iterator_close_with_error,
 };
+use crate::ecmascript::scripts_and_modules::module::{
+    import_get_module_namespace, link_and_evaluate,
+};
 use crate::engine::Global;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -160,7 +163,7 @@ impl PromiseReactionJob {
                     agent,
                     callback.unbind(),
                     Value::Undefined,
-                    Some(ArgumentsList::from_mut_slice(&mut [argument.unbind()])),
+                    Some(ArgumentsList::from_mut_value(&mut argument.unbind())),
                     gc.reborrow(),
                 )
                 .unbind()
@@ -217,6 +220,45 @@ impl PromiseReactionJob {
                 let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
                 (Err(err), capability)
+            }
+            PromiseReactionHandler::DynamicImport { promise, module } => {
+                assert!(agent[reaction].capability.is_none());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        link_and_evaluate(agent, promise.unbind(), module.unbind(), gc);
+                        return Ok(());
+                    }
+                    PromiseReactionType::Reject => {
+                        // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « reason »).
+                        // b. Return unused.
+                        (
+                            Err(JsError::new(argument)),
+                            PromiseCapability::from_promise(promise, true),
+                        )
+                    }
+                }
+            }
+            PromiseReactionHandler::DynamicImportEvaluate { promise, module } => {
+                assert!(agent[reaction].capability.is_none());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        import_get_module_namespace(
+                            agent,
+                            promise.unbind(),
+                            module.unbind(),
+                            gc.into_nogc(),
+                        );
+                        return Ok(());
+                    }
+                    PromiseReactionType::Reject => {
+                        // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « reason »).
+                        // b. Return unused.
+                        (
+                            Err(JsError::new(argument)),
+                            PromiseCapability::from_promise(promise, true),
+                        )
+                    }
+                }
             }
         };
 
@@ -275,7 +317,9 @@ pub(crate) fn new_promise_reaction_job(
         PromiseReactionHandler::AsyncGenerator(_)
         | PromiseReactionHandler::Empty
         | PromiseReactionHandler::AsyncFromSyncIterator { .. }
-        | PromiseReactionHandler::AsyncFromSyncIteratorClose(_) => None,
+        | PromiseReactionHandler::AsyncFromSyncIteratorClose(_)
+        | PromiseReactionHandler::DynamicImport { .. }
+        | PromiseReactionHandler::DynamicImportEvaluate { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

@@ -47,7 +47,7 @@ use crate::{
             new_declarative_environment, new_private_environment, resolve_private_identifier,
             resolve_this_binding,
         },
-        scripts_and_modules::ScriptOrModule,
+        scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
             BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
@@ -2958,6 +2958,24 @@ impl Vm {
                         .map_or(Value::Undefined, |v| v.into_value())
                         .unbind(),
                 );
+            }
+            Instruction::ImportCall => {
+                let specifier = vm.stack.pop().unwrap().bind(gc.nogc());
+                let options = vm.result.take().bind(gc.nogc());
+                vm.result = {
+                    let specifier = specifier.unbind();
+                    let options = options.unbind();
+                    Some(
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| evaluate_import_call(agent, specifier, options, gc),
+                            gc,
+                        )
+                        .into_value()
+                        .unbind(),
+                    )
+                };
             }
             Instruction::ImportMeta => {
                 let gc = gc.into_nogc();

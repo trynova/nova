@@ -24,7 +24,10 @@ use crate::{
     ecmascript::{
         builtins::module::{Module, module_namespace_create},
         execution::{Agent, JsResult, Realm},
-        scripts_and_modules::script::{HostDefined, Script},
+        scripts_and_modules::{
+            ScriptOrModule,
+            script::{HostDefined, Script},
+        },
         types::String,
     },
     engine::{
@@ -33,6 +36,8 @@ use crate::{
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
+
+use super::continue_dynamic_import;
 pub mod abstract_module_records;
 pub mod cyclic_module_records;
 pub mod source_text_module_records;
@@ -92,7 +97,7 @@ pub struct ModuleRequest<'a>(u32, PhantomData<&'a GcToken>);
 impl<'r> ModuleRequest<'r> {
     /// Create a new ModuleRequest from a specifier string and a `with`
     /// clause.
-    fn new(
+    pub(super) fn new(
         agent: &mut Agent,
         specifier: &str,
         with_clause: Option<&ast::WithClause>,
@@ -137,6 +142,34 @@ impl<'r> ModuleRequest<'r> {
             hash,
         });
         Self(index, PhantomData)
+    }
+
+    /// Create a new ModuleRequest from a specifier String and a list of
+    /// import attribute records.
+    pub(super) fn new_dynamic(
+        agent: &mut Agent,
+        specifier: String,
+        attributes: Vec<ImportAttributeRecord>,
+        gc: NoGcScope<'r, '_>,
+    ) -> Self {
+        let mut state = AHasher::default();
+        let attributes = attributes.into_boxed_slice();
+        specifier.as_str(agent).hash(&mut state);
+        for attribute in attributes.iter() {
+            attribute.key.as_str(agent).hash(&mut state);
+            attribute.value.as_str(agent).hash(&mut state);
+        }
+        let hash = state.finish();
+        let index = agent.heap.module_request_records.len() as u32;
+        agent.heap.module_request_records.push(
+            ModuleRequestRecord {
+                specifier,
+                attributes: Some(attributes),
+                hash,
+            }
+            .unbind(),
+        );
+        Self(index, PhantomData).bind(gc)
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -224,6 +257,27 @@ pub struct ImportAttributeRecord<'a> {
     ///
     /// The attribute value
     value: String<'a>,
+}
+
+// SAFETY: recursive.
+unsafe impl Bindable for ImportAttributeRecord<'_> {
+    type Of<'a> = ImportAttributeRecord<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        ImportAttributeRecord {
+            key: self.key.unbind(),
+            value: self.value.unbind(),
+        }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        ImportAttributeRecord {
+            key: self.key.bind(gc),
+            value: self.value.bind(gc),
+        }
+    }
 }
 
 /// ### \[\[LoadedModules]]
@@ -412,6 +466,15 @@ impl<'a> From<Realm<'a>> for Referrer<'a> {
     }
 }
 
+impl<'a> From<ScriptOrModule<'a>> for Referrer<'a> {
+    fn from(value: ScriptOrModule<'a>) -> Self {
+        match value {
+            ScriptOrModule::Script(s) => Self(InnerReferrer::Script(s)),
+            ScriptOrModule::SourceTextModule(m) => Self(InnerReferrer::SourceTextModule(m)),
+        }
+    }
+}
+
 // SAFETY: Pass-through.
 unsafe impl Bindable for Referrer<'_> {
     type Of<'a> = Referrer<'a>;
@@ -541,10 +604,16 @@ pub fn finish_loading_imported_module<'a>(
         referrer.insert_loaded_module(agent, module_request, result);
     }
     // 2. If payload is a GraphLoadingState Record, then
-    // a. Perform ContinueModuleLoading(payload, result).
-    continue_module_loading(agent, payload, result, gc);
-    // 3. Else,
-    // a. Perform ContinueDynamicImport(payload, result).
+    if payload.pending_modules_count > 0 {
+        // HACK: [[PendingModulesCount]] is being used as a marker between
+        // static and dynamic import. Static import always has non-zero count.
+        // a. Perform ContinueModuleLoading(payload, result).
+        continue_module_loading(agent, payload, result, gc);
+    } else {
+        // 3. Else,
+        // a. Perform ContinueDynamicImport(payload, result).
+        continue_dynamic_import(agent, payload.promise_capability.clone(), result, gc);
+    }
     // 4. Return unused.
 }
 
