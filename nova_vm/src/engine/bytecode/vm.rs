@@ -49,12 +49,12 @@ use crate::{
         },
         scripts_and_modules::ScriptOrModule,
         types::{
-            BUILTIN_STRING_MEMORY, Base, BigInt, Function, InternalMethods, InternalSlots,
-            IntoFunction, IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject,
-            Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, throw_read_undefined_or_null_error, try_get_value,
-            try_initialize_referenced_binding,
+            is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
+            throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
         },
     },
     engine::{
@@ -202,6 +202,16 @@ pub(crate) struct SuspendedVm {
 }
 
 impl SuspendedVm {
+    /// Returns true if the suspended VM is safe to keep past a GC safepoint.
+    ///
+    /// This requires that the VMs stacks are all empty.
+    pub(crate) fn is_gc_safe(&self) -> bool {
+        self.stack.is_empty()
+            && self.reference_stack.is_empty()
+            && self.iterator_stack.is_empty()
+            && self.exception_jump_target_stack.is_empty()
+    }
+
     pub(crate) fn resume<'gc>(
         self,
         agent: &mut Agent,
@@ -1031,7 +1041,46 @@ impl Vm {
             }
             Instruction::GetValueKeepReference => {
                 // 1. If V is not a Reference Record, return V.
-                let reference = vm.reference.as_ref().unwrap().clone();
+                let reference = vm.reference.as_ref().unwrap();
+
+                let reference = if is_property_reference(reference)
+                    && !reference.is_static_property_reference()
+                {
+                    // Expression reference; we need to convert to PropertyKey
+                    // first.
+                    let referenced_name = reference.referenced_name_value();
+                    let referenced_name = if let TryResult::Continue(referenced_name) =
+                        to_property_key_simple(agent, referenced_name, gc.nogc())
+                    {
+                        referenced_name
+                    } else {
+                        let base = reference.base_value();
+                        if base.is_undefined() || base.is_null() {
+                            // Undefined and null should throw an error from
+                            // ToObject before ToPropertyKey gets called.
+                            return Err(throw_read_undefined_or_null_error(
+                                agent,
+                                referenced_name,
+                                base,
+                                gc.into_nogc(),
+                            ));
+                        }
+                        let referenced_name = referenced_name.unbind();
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| to_property_key_complex(agent, referenced_name, gc),
+                            gc.reborrow(),
+                        )
+                        .unbind()?
+                        .bind(gc.nogc())
+                    };
+                    let reference = vm.reference.as_mut().unwrap();
+                    reference.set_referenced_name_to_property_key(referenced_name);
+                    reference.clone()
+                } else {
+                    reference.clone()
+                };
 
                 let result = if let TryResult::Continue(result) =
                     try_get_value(agent, &reference, gc.nogc())
@@ -1046,8 +1095,9 @@ impl Vm {
             Instruction::Typeof => {
                 // 2. If val is a Reference Record, then
                 let val = if let Some(reference) = vm.reference.take() {
-                    if reference.base == Base::Unresolvable {
-                        // a. If IsUnresolvableReference(val) is true, return "undefined".
+                    // a. If IsUnresolvableReference(val) is true,
+                    if is_unresolvable_reference(&reference) {
+                        // return "undefined".
                         Value::Undefined
                     } else {
                         // 3. Set val to ? GetValue(val).
@@ -1102,9 +1152,9 @@ impl Vm {
                 assert!(vm.reference.is_none());
                 for _ in 0..num_excluded_items {
                     let reference = vm.reference_stack.pop().unwrap();
-                    assert_eq!(reference.base, Base::Value(from.into_value()));
-                    assert!(reference.this_value.is_none());
-                    excluded_items.insert(agent, reference.referenced_name);
+                    debug_assert_eq!(reference.base_value(), from.into_value());
+                    debug_assert!(!is_super_reference(&reference));
+                    excluded_items.insert(agent, reference.referenced_name_property_key());
                 }
 
                 if let TryResult::Continue(result) =
@@ -1713,20 +1763,19 @@ impl Vm {
                 // 1. If ref is a Reference Record, then
                 let this_value = if let Some(reference) = reference {
                     // a. If IsPropertyReference(ref) is true, then
-                    match reference.base {
+                    if is_property_reference(&reference) {
                         // i. Let thisValue be GetThisValue(ref).
-                        Base::Value(_) => get_this_value(&reference).bind(gc.nogc()),
+                        get_this_value(&reference).bind(gc.nogc())
+                    } else {
                         // b. Else,
-                        Base::Environment(ref_env) => {
-                            // i. Let refEnv be ref.[[Base]].
-                            // iii. Let thisValue be refEnv.WithBaseObject().
-                            ref_env
-                                .with_base_object(agent)
-                                .map_or(Value::Undefined, |object| object.into_value())
-                                .bind(gc.nogc())
-                        }
+                        // i. Let refEnv be ref.[[Base]].
                         // ii. Assert: refEnv is an Environment Record.
-                        Base::Unresolvable => unreachable!(),
+                        let ref_env = reference.base_env();
+                        // iii. Let thisValue be refEnv.WithBaseObject().
+                        ref_env
+                            .with_base_object(agent)
+                            .map_or(Value::Undefined, |object| object.into_value())
+                            .bind(gc.nogc())
                     }
                 } else {
                     // 2. Else,
@@ -1881,52 +1930,21 @@ impl Vm {
             }
             Instruction::EvaluatePropertyAccessWithExpressionKey => {
                 let property_name_value = vm.result.take().unwrap().bind(gc.nogc());
-                let mut base_value = vm.stack.pop().unwrap().bind(gc.nogc());
-
-                if base_value.is_undefined() || base_value.is_null() {
-                    return Err(throw_read_undefined_or_null_error(
-                        agent,
-                        property_name_value.unbind(),
-                        base_value.unbind(),
-                        gc.into_nogc(),
-                    ));
-                }
-
+                let base_value = vm.stack.pop().unwrap().bind(gc.nogc());
                 let strict = agent
                     .running_execution_context()
                     .ecmascript_code
                     .unwrap()
                     .is_strict_mode;
 
-                let property_key =
-                    if property_name_value.is_string() || property_name_value.is_integer() {
-                        unwrap_try(to_property_key_simple(
-                            agent,
-                            property_name_value,
-                            gc.nogc(),
-                        ))
-                    } else {
-                        let scoped_base_value = base_value.scope(agent, gc.nogc());
-                        let property_name_value = property_name_value.unbind();
-                        let property_key = with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| to_property_key(agent, property_name_value, gc),
-                            gc.reborrow(),
-                        )
-                        .unbind()?
-                        .bind(gc.nogc());
-                        // SAFETY: not shared
-                        base_value = unsafe { scoped_base_value.take(agent) }.bind(gc.nogc());
-                        property_key
-                    };
-
-                vm.reference = Some(Reference {
-                    base: Base::Value(base_value.unbind()),
-                    referenced_name: property_key.unbind(),
-                    strict,
-                    this_value: None,
-                });
+                vm.reference = Some(
+                    Reference::new_property_expression_reference(
+                        base_value,
+                        property_name_value,
+                        strict,
+                    )
+                    .unbind(),
+                );
             }
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
                 let property_name_string =
@@ -1938,12 +1956,15 @@ impl Vm {
                     .unwrap()
                     .is_strict_mode;
 
-                vm.reference = Some(Reference {
-                    base: Base::Value(base_value.unbind()),
-                    referenced_name: property_name_string.unbind().into(),
-                    strict,
-                    this_value: None,
-                });
+                vm.reference = Some(
+                    Reference::new_property_reference(
+                        base_value,
+                        // Note: identifiers cannot be numeric.
+                        property_name_string.to_property_key(),
+                        strict,
+                    )
+                    .unbind(),
+                );
             }
             Instruction::MakePrivateReference => {
                 let gc = gc.into_nogc();
@@ -1965,12 +1986,8 @@ impl Vm {
                 //    [[Strict]]: true,
                 //    [[ThisValue]]: empty
                 // }.
-                vm.reference.replace(Reference {
-                    base: Base::Value(base_value.unbind()),
-                    referenced_name: private_name.into(),
-                    strict: true,
-                    this_value: None,
-                });
+                vm.reference
+                    .replace(Reference::new_private_reference(base_value, private_name).unbind());
             }
             Instruction::MakeSuperPropertyReferenceWithExpressionKey => {
                 // ### SuperProperty : super [ Expression ]
@@ -1978,7 +1995,7 @@ impl Vm {
                 // 1. Let env be GetThisEnvironment().
                 let env = get_this_environment(agent, gc.nogc());
                 // 2. Let actualThis be ? env.GetThisBinding().
-                let mut actual_this = env
+                let actual_this = env
                     .get_this_binding(agent, gc.nogc())
                     .unbind()?
                     .bind(gc.nogc());
@@ -2008,46 +2025,22 @@ impl Vm {
                     unreachable!()
                 };
                 // 4. Let baseValue be GetSuperBase(env).
-                let mut base_value = env.get_super_base(agent, gc.nogc());
-
-                let property_key =
-                    if property_name_value.is_string() || property_name_value.is_integer() {
-                        unwrap_try(to_property_key_simple(
-                            agent,
-                            property_name_value,
-                            gc.nogc(),
-                        ))
-                    } else {
-                        let scoped_base_value = base_value.scope(agent, gc.nogc());
-                        let scoped_actual_this = actual_this.scope(agent, gc.nogc());
-                        let property_name_value = property_name_value.unbind();
-                        let property_key = with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| to_property_key(agent, property_name_value, gc),
-                            gc.reborrow(),
-                        )
-                        .unbind()?
-                        .bind(gc.nogc());
-                        // SAFETY: not shared
-                        unsafe {
-                            base_value = scoped_base_value.take(agent).bind(gc.nogc());
-                            actual_this = scoped_actual_this.take(agent).bind(gc.nogc());
-                        }
-                        property_key
-                    };
+                let base_value = env.get_super_base(agent, gc.nogc());
 
                 // 5. Return the Reference Record {
-                vm.reference = Some(Reference {
-                    // [[Base]]: baseValue,
-                    base: Base::Value(base_value.unbind()),
-                    // [[ReferencedName]]: propertyKey,
-                    referenced_name: property_key.unbind(),
-                    // [[Strict]]: strict,
-                    strict,
-                    // [[ThisValue]]: actualThis
-                    this_value: Some(actual_this.unbind()),
-                });
+                // [[Base]]: baseValue,
+                vm.reference = Some(
+                    Reference::new_super_expression_reference(
+                        base_value,
+                        // [[ReferencedName]]: propertyKey,
+                        property_name_value,
+                        // [[ThisValue]]: actualThis
+                        actual_this,
+                        // [[Strict]]: strict,
+                        strict,
+                    )
+                    .unbind(),
+                );
                 // }.
             }
             Instruction::MakeSuperPropertyReferenceWithIdentifierKey => {
@@ -2081,16 +2074,20 @@ impl Vm {
                 let base_value = env.get_super_base(agent, gc.nogc());
                 // 4. Let baseValue be GetSuperBase(env).
                 // 5. Return the Reference Record {
-                vm.reference = Some(Reference {
-                    // [[Base]]: baseValue,
-                    base: Base::Value(base_value.unbind()),
-                    // [[ReferencedName]]: propertyKey,
-                    referenced_name: property_key.unbind().into(),
-                    // [[Strict]]: strict,
-                    strict,
-                    // [[ThisValue]]: actualThis
-                    this_value: Some(actual_this.unbind()),
-                });
+                vm.reference = Some(
+                    Reference::new_super_reference(
+                        // [[Base]]: baseValue,
+                        base_value,
+                        // [[ReferencedName]]: propertyKey,
+                        // Note: identifiers cannot be numeric.
+                        property_key.to_property_key(),
+                        // [[ThisValue]]: actualThis
+                        actual_this,
+                        // [[Strict]]: strict,
+                        strict,
+                    )
+                    .unbind(),
+                );
                 // }.
             }
             Instruction::Jump => {
@@ -2242,15 +2239,10 @@ impl Vm {
                 vm.result = Some(result.into());
             }
             Instruction::HasPrivateElement => {
-                let Some(Reference {
-                    base: Base::Value(r_val),
-                    referenced_name: PropertyKey::PrivateName(private_name),
-                    strict: _,
-                    this_value: _,
-                }) = vm.reference.take()
-                else {
+                let Some(reference) = vm.reference.take() else {
                     unreachable!()
                 };
+                let (r_val, private_name) = reference.into_private_reference_data();
                 // 4. If rVal is not an Object,
                 if let Ok(r_val) = Object::try_from(r_val) {
                     // 8. If PrivateElementFind(rVal, privateName) is not
@@ -2575,107 +2567,7 @@ impl Vm {
                 vm.stack.truncate(first_arg_index);
                 vm.result = Some(string.into_value().unbind());
             }
-            Instruction::Delete => {
-                let refer = vm.reference.take().unwrap().bind(gc.nogc());
-                match refer.base {
-                    // 3. If IsUnresolvableReference(ref) is true, then
-                    Base::Unresolvable => {
-                        // a. Assert: ref.[[Strict]] is false.
-                        debug_assert!(!refer.strict);
-                        // b. Return true.
-                        vm.result = Some(true.into());
-                    }
-                    // 4. If IsPropertyReference(ref) is true, then
-                    Base::Value(base) => {
-                        // a. Assert: IsPrivateReference(ref) is false.
-                        debug_assert!(!is_private_reference(&refer));
-                        // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
-                        if is_super_reference(&refer) {
-                            return Err(agent.throw_exception_with_static_message(
-                                ExceptionType::ReferenceError,
-                                "Invalid delete involving 'super'.",
-                                gc.into_nogc(),
-                            ));
-                        }
-                        // c. Let baseObj be ? ToObject(ref.[[Base]]).
-                        let base_obj = to_object(agent, base, gc.nogc()).unbind()?.bind(gc.nogc());
-                        // d. If ref.[[ReferencedName]] is not a property key, then
-                        // TODO: Is this relevant?
-                        // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
-                        // e. Let deleteStatus be ? baseObj.[[Delete]](ref.[[ReferencedName]]).
-                        let strict = refer.strict;
-                        let delete_status = if let TryResult::Continue(delete_status) =
-                            base_obj.try_delete(agent, refer.referenced_name, gc.nogc())
-                        {
-                            delete_status
-                        } else {
-                            let base_obj = base_obj.unbind();
-                            let referenced_name = refer.referenced_name.unbind();
-                            with_vm_gc(
-                                agent,
-                                vm,
-                                |agent, gc| base_obj.internal_delete(agent, referenced_name, gc),
-                                gc.reborrow(),
-                            )
-                            .unbind()?
-                            .bind(gc.nogc())
-                        };
-                        // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
-                        if !delete_status && strict {
-                            return Err(agent.throw_exception_with_static_message(
-                                ExceptionType::TypeError,
-                                "Cannot delete property",
-                                gc.into_nogc(),
-                            ));
-                        }
-                        // g. Return deleteStatus.
-                        vm.result = Some(delete_status.into());
-                    }
-                    // 5. Else,
-                    Base::Environment(base) => {
-                        // a. Let base be ref.[[Base]].
-                        // b. Assert: base is an Environment Record.
-                        let referenced_name = match refer.referenced_name {
-                            PropertyKey::SmallString(data) => String::SmallString(data),
-                            PropertyKey::String(data) => String::String(data),
-                            _ => unreachable!(),
-                        };
-                        // c. Return ? base.DeleteBinding(ref.[[ReferencedName]]).
-                        let result = if let TryResult::Continue(result) =
-                            base.try_delete_binding(agent, referenced_name, gc.nogc())
-                        {
-                            result.unbind()?
-                        } else {
-                            let referenced_name = referenced_name.unbind();
-                            let base = base.unbind();
-                            with_vm_gc(
-                                agent,
-                                vm,
-                                |agent, gc| base.delete_binding(agent, referenced_name, gc),
-                                gc,
-                            )?
-                        };
-                        vm.result = Some(result.into());
-                    }
-                }
-
-                // Note 1
-
-                // When a delete operator occurs within strict mode code, a
-                // SyntaxError exception is thrown if its UnaryExpression is a
-                // direct reference to a variable, function argument, or
-                // function name. In addition, if a delete operator occurs
-                // within strict mode code and the property to be deleted has
-                // the attribute { [[Configurable]]: false } (or otherwise
-                // cannot be deleted), a TypeError exception is thrown.
-
-                // Note 2
-
-                // The object that may be created in step 4.c is not accessible
-                // outside of the above abstract operation and the ordinary
-                // object [[Delete]] internal method. An implementation might
-                // choose to avoid the actual creation of that object.
-            }
+            Instruction::Delete => delete_evaluation(agent, vm, gc)?,
             Instruction::EnumerateObjectProperties => {
                 let object = to_object(agent, vm.result.take().unwrap(), gc.nogc()).unwrap();
                 vm.iterator_stack.push(
@@ -3751,4 +3643,131 @@ fn throw_error_in_target_not_object<'a>(
         typeof_operator(agent, value, gc).as_str(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
+}
+
+/// ### [13.5.1.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation)
+fn delete_evaluation<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let reference = vm.reference.take().unwrap().bind(gc.nogc());
+    // 3. If IsUnresolvableReference(ref) is true, then
+    if is_unresolvable_reference(&reference) {
+        // a. Assert: ref.[[Strict]] is false.
+        debug_assert!(!reference.strict());
+        // b. Return true.
+        vm.result = Some(true.into());
+    } else if is_property_reference(&reference) {
+        // 4. If IsPropertyReference(ref) is true, then
+
+        // a. Assert: IsPrivateReference(ref) is false.
+        debug_assert!(!is_private_reference(&reference));
+        // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
+        if is_super_reference(&reference) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::ReferenceError,
+                "Invalid delete involving 'super'.",
+                gc.into_nogc(),
+            ));
+        }
+        // c. Let baseObj be ? ToObject(ref.[[Base]]).
+        let base = reference.base_value();
+        let mut base_obj = to_object(agent, base, gc.nogc()).unbind()?.bind(gc.nogc());
+        let strict = reference.strict();
+        // d. If ref.[[ReferencedName]] is not a property key, then
+        let referenced_name = if !reference.is_static_property_reference() {
+            // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
+            let referenced_name = reference.referenced_name_value();
+            if let TryResult::Continue(referenced_name) =
+                to_property_key_simple(agent, referenced_name, gc.nogc())
+            {
+                referenced_name
+            } else {
+                let referenced_name = referenced_name.unbind();
+                let scoped_base_obj = base_obj.scope(agent, gc.nogc());
+                let referenced_name = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| to_property_key_complex(agent, referenced_name, gc),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                // SAFETY: not shared.
+                base_obj = unsafe { scoped_base_obj.take(agent) }.bind(gc.nogc());
+                referenced_name
+            }
+        } else {
+            reference.referenced_name_property_key()
+        };
+        // e. Let deleteStatus be ? baseObj.[[Delete]](ref.[[ReferencedName]]).
+        let delete_status = if let TryResult::Continue(delete_status) =
+            base_obj.try_delete(agent, referenced_name, gc.nogc())
+        {
+            delete_status
+        } else {
+            let base_obj = base_obj.unbind();
+            let referenced_name = referenced_name.unbind();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| base_obj.internal_delete(agent, referenced_name, gc),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc())
+        };
+        // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
+        if !delete_status && strict {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot delete property",
+                gc.into_nogc(),
+            ));
+        }
+        // g. Return deleteStatus.
+        vm.result = Some(delete_status.into());
+    } else {
+        // 5. Else,
+
+        // a. Let base be ref.[[Base]].
+        // b. Assert: base is an Environment Record.
+        let base = reference.base_env();
+        let referenced_name = reference.referenced_name_string();
+        // c. Return ? base.DeleteBinding(ref.[[ReferencedName]]).
+        let result = if let TryResult::Continue(result) =
+            base.try_delete_binding(agent, referenced_name, gc.nogc())
+        {
+            result.unbind()?
+        } else {
+            let referenced_name = referenced_name.unbind();
+            let base = base.unbind();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| base.delete_binding(agent, referenced_name, gc),
+                gc,
+            )?
+        };
+        vm.result = Some(result.into());
+    }
+    Ok(())
+
+    // Note 1
+
+    // When a delete operator occurs within strict mode code, a
+    // SyntaxError exception is thrown if its UnaryExpression is a
+    // direct reference to a variable, function argument, or
+    // function name. In addition, if a delete operator occurs
+    // within strict mode code and the property to be deleted has
+    // the attribute { [[Configurable]]: false } (or otherwise
+    // cannot be deleted), a TypeError exception is thrown.
+
+    // Note 2
+
+    // The object that may be created in step 4.c is not accessible
+    // outside of the above abstract operation and the ordinary
+    // object [[Delete]] internal method. An implementation might
+    // choose to avoid the actual creation of that object.
 }

@@ -457,7 +457,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 if !end_of_finally_block_is_unreachable {
                     // Store the return result back into the result register.
                     self.add_instruction(Instruction::Store);
-                    self.compile_return();
+                    // Note: at this point we shouldn't inject a new Await here
+                    // anymore.
+                    self.compile_return(false);
                 }
             }
         }
@@ -729,8 +731,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// performing the final return. If user-defined finally-blocks are
     /// present in the finaliser stack, the method instead jumps to a
     /// finally-block that ends with a return.
-    pub(super) fn compile_return(&mut self) {
-        if self.is_async_generator() {
+    pub(super) fn compile_return(&mut self, has_param: bool) {
+        if self.is_async_generator() && has_param {
             // AsyncGenerators perform an Await before wrapping the result in a
             // ReturnCompletion and returning it.
             // Because this happens before the ReturnCompletion wrapping, it

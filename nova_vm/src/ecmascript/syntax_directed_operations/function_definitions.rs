@@ -4,16 +4,12 @@
 
 use std::collections::VecDeque;
 
-use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
-use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
-use crate::ecmascript::builtins::generator_objects::SuspendedGeneratorState;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::try_define_property_or_throw,
         builtins::{
             ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
+            async_generator_objects::AsyncGeneratorState,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorState,
@@ -25,6 +21,7 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
+            generator_objects::SuspendedGeneratorState,
             make_constructor,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ordinary_function_create,
@@ -37,7 +34,12 @@ use crate::{
             PropertyKey, String, Value,
         },
     },
-    engine::{Executable, ExecutionResult, FunctionExpression, Vm},
+    engine::{
+        Executable, ExecutionResult, FunctionExpression, Vm,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        unwrap_try,
+    },
     heap::CreateHeapData,
 };
 use oxc_ast::ast::{self};
@@ -416,7 +418,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
     arguments_list: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
-    let mut arguments_list = arguments_list.bind(gc.nogc());
+    let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
 
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
@@ -428,43 +430,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
         exe.scope(agent, gc.nogc())
     };
 
-    // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
-    // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
-    // [[GeneratorContext]], [[GeneratorBrand]] »).
-    // 3. Set G.[[GeneratorBrand]] to empty.
-    let generator = {
-        let mut args = arguments_list.unbind();
-        let function_object = function_object.into_function().unbind();
-        let generator = args
-            .with_scoped(
-                agent,
-                |agent, _, gc| {
-                    ordinary_create_from_constructor(
-                        agent,
-                        function_object,
-                        ProtoIntrinsics::Generator,
-                        gc,
-                    )
-                },
-                gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
-        arguments_list = args;
-        generator
-    };
-
-    // Note: we cannot throw our possible error yet, as that would be an
-    // observable difference in the execution order.
-    let generator = match generator {
-        Ok(generator) => {
-            let Object::Generator(generator) = generator else {
-                unreachable!()
-            };
-            Ok(generator.scope(agent, gc.nogc()))
-        }
-        Err(err) => Err(err.scope(agent, gc.nogc())),
-    };
+    let function_object = function_object.scope(agent, gc.nogc());
 
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     // Note: FunctionDeclarationInstantiation is done at the beginning of the
@@ -476,18 +442,6 @@ pub(crate) fn evaluate_generator_body<'gc>(
         gc.reborrow(),
     ) {
         ExecutionResult::Throw(err) => {
-            // Drop the scoped generator/error.
-            // SAFETY: generator and error are not shared.
-            unsafe {
-                match generator {
-                    Ok(generator) => {
-                        let _ = generator.take(agent);
-                    }
-                    Err(err) => {
-                        let _ = err.take(agent);
-                    }
-                }
-            }
             return Err(err.unbind().bind(gc.into_nogc()));
         }
         ExecutionResult::Yield { vm, yielded_value } => {
@@ -498,16 +452,30 @@ pub(crate) fn evaluate_generator_body<'gc>(
     };
     //}
 
+    // Note: after arguments preparation the execution context should hold all
+    // the argument values and the VM should be empty. Thus we can keep it here
+    // on the stack despite a potential GC call happening below in the
+    // OrdinaryCreateFromConstructor call.
+    debug_assert!(vm.is_gc_safe());
+
+    // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
+    // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
+    // [[GeneratorContext]], [[GeneratorBrand]] »).
+    // 3. Set G.[[GeneratorBrand]] to empty.
+    let generator = ordinary_create_from_constructor(
+        agent,
+        // SAFETY: not shared.
+        unsafe { function_object.take(agent) }.into_function(),
+        ProtoIntrinsics::Generator,
+        gc.reborrow(),
+    )
+    .unbind()?;
+
     let gc = gc.into_nogc();
 
-    // Unwrap the scoped generator/error.
-    // SAFETY: generator and error are not shared.
-    let generator = unsafe {
-        match generator {
-            Ok(generator) => Ok(generator.take(agent).bind(gc)),
-            Err(err) => Err(err.take(agent).bind(gc)),
-        }
-    }?;
+    let Object::Generator(generator) = generator.bind(gc) else {
+        unreachable!()
+    };
 
     // 4. Perform GeneratorStart(G, FunctionBody).
     agent[generator].generator_state =
@@ -535,7 +503,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
-    let mut arguments_list = arguments_list.bind(gc.nogc());
+    let arguments_list = arguments_list.bind(gc.nogc());
 
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.scope(agent, gc.nogc())
@@ -546,43 +514,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         exe.scope(agent, gc.nogc())
     };
 
-    // 2. Let generator be ? OrdinaryCreateFromConstructor(functionObject,
-    //    "%AsyncGeneratorPrototype%", « [[AsyncGeneratorState]],
-    //    [[AsyncGeneratorContext]], [[AsyncGeneratorQueue]],
-    //    [[GeneratorBrand]] »).
-    let generator = {
-        let function_object = function_object.into_function().unbind();
-        let mut args = arguments_list.unbind();
-        let generator = args
-            .with_scoped(
-                agent,
-                |agent, _, gc| {
-                    ordinary_create_from_constructor(
-                        agent,
-                        function_object,
-                        ProtoIntrinsics::AsyncGenerator,
-                        gc,
-                    )
-                },
-                gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
-        arguments_list = args.bind(gc.nogc());
-        generator
-    };
-
-    // Note: we cannot throw our possible error yet, as that would be an
-    // observable difference in the execution order.
-    let generator = match generator {
-        Ok(generator) => {
-            let Object::AsyncGenerator(generator) = generator else {
-                unreachable!()
-            };
-            Ok(generator.scope(agent, gc.nogc()))
-        }
-        Err(err) => Err(err.scope(agent, gc.nogc())),
-    };
+    let function_object = function_object.scope(agent, gc.nogc());
 
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     // Note: FunctionDeclarationInstantiation is done at the beginning of the
@@ -594,18 +526,6 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         gc.reborrow(),
     ) {
         ExecutionResult::Throw(err) => {
-            // Drop the scoped generator/error.
-            // SAFETY: generator and error are not shared.
-            unsafe {
-                match generator {
-                    Ok(generator) => {
-                        let _ = generator.take(agent);
-                    }
-                    Err(err) => {
-                        let _ = err.take(agent);
-                    }
-                }
-            }
             return Err(err.unbind().bind(gc.into_nogc()));
         }
         ExecutionResult::Yield { vm, yielded_value } => {
@@ -616,16 +536,29 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     };
     //}
 
+    // Note: after arguments preparation the execution context should hold all
+    // the argument values and the VM should be empty. Thus we can keep it here
+    // on the stack despite a potential GC call happening below in the
+    // OrdinaryCreateFromConstructor call.
+    debug_assert!(vm.is_gc_safe());
+
+    // 2. Let generator be ? OrdinaryCreateFromConstructor(functionObject,
+    //    "%AsyncGeneratorPrototype%", « [[AsyncGeneratorState]],
+    //    [[AsyncGeneratorContext]], [[AsyncGeneratorQueue]],
+    //    [[GeneratorBrand]] »).
+    let generator = ordinary_create_from_constructor(
+        agent,
+        // SAFETY: not shared.
+        unsafe { function_object.take(agent) }.into_function(),
+        ProtoIntrinsics::AsyncGenerator,
+        gc.reborrow(),
+    )
+    .unbind()?;
     let gc = gc.into_nogc();
 
-    // Unwrap the scoped generator/error.
-    // SAFETY: generator and error are not shared.
-    let generator = unsafe {
-        match generator {
-            Ok(generator) => Ok(generator.take(agent).bind(gc)),
-            Err(err) => Err(err.take(agent).bind(gc)),
-        }
-    }?;
+    let Object::AsyncGenerator(generator) = generator.bind(gc) else {
+        unreachable!()
+    };
 
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.

@@ -16,10 +16,6 @@
 
 use num_bigint::Sign;
 
-use crate::ecmascript::types::IntoPrimitive;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -29,9 +25,14 @@ use crate::{
         },
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
-            Object, Primitive, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoPrimitive, IntoValue,
+            Number, Numeric, Object, Primitive, PropertyKey, String, Value,
         },
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
 };

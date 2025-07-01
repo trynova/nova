@@ -2562,6 +2562,70 @@ pub(crate) fn private_set<'a>(
     }
 }
 
+/// ### [7.3.31 PrivateSet ( O, P, value )](https://tc39.es/ecma262/#sec-privateset)
+///
+/// The abstract operation PrivateSet takes arguments O (an Object), P (a
+/// Private Name), and value (an ECMAScript language value) and returns either
+/// a normal completion containing unused or a throw completion.
+pub(crate) fn try_private_set<'a>(
+    agent: &mut Agent,
+    o: Object,
+    p: PrivateName,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<'a, ()>> {
+    if o.is_proxy() {
+        return TryResult::Continue(Err(throw_no_proxy_private_names(agent, gc)));
+    }
+    // 1. Let entry be PrivateElementFind(O, P).
+    match o
+        .get_backing_object(agent)
+        .and_then(|o| o.property_storage().private_element_find_mut(agent, p))
+    {
+        Some((Some(entry_value), descriptor)) => {
+            // 3. If entry.[[Kind]] is field, then
+            // 4. Else if entry.[[Kind]] is method, then
+            if let Some(d) = descriptor {
+                // Note: check that either we have no descriptor, ie. field, or we have
+                // an unwritable, unconfigurable (and unenumerable) descriptor, ie.
+                // method.
+                assert!(d.is_data_descriptor() && !d.is_writable().unwrap() && !d.is_enumerable());
+                TryResult::Continue(Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "cannot assign to private method",
+                    gc,
+                )))
+            } else {
+                // a. Throw a TypeError exception.
+                // a. Set entry.[[Value]] to value.
+                *entry_value = value.unbind();
+                // 6. Return unused.
+                TryResult::Continue(Ok(()))
+            }
+        }
+        Some((None, Some(descriptor))) => {
+            // 5. Else,
+            // a. Assert: entry.[[Kind]] is accessor.
+            assert!(descriptor.is_accessor_descriptor());
+            // b. If entry.[[Set]] is undefined, throw a TypeError exception.
+            // c. Let setter be entry.[[Set]].
+            let Some(_) = descriptor.setter_function(gc) else {
+                return TryResult::Continue(Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "setting getter-only private field",
+                    gc,
+                )));
+            };
+            // d. Perform ? Call(setter, O, « value »).
+            TryResult::Break(())
+        }
+        _ => {
+            // 2. If entry is empty, throw a TypeError exception.
+            TryResult::Continue(Err(throw_no_private_name_error(agent, gc)))
+        }
+    }
+}
+
 /// [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
 ///
 /// The abstract operation InitializeInstanceElements takes arguments O (an

@@ -34,6 +34,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 }
             }
             ast::AssignmentTarget::ComputedMemberExpression(expression) => {
+                // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
                 expression.compile(ctx);
             }
             ast::AssignmentTarget::ArrayAssignmentTarget(_)
@@ -43,19 +44,26 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                     AssignmentOperator::Assign,
                     "SyntaxError: Invalid left-hand side in assignment expression"
                 );
+                // 2. Let assignmentPattern be the AssignmentPattern that is covered by LeftHandSideExpression.
+                // 3. Let rRef be ? Evaluation of AssignmentExpression.
                 self.right.compile(ctx);
                 if is_reference(&self.right) {
+                    // 4. Let rVal be ? GetValue(rRef).
                     ctx.add_instruction(Instruction::GetValue);
                 }
+                // 5. Perform ? DestructuringAssignmentEvaluation of assignmentPattern with argument rVal.
                 ctx.add_instruction(Instruction::LoadCopy);
-                self.left.compile(ctx);
+                self.left.to_assignment_target_pattern().compile(ctx);
+                // 6. Return rVal.
                 ctx.add_instruction(Instruction::Store);
                 return;
             }
             ast::AssignmentTarget::PrivateFieldExpression(expression) => {
+                // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
                 expression.compile(ctx);
             }
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
+                // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
                 expression.compile(ctx);
             }
             #[cfg(feature = "typescript")]
