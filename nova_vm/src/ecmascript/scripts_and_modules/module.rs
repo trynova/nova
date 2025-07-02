@@ -214,17 +214,30 @@ pub(crate) fn link_and_evaluate(
     let promise = unsafe { promise.take(agent) }.bind(gc.nogc());
     // SAFETY: not shared.
     let module = unsafe { scoped_module.take(agent) }.bind(gc.nogc());
-    let Some(evaluate_promise) = evaluate_promise else {
+    if let Some(result) = evaluate_promise.try_get_result(agent, gc.nogc()) {
         // Synchronous evaluation finish.
-        // i. Let namespace be GetModuleNamespace(module).
-        let namespace = get_module_namespace(agent, module, gc.nogc());
-        // ii. Perform ! Call(promiseCapability.[[Resolve]], undefined, « namespace »).
-        unwrap_try(PromiseCapability::from_promise(promise, true).try_resolve(
-            agent,
-            namespace.into_value(),
-            gc.nogc(),
-        ));
-        // iii. Return unused.
+        match result {
+            Ok(_) => {
+                // i. Let namespace be GetModuleNamespace(module).
+                let namespace = get_module_namespace(agent, module, gc.nogc());
+                // ii. Perform ! Call(promiseCapability.[[Resolve]], undefined, « namespace »).
+                unwrap_try(PromiseCapability::from_promise(promise, true).try_resolve(
+                    agent,
+                    namespace.into_value(),
+                    gc.nogc(),
+                ));
+                // iii. Return unused.
+            }
+            Err(err) => {
+                // i. Perform ! Call(promiseCapability.[[Reject]], undefined, « link.[[Value]] »).
+                PromiseCapability::from_promise(promise, true).reject(
+                    agent,
+                    err.value(),
+                    gc.nogc(),
+                );
+                // ii. Return unused.
+            }
+        }
         return;
     };
     // d. Let fulfilledClosure be a new Abstract Closure with no parameters

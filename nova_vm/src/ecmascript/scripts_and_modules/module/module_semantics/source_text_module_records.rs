@@ -20,8 +20,16 @@ use oxc_span::SourceType;
 use crate::{
     ecmascript::{
         builtins::{
-            module::Module, promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            async_function_objects::await_reaction::AwaitReactionRecord,
+            module::Module,
+            promise::Promise,
+            promise_objects::{
+                promise_abstract_operations::{
+                    promise_capability_records::PromiseCapability,
+                    promise_reaction_records::PromiseReactionHandler,
+                },
+                promise_prototype::inner_promise_then,
+            },
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
@@ -49,9 +57,10 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
     },
     engine::{
-        Executable, Scoped, Vm,
+        Executable, ExecutionResult, Scoped, Vm,
         context::{Bindable, GcScope, GcToken, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        unwrap_try,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
@@ -63,8 +72,8 @@ use super::{
         ResolveSetEntry, ResolvedBinding,
     },
     cyclic_module_records::{
-        CyclicModuleMethods, CyclicModuleRecord, CyclicModuleSlots, GraphLoadingStateRecord,
-        inner_module_loading,
+        AsyncEvaluationOrder, CyclicModuleMethods, CyclicModuleRecord, CyclicModuleSlots,
+        GraphLoadingStateRecord, inner_module_loading,
     },
     get_imported_module, get_module_namespace,
 };
@@ -86,6 +95,9 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     /// dropped here is the local Program itself, not any of its referred
     /// parts.
     ecmascript_code: ManuallyDrop<Program<'static>>,
+    /// Compiled bytecode of \[\[ECMAScriptCode]], placed here for resuming
+    /// async module evaluation after an await.
+    compiled_bytecode: Option<Executable<'a>>,
     /// ### \[\[Context]]
     ///
     /// an ECMAScript code execution context or empty
@@ -162,6 +174,16 @@ impl<'m> SourceTextModule<'m> {
         self.0 as usize
     }
 
+    /// ### \[\[CycleRoot]]
+    pub(super) fn get_cycle_root(self, agent: &Agent) -> Option<SourceTextModule<'m>> {
+        self.get(agent).cyclic_fields.get_cycle_root()
+    }
+
+    /// ### \[\[CycleRoot]]
+    pub(super) fn set_cycle_root(self, agent: &mut Agent, module: SourceTextModule<'m>) {
+        self.get_mut(agent).cyclic_fields.set_cycle_root(module)
+    }
+
     /// Get a loaded module by module request reference.
     pub(super) fn get_loaded_module(
         self,
@@ -231,6 +253,19 @@ impl<'m> SourceTextModule<'m> {
                 self.get(agent).ecmascript_code.body.as_slice(),
             )
         }
+    }
+
+    pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'m> {
+        self.get(agent).compiled_bytecode.unwrap()
+    }
+
+    fn set_executable(self, agent: &mut Agent, executable: Executable<'m>) {
+        assert!(
+            self.get_mut(agent)
+                .compiled_bytecode
+                .replace(executable.unbind())
+                .is_none()
+        );
     }
 
     /// ### \[\[ImportMeta]]
@@ -316,11 +351,6 @@ impl<'m> SourceTextModule<'m> {
         }
     }
 
-    /// ### \[\[HasTLA]]
-    fn has_tla(self, agent: &Agent) -> bool {
-        self.get(agent).cyclic_fields.has_tla()
-    }
-
     /// ### \[\[EvaluationError]]
     pub(super) fn evaluation_error<'gc>(
         self,
@@ -340,17 +370,6 @@ impl<'m> SourceTextModule<'m> {
     /// Get a reference to the module's source code storage.
     fn source_code(self, agent: &Agent) -> SourceCode<'m> {
         self.get(agent).source_code
-    }
-
-    /// ### \[\[TopLevelCapability]]
-    pub(super) fn top_level_capability<'a>(
-        self,
-        agent: &'a Agent,
-    ) -> Option<&'a PromiseCapability<'m>>
-    where
-        'm: 'a,
-    {
-        self.get(agent).cyclic_fields.top_level_capability()
     }
 
     /// ### \[\[DFSAncestorIndex]]
@@ -393,6 +412,11 @@ impl<'m> SourceTextModule<'m> {
     /// Set module.\[\[Status]] to evaluating.
     pub(super) fn set_evaluating(self, agent: &mut Agent) {
         self.get_mut(agent).cyclic_fields.set_evaluating()
+    }
+
+    /// Set module.\[\[Status]] to evaluating-async.
+    pub(super) fn set_evaluating_async(self, agent: &mut Agent) {
+        self.get_mut(agent).cyclic_fields.set_evaluating_async()
     }
 
     /// Set module.\[\[Status]] to evaluated.
@@ -962,8 +986,8 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// component. Future invocations of Evaluate on any module in the
     /// component return the same Promise. (Most of the work is done by the
     /// auxiliary function InnerModuleEvaluation.)
-    fn evaluate<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> Option<Promise<'gc>> {
-        let module = self.bind(gc.nogc());
+    fn evaluate<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> Promise<'gc> {
+        let mut module = self.bind(gc.nogc());
         // 1. Assert: This call to Evaluate is not happening at the same time
         //    as another call to Evaluate within the surrounding agent.
         // 2. Assert: module.[[Status]] is one of linked, evaluating-async, or
@@ -974,23 +998,25 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
                 | CyclicModuleRecordStatus::EvaluatingAsync
                 | CyclicModuleRecordStatus::Evaluated
         ));
-        // 3. If module.[[Status]] is either evaluating-async or evaluated, set
-        //    module to module.[[CycleRoot]].
+        // 3. If module.[[Status]] is either evaluating-async or evaluated,
         if matches!(
             module.status(agent),
             CyclicModuleRecordStatus::EvaluatingAsync | CyclicModuleRecordStatus::Evaluated
         ) {
-            todo!("set module to module.[[CycleRoot]]");
+            // set module to module.[[CycleRoot]].
+            module = module.get_cycle_root(agent).unwrap();
         }
         // 4. If module.[[TopLevelCapability]] is not empty, then
         if let Some(top_level_capability) = module.top_level_capability(agent) {
             // a. Return module.[[TopLevelCapability]].[[Promise]].
-            return Some(top_level_capability.promise.unbind().bind(gc.into_nogc()));
+            return top_level_capability.promise.unbind().bind(gc.into_nogc());
         }
         // 5. Let stack be a new empty List.
         let mut stack = vec![];
         // 6. Let capability be ! NewPromiseCapability(%Promise%).
+        let capability = PromiseCapability::new(agent, gc.nogc());
         // 7. Set module.[[TopLevelCapability]] to capability.
+        module.set_top_level_capability(agent, capability);
         // 8. Let result be Completion(InnerModuleEvaluation(module, stack, 0)).
         let scoped_module = module.scope(agent, gc.nogc());
         let result = inner_module_evaluation(
@@ -1025,12 +1051,15 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
             ));
             // c. Assert: module.[[EvaluationError]] and result are the same Completion Record.
             debug_assert_eq!(module.evaluation_error(agent, gc.nogc()), Err(result));
+            let module = module.unbind();
+            let result = result.unbind();
+            let gc = gc.into_nogc();
+            let module = module.bind(gc);
+            let result = result.bind(gc);
+            let capability = module.top_level_capability(agent).bind(gc).unwrap();
             // d. Perform ! Call(capability.[[Reject]], undefined, « result.[[Value]] »).
-            return Some(Promise::new_rejected(
-                agent,
-                result.value().unbind(),
-                gc.into_nogc(),
-            ));
+            capability.reject(agent, result.value().unbind(), gc);
+            return capability.promise();
         }
         // 10. Else,
         // a. Assert: module.[[Status]] is either evaluating-async or evaluated.
@@ -1042,23 +1071,94 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         debug_assert!(module.evaluation_error(agent, gc.nogc()).is_ok());
         // d. Assert: stack is empty.
         debug_assert!(stack.is_empty());
+        let module = module.unbind();
+        let gc = gc.into_nogc();
+        let module = module.bind(gc);
+        let capability = module.top_level_capability(agent).bind(gc).unwrap();
         // c. If module.[[Status]] is evaluated, then
         if matches!(module.status(agent), CyclicModuleRecordStatus::Evaluated) {
             // i. NOTE: This implies that evaluation of module completed
             //    synchronously.
             // ii. Assert: module.[[AsyncEvaluationOrder]] is unset.
             // iii. Perform ! Call(capability.[[Resolve]], undefined, « undefined »).
-            None
-        } else {
-            // 11. Return capability.[[Promise]].
-            todo!()
+            unwrap_try(capability.try_resolve(agent, Value::Undefined, gc));
         }
+        // 11. Return capability.[[Promise]].
+        capability.promise()
     }
 }
 
-impl CyclicModuleSlots for SourceTextModule<'_> {
+impl<'m> CyclicModuleSlots for SourceTextModule<'m> {
     fn status(self, agent: &Agent) -> CyclicModuleRecordStatus {
         self.get(agent).cyclic_fields.status()
+    }
+
+    fn has_tla(self, agent: &Agent) -> bool {
+        self.get(agent).cyclic_fields.has_tla()
+    }
+
+    /// ### \[\[AsyncEvaluationOrder]]
+    fn async_evaluation_order(self, agent: &Agent) -> Option<AsyncEvaluationOrder> {
+        self.get(agent).cyclic_fields.async_evaluation_order()
+    }
+
+    /// Set \[\[AsyncEvaluationOrder]]
+    fn set_async_evaluation_order(self, agent: &mut Agent, order: u32) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .set_async_evaluation_order(order)
+    }
+
+    fn pending_async_dependencies(self, agent: &Agent) -> Option<u32> {
+        self.get(agent).cyclic_fields.pending_async_dependencies()
+    }
+
+    fn increment_pending_async_dependencies(self, agent: &mut Agent) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .increment_pending_async_dependencies();
+    }
+
+    fn decrement_pending_async_dependencies(self, agent: &mut Agent) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .decrement_pending_async_dependencies();
+    }
+
+    /// ### \[\[AsyncParentModules]].
+    fn get_async_parent_modules<'a>(self, agent: &'a Agent) -> &'a [SourceTextModule<'a>] {
+        unsafe {
+            core::mem::transmute::<&[SourceTextModule], &'a [SourceTextModule<'a>]>(
+                self.get(agent).cyclic_fields.get_async_parent_modules(),
+            )
+        }
+    }
+
+    /// Append a CyclicModule to \[\[AsyncParentModules]].
+    fn append_async_parent_module(self, agent: &mut Agent, module: SourceTextModule) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .append_async_parent_module(module);
+    }
+
+    fn set_async_evaluation_done(self, agent: &mut Agent) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .set_async_evaluation_done();
+    }
+
+    fn top_level_capability(self, agent: &Agent) -> Option<PromiseCapability> {
+        self.get(agent)
+            .cyclic_fields
+            .top_level_capability()
+            .cloned()
+            .unbind()
+    }
+
+    fn set_top_level_capability(self, agent: &mut Agent, capability: PromiseCapability) {
+        self.get_mut(agent)
+            .cyclic_fields
+            .set_top_level_capability(capability)
     }
 }
 
@@ -1372,6 +1472,12 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
     ) -> JsResult<'a, ()> {
         let module = self.bind(gc.nogc());
         let capability = capability.bind(gc.nogc());
+
+        // 0. Bind module environment.
+        // Note: this is a custom step that enables certain optimisations of
+        // import binding value lookups.
+        module.bind_environment(agent, gc.nogc());
+
         // 1. Let moduleContext be a new ECMAScript code execution context.
         // 5. Assert: module has been linked and declarations in its module
         //    environment have been instantiated.
@@ -1426,16 +1532,132 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         } else {
             // 10. Else,
             // a. Assert: capability is a PromiseCapability Record.
+            let Some(capability) = capability else {
+                unreachable!()
+            };
             // b. Perform AsyncBlockStart(capability, module.[[ECMAScriptCode]], moduleContext).
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::Error,
-                "Top-level await is not yet supported",
-                gc.into_nogc(),
-            ));
+            async_module_start(
+                agent,
+                capability.unbind(),
+                module.unbind(),
+                module_context,
+                gc,
+            );
         }
         // 11. Return unused.
         Ok(())
     }
+}
+
+fn async_module_start(
+    agent: &mut Agent,
+    promise_capability: PromiseCapability,
+    module: SourceTextModule,
+    async_context: ExecutionContext,
+    mut gc: GcScope,
+) {
+    let promise_capability = promise_capability.bind(gc.nogc());
+    let module = module.bind(gc.nogc());
+    let scoped_module = module.scope(agent, gc.nogc());
+    let promise = promise_capability.promise().scope(agent, gc.nogc());
+
+    // 3. Set the code evaluation state of asyncContext such that when
+    //    evaluation is resumed for that execution context, closure will be
+    //    called with no arguments.
+    let bytecode = Executable::compile_module(agent, module, gc.nogc()).scope(agent, gc.nogc());
+    // 4. Push asyncContext onto the execution context stack; asyncContext is
+    //    now the running execution context.
+    agent.push_execution_context(async_context);
+    // 5. Resume the suspended evaluation of asyncContext. Let result be the
+    //    value returned by the resumed computation.
+    let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
+        .unbind()
+        .bind(gc.nogc());
+
+    // AsyncBlockStart will run the module until it returns, throws or
+    // gets suspended with an await.
+    match result {
+        ExecutionResult::Return(result) => {
+            let _ = agent.pop_execution_context().unwrap();
+            // SAFETY: not shared.
+            let promise = unsafe {
+                let _ = bytecode.take(agent);
+                let promise = promise.take(agent).bind(gc.nogc());
+                let _ = scoped_module.take(agent);
+                promise
+            };
+            let result = result.unbind().bind(gc.nogc());
+            let promise_capability = PromiseCapability::from_promise(promise, true);
+            // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
+            // 2. e. If result is a normal completion, then
+            //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
+            //    f. Else if result is a return completion, then
+            //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
+            unwrap_try(promise_capability.try_resolve(agent, result, gc.nogc()));
+        }
+        ExecutionResult::Throw(err) => {
+            let _ = agent.pop_execution_context().unwrap();
+            // SAFETY: not shared.
+            let promise = unsafe {
+                let _ = bytecode.take(agent);
+                let promise = promise.take(agent).bind(gc.nogc());
+                let _ = scoped_module.take(agent);
+                promise
+            };
+            let err = err.unbind().bind(gc.nogc());
+            let promise_capability = PromiseCapability::from_promise(promise, true);
+            // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
+            // 2. g. i. Assert: result is a throw completion.
+            //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
+            promise_capability.reject(agent, err.value(), gc.nogc());
+        }
+        ExecutionResult::Await { vm, awaited_value } => {
+            let async_context = agent.pop_execution_context().unwrap();
+            // SAFETY: not shared.
+            let (bytecode, promise, module) = unsafe {
+                let bytecode = bytecode.take(agent);
+                let promise = promise.take(agent).bind(gc.nogc());
+                let module = scoped_module.take(agent);
+                (bytecode, promise, module)
+            };
+            let promise_capability = PromiseCapability::from_promise(promise, true);
+            let handler = agent
+                .heap
+                .create(AwaitReactionRecord {
+                    vm: Some(vm),
+                    async_executable: Some(module.into()),
+                    execution_context: Some(async_context),
+                    return_promise_capability: promise_capability,
+                })
+                .scope(agent, gc.nogc());
+
+            // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
+            // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
+            // which resume execution of the function.
+            // 2. Let promise be ? PromiseResolve(%Promise%, value).
+            let resolve_promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
+                .unbind()
+                .bind(gc.nogc());
+
+            module.set_executable(agent, bytecode);
+
+            // SAFETY: handler is not shared.
+            let handler =
+                PromiseReactionHandler::Await(unsafe { handler.take(agent) }.bind(gc.nogc()));
+
+            // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
+            inner_promise_then(
+                agent,
+                resolve_promise.unbind(),
+                handler,
+                handler,
+                None,
+                gc.nogc(),
+            );
+        }
+        ExecutionResult::Yield { .. } => unreachable!(),
+    }
+    //}
 }
 
 pub(crate) type ModuleOrErrors<'a> = Result<SourceTextModule<'a>, Vec<OxcDiagnostic>>;
@@ -1810,6 +2032,7 @@ pub fn parse_module<'a>(
         cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
         // [[ECMAScriptCode]]: body,
         ecmascript_code: ManuallyDrop::new(body),
+        compiled_bytecode: None,
         // [[Context]]: empty,
         context: Default::default(),
         // [[ImportMeta]]: empty,
@@ -1909,6 +2132,7 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
             abstract_fields,
             cyclic_fields,
             ecmascript_code: _,
+            compiled_bytecode: _,
             context: _,
             import_meta,
             import_entries,
@@ -1931,6 +2155,7 @@ impl HeapMarkAndSweep for SourceTextModuleRecord<'static> {
             abstract_fields,
             cyclic_fields,
             ecmascript_code: _,
+            compiled_bytecode: _,
             context: _,
             import_meta,
             import_entries,

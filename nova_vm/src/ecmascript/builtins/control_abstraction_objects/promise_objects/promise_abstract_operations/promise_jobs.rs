@@ -7,6 +7,9 @@
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
     create_iter_result_object, iterator_close_with_error,
 };
+use crate::ecmascript::scripts_and_modules::module::module_semantics::cyclic_module_records::{
+    async_module_execution_fulfilled, async_module_execution_rejected,
+};
 use crate::ecmascript::scripts_and_modules::module::{
     import_get_module_namespace, link_and_evaluate,
 };
@@ -221,6 +224,27 @@ impl PromiseReactionJob {
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
                 (Err(err), capability)
             }
+            PromiseReactionHandler::AsyncModule(module) => {
+                assert!(agent[reaction].capability.is_none());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        // a. Perform AsyncModuleExecutionFulfilled(module).
+                        async_module_execution_fulfilled(agent, module.unbind(), gc);
+                    }
+                    PromiseReactionType::Reject => {
+                        let error = JsError::new(argument);
+                        // a. Perform AsyncModuleExecutionRejected(module, error).
+                        async_module_execution_rejected(
+                            agent,
+                            module.unbind(),
+                            error.unbind(),
+                            gc.into_nogc(),
+                        );
+                    }
+                }
+                // b. Return undefined.
+                return Ok(());
+            }
             PromiseReactionHandler::DynamicImport { promise, module } => {
                 assert!(agent[reaction].capability.is_none());
                 match agent[reaction].reaction_type {
@@ -318,6 +342,7 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::Empty
         | PromiseReactionHandler::AsyncFromSyncIterator { .. }
         | PromiseReactionHandler::AsyncFromSyncIteratorClose(_)
+        | PromiseReactionHandler::AsyncModule(_)
         | PromiseReactionHandler::DynamicImport { .. }
         | PromiseReactionHandler::DynamicImportEvaluate { .. } => None,
     };

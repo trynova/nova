@@ -504,6 +504,12 @@ pub struct Agent {
     pub(super) kept_alive: bool,
     /// Global counter for PrivateNames. This only ever grows.
     private_names_counter: u32,
+    /// ### \[\[ModuleAsyncEvaluationCount]]
+    ///
+    /// Initially 0, used to assign unique incrementing values to the
+    /// \[\[AsyncEvaluationOrder]] field of modules that are asynchronous or
+    /// have asynchronous dependencies.
+    module_async_evaluation_count: u32,
 }
 
 impl Agent {
@@ -520,6 +526,7 @@ impl Agent {
             vm_stack: Vec::with_capacity(16),
             kept_alive: false,
             private_names_counter: 0,
+            module_async_evaluation_count: 0,
         }
     }
 
@@ -859,6 +866,25 @@ impl Agent {
         PrivateName::from_u32(first)
     }
 
+    /// ### [9.6.3 IncrementModuleAsyncEvaluationCount ( )](https://tc39.es/ecma262/#sec-IncrementModuleAsyncEvaluationCount)
+    ///
+    /// The abstract operation IncrementModuleAsyncEvaluationCount takes no
+    /// arguments and returns an integer.
+    ///
+    /// > NOTE: This value is only used to keep track of the relative
+    /// > evaluation order between pending modules. An implementation may
+    /// > unobservably reset \[\[ModuleAsyncEvaluationCount]] to 0 whenever
+    /// > there are no pending modules.
+    pub(crate) fn increment_module_async_evaluation_count(&mut self) -> u32 {
+        // 1. Let AR be the Agent Record of the surrounding agent.
+        // 2. Let count be AR.[[ModuleAsyncEvaluationCount]].
+        let count = self.module_async_evaluation_count;
+        // 3. Set AR.[[ModuleAsyncEvaluationCount]] to count + 1.
+        self.module_async_evaluation_count += 1;
+        // 4. Return count.
+        count
+    }
+
     pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
         self.execution_context_stack.last_mut().unwrap()
     }
@@ -945,19 +971,17 @@ impl Agent {
         result.unbind()?;
 
         module.link(self, gc.nogc()).unbind()?;
-        if let Some(result) = module.unbind().evaluate(self, gc.reborrow()) {
-            // Note: If we get a Promise result, it should mean that the
-            // Promise was synchronously rejected.
-            let Err(err) = result
-                .unbind()
-                .try_get_result(self, gc.into_nogc())
-                .unwrap()
-            else {
-                unreachable!();
-            };
-            return Err(err);
-        };
-        Ok(Value::Undefined)
+        if let Some(result) = module
+            .unbind()
+            .evaluate(self, gc.reborrow())
+            .unbind()
+            .try_get_result(self, gc.into_nogc())
+        {
+            // Note: module resolved synchronously.
+            result
+        } else {
+            Ok(Value::Undefined)
+        }
     }
 }
 
@@ -1095,6 +1119,7 @@ impl HeapMarkAndSweep for Agent {
             host_hooks: _,
             kept_alive: _,
             private_names_counter: _,
+            module_async_evaluation_count: _,
         } = self;
 
         execution_context_stack.iter().for_each(|ctx| {
@@ -1143,6 +1168,7 @@ impl HeapMarkAndSweep for Agent {
             host_hooks: _,
             kept_alive: _,
             private_names_counter: _,
+            module_async_evaluation_count: _,
         } = self;
 
         execution_context_stack

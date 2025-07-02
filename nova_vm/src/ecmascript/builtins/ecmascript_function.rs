@@ -279,8 +279,8 @@ impl<'a> ECMAScriptFunction<'a> {
         self.0.into_index()
     }
 
-    pub(crate) fn get_executable(self, agent: &Agent, _: NoGcScope<'a, '_>) -> Executable<'a> {
-        agent[self].compiled_bytecode.unwrap()
+    pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'a> {
+        agent[self].compiled_bytecode.unwrap().unbind()
     }
 
     pub fn is_constructor(self, agent: &Agent) -> bool {

@@ -108,9 +108,17 @@ impl<'m> AbstractModuleRecord<'m> {
 /// named Source Text Module Record. Other specifications and implementations
 /// may define additional Module Record subclasses corresponding to alternative
 /// module definition facilities that they defined.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct AbstractModule<'a>(InnerAbstractModule<'a>);
+
+impl core::fmt::Debug for AbstractModule<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match &self.0 {
+            InnerAbstractModule::SourceTextModule(m) => m.fmt(f),
+        }
+    }
+}
 
 impl<'m> AbstractModule<'m> {
     #[inline]
@@ -316,7 +324,7 @@ pub(crate) trait AbstractModuleMethods: AbstractModuleSlots {
     /// rethrow the evaluation error.
     ///
     /// Link must have completed successfully prior to invoking this method.
-    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>>;
+    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Promise<'gc>;
 }
 
 impl AbstractModuleSlots for AbstractModule<'_> {
@@ -408,7 +416,7 @@ impl AbstractModuleMethods for AbstractModule<'_> {
         }
     }
 
-    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Option<Promise<'gc>> {
+    fn evaluate<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> Promise<'gc> {
         match self.0 {
             InnerAbstractModule::SourceTextModule(m) => m.evaluate(agent, gc),
         }
