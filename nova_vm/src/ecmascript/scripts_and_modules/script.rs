@@ -353,7 +353,8 @@ pub fn script_evaluation<'a>(
     let script = script.bind(gc.nogc());
     let script_record = &agent[script];
     let realm_id = script_record.realm;
-    let is_strict_mode = script_record.ecmascript_code.source_type.is_strict();
+    let is_strict_mode = script_record.ecmascript_code.source_type.is_strict()
+        || script_record.ecmascript_code.has_use_strict_directive();
     let source_code = script_record.source_code;
     let realm = agent.get_realm_record_by_id(realm_id);
 
