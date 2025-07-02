@@ -19,18 +19,17 @@
 // This function must be completely independent of the current realm, and it
 // should do everything through the `global` argument. This makes sure that
 // everything works correctly in realms created from `$262.createRealm()`.
-// It's also declared with let to make sure it doesn't pollute the global.
-let buildHarness = (global) => {
+// It's also declared with const to make sure it doesn't pollute the global.
+const buildHarness = (global) => {
     const novaObj = global.__nova__;
     delete global.__nova__;
 
     global.$262 = global.Object();
-    global.$262.global = global;
+    global.$262.createRealm = () => buildHarness(novaObj.createRealm());
     global.$262.detachArrayBuffer = novaObj.detachArrayBuffer;
-    global.$262.createRealm = () => {
-        return buildHarness(novaObj.createRealm());
-    };
     global.$262.evalScript = global.eval;
+    global.$262.gc = novaObj.gc;
+    global.$262.global = global;
     return global.$262;
 }
 

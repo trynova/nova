@@ -121,25 +121,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
 }
 
 pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object, mut gc: GcScope) {
-    // `detachArrayBuffer` function
-    fn detach_array_buffer<'gc>(
-        agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let args = args.bind(gc.nogc());
-        let Value::ArrayBuffer(array_buffer) = args.get(0) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::Error,
-                "Cannot detach non ArrayBuffer argument",
-                gc.into_nogc(),
-            ));
-        };
-        array_buffer.detach(agent, None, gc.nogc()).unbind()?;
-        Ok(Value::Undefined)
-    }
-
+    /// `createRealm` function
     fn create_realm<'gc>(
         agent: &mut Agent,
         _this: Value,
@@ -160,6 +142,36 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         Ok(realm.global_object(agent).into_value().unbind())
     }
 
+    /// `detachArrayBuffer` function
+    fn detach_array_buffer<'gc>(
+        agent: &mut Agent,
+        _this: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let args = args.bind(gc.nogc());
+        let Value::ArrayBuffer(array_buffer) = args.get(0) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::Error,
+                "Cannot detach non ArrayBuffer argument",
+                gc.into_nogc(),
+            ));
+        };
+        array_buffer.detach(agent, None, gc.nogc()).unbind()?;
+        Ok(Value::Undefined)
+    }
+
+    /// `gc` function
+    fn run_gc<'gc>(
+        agent: &mut Agent,
+        _this: Value,
+        _args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        agent.gc(gc);
+        Ok(Value::Undefined)
+    }
+
     initialize_global_object(agent, global, gc.reborrow());
 
     let nova_obj = OrdinaryObject::create_empty_object(agent, gc.nogc()).scope(agent, gc.nogc());
@@ -170,6 +182,29 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             property_key.unbind(),
             PropertyDescriptor {
                 value: Some(nova_obj.get(agent).into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            },
+            gc.reborrow(),
+        )
+        .unwrap();
+
+    let function = create_builtin_function(
+        agent,
+        Behaviour::Regular(create_realm),
+        BuiltinFunctionArgs::new(0, "createRealm"),
+        gc.nogc(),
+    );
+    let property_key = PropertyKey::from_static_str(agent, "createRealm", gc.nogc());
+    nova_obj
+        .get(agent)
+        .internal_define_own_property(
+            agent,
+            property_key.unbind(),
+            PropertyDescriptor {
+                value: Some(function.into_value().unbind()),
                 writable: Some(true),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -204,11 +239,11 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
 
     let function = create_builtin_function(
         agent,
-        Behaviour::Regular(create_realm),
-        BuiltinFunctionArgs::new(1, "createRealm"),
+        Behaviour::Regular(run_gc),
+        BuiltinFunctionArgs::new(0, "gc"),
         gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, "createRealm", gc.nogc());
+    let property_key = PropertyKey::from_static_str(agent, "gc", gc.nogc());
     nova_obj
         .get(agent)
         .internal_define_own_property(
