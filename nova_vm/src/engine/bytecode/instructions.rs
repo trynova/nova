@@ -1026,7 +1026,7 @@ fn debug_print_expression(expr: &oxc_ast::ast::Expression) -> std::string::Strin
         oxc_ast::ast::Expression::BooleanLiteral(l) => l.value.to_string(),
         oxc_ast::ast::Expression::NullLiteral(_) => "null".to_string(),
         oxc_ast::ast::Expression::NumericLiteral(l) => l.value.to_js_string(),
-        oxc_ast::ast::Expression::BigIntLiteral(l) => l.raw.to_string(),
+        oxc_ast::ast::Expression::BigIntLiteral(l) => l.raw.as_ref().unwrap().to_string(),
         oxc_ast::ast::Expression::RegExpLiteral(l) => l.raw.as_ref().unwrap().to_string(),
         oxc_ast::ast::Expression::StringLiteral(l) => l.raw.as_ref().unwrap().to_string(),
         oxc_ast::ast::Expression::TemplateLiteral(_) => "`...`".to_string(),
