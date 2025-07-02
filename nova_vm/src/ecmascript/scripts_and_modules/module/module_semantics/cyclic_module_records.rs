@@ -477,7 +477,7 @@ pub(crate) trait CyclicModuleSlots: Copy {
     fn decrement_pending_async_dependencies(self, agent: &mut Agent);
 
     /// ### \[\[AsyncParentModules]].
-    fn get_async_parent_modules<'a>(self, agent: &'a Agent) -> &'a [SourceTextModule<'a>];
+    fn get_async_parent_modules(self, agent: &Agent) -> &[SourceTextModule];
 
     /// Append a CyclicModule to \[\[AsyncParentModules]].
     fn append_async_parent_module(self, agent: &mut Agent, module: SourceTextModule);

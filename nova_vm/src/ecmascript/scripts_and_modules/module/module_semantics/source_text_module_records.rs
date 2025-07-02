@@ -1088,7 +1088,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     }
 }
 
-impl<'m> CyclicModuleSlots for SourceTextModule<'m> {
+impl CyclicModuleSlots for SourceTextModule<'_> {
     fn status(self, agent: &Agent) -> CyclicModuleRecordStatus {
         self.get(agent).cyclic_fields.status()
     }
