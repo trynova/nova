@@ -7,9 +7,13 @@ use core::{
     ops::{Index, IndexMut},
 };
 
-use crate::engine::{
-    context::{Bindable, GcScope, GcToken, NoGcScope},
-    rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+use crate::{
+    ecmascript::scripts_and_modules::module::module_semantics::source_text_module_records::SourceTextModule,
+    engine::{
+        Executable,
+        context::{Bindable, GcScope, GcToken, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+    },
 };
 use crate::{
     ecmascript::{
@@ -76,7 +80,7 @@ impl AwaitReaction<'_> {
         let record = &mut agent[reaction];
         let execution_context = record.execution_context.take().unwrap();
         let vm = record.vm.take().unwrap();
-        let async_function = record.async_function.unwrap();
+        let async_function = record.async_executable.unwrap().bind(gc.nogc());
         agent.push_execution_context(execution_context);
 
         let reaction = reaction.scope(agent, gc.nogc());
@@ -84,17 +88,13 @@ impl AwaitReaction<'_> {
         // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
         let execution_result = match reaction_type {
             PromiseReactionType::Fulfill => {
-                let executable = async_function
-                    .get_executable(agent, gc.nogc())
-                    .scope(agent, gc.nogc());
+                let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
                 vm.resume(agent, executable, value.unbind(), gc.reborrow())
                     .unbind()
                     .bind(gc.nogc())
             }
             PromiseReactionType::Reject => {
-                let executable = async_function
-                    .get_executable(agent, gc.nogc())
-                    .scope(agent, gc.nogc());
+                let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
                 vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                     .unbind()
                     .bind(gc.nogc())
@@ -233,10 +233,52 @@ impl HeapMarkAndSweep for AwaitReaction<'static> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AsyncExecutable<'a> {
+    AsyncFunction(ECMAScriptFunction<'a>),
+    AsyncModule(SourceTextModule<'a>),
+}
+
+impl<'a> AsyncExecutable<'a> {
+    fn get_executable(self, agent: &Agent) -> Executable<'a> {
+        match self {
+            AsyncExecutable::AsyncFunction(f) => f.get_executable(agent),
+            AsyncExecutable::AsyncModule(m) => m.get_executable(agent),
+        }
+    }
+}
+
+impl<'a> From<ECMAScriptFunction<'a>> for AsyncExecutable<'a> {
+    fn from(value: ECMAScriptFunction<'a>) -> Self {
+        Self::AsyncFunction(value)
+    }
+}
+
+impl<'a> From<SourceTextModule<'a>> for AsyncExecutable<'a> {
+    fn from(value: SourceTextModule<'a>) -> Self {
+        Self::AsyncModule(value)
+    }
+}
+
+// SAFETY: properly implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncExecutable<'_> {
+    type Of<'a> = AsyncExecutable<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 #[derive(Debug)]
 pub struct AwaitReactionRecord<'a> {
     pub(crate) vm: Option<SuspendedVm>,
-    pub(crate) async_function: Option<ECMAScriptFunction<'a>>,
+    pub(crate) async_executable: Option<AsyncExecutable<'a>>,
     pub(crate) execution_context: Option<ExecutionContext>,
     pub(crate) return_promise_capability: PromiseCapability<'a>,
 }
@@ -264,11 +306,27 @@ unsafe impl Bindable for AwaitReactionRecord<'_> {
     }
 }
 
+impl HeapMarkAndSweep for AsyncExecutable<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            AsyncExecutable::AsyncFunction(f) => f.mark_values(queues),
+            AsyncExecutable::AsyncModule(m) => m.mark_values(queues),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            AsyncExecutable::AsyncFunction(f) => f.sweep_values(compactions),
+            AsyncExecutable::AsyncModule(m) => m.sweep_values(compactions),
+        }
+    }
+}
+
 impl HeapMarkAndSweep for AwaitReactionRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             vm,
-            async_function,
+            async_executable: async_function,
             execution_context,
             return_promise_capability,
         } = self;
@@ -281,7 +339,7 @@ impl HeapMarkAndSweep for AwaitReactionRecord<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             vm,
-            async_function,
+            async_executable: async_function,
             execution_context,
             return_promise_capability,
         } = self;

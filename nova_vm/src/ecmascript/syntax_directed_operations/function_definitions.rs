@@ -384,7 +384,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // cloning it would mess up the execution context stack.
             let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReactionRecord {
                 vm: Some(vm),
-                async_function: Some(scoped_function_object.get(agent)),
+                async_executable: Some(scoped_function_object.get(agent).into()),
                 execution_context: Some(agent.running_execution_context().clone()),
                 return_promise_capability: promise_capability,
             }));

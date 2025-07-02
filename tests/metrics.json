@@ -1,11 +1,11 @@
 {
   "results": {
-    "crash": 129,
-    "fail": 10885,
-    "pass": 36858,
+    "crash": 112,
+    "fail": 10638,
+    "pass": 37119,
     "skip": 2695,
     "timeout": 0,
-    "unresolved": 27
+    "unresolved": 30
   },
   "total": 50594
 }
