@@ -86,7 +86,11 @@ impl<'s> CompileEvaluation<'s> for ast::BooleanLiteral {
 impl<'s> CompileEvaluation<'s> for ast::BigIntLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Drop out the trailing 'n' from BigInt literals.
-        let raw_str = self.raw.as_ref().expect("BigInt literal should have raw text").as_str();
+        let raw_str = self
+            .raw
+            .as_ref()
+            .expect("BigInt literal should have raw text")
+            .as_str();
         let last_index = raw_str.len() - 1;
         let (literal, radix) = match self.base {
             oxc_syntax::number::BigintBase::Decimal => (&raw_str[..last_index], 10),
@@ -2132,21 +2136,17 @@ fn simple_object_pattern<'s>(
                 }
                 ast::PropertyKey::BigIntLiteral(lit) => {
                     // Drop out the trailing 'n' from BigInt literals.
-                    let raw_str = lit.raw.as_ref().expect("BigInt literal should have raw text").as_str();
+                    let raw_str = lit
+                        .raw
+                        .as_ref()
+                        .expect("BigInt literal should have raw text")
+                        .as_str();
                     let last_index = raw_str.len() - 1;
                     let (literal, radix) = match lit.base {
-                        oxc_syntax::number::BigintBase::Decimal => {
-                            (&raw_str[..last_index], 10)
-                        }
-                        oxc_syntax::number::BigintBase::Binary => {
-                            (&raw_str[2..last_index], 2)
-                        }
-                        oxc_syntax::number::BigintBase::Octal => {
-                            (&raw_str[2..last_index], 8)
-                        }
-                        oxc_syntax::number::BigintBase::Hex => {
-                            (&raw_str[2..last_index], 16)
-                        }
+                        oxc_syntax::number::BigintBase::Decimal => (&raw_str[..last_index], 10),
+                        oxc_syntax::number::BigintBase::Binary => (&raw_str[2..last_index], 2),
+                        oxc_syntax::number::BigintBase::Octal => (&raw_str[2..last_index], 8),
+                        oxc_syntax::number::BigintBase::Hex => (&raw_str[2..last_index], 16),
                     };
                     if let Ok(result) = i64::from_str_radix(literal, radix) {
                         if let Ok(number) = Number::try_from(result) {
