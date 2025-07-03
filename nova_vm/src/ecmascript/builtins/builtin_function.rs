@@ -24,7 +24,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
@@ -436,14 +436,6 @@ impl<'a> BuiltinFunctionArgs<'a> {
 pub struct BuiltinFunction<'a>(pub(crate) BuiltinFunctionIndex<'a>);
 
 impl BuiltinFunction<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, BuiltinFunction<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BuiltinFunctionIndex::from_u32_index(0))
     }

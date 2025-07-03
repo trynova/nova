@@ -7,9 +7,9 @@ use core::ops::{Index, IndexMut};
 use oxc_span::Span;
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
+use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult};
 use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
@@ -44,14 +44,6 @@ use super::ArgumentsList;
 pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
 
 impl BuiltinConstructorFunction<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, BuiltinConstructorFunction<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BuiltinConstructorIndex::from_u32_index(0))
     }

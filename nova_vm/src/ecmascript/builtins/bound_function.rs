@@ -22,7 +22,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
         unwrap_try,
@@ -40,14 +40,6 @@ use super::ArgumentsList;
 pub struct BoundFunction<'a>(BoundFunctionIndex<'a>);
 
 impl BoundFunction<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, BoundFunction<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         BoundFunction(BoundFunctionIndex::from_u32_index(0))
     }

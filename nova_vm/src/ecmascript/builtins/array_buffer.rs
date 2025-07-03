@@ -12,7 +12,6 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -35,14 +34,6 @@ pub use data::*;
 pub struct ArrayBuffer<'a>(ArrayBufferIndex<'a>);
 
 impl ArrayBuffer<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, ArrayBuffer<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
         agent[self].is_detached()
