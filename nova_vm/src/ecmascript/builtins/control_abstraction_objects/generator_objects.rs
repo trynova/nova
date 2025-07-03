@@ -17,10 +17,7 @@ use crate::{
         },
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
-    engine::{
-        Executable, ExecutionResult, SuspendedVm,
-        rootable::{HeapRootData, Scoped},
-    },
+    engine::{Executable, ExecutionResult, SuspendedVm, rootable::HeapRootData},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         indexes::{BaseIndex, GeneratorIndex},
@@ -31,14 +28,6 @@ use crate::{
 pub struct Generator<'a>(pub(crate) GeneratorIndex<'a>);
 
 impl Generator<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Generator<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

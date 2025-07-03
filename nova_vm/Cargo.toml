@@ -7,6 +7,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
+readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
@@ -26,7 +27,7 @@ oxc_syntax = { workspace = true }
 oxc_ecmascript = { workspace = true }
 rand = { workspace = true }
 ryu-js = { workspace = true }
-small_string = { path = "../small_string" }
+small_string = { path = "../small_string", version = "0.1.0" }
 sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
@@ -89,4 +90,4 @@ proposal-is-error = []
 proposal-atomics-microwait = ["atomics"]
 
 [build-dependencies]
-small_string = { path = "../small_string" }
+small_string = { path = "../small_string", version = "0.1.0" }

@@ -14,6 +14,7 @@ use crate::{
     engine::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
 };
 

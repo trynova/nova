@@ -21,7 +21,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        Executable, ExecutionResult, Scoped, SuspendedVm,
+        Executable, ExecutionResult, SuspendedVm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
@@ -38,14 +38,6 @@ use super::promise_objects::promise_abstract_operations::promise_reaction_record
 pub struct AsyncGenerator<'a>(pub(crate) AsyncGeneratorIndex<'a>);
 
 impl AsyncGenerator<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, AsyncGenerator<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

@@ -10,7 +10,6 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -35,14 +34,6 @@ pub mod data;
 pub struct DataView<'a>(pub(crate) DataViewIndex<'a>);
 
 impl<'a> DataView<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, DataView<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = agent[self].byte_length;

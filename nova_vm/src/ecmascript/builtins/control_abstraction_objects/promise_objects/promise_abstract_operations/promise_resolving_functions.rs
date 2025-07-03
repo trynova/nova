@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{ Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult};
+use crate::engine::{TryResult};
 use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
 use crate::{
     ecmascript::{
@@ -48,14 +48,6 @@ pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
 pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
 
 impl BuiltinPromiseResolvingFunction<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, BuiltinPromiseResolvingFunction<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

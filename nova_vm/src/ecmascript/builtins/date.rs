@@ -14,7 +14,6 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -31,14 +30,6 @@ use self::data::DateHeapData;
 pub struct Date<'a>(pub(crate) DateIndex<'a>);
 
 impl Date<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Date<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     /// ### get [[DateValue]]
     #[inline]
     pub(crate) fn date_value(self, agent: &Agent) -> DateValue {
