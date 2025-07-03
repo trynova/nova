@@ -1,38 +1,88 @@
-name: Release
+name: Build and Release Nova CLI
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}
-
-env:
-  CARGO_TERM_COLOR: always
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build & Release
-    # TODO: Run CI on all three platforms.
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: Build ${{ matrix.asset-name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux (x86_64)
+          - os: ubuntu-latest
+            rust-target: x86_64-unknown-linux-gnu
+            asset-name: nova-linux-amd64
+
+          # macOS (Intel)
+          - os: macos-latest
+            rust-target: x86_64-apple-darwin
+            asset-name: nova-macos-amd64
+
+          # macOS (Apple Silicon/ARM)
+          - os: macos-latest
+            rust-target: aarch64-apple-darwin
+            asset-name: nova-macos-arm64
+
+          # Windows
+          - os: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            asset-name: nova-windows-amd64.exe
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain
+      - uses: actions/checkout@v3
+
+      - name: Install the rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache on ${{ github.ref_name }}
-        uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build
-          save-if: ${{ github.ref == 'main' }}
-      - name: Build nova cli
-        run: cargo build -p nova_cli --profile release
-      - name: Upload release artifact
+          toolchain: 1.85.0
+          targets: ${{ matrix.rust-target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.rust-target }} --manifest-path ./nova_cli/Cargo.toml
+
+      - name: Prepare binary
+        shell: bash
+        run: |
+          cd target/${{ matrix.rust-target }}/release/
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv nova_cli.exe ${{ matrix.asset-name }}
+          else
+            mv nova_cli ${{ matrix.asset-name }}
+          fi
+
+      - name: Upload Binary as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nova_cli
-          path: target/release/nova_cli
-        timeout-minutes: 15
-        env:
-          RUST_BACKTRACE: 1
+          name: ${{ matrix.asset-name }}
+          path: target/${{ matrix.rust-target }}/release/${{ matrix.asset-name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create Draft Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./artifacts/*/nova-*
+          file_glob: true
+          draft: true
+          tag: latest
+          overwrite: true
