@@ -2,7 +2,7 @@
 name = "small_string"
 version = "0.1.0"
 repository = "https://github.com/trynova/nova/tree/main/small_string"
-description = "Small string optimization for Rust"
+description = "7-byte small string optimisation for use in Nova JavaScript engine"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

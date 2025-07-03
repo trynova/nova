@@ -8,15 +8,16 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
+readme.workspace = true
 keywords.workspace = true
-categories.workspace = true
+categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]
 clap = { workspace = true}
 cliclack = { workspace = true }
 ctrlc = { workspace = true }
 console = { workspace = true }
-nova_vm = { path = "../nova_vm" }
+nova_vm = { path = "../nova_vm", version = "0.1.0" }
 oxc_ast = { workspace = true }
 oxc-miette = { workspace = true }
 oxc_parser = { workspace = true }

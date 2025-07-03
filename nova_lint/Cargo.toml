@@ -5,8 +5,8 @@ description = "A collection of custom lints to ease the development and maintena
 edition = "2024"
 version = "0.1.0"
 license = "MPL-2.0"
-homepage = "https://trynova.dev"
-authors = ["The Nova Team"]
+homepage.workspace = true
+authors.workspace = true
 publish = false
 
 [lib]

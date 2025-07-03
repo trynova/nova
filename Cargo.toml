@@ -7,18 +7,15 @@ exclude = ["nova_lint"]
 edition = "2024"
 version = "0.1.0"
 license = "MPL-2.0"
-homepage = "https://trynova.dev"
+homepage = "https://trynova.dev/"
+repository = "https://github.com/trynova/nova/"
+readme = "README.md"
 keywords = [
-    "nova",
-    "engine",
-    "language",
-    "JavaScript",
-    "TypeScript",
-    "VM",
-    "data-oriented",
-    "data-oriented design",
+    "javascript",
+    "typescript",
+    "interpreter",
 ]
-categories = ["development-tools", "programming-languages"]
+categories = ["development-tools"]
 authors = ["The Nova Team"]
 
 [workspace.dependencies]
