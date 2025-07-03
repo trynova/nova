@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build & Release
+    # TODO: Run CI on all three platforms.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache on ${{ github.ref_name }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+          save-if: ${{ github.ref == 'main' }}
+      - name: Build nova cli
+        run: cargo build -p nova_cli --profile release
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova_cli
+          path: target/release/nova_cli
+        timeout-minutes: 15
+        env:
+          RUST_BACKTRACE: 1
