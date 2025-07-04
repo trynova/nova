@@ -483,7 +483,7 @@ impl RegExpPrototype {
         // 5. If flags does not contain "g", then
         if !flags.as_str(agent).contains("g") {
             // a. Return ? RegExpExec(rx, S).
-            return reg_exp_exec(
+            reg_exp_exec(
                 agent,
                 // SAFETY: not shared.
                 unsafe { rx.take(agent) },
@@ -491,7 +491,7 @@ impl RegExpPrototype {
                 unsafe { s.take(agent) },
                 gc,
             )
-            .map(|o| o.map_or(Value::Null, |o| o.into_value()));
+            .map(|o| o.map_or(Value::Null, |o| o.into_value()))
         } else {
             // 6. Else,
             // a. If flags contains "u" or flags contains "v", let fullUnicode

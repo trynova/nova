@@ -104,7 +104,8 @@ impl RegExpConstructor {
         } else {
             // 3. Else,
             // a. Let newTarget be NewTarget.
-            new_target.unwrap()
+            // SAFETY: checked above.
+            unsafe { new_target.unwrap_unchecked() }
         };
         let new_target = new_target.scope(agent, gc.nogc());
         let pattern = scoped_pattern.get(agent).bind(gc.nogc());

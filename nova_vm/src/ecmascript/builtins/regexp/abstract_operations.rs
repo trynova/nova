@@ -196,15 +196,10 @@ pub(crate) fn reg_exp_initialize<'a>(
         Ok(f) => f.as_str(),
         Err(f) => f.as_str(agent),
     };
-    let mut allocator = Allocator::new();
+    let allocator = Allocator::new();
     // 13. Let parseResult be ParsePattern(patternText, u, v).
-    match ConstructorParser::new(
-        &mut allocator,
-        p.as_str(agent),
-        Some(f_str),
-        Default::default(),
-    )
-    .parse()
+    match ConstructorParser::new(&allocator, p.as_str(agent), Some(f_str), Default::default())
+        .parse()
     {
         Ok(_) => {
             // 15. Assert: parseResult is a Pattern Parse Node.
@@ -594,14 +589,12 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     // SAFETY: first capture group is always the full match.
     let full_match = unsafe { result.get(0).unwrap_unchecked() };
     // i. If sticky is true, then
-    if sticky {
-        if full_match.start() != last_index {
-            // sticky did match but not at the start position.
-            // 1. Perform ? Set(R, "lastIndex", +0𝔽, true).
-            r_data.last_index = RegExpLastIndex::ZERO;
-            // 2. Return null.
-            return Ok(None);
-        }
+    if sticky && full_match.start() != last_index {
+        // sticky did match but not at the start position.
+        // 1. Perform ? Set(R, "lastIndex", +0𝔽, true).
+        r_data.last_index = RegExpLastIndex::ZERO;
+        // 2. Return null.
+        return Ok(None);
         // ii. Set lastIndex to AdvanceStringIndex(S, lastIndex, fullUnicode).
     }
     // e. Else,
@@ -751,7 +744,6 @@ pub(crate) fn reg_exp_builtin_test<'a>(
     }
     let result =
         reg_exp_builtin_exec_prepare(agent, r.unbind(), s.unbind(), gc.reborrow()).unbind()?;
-    if result.global || result.sticky {}
     let gc = gc.into_nogc();
     let RegExpExecBase {
         r, s, last_index, ..
@@ -787,7 +779,7 @@ pub(crate) fn reg_exp_builtin_test<'a>(
 /// integer.
 pub(crate) fn advance_string_index(agent: &Agent, s: String, index: usize, unicode: bool) -> usize {
     // 1. Assert: index ≤ 2**53 - 1.
-    assert!(index <= 2usize.pow(53) - 1);
+    assert!(index < 2usize.pow(53));
     // 2. If unicode is false, return index + 1.
     if !unicode {
         return index + 1;
@@ -802,8 +794,7 @@ pub(crate) fn advance_string_index(agent: &Agent, s: String, index: usize, unico
     let cp = s
         .as_str(agent)
         .chars()
-        .skip(index)
-        .next()
+        .nth(index)
         .expect("Length was checked already");
     // 6. Return index + cp.[[CodeUnitCount]].
     index + cp.len_utf16()
