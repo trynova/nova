@@ -167,7 +167,7 @@ impl RegExpConstructor {
             agent,
             // SAFETY: not shared.
             Function::try_from(unsafe { new_target.take(agent) })
-                .expect("Proxy constuctors not yet supported"),
+                .expect("Proxy constructors not yet supported"),
             gc.reborrow(),
         )
         .unbind()?
