@@ -12,7 +12,7 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -30,6 +30,7 @@ use crate::{
 pub(crate) use abstract_operations::*;
 pub(crate) use data::RegExpHeapData;
 use data::RegExpLastIndex;
+use oxc_ast::ast::RegExpFlags;
 
 use super::ordinary::{ordinary_set, ordinary_try_set};
 
@@ -37,7 +38,39 @@ use super::ordinary::{ordinary_set, ordinary_try_set};
 #[repr(transparent)]
 pub struct RegExp<'a>(RegExpIndex<'a>);
 
-impl RegExp<'_> {
+impl<'a> RegExp<'a> {
+    /// Fast-path for RegExp object debug stringifying; this does not take into
+    /// account any prototype-modifications.
+    #[inline(always)]
+    pub(crate) fn create_regexp_string(self, agent: &Agent) -> std::string::String {
+        agent[self].create_regexp_string(agent)
+    }
+
+    /// ### \[\[OriginalSource]]
+    pub(crate) fn original_source(self, agent: &Agent) -> String<'a> {
+        agent[self].original_source
+    }
+
+    /// ### \[\[OriginalFlags]]
+    pub(crate) fn original_flags(self, agent: &Agent) -> RegExpFlags {
+        agent[self].original_flags
+    }
+
+    /// ### \[\[LastIndex]]
+    ///
+    /// This is a custom internal slot that stores the "lastIndex" property of
+    /// a RegExp assuming it has an expected value (32-bit unsigned integer or
+    /// undefined). The method returns `None` if the property has an unexpected
+    /// value, otherwise it returns the length value (0 if value is undefined).
+    pub(crate) fn try_get_last_index(self, agent: &Agent) -> Option<u32> {
+        let last_index = agent[self].last_index.get_value();
+        if last_index.is_some() || self.get_backing_object(agent).is_none() {
+            Some(last_index.unwrap_or(0))
+        } else {
+            None
+        }
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

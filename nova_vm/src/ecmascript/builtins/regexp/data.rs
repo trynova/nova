@@ -3,9 +3,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ast::ast::RegExpFlags;
+use regex::bytes::{Regex, RegexBuilder};
 
 use crate::{
-    ecmascript::types::{OrdinaryObject, PropertyDescriptor, String, Value},
+    ecmascript::{
+        execution::Agent,
+        types::{OrdinaryObject, PropertyDescriptor, String, Value},
+    },
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -99,19 +103,73 @@ impl RegExpLastIndex {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+impl From<usize> for RegExpLastIndex {
+    fn from(value: usize) -> Self {
+        if let Ok(value) = u32::try_from(value) {
+            if value == u32::MAX {
+                Self::INVALID
+            } else {
+                Self(value)
+            }
+        } else {
+            Self::INVALID
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct RegExpHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    // _regex: RegExp,
-    pub(crate) original_source: String<'a>,
-    pub(crate) original_flags: RegExpFlags,
-    pub(crate) last_index: RegExpLastIndex,
+    pub(super) object_index: Option<OrdinaryObject<'a>>,
+    pub(super) reg_exp_matcher: Option<Regex>,
+    pub(super) original_source: String<'a>,
+    pub(super) original_flags: RegExpFlags,
+    pub(super) last_index: RegExpLastIndex,
+}
+
+impl<'a> RegExpHeapData<'a> {
+    pub(crate) fn compile_pattern(pattern: &str, flags: RegExpFlags) -> Option<Regex> {
+        RegexBuilder::new(pattern)
+            .dot_matches_new_line((flags & RegExpFlags::M).bits() > 0)
+            .case_insensitive((flags & RegExpFlags::I).bits() > 0)
+            .unicode((flags & (RegExpFlags::U | RegExpFlags::V)).bits() > 0)
+            .dot_matches_new_line((flags & RegExpFlags::S).bits() > 0)
+            .octal(false) // TODO: !strict
+            .build()
+            .ok()
+    }
+
+    pub(crate) fn new(agent: &Agent, source: String<'a>, flags: RegExpFlags) -> Self {
+        let str = source.as_str(agent);
+        let regex = Self::compile_pattern(str, flags);
+        Self {
+            object_index: None,
+            reg_exp_matcher: regex,
+            original_source: source,
+            original_flags: flags,
+            last_index: RegExpLastIndex::ZERO,
+        }
+    }
+
+    pub(super) fn create_regexp_string(&self, agent: &Agent) -> std::string::String {
+        let string_length = self.original_source.len(agent);
+        let flags_length = self.original_flags.bits().count_ones();
+        let mut regexp_string =
+            std::string::String::with_capacity(1 + string_length + 1 + flags_length as usize);
+        regexp_string.push('/');
+        regexp_string.push_str(self.original_source.as_str(agent));
+        regexp_string.push('/');
+        self.original_flags.iter_names().for_each(|(flag, _)| {
+            regexp_string.push_str(flag);
+        });
+        regexp_string
+    }
 }
 
 impl Default for RegExpHeapData<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
+            reg_exp_matcher: None,
             original_source: String::EMPTY_STRING,
             original_flags: RegExpFlags::empty(),
             last_index: Default::default(),
@@ -138,6 +196,7 @@ impl HeapMarkAndSweep for RegExpHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,
+            reg_exp_matcher: _,
             original_source,
             original_flags: _,
             last_index: _,
@@ -149,6 +208,7 @@ impl HeapMarkAndSweep for RegExpHeapData<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
+            reg_exp_matcher: _,
             original_source,
             original_flags: _,
             last_index: _,

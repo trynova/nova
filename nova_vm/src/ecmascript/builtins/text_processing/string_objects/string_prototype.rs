@@ -12,7 +12,9 @@ use unicode_normalization::{
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list, get_object_method},
+            operations_on_objects::{
+                call_function, create_array_from_list, get_method, get_object_method, invoke,
+            },
             testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_integer_or_infinity_number,
@@ -24,6 +26,7 @@ use crate::{
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            regexp::reg_exp_create,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
@@ -1064,13 +1067,73 @@ impl StringPrototype {
         Err(agent.todo("String.prototype.localeCompare", gc.into_nogc()))
     }
 
+    /// ### [22.1.3.13 String.prototype.match ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.match)
+    ///
+    /// Note
+    ///
+    /// This method is intentionally generic; it does not require that its this
+    /// value be a String object. Therefore, it can be transferred to other
+    /// kinds of objects for use as a method.
     fn r#match<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.match", gc.into_nogc()))
+        let regexp = arguments.get(0).bind(gc.nogc());
+        let scoped_regexp = regexp.scope(agent, gc.nogc());
+
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let o = o.scope(agent, gc.nogc());
+        // 2. If regexp is neither undefined nor null, then
+        if !regexp.is_undefined() && !regexp.is_null() {
+            // a. Let matcher be ? GetMethod(regexp, %Symbol.match%).
+            let matcher = get_method(
+                agent,
+                regexp.unbind(),
+                WellKnownSymbolIndexes::Match.to_property_key(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // b. If matcher is not undefined, then
+            if let Some(matcher) = matcher {
+                // i. Return ? Call(matcher, regexp, « O »).
+                return call_function(
+                    agent,
+                    matcher.unbind(),
+                    // SAFETY: not shared.
+                    unsafe { scoped_regexp.take(agent) },
+                    Some(ArgumentsList::from_mut_value(
+                        // SAFETY: not shared.
+                        &mut unsafe { o.take(agent) },
+                    )),
+                    gc,
+                );
+            }
+        }
+        // 3. Let S be ? ToString(O).
+        // SAFETY: o is not shared.
+        let s = to_string(agent, unsafe { o.take(agent) }, gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let rx be ? RegExpCreate(regexp, undefined).
+        let rx = reg_exp_create(agent, scoped_regexp, None, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 5. Return ? Invoke(rx, %Symbol.match%, « S »).
+        invoke(
+            agent,
+            rx.unbind().into_value(),
+            WellKnownSymbolIndexes::Match.to_property_key(),
+            Some(ArgumentsList::from_mut_value(&mut unsafe {
+                s.take(agent).into_value()
+            })),
+            gc,
+        )
     }
 
     fn match_all<'gc>(

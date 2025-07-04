@@ -1288,8 +1288,17 @@ impl<'s> CompileEvaluation<'s> for ast::PrivateInExpression<'s> {
 }
 #[cfg(feature = "regexp")]
 impl<'s> CompileEvaluation<'s> for ast::RegExpLiteral<'s> {
+    /// ### [13.2.7.3 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-regular-expression-literals-runtime-semantics-evaluation)
+    ///
+    /// ```text
+    /// PrimaryExpression : RegularExpressionLiteral
+    /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        // 1. Let pattern be CodePointsToString(BodyText of RegularExpressionLiteral).
+        // 2. Let flags be CodePointsToString(FlagText of RegularExpressionLiteral).
+
         let pattern = self.regex.pattern.text.as_str();
+        // 3. Return ! RegExpCreate(pattern, flags).
         let regexp = ctx.create_regexp(pattern, self.regex.flags);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }

@@ -2,23 +2,30 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::get;
+use crate::ecmascript::abstract_operations::testing_and_comparison::is_reg_exp;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
+use crate::ecmascript::builtins::regexp::reg_exp_alloc;
+use crate::ecmascript::builtins::regexp::reg_exp_initialize;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::Realm;
 
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
+use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -44,14 +51,129 @@ impl Builtin for RegExpGetSpecies {
 impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
+    /// ### [22.2.4.1 RegExp ( pattern, flags )](https://tc39.es/ecma262/#sec-regexp-pattern-flags)
+    ///
+    /// > NOTE: If pattern is supplied using a StringLiteral, the usual escape
+    /// > sequence substitutions are performed before the String is processed
+    /// > by this function. If pattern must contain an escape sequence to be
+    /// > recognized by this function, any U+005C (REVERSE SOLIDUS) code points
+    /// > must be escaped within the StringLiteral to prevent them being
+    /// > removed when the contents of the StringLiteral are formed.
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp", gc.into_nogc()))
+        let pattern = arguments.get(0).bind(gc.nogc());
+        let flags = arguments.get(1).bind(gc.nogc());
+        let scoped_pattern = pattern.scope(agent, gc.nogc());
+        let scoped_flags = flags.scope(agent, gc.nogc());
+        let flags_is_undefined = flags.is_undefined();
+        // 1. Let patternIsRegExp be ? IsRegExp(pattern).
+        let pattern_is_reg_exp = is_reg_exp(agent, pattern.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 2. If NewTarget is undefined, then
+        let new_target = if new_target.is_none() {
+            // a. Let newTarget be the active function object.
+            let new_target = agent.active_function_object(gc.nogc());
+            // b. If patternIsRegExp is true and flags is undefined, then
+            if pattern_is_reg_exp && flags_is_undefined {
+                let new_target = new_target.scope(agent, gc.nogc());
+                // i. Let patternConstructor be ? Get(pattern, "constructor").
+                let pattern_constructor = get(
+                    agent,
+                    Object::try_from(scoped_pattern.get(agent)).unwrap(),
+                    BUILTIN_STRING_MEMORY.constructor.into(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                // SAFETY: not shared.
+                let new_target = unsafe { new_target.take(agent) }.bind(gc.nogc());
+                // ii. If SameValue(newTarget, patternConstructor) is true, return pattern.
+                if new_target.into_value() == pattern_constructor {
+                    return Ok(scoped_pattern.get(agent));
+                }
+                new_target.into_object()
+            } else {
+                new_target.into_object()
+            }
+        } else {
+            // 3. Else,
+            // a. Let newTarget be NewTarget.
+            new_target.unwrap()
+        };
+        let new_target = new_target.scope(agent, gc.nogc());
+        let pattern = scoped_pattern.get(agent).bind(gc.nogc());
+        // 4. If pattern is an Object and pattern has a [[RegExpMatcher]] internal slot, then
+        let (p, f) = if let Value::RegExp(pattern) = pattern {
+            // a. Let P be pattern.[[OriginalSource]].
+            let p = pattern.original_source(agent);
+            // b. If flags is undefined, let F be pattern.[[OriginalFlags]].
+            let f = if flags_is_undefined {
+                Ok(pattern.original_flags(agent))
+            } else {
+                // c. Else, let F be flags.
+                Err(scoped_flags)
+            };
+            (p.into_value(), f)
+        } else if pattern_is_reg_exp {
+            // 5. Else if patternIsRegExp is true, then
+            // a. Let P be ? Get(pattern, "source").
+            let mut p = get(
+                agent,
+                Object::try_from(pattern).unwrap().unbind(),
+                BUILTIN_STRING_MEMORY.source.into(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // b. If flags is undefined, then
+            let f = if flags_is_undefined {
+                let scoped_p = p.scope(agent, gc.nogc());
+                // i. Let F be ? Get(pattern, "flags").
+                let f = get(
+                    agent,
+                    // SAFETY: not shared.
+                    Object::try_from(unsafe { scoped_pattern.take(agent) }).unwrap(),
+                    BUILTIN_STRING_MEMORY.flags.into(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                // SAFETY: not shared
+                p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
+                f.scope(agent, gc.nogc())
+            } else {
+                // c. Else,
+                // i. Let F be flags.
+                scoped_flags
+            };
+            (p, Err(f))
+        } else {
+            // 6. Else,
+            // a. Let P be pattern.
+            let p = pattern;
+            // b. Let F be flags.
+            // SAFETY: not shared
+            (p, Err(scoped_flags))
+        };
+        let p = p.scope(agent, gc.nogc());
+        // 7. Let O be ? RegExpAlloc(newTarget).
+        let o = reg_exp_alloc(
+            agent,
+            // SAFETY: not shared.
+            Function::try_from(unsafe { new_target.take(agent) })
+                .expect("Proxy constuctors not yet supported"),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 8. Return ? RegExpInitialize(O, P, F).
+        reg_exp_initialize(agent, o.unbind(), p, f, gc).map(|o| o.into_value())
     }
 
     fn get_species<'gc>(
