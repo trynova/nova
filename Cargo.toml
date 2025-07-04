@@ -25,30 +25,32 @@ cliclack = "0.3.6"
 console = "0.15.8"
 ctrlc = "3.4.5"
 fast-float = "0.2.0"
-hashbrown = "0.15.4"
-num-bigint = "0.4.6"
-num-traits = "0.2.19"
-oxc_allocator = "0.75.0"
-oxc_ast = "0.75.0"
-oxc_diagnostics = "0.75.0"
-oxc-miette = { version = "2.3.1", features = ["fancy"] }
-oxc_parser = "0.75.0"
-oxc_semantic = "0.75.0"
-oxc_span = "0.75.0"
-oxc_syntax = "0.75.0"
-oxc_ecmascript = "0.75.0"
-rand = "0.9.1"
-ryu-js = "1.0.1"
-sonic-rs = "0.3.17"
-unicode-normalization = "0.1.24"
-wtf8 = "0.1"
 fast_float = "0.2.0"
+hashbrown = "0.15.4"
 lexical = { version = "7.0.4", default-features = false, features = [
     "std",
     "write-integers",
     "write-floats",
     "radix",
 ] }
+num-bigint = "0.4.6"
+num-traits = "0.2.19"
+oxc-miette = { version = "2.3.1", features = ["fancy"] }
+oxc_allocator = "0.75.0"
+oxc_ast = "0.75.0"
+oxc_diagnostics = "0.75.0"
+oxc_ecmascript = "0.75.0"
+oxc_parser = "0.75.0"
+oxc_regular_expression = "0.75.0"
+oxc_semantic = "0.75.0"
+oxc_span = "0.75.0"
+oxc_syntax = "0.75.0"
+rand = "0.9.1"
+regex = "1.11.1"
+ryu-js = "1.0.1"
+sonic-rs = "0.3.17"
+unicode-normalization = "0.1.24"
+wtf8 = "0.1"
 
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]

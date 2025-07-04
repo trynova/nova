@@ -8,7 +8,7 @@ use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitiv
 use crate::ecmascript::builtins::proxy::abstract_operations::{
     NonRevokedProxy, validate_non_revoked_proxy,
 };
-use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
+use crate::ecmascript::types::{Numeric, Primitive, PropertyKey};
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -156,15 +156,19 @@ pub(crate) fn is_reg_exp<'a>(
     argument: Value,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
+    let argument = argument.bind(gc.nogc());
+
     // 1. If argument is not an Object, return false.
-    if !argument.is_object() {
+    let Ok(argument) = Object::try_from(argument) else {
         return Ok(false);
-    }
+    };
+
+    let is_native_reg_exp = matches!(argument, Object::RegExp(_));
 
     // 2. Let matcher be ? Get(argument, %Symbol.match%).
     let matcher = get(
         agent,
-        Object::internal_prototype(Object::try_from(argument).unwrap(), agent).unwrap(),
+        argument.unbind(),
         PropertyKey::Symbol(WellKnownSymbolIndexes::Match.into()),
         gc,
     )?;
@@ -175,7 +179,7 @@ pub(crate) fn is_reg_exp<'a>(
     }
 
     // 4. If argument has a [[RegExpMatcher]] internal slot, return true.
-    if let Value::RegExp(_) = argument {
+    if is_native_reg_exp {
         return Ok(true);
     }
 

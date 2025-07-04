@@ -2,20 +2,35 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use oxc_ast::ast::RegExpFlags;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::get,
-            type_conversion::{to_boolean, to_string},
+            operations_on_objects::{get, set, try_create_data_property_or_throw},
+            type_conversion::{to_boolean, to_length, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic, array_create,
+            regexp::{
+                advance_string_index, reg_exp_builtin_exec, reg_exp_exec,
+                require_internal_slot_reg_exp,
+            },
+        },
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, JsError},
+        },
+        types::{
+            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
+            Value,
+        },
     },
     engine::{
-        context::{Bindable, GcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
+        unwrap_try,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -167,22 +182,52 @@ impl Builtin for RegExpPrototypeGetUnicodeSets {
 impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 
 impl RegExpPrototype {
+    /// ### [22.2.6.2 RegExp.prototype.exec ( string )](https://tc39.es/ecma262/#sec-regexpbuiltinexec)
+    ///
+    /// This method searches string for an occurrence of the regular expression
+    /// pattern and returns an Array containing the results of the match, or
+    /// null if string did not match.
     fn exec<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.exec", gc.into_nogc()))
+        let string = arguments.get(0).bind(gc.nogc());
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(R, [[RegExpMatcher]]).
+        let r = require_internal_slot_reg_exp(agent, r, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let r = r.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // SAFETY: not shared.
+        let r = unsafe { r.take(agent) }.bind(gc.nogc());
+        // 4. Return ? RegExpBuiltinExec(R, S).
+        reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc)
+            .map(|r| r.map_or(Value::Null, |a| a.into_value()))
     }
 
+    /// ### [22.2.6.3 get RegExp.prototype.dotAll](https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll)
+    ///
+    /// RegExp.prototype.dotAll is an accessor property whose set accessor
+    /// function is undefined.
     fn get_dot_all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.dotAll", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0073 (LATIN SMALL LETTER S).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::S, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
     /// ### [22.2.6.4 get RegExp.prototype.flags](https://tc39.es/ecma262/#sec-get-regexp.prototype.flags)
@@ -350,40 +395,195 @@ impl RegExpPrototype {
         Ok(Value::from_string(agent, res.to_string(), gc.nogc()).unbind())
     }
 
+    /// ### [22.2.6.5 get RegExp.prototype.global](https://tc39.es/ecma262/#sec-get-regexp.prototype.global)
+    ///
+    /// RegExp.prototype.global is an accessor property whose set accessor
+    /// function is undefined.
     fn get_global<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.global", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0067 (LATIN SMALL LETTER G).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::G, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
+    /// ### [22.2.6.6 get RegExp.prototype.hasIndices](https://tc39.es/ecma262/#sec-get-regexp.prototype.hasIndices)
+    ///
+    /// RegExp.prototype.hasIndices is an accessor property whose set accessor
+    /// function is undefined.
     fn get_has_indices<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.hasIndices", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0064 (LATIN SMALL LETTER D).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::D, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
+    /// ### [22.2.6.7 get RegExp.prototype.ignoreCase](https://tc39.es/ecma262/#sec-get-regexp.prototype.ignorecase)
+    ///
+    /// RegExp.prototype.ignoreCase is an accessor property whose set accessor
+    /// function is undefined.
     fn get_ignore_case<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.ignoreCase", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0069 (LATIN SMALL LETTER I).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::I, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
+    /// ### [22.2.6.8 RegExp.prototype \[ %Symbol.match% \] ( string )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.match%)
     fn r#match<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.match", gc.into_nogc()))
+        let string = arguments.get(0).bind(gc.nogc());
+        // 1. Let rx be the this value.
+        let rx = this_value.bind(gc.nogc());
+        // 2. If rx is not an Object, throw a TypeError exception.
+        let Ok(rx) = Object::try_from(rx) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        let rx = rx.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let flags be ? ToString(? Get(rx, "flags")).
+        let flags = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.flags.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = to_string(agent, flags.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 5. If flags does not contain "g", then
+        if !flags.as_str(agent).contains("g") {
+            // a. Return ? RegExpExec(rx, S).
+            reg_exp_exec(
+                agent,
+                // SAFETY: not shared.
+                unsafe { rx.take(agent) },
+                // SAFETY: not shared.
+                unsafe { s.take(agent) },
+                gc,
+            )
+            .map(|o| o.map_or(Value::Null, |o| o.into_value()))
+        } else {
+            // 6. Else,
+            // a. If flags contains "u" or flags contains "v", let fullUnicode
+            //    be true. Otherwise, let fullUnicode be false.
+            let full_unicode =
+                flags.as_str(agent).contains("u") || flags.as_str(agent).contains("v");
+            // b. Perform ? Set(rx, "lastIndex", +0𝔽, true).
+            set(
+                agent,
+                rx.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                0.into_value(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?;
+            // c. Let A be ! ArrayCreate(0).
+            let a = array_create(agent, 0, 0, None, gc.nogc())
+                .unwrap()
+                .scope(agent, gc.nogc());
+            // d. Let n be 0.
+            let mut n = 0u32;
+            // e. Repeat,
+            loop {
+                // i. Let result be ? RegExpExec(rx, S).
+                let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // ii. If result is null, then
+                let Some(result) = result else {
+                    // 1. If n = 0, return null.
+                    if n == 0 {
+                        return Ok(Value::Null);
+                    } else {
+                        // 2. Return A.
+                        // SAFETY: not shared.
+                        return Ok(unsafe { a.take(agent) }.into_value());
+                    }
+                };
+                // iii. Else,
+                // 1. Let matchStr be ? ToString(? Get(result, "0")).
+                let match_str = get(agent, result.unbind(), 0.into(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                let match_str = to_string(agent, match_str.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // 2. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), matchStr).
+                unwrap_try(try_create_data_property_or_throw(
+                    agent,
+                    a.get(agent),
+                    n.into(),
+                    match_str.into_value(),
+                    gc.nogc(),
+                ))
+                .unwrap();
+                // 3. If matchStr is the empty String, then
+                if match_str.is_empty_string() {
+                    // a. Let thisIndex be ℝ(? ToLength(? Get(rx, "lastIndex"))).
+                    let this_index = get(
+                        agent,
+                        rx.get(agent),
+                        BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
+                    let this_index = to_length(agent, this_index.unbind(), gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc());
+                    // b. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
+                    let next_index = advance_string_index(
+                        agent,
+                        s.get(agent),
+                        this_index as usize,
+                        full_unicode,
+                    );
+                    // c. Perform ? Set(rx, "lastIndex", 𝔽(nextIndex), true).
+                    set(
+                        agent,
+                        rx.get(agent),
+                        BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                        Number::try_from(next_index).unwrap().into_value(),
+                        true,
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                }
+                // 4. Set n to n + 1.
+                n += 1;
+            }
+        }
     }
 
     fn match_all<'gc>(
@@ -395,13 +595,22 @@ impl RegExpPrototype {
         Err(agent.todo("RegExp.prototype.matchAll", gc.into_nogc()))
     }
 
+    /// ### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)
+    ///
+    /// RegExp.prototype.multiline is an accessor property whose set accessor
+    /// function is undefined.
     fn get_multiline<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.multiline", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x006D (LATIN SMALL LETTER M).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::M, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
     fn replace<'gc>(
@@ -440,22 +649,50 @@ impl RegExpPrototype {
         Err(agent.todo("RegExp.prototype.split", gc.into_nogc()))
     }
 
+    /// ### [22.2.6.15 get RegExp.prototype.sticky](https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky)
+    ///
+    /// RegExp.prototype.sticky is an accessor property whose set accessor
+    /// function is undefined.
     fn get_sticky<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.sticky", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0079 (LATIN SMALL LETTER Y).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::Y, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
+    /// ### [22.2.6.16 RegExp.prototype.test ( S )](https://tc39.es/ecma262/#sec-regexp.prototype.test)
     fn test<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.test", gc.into_nogc()))
+        let s = arguments.get(0).bind(gc.nogc());
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(r) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        let r = r.scope(agent, gc.nogc());
+        // 3. Let string be ? ToString(S).
+        let string = to_string(agent, s.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let r = unsafe { r.take(agent) }.bind(gc.nogc());
+        // 4. Let match be ? RegExpExec(R, string).
+        let r#match = reg_exp_exec(agent, r.unbind(), string.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 5. If match is not null, return true; else return false.
+        Ok(r#match.is_some().into_value())
     }
 
     /// ### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
@@ -492,17 +729,7 @@ impl RegExpPrototype {
         if let Object::RegExp(r) = r {
             // Fast path for RegExp objects: This is not actually proper as it
             // does not take into account prototype mutations.
-            let data = &agent[r];
-            let string_length = data.original_source.len(agent);
-            let flags_length = data.original_flags.iter().count();
-            let mut regexp_string =
-                std::string::String::with_capacity(1 + string_length + 1 + flags_length);
-            regexp_string.push('/');
-            regexp_string.push_str(data.original_source.as_str(agent));
-            regexp_string.push('/');
-            data.original_flags.iter_names().for_each(|(flag, _)| {
-                regexp_string.push_str(flag);
-            });
+            let regexp_string = r.create_regexp_string(agent);
             return Ok(String::from_string(agent, regexp_string, nogc)
                 .into_value()
                 .unbind());
@@ -543,22 +770,40 @@ impl RegExpPrototype {
         Ok(result.into_value())
     }
 
+    /// ### [22.2.6.18 get RegExp.prototype.unicode](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicode)
+    ///
+    /// RegExp.prototype.unicode is an accessor property whose set accessor
+    /// function is undefined.
     fn get_unicode<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.unicode", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0075 (LATIN SMALL LETTER U).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::U, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
+    /// ### [22.2.6.19 get RegExp.prototype.unicodeSets](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicodesets)
+    ///
+    /// RegExp.prototype.unicodeSets is an accessor property whose set accessor
+    /// function is undefined.
     fn get_unicode_sets<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.unicodeSets", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. Let cu be the code unit 0x0076 (LATIN SMALL LETTER V).
+        // 3. Return ? RegExpHasFlag(R, cu).
+        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::V, gc.into_nogc())
+            .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -591,4 +836,48 @@ impl RegExpPrototype {
             .with_builtin_function_property::<RegExpPrototypeSplit>()
             .build();
     }
+}
+
+/// 22.2.6.4.1 RegExpHasFlag ( R, codeUnit )
+///
+/// The abstract operation RegExpHasFlag takes arguments R (an ECMAScript
+/// language value) and codeUnit (a code unit) and returns either a normal
+/// completion containing either a Boolean or undefined, or a throw completion.
+fn reg_exp_has_flag<'a>(
+    agent: &mut Agent,
+    r: Value,
+    code_unit: RegExpFlags,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, Option<bool>> {
+    // 1. If R is not an Object, throw a TypeError exception.
+    let Ok(r) = Object::try_from(r) else {
+        return Err(throw_not_an_object(agent, gc));
+    };
+    // 2. If R does not have an [[OriginalFlags]] internal slot, then
+    let Object::RegExp(r) = r else {
+        // a. If SameValue(R, %RegExp.prototype%) is true, return undefined.
+        if r == agent
+            .current_realm_record()
+            .intrinsics()
+            .reg_exp_prototype()
+            .into_object()
+        {
+            return Ok(None);
+        }
+        // b. Otherwise, throw a TypeError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "not a RegExp object",
+            gc,
+        ));
+    };
+    // 3. Let flags be R.[[OriginalFlags]].
+    let flags = r.original_flags(agent);
+    // 4. If flags contains codeUnit, return true.
+    // 5. Return false.
+    Ok(Some((flags & code_unit).bits() > 0))
+}
+
+fn throw_not_an_object<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<'a> {
+    agent.throw_exception_with_static_message(ExceptionType::TypeError, "not an object", gc)
 }
