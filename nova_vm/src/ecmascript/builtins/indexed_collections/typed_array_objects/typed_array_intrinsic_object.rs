@@ -2478,18 +2478,22 @@ pub(crate) fn viewable_slice<'a, T: Viewable>(
     if byte_slice.is_empty() {
         return &[];
     }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return &[];
-        }
-        &byte_slice[byte_offset..end_index]
-    } else {
-        &byte_slice[byte_offset..]
-    };
+    let byte_limit = byte_length.map_or(byte_slice.len(), |l| byte_offset + l);
+    byte_slice_to_viewable::<T>(byte_slice, byte_offset, byte_limit)
+}
+
+pub(crate) fn byte_slice_to_viewable<T: Viewable>(
+    byte_slice: &[u8],
+    byte_offset: usize,
+    byte_limit: usize,
+) -> &[T] {
+    if byte_slice.is_empty() || byte_limit > byte_slice.len() {
+        return &[];
+    }
+    let byte_slice = &byte_slice[byte_offset..byte_limit];
     // SAFETY: All bytes in byte_slice are initialized, and all bitwise
     // combinations of T are valid values. Alignment of T's is
-    // guaranteed by align_to itself.
+    // guaranteed by align_to_mut itself.
     let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
     if !head.is_empty() {
         panic!("TypedArray is not properly aligned");
@@ -2497,7 +2501,7 @@ pub(crate) fn viewable_slice<'a, T: Viewable>(
     slice
 }
 
-pub(crate) fn viewable_slice_mut<'a, T: Viewable>(
+fn viewable_slice_mut<'a, T: Viewable>(
     agent: &'a mut Agent,
     ta: TypedArray,
     gc: NoGcScope,
@@ -2509,15 +2513,19 @@ pub(crate) fn viewable_slice_mut<'a, T: Viewable>(
     if byte_slice.is_empty() {
         return &mut [];
     }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return &mut [];
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
+    let byte_limit = byte_length.map_or(byte_slice.len(), |l| byte_offset + l);
+    byte_slice_to_viewable_mut::<T>(byte_slice, byte_offset, byte_limit)
+}
+
+pub(crate) fn byte_slice_to_viewable_mut<T: Viewable>(
+    byte_slice: &mut [u8],
+    byte_offset: usize,
+    byte_limit: usize,
+) -> &mut [T] {
+    if byte_slice.is_empty() || byte_limit > byte_slice.len() {
+        return &mut [];
+    }
+    let byte_slice = &mut byte_slice[byte_offset..byte_limit];
     // SAFETY: All bytes in byte_slice are initialized, and all bitwise
     // combinations of T are valid values. Alignment of T's is
     // guaranteed by align_to_mut itself.
@@ -3326,6 +3334,38 @@ pub(crate) fn split_typed_array_views<'a, T: Viewable>(
     (a_aligned, o_aligned)
 }
 
+pub(crate) fn split_typed_array_buffers<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    target: ArrayBuffer,
+    target_byte_offset: usize,
+    source: ArrayBuffer,
+    source_byte_offset: usize,
+    target_byte_limit: usize,
+) -> (&'a mut [T], &'a [T]) {
+    let a_buf = target.as_slice(agent);
+    let o_buf = source.as_slice(agent);
+    if !a_buf.is_empty() || !o_buf.is_empty() {
+        assert!(
+            !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
+            "Must not point to the same buffer"
+        );
+    }
+    let target_slice = target.as_mut_slice(agent);
+    let target_slice =
+        byte_slice_to_viewable_mut::<T>(target_slice, target_byte_offset, target_byte_limit);
+    let target_ptr = target_slice.as_mut_ptr();
+    let target_len = target_slice.len();
+    let source_slice = source.as_mut_slice(agent);
+    let source_slice = byte_slice_to_viewable_mut::<T>(
+        source_slice,
+        source_byte_offset,
+        source_byte_offset + target_len * core::mem::size_of::<T>(),
+    );
+    // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+    let target_slice = unsafe { std::slice::from_raw_parts_mut(target_ptr, target_len) };
+    (target_slice, source_slice)
+}
+
 fn with_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
@@ -3518,10 +3558,11 @@ fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
             source,
             set_typed_array_from_typed_array::<T, V>(
                 agent,
-                scoped_o,
+                // SAFETY: not shared.
+                unsafe { scoped_o.take(agent) },
                 target_offset,
                 source.unbind(),
-                gc
+                gc.into_nogc()
             ),
             V
         )?;
