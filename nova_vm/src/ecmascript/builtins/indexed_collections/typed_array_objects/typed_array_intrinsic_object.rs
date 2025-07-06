@@ -56,7 +56,8 @@ use crate::{
 
 use super::abstract_operations::{
     TypedArrayWithBufferWitnessRecords, is_typed_array_out_of_bounds, is_valid_integer_index,
-    make_typed_array_with_buffer_witness_record, typed_array_byte_length,
+    make_typed_array_with_buffer_witness_record, set_typed_array_from_array_like,
+    set_typed_array_from_typed_array, typed_array_byte_length,
     typed_array_create_from_constructor_with_length, typed_array_create_same_type,
     typed_array_length, typed_array_species_create_with_buffer,
     typed_array_species_create_with_length, validate_typed_array,
@@ -1818,13 +1819,38 @@ impl TypedArrayPrototype {
         Ok(o.into_value())
     }
 
+    /// [23.2.3.26 %TypedArray%.prototype.set ( source [ , offset ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.set)
+    /// This method sets multiple values in this TypedArray, reading the values
+    /// from source. The details differ based upon the type of source. The optional
+    /// offset value indicates the first element index in this TypedArray where
+    /// values are written. If omitted, it is assumed to be 0.
     fn set<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("TypedArray.prototype.set", gc.into_nogc()))
+        let source = arguments.get(0).bind(gc.nogc());
+        let offset = arguments.get(1).bind(gc.nogc());
+        // 1. Let target be the this value.
+        let target = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(target, [[TypedArrayName]]).
+        let o = require_internal_slot_typed_array(agent, target, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        with_typed_array_viewable!(
+            o,
+            set_typed_array::<T>(
+                agent,
+                o.unbind(),
+                source.unbind(),
+                offset.unbind(),
+                gc.reborrow()
+            )
+            .unbind()?
+        );
+        // 8. Return undefined.
+        Ok(Value::Undefined)
     }
 
     /// ## [23.2.3.27 %TypedArray%.prototype.slice ( start, end )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.slice)
@@ -2440,7 +2466,11 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     })
 }
 
-fn viewable_slice<'a, T: Viewable>(agent: &'a mut Agent, ta: TypedArray, gc: NoGcScope) -> &'a [T] {
+pub(crate) fn viewable_slice<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    ta: TypedArray,
+    gc: NoGcScope,
+) -> &'a [T] {
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
@@ -2448,18 +2478,22 @@ fn viewable_slice<'a, T: Viewable>(agent: &'a mut Agent, ta: TypedArray, gc: NoG
     if byte_slice.is_empty() {
         return &[];
     }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return &[];
-        }
-        &byte_slice[byte_offset..end_index]
-    } else {
-        &byte_slice[byte_offset..]
-    };
+    let byte_limit = byte_length.map_or(byte_slice.len(), |l| byte_offset + l);
+    byte_slice_to_viewable::<T>(byte_slice, byte_offset, byte_limit)
+}
+
+pub(crate) fn byte_slice_to_viewable<T: Viewable>(
+    byte_slice: &[u8],
+    byte_offset: usize,
+    byte_limit: usize,
+) -> &[T] {
+    if byte_slice.is_empty() || byte_limit > byte_slice.len() {
+        return &[];
+    }
+    let byte_slice = &byte_slice[byte_offset..byte_limit];
     // SAFETY: All bytes in byte_slice are initialized, and all bitwise
     // combinations of T are valid values. Alignment of T's is
-    // guaranteed by align_to itself.
+    // guaranteed by align_to_mut itself.
     let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
     if !head.is_empty() {
         panic!("TypedArray is not properly aligned");
@@ -2479,15 +2513,19 @@ fn viewable_slice_mut<'a, T: Viewable>(
     if byte_slice.is_empty() {
         return &mut [];
     }
-    let byte_slice = if let Some(byte_length) = byte_length {
-        let end_index = byte_offset + byte_length;
-        if end_index > byte_slice.len() {
-            return &mut [];
-        }
-        &mut byte_slice[byte_offset..end_index]
-    } else {
-        &mut byte_slice[byte_offset..]
-    };
+    let byte_limit = byte_length.map_or(byte_slice.len(), |l| byte_offset + l);
+    byte_slice_to_viewable_mut::<T>(byte_slice, byte_offset, byte_limit)
+}
+
+pub(crate) fn byte_slice_to_viewable_mut<T: Viewable>(
+    byte_slice: &mut [u8],
+    byte_offset: usize,
+    byte_limit: usize,
+) -> &mut [T] {
+    if byte_slice.is_empty() || byte_limit > byte_slice.len() {
+        return &mut [];
+    }
+    let byte_slice = &mut byte_slice[byte_offset..byte_limit];
     // SAFETY: All bytes in byte_slice are initialized, and all bitwise
     // combinations of T are valid values. Alignment of T's is
     // guaranteed by align_to_mut itself.
@@ -3244,7 +3282,7 @@ fn filter_typed_array<'a, T: Viewable>(
     Ok(a.unbind())
 }
 
-fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
+pub(crate) fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
     src_slice: &[Src],
     dst_slice: &mut [Dst],
 ) {
@@ -3260,7 +3298,7 @@ fn copy_between_different_type_typed_arrays<Src: Viewable, Dst: Viewable>(
     }
 }
 
-fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut [u8]) {
+pub(crate) fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut [u8]) {
     let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
     if !head.is_empty() {
         panic!("ArrayBuffer not correctly aligned");
@@ -3271,7 +3309,7 @@ fn copy_between_same_type_typed_arrays<T: Viewable>(kept: &[T], byte_slice: &mut
     slice.copy_from_slice(kept);
 }
 
-fn split_typed_array_views<'a, T: Viewable>(
+pub(crate) fn split_typed_array_views<'a, T: Viewable>(
     agent: &'a mut Agent,
     a: TypedArray<'a>,
     o: TypedArray<'a>,
@@ -3294,6 +3332,39 @@ fn split_typed_array_views<'a, T: Viewable>(
     // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
     let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
     (a_aligned, o_aligned)
+}
+
+pub(crate) fn split_typed_array_buffers<'a, T: Viewable>(
+    agent: &'a mut Agent,
+    target: ArrayBuffer,
+    target_byte_offset: usize,
+    source: ArrayBuffer,
+    source_byte_offset: usize,
+    target_byte_limit: usize,
+) -> (&'a mut [T], &'a [T]) {
+    let a_buf = target.as_slice(agent);
+    let o_buf = source.as_slice(agent);
+    if !a_buf.is_empty() || !o_buf.is_empty() {
+        assert!(
+            !std::ptr::eq(a_buf.as_ptr(), o_buf.as_ptr()),
+            "Must not point to the same buffer"
+        );
+    }
+    let target_slice = target.as_mut_slice(agent);
+    let target_slice =
+        byte_slice_to_viewable_mut::<T>(target_slice, target_byte_offset, target_byte_limit);
+    let target_byte_length = core::mem::size_of_val(target_slice);
+    let target_ptr = target_slice.as_mut_ptr();
+    let target_len = target_slice.len();
+    let source_slice = source.as_mut_slice(agent);
+    let source_slice = byte_slice_to_viewable_mut::<T>(
+        source_slice,
+        source_byte_offset,
+        source_byte_offset + target_byte_length,
+    );
+    // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+    let target_slice = unsafe { std::slice::from_raw_parts_mut(target_ptr, target_len) };
+    (target_slice, source_slice)
 }
 
 fn with_typed_array<'a, T: Viewable>(
@@ -3456,6 +3527,61 @@ fn subarray_typed_array<'a, T: Viewable>(
         length,
         gc,
     )
+}
+
+fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    o: TypedArray,
+    source: Value,
+    offset: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let o = o.bind(gc.nogc());
+    let source = source.bind(gc.nogc());
+    let offset = offset.bind(gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
+    let scoped_source = source.scope(agent, gc.nogc());
+    // 3. Assert: target has a [[ViewedArrayBuffer]] internal slot.
+    // 4. Let targetOffset be ? ToIntegerOrInfinity(offset).
+    let target_offset = to_integer_or_infinity(agent, offset.unbind(), gc.reborrow()).unbind()?;
+    // 5. If targetOffset < 0, throw a RangeError exception.
+    if target_offset.is_negative() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "invalid array length",
+            gc.into_nogc(),
+        ));
+    }
+    // 6. If source is an Object that has a [[TypedArrayName]] internal slot, then
+    if let Ok(source) = TypedArray::try_from(scoped_source.get(agent)).bind(gc.nogc()) {
+        // a. Perform ? SetTypedArrayFromTypedArray(target, targetOffset, source).
+        with_typed_array_viewable!(
+            source,
+            set_typed_array_from_typed_array::<T, V>(
+                agent,
+                // SAFETY: not shared.
+                unsafe { scoped_o.take(agent) },
+                target_offset,
+                source.unbind(),
+                gc.into_nogc()
+            ),
+            V
+        )?;
+    } else {
+        // 7. Else,
+        //  a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
+        with_typed_array_viewable!(
+            scoped_o.get(agent),
+            set_typed_array_from_array_like::<T>(
+                agent,
+                scoped_o,
+                target_offset,
+                scoped_source,
+                gc
+            )?
+        )
+    }
+    Ok(())
 }
 
 fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(

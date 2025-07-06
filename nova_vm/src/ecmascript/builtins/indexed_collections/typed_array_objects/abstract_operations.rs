@@ -11,7 +11,7 @@ use crate::{
             operations_on_objects::{
                 construct, get, length_of_array_like, set, species_constructor,
             },
-            type_conversion::{to_big_int, to_index, to_number},
+            type_conversion::{IntegerOrInfinity, to_big_int, to_index, to_number, to_object},
         },
         builtins::{
             ArgumentsList, ArrayBuffer, BuiltinFunction,
@@ -20,7 +20,10 @@ use crate::{
                 array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
                 is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer,
             },
-            indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
+            indexed_collections::typed_array_objects::typed_array_intrinsic_object::{
+                byte_slice_to_viewable, byte_slice_to_viewable_mut,
+                require_internal_slot_typed_array, split_typed_array_buffers,
+            },
             ordinary::get_prototype_from_constructor,
             typed_array::{
                 TypedArray,
@@ -40,6 +43,8 @@ use crate::{
     },
     heap::CreateHeapData,
 };
+
+use super::typed_array_intrinsic_object::copy_between_different_type_typed_arrays;
 
 /// Matches a TypedArray and defines a type T in the expression which
 /// is the generic type of the viewable.
@@ -1481,4 +1486,249 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     }
     // 6. Return result.
     Ok(result.unbind())
+}
+
+/// [23.2.3.26.1 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromtypedarray)
+/// The abstract operation SetTypedArrayFromTypedArray takes arguments target
+/// (a TypedArray), targetOffset (a non-negative integer or +∞), and source
+/// (a TypedArray) and returns either a normal completion containing unused
+/// or a throw completion. It sets multiple values in target, starting at index
+/// targetOffset, reading the values from source.
+pub(crate) fn set_typed_array_from_typed_array<'a, TargetType: Viewable, SrcType: Viewable>(
+    agent: &mut Agent,
+    target: TypedArray,
+    target_offset: IntegerOrInfinity,
+    source: TypedArray,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let target = target.bind(gc);
+    let source = source.bind(gc);
+    // 1. Let targetBuffer be target.[[ViewedArrayBuffer]].
+    let target_buffer = target.get_viewed_array_buffer(agent, gc);
+    // 2. Let targetRecord be MakeTypedArrayWithBufferWitnessRecord(target, seq-cst).
+    let target_record =
+        make_typed_array_with_buffer_witness_record(agent, target, Ordering::SeqCst, gc);
+    // 3. If IsTypedArrayOutOfBounds(targetRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<TargetType>(agent, &target_record, gc) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc,
+        ));
+    };
+    // 4. Let targetLength be TypedArrayLength(targetRecord).
+    let target_length = typed_array_length::<TargetType>(agent, &target_record, gc);
+    // 5. Let srcBuffer be source.[[ViewedArrayBuffer]].
+    let mut src_buffer = source.get_viewed_array_buffer(agent, gc);
+    // 6. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(source, seq-cst).
+    let src_record =
+        make_typed_array_with_buffer_witness_record(agent, source, Ordering::SeqCst, gc);
+    // 7. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<SrcType>(agent, &src_record, gc) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc,
+        ));
+    }
+    // 8. Let srcLength be TypedArrayLength(srcRecord).
+    let src_length = typed_array_length::<SrcType>(agent, &src_record, gc);
+    // 9. Let targetType be TypedArrayElementType(target).
+    // 10. Let targetElementSize be TypedArrayElementSize(target).
+    let target_element_size = size_of::<TargetType>();
+    // 11. Let targetByteOffset be target.[[ByteOffset]].
+    let target_byte_offset = target.byte_offset(agent);
+    // 12. Let srcType be TypedArrayElementType(source).
+    // 13. Let srcElementSize be TypedArrayElementSize(source).
+    // 14. Let srcByteOffset be source.[[ByteOffset]].
+    let src_byte_offset = source.byte_offset(agent);
+    // 15. If targetOffset = +∞, throw a RangeError exception.
+    if target_offset.is_pos_infinity() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc,
+        ));
+    };
+    // 16. If srcLength + targetOffset > targetLength, throw a RangeError exception.
+    let target_offset = target_offset.into_i64() as u64;
+    if src_length as u64 + target_offset > target_length as u64 {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "source length out of target bounds",
+            gc,
+        ));
+    };
+    let target_offset = target_offset as usize;
+    // 17. If target.[[ContentType]] is not source.[[ContentType]], throw a TypeError exception.
+    let is_type_match = has_matching_content_type::<TargetType>(source);
+    if !is_type_match {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray species did not match source",
+            gc,
+        ));
+    };
+    // 18. If IsSharedArrayBuffer(srcBuffer) is true,
+    //     IsSharedArrayBuffer(targetBuffer) is true, and
+    //     srcBuffer.[[ArrayBufferData]] is targetBuffer.[[ArrayBufferData]],
+    //     let sameSharedArrayBuffer be true; otherwise, let
+    //     sameSharedArrayBuffer be false.
+    // 19. If SameValue(srcBuffer, targetBuffer) is true or
+    //     sameSharedArrayBuffer is true, then
+    let src_byte_index = if src_buffer == target_buffer {
+        // a. Let srcByteLength be TypedArrayByteLength(srcRecord).
+        let src_byte_length = typed_array_byte_length::<SrcType>(agent, &src_record, gc);
+        // b. Set srcBuffer to
+        //    ? CloneArrayBuffer(srcBuffer, srcByteOffset, srcByteLength).
+        src_buffer = clone_array_buffer(agent, src_buffer, src_byte_offset, src_byte_length, gc)
+            .unbind()?
+            .bind(gc);
+        // c. Let srcByteIndex be 0.
+        0
+    } else {
+        src_byte_offset
+    };
+    debug_assert_ne!(src_buffer, target_buffer);
+    debug_assert_ne!(
+        src_buffer.as_slice(agent).as_ptr(),
+        target_buffer.as_slice(agent).as_ptr()
+    );
+    // 21. Let targetByteIndex be (targetOffset × targetElementSize) + targetByteOffset.
+    let target_byte_index = (target_offset * target_element_size) + target_byte_offset;
+    // 22. Let limit be targetByteIndex + (targetElementSize × srcLength).
+    let limit = target_byte_index + (target_element_size * src_length);
+    // 23. If srcType is targetType, then
+    if core::any::TypeId::of::<SrcType>() == core::any::TypeId::of::<TargetType>() {
+        // a. NOTE: The transfer must be performed in a manner that preserves
+        //    the bit-level encoding of the source data.
+        // Repeat, while targetByteIndex < limit,
+        // i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8,
+        //    true, unordered).
+        // ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8,
+        //     value, true, unordered).
+        let (target_slice, src_slice) = split_typed_array_buffers::<SrcType>(
+            agent,
+            target_buffer,
+            target_byte_index,
+            src_buffer,
+            src_byte_index,
+            limit,
+        );
+        target_slice.copy_from_slice(src_slice);
+        // iii. Set srcByteIndex to srcByteIndex + 1.
+        // iv. Set targetByteIndex to targetByteIndex + 1.
+    } else {
+        // 24. Else,
+        //  a. Repeat, while targetByteIndex < limit,
+        //  i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, srcType, true, unordered).
+        //  ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, targetType, value, true, unordered).
+        let target_slice = byte_slice_to_viewable_mut::<TargetType>(
+            target_buffer.as_mut_slice(agent),
+            target_byte_index,
+            limit,
+        );
+        let target_ptr = target_slice.as_mut_ptr();
+        let target_len = target_slice.len();
+        let src_slice = byte_slice_to_viewable::<SrcType>(
+            src_buffer.as_slice(agent),
+            src_byte_index,
+            // Note: source buffer is limited by the target buffer length.
+            src_byte_index + target_len * core::mem::size_of::<SrcType>(),
+        );
+        // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
+        let target_slice = unsafe { std::slice::from_raw_parts_mut(target_ptr, target_len) };
+        copy_between_different_type_typed_arrays::<SrcType, TargetType>(src_slice, target_slice);
+        //  iii. Set srcByteIndex to srcByteIndex + srcElementSize.
+        //  iv. Set targetByteIndex to targetByteIndex + targetElementSize.
+    }
+    // 25. Return unused.
+    Ok(())
+}
+
+/// ### [23.2.3.26.2 SetTypedArrayFromArrayLike ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromarraylike)
+/// The abstract operation SetTypedArrayFromArrayLike takes arguments target
+/// (a TypedArray), targetOffset (a non-negative integer or +∞), and source
+/// (an ECMAScript language value, but not a TypedArray) and returns either
+/// a normal completion containing unused or a throw completion. It sets
+/// multiple values in target, starting at index targetOffset, reading the
+/// values from source.
+pub(crate) fn set_typed_array_from_array_like<'a, T: Viewable>(
+    agent: &mut Agent,
+    target: Scoped<TypedArray>,
+    target_offset: IntegerOrInfinity,
+    source: Scoped<Value>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    // 1. Let targetRecord be MakeTypedArrayWithBufferWitnessRecord(target, seq-cst).
+    let target_record = make_typed_array_with_buffer_witness_record(
+        agent,
+        target.get(agent),
+        Ordering::SeqCst,
+        gc.nogc(),
+    );
+    // 2. If IsTypedArrayOutOfBounds(targetRecord) is true, throw a TypeError exception.
+    if is_typed_array_out_of_bounds::<T>(agent, &target_record, gc.nogc()) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+            gc.into_nogc(),
+        ));
+    };
+    // 3. Let targetLength be TypedArrayLength(targetRecord).
+    let target_length = typed_array_length::<T>(agent, &target_record, gc.nogc()) as u64;
+    // 4. Let src be ? ToObject(source).
+    let src = to_object(agent, source.get(agent), gc.nogc())
+        .unbind()?
+        .bind(gc.nogc());
+    // SAFETY: source is not shared.
+    let source = unsafe { source.replace_self(agent, src.unbind()) };
+    // 5. Let srcLength be ? LengthOfArrayLike(src).
+    let src_length = length_of_array_like(agent, src.unbind(), gc.reborrow()).unbind()? as u64;
+    let src = source;
+    // 6. If targetOffset = +∞, throw a RangeError exception.
+    if target_offset.is_pos_infinity() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc.into_nogc(),
+        ));
+    };
+    let target_offset = target_offset.into_i64() as u64;
+    // 7. If srcLength + targetOffset > targetLength, throw a RangeError exception.
+    if src_length + target_offset > target_length {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "count must be less than infinity",
+            gc.into_nogc(),
+        ));
+    };
+    let target_offset = target_offset as usize;
+    let src_length = src_length as usize;
+    // 8. Let k be 0.
+    let mut k = 0;
+    // 9. Repeat, while k < srcLength,
+    while k < src_length {
+        // a. Let Pk be ! ToString(𝔽(k)).
+        let pk = PropertyKey::Integer(k.try_into().unwrap());
+        // b. Let value be ? Get(src, Pk).
+        let value = get(agent, src.get(agent), pk, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // c. Let targetIndex be 𝔽(targetOffset + k).
+        let target_index = target_offset + k;
+        // d. Perform ? TypedArraySetElement(target, targetIndex, value).
+        typed_array_set_element::<T>(
+            agent,
+            target.get(agent),
+            target_index as i64,
+            value.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?;
+        // e. Set k to k + 1.
+        k += 1;
+    }
+    // 10. Return unused.
+    Ok(())
 }
