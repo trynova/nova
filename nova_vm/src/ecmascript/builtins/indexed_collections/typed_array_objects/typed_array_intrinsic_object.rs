@@ -3353,14 +3353,14 @@ pub(crate) fn split_typed_array_buffers<'a, T: Viewable>(
     let target_slice = target.as_mut_slice(agent);
     let target_slice =
         byte_slice_to_viewable_mut::<T>(target_slice, target_byte_offset, target_byte_limit);
-    let targt_byte_length = core::mem::size_of_val(target_slice);
+    let target_byte_length = core::mem::size_of_val(target_slice);
     let target_ptr = target_slice.as_mut_ptr();
     let target_len = target_slice.len();
     let source_slice = source.as_mut_slice(agent);
     let source_slice = byte_slice_to_viewable_mut::<T>(
         source_slice,
         source_byte_offset,
-        source_byte_offset + targt_byte_length,
+        source_byte_offset + target_byte_length,
     );
     // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
     let target_slice = unsafe { std::slice::from_raw_parts_mut(target_ptr, target_len) };
