@@ -4,6 +4,8 @@
 
 use core::cmp::Ordering;
 
+use wtf8::Wtf8Buf;
+
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     invoke, try_create_data_property_or_throw, try_length_of_array_like,
 };
@@ -1736,7 +1738,7 @@ impl ArrayPrototype {
             unsafe { separator.replace_self(agent, sep.unbind()) }
         };
         // 5. Let R be the empty String.
-        let mut r = std::string::String::with_capacity(len * 10);
+        let mut r = Wtf8Buf::with_capacity(len * 10);
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
         // b. Let element be ? Get(O, ! ToString(𝔽(k))).
@@ -1751,12 +1753,12 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Set R to the string-concatenation of R and S.
-                r.push_str(s.as_str(agent));
+                r.push_wtf8(s.as_wtf8(agent));
             }
         }
         for k in 1..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
-            r.push_str(separator.get(agent).as_str(agent));
+            r.push_wtf8(separator.get(agent).as_wtf8(agent));
             // b. Let element be ? Get(O, ! ToString(𝔽(k))).
             let element = get(
                 agent,
@@ -1773,12 +1775,12 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Set R to the string-concatenation of R and S.
-                r.push_str(s.as_str(agent));
+                r.push_wtf8(s.as_wtf8(agent));
             }
             // d. Set k to k + 1.
         }
         // 8. Return R.
-        Ok(Value::from_string(agent, r, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
     fn keys<'gc>(
@@ -3515,7 +3517,7 @@ impl ArrayPrototype {
         // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
         let separator = ", ";
         // 4. Let R be the empty String.
-        let mut r = std::string::String::new();
+        let mut r = Wtf8Buf::new();
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -3549,13 +3551,13 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
-                r.push_str(s.as_str(agent));
+                r.push_wtf8(s.as_wtf8(agent));
             };
             // d. Set k to k + 1.
             k += 1;
         }
         // 7. Return R.
-        Ok(Value::from_string(agent, r, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
     fn to_reversed<'gc>(
@@ -4713,6 +4715,7 @@ fn compare_array_elements<'a>(
         // 9. Let ySmaller be ! IsLessThan(yString, xString, true).
         // 10. If ySmaller is true, return 1𝔽.
         // 11. Return +0𝔽.
-        Ok(x.as_str(agent).cmp(y.as_str(agent)))
+        // TODO: this gives UTF-8 lexicographic ordering, not UTF-16.
+        Ok(x.as_wtf8(agent).cmp(y.as_wtf8(agent)))
     }
 }

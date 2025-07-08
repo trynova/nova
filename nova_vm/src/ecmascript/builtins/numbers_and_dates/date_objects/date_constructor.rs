@@ -124,7 +124,7 @@ impl DateConstructor {
                     if let Ok(v) = String::try_from(v) {
                         // 1. Assert: The next step never returns an abrupt completion because v is a String.
                         // 2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (21.4.3.2).
-                        parse_date::parse(agent, v.as_str(agent))
+                        parse_date::parse(agent, &v.to_string_lossy(agent))
                     }
                     // iii. Else,
                     else {
@@ -284,7 +284,7 @@ impl DateConstructor {
             .to_string(agent, gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let parsed = parse_date::parse(agent, input.as_str(agent));
+        let parsed = parse_date::parse(agent, &input.to_string_lossy(agent));
         Ok(Value::from_f64(agent, parsed, gc.into_nogc()))
     }
 

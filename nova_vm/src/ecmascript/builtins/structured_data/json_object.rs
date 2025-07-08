@@ -2,9 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::fmt::Write;
-
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     SmallInteger,
@@ -109,16 +108,17 @@ impl JSONObject {
             .bind(gc.nogc());
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
-        let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
-            Ok(value) => value,
-            Err(error) => {
-                return Err(agent.throw_exception(
-                    ExceptionType::SyntaxError,
-                    error.to_string(),
-                    gc.into_nogc(),
-                ));
-            }
-        };
+        let json_value =
+            match sonic_rs::from_str::<sonic_rs::Value>(&json_string.to_string_lossy(agent)) {
+                Ok(value) => value,
+                Err(error) => {
+                    return Err(agent.throw_exception(
+                        ExceptionType::SyntaxError,
+                        error.to_string(),
+                        gc.into_nogc(),
+                    ));
+                }
+            };
 
         // 3. Let scriptString be the string-concatenation of "(", jsonString, and ");".
         // 4. Let script be ParseText(scriptString, Script).
@@ -377,7 +377,7 @@ impl JSONObject {
                 " ".repeat(space_mv as usize).into()
             } else if let Ok(space) = String::try_from(space) {
                 // 8. Else if space is a String, then
-                let space = space.as_str(agent);
+                let space = space.to_string_lossy(agent);
                 // a. If the length of space ≤ 10, let gap be space; otherwise let gap be the substring of space from 0 to 10.
                 if space.len() <= 10 {
                     space.into()
@@ -410,7 +410,7 @@ impl JSONObject {
         );
         // 12. Let state be the JSON Serialization Record { [[ReplacerFunction]]: ReplacerFunction, [[Stack]]: stack, [[Indent]]: indent, [[Gap]]: gap, [[PropertyList]]: PropertyList }.
         let mut state = JSONSerializationRecord {
-            result: Default::default(),
+            result: Wtf8Buf::new(),
             replacer_function,
             stack,
             // 2. Let indent be the empty String.
@@ -435,7 +435,7 @@ impl JSONObject {
             serialize_json_property_value(agent, &mut state, value_p.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
-            Ok(String::from_string(agent, state.result, gc.into_nogc()).into_value())
+            Ok(String::from_wtf8_buf(agent, state.result, gc.into_nogc()).into_value())
         } else {
             Ok(Value::Undefined)
         }
@@ -616,7 +616,7 @@ fn internalize_json_property<'a>(
 }
 
 struct JSONSerializationRecord<'a> {
-    result: std::string::String,
+    result: Wtf8Buf,
     replacer_function: Option<Scoped<'a, Function<'static>>>,
     stack: ScopedCollection<'a, Vec<Value<'static>>>,
     indent: Box<str>,
@@ -843,14 +843,14 @@ fn serialize_json_property_value<'a, 'b>(
 /// returns a String. It wraps value in 0x0022 (QUOTATION MARK) code units and
 /// escapes certain other code units within it. This operation interprets value
 /// as a sequence of UTF-16 encoded code points, as described in 6.1.4.
-fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: String) {
+fn quote_json_string(agent: &Agent, product: &mut Wtf8Buf, value: String) {
     product.reserve(value.len(agent) + 2);
     // 1. Let product be the String value consisting solely of the code unit
     //    0x0022 (QUOTATION MARK).
-    product.push('"');
+    product.push(CodePoint::from_char('"'));
     // 2. For each code point C of StringToCodePoints(value), do
-    for c in value.as_str(agent).chars() {
-        match c {
+    for c in value.as_wtf8(agent).code_points() {
+        match c.to_u32() {
             // a. If C is listed in the “Code Point” column of Table 81, then
             // i. Set product to the string-concatenation of product and the
             //    escape sequence for C as specified in the “Escape Sequence”
@@ -861,30 +861,47 @@ fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: St
             // | Code Point | Unicode Character Name | Escape Sequence |
             // +------------+------------------------+-----------------+
             // | U+0008     | Backspace              | \b              |
-            '\u{0008}' => product.push_str("\\b"),
+            0x0008 => product.push_str("\\b"),
             // | U+0009     | CHARACTER TABULATION   | \t              |
-            '\u{0009}' => product.push_str("\\t'"),
+            0x0009 => product.push_str("\\t'"),
             // | U+000A     | LINE FEED (LF)         | \n              |
-            '\u{000A}' => product.push_str("\\n'"),
+            0x000A => product.push_str("\\n'"),
             // | U+000C     | FORM FEED (FF)         | \f              |
-            '\u{000C}' => product.push_str("\\f'"),
+            0x000C => product.push_str("\\f'"),
             // | U+000D     | CARRIAGE RETURN (CR)   | \r              |
-            '\u{000D}' => product.push_str("\\r'"),
+            0x000D => product.push_str("\\r'"),
             // | U+0022     | QUOTATION MARK         | \"              |
-            '\u{0022}' => product.push_str("\\\""),
+            0x0022 => product.push_str("\\\""),
             // | U+005C     | REVERSE SOLIDUS        | \\              |
-            '\u{005C}' => product.push_str("\\\\"),
+            0x005C => product.push_str("\\\\"),
             // +------------+------------------------+-----------------+
             // b. Else if C has a numeric value less than 0x0020 (SPACE) or C
             //    has the same numeric value as a leading surrogate or trailing
             //    surrogate, then
-            _ if c < '\u{0020}' => {
+            _ if c.to_u32() < u32::from('\u{0020}') || c.to_char().is_none() => {
                 // i. Let unit be the code unit whose numeric value is the
                 //    numeric value of C.
-                let unit = c as u32;
+                let unit = c.to_u32();
                 // ii. Set product to the string-concatenation of product and
                 //     UnicodeEscape(unit).
-                write!(product, "\\u{unit:04x}").unwrap();
+                debug_assert!(unit <= 0xFFFF);
+                let unit = unit as u16;
+                let mut buf = [0u8; 6];
+
+                fn u16_to_char_code(v: u16) -> u8 {
+                    if v < 10 { v as u8 + 48 } else { v as u8 + 87 }
+                }
+
+                buf[0] = 0x005C;
+                buf[1] = 'u' as u8;
+                buf[5] = u16_to_char_code(unit % 16);
+                buf[4] = u16_to_char_code((unit >> 4) % 16);
+                buf[3] = u16_to_char_code((unit >> 8) % 16);
+                buf[2] = u16_to_char_code(unit >> 12);
+                // SAFETY: the buffer contains only valid UTF-8.
+                let byte_buf = unsafe { str::from_utf8_unchecked_mut(&mut buf) };
+
+                product.push_str(byte_buf);
             }
             // c. Else,
             // i. Set product to the string-concatenation of product and
@@ -894,14 +911,16 @@ fn quote_json_string(agent: &Agent, product: &mut std::string::String, value: St
     }
     // 3. Set product to the string-concatenation of product and the code unit
     //    0x0022 (QUOTATION MARK).
-    product.push('"');
+    product.push(CodePoint::from_char('"'));
     // 4. Return product.
 }
 
-fn quote_property_key(agent: &Agent, product: &mut std::string::String, key: PropertyKey) {
+fn quote_property_key(agent: &Agent, product: &mut Wtf8Buf, key: PropertyKey) {
     if let PropertyKey::Integer(key) = key {
         let key = key.into_i64();
-        write!(product, "\"{key}\"").unwrap();
+        product.reserve(6);
+        let string = format!("\"{key}\"");
+        product.push_str(&string);
     } else {
         // Symbol keys do not get serialised into JSON.
         debug_assert!(key.is_string());

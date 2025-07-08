@@ -200,18 +200,19 @@ impl StringIteratorPrototype {
             return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
         }
         let StringIteratorHeapData { s, position, .. } = generator.get_data(agent);
+        let position = *position;
         // 3. Assert: state is either suspended-start or suspended-yield.
         // i. Let cp be CodePointAt(s, position).
-        let cp = s.as_str(agent)[*position..]
-            .chars()
+        let cp = s
+            .as_wtf8(agent)
+            .slice_from(position)
+            .code_points()
             .next()
-            .expect("TODO: Handle WTF-8");
-        let mut buf = [0u8; 4];
-        let str = cp.encode_utf8(&mut buf);
-        // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
-        let next_index = *position + str.len();
+            .expect("Unexpected end of StringIterator data");
         // iii. Let resultString be the substring of s from position to nextIndex.
-        let result_string = String::from_str(agent, str, gc);
+        let result_string = String::from_code_point(cp);
+        // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
+        let next_index = position + result_string.len(agent);
         // iv. Set position to nextIndex.
         generator.get_data_mut(agent).position = next_index;
         // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).

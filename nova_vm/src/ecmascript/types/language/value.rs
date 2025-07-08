@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use wtf8::Wtf8;
-
 use super::{
     BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
     StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
@@ -658,7 +656,7 @@ impl<'a> Value<'a> {
                 arena[data].data.hash(hasher);
             }
             Value::SmallString(data) => {
-                Wtf8::from_str(data.as_str()).hash(hasher);
+                data.as_wtf8().hash(hasher);
             }
             Value::Symbol(data) => {
                 discriminant.hash(hasher);
@@ -900,7 +898,7 @@ impl<'a> Value<'a> {
                 data.hash(hasher);
             }
             Value::SmallString(data) => {
-                data.as_str().hash(hasher);
+                data.to_string_lossy().hash(hasher);
             }
             Value::Symbol(data) => {
                 discriminant.hash(hasher);

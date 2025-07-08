@@ -10,3 +10,6 @@ homepage.workspace = true
 
 [lib]
 path = "lib.rs"
+
+[dependencies]
+wtf8 = "0.1"

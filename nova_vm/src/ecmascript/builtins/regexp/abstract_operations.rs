@@ -193,13 +193,18 @@ pub(crate) fn reg_exp_initialize<'a>(
     //     to the elements.
     let f_str = f.map(|f| f.to_inline_string());
     let f_str = match &f_str {
-        Ok(f) => f.as_str(),
-        Err(f) => f.as_str(agent),
+        Ok(f) => f.as_str().into(),
+        Err(f) => f.to_string_lossy(agent),
     };
     let allocator = Allocator::new();
     // 13. Let parseResult be ParsePattern(patternText, u, v).
-    match ConstructorParser::new(&allocator, p.as_str(agent), Some(f_str), Default::default())
-        .parse()
+    match ConstructorParser::new(
+        &allocator,
+        &p.to_string_lossy(agent),
+        Some(&f_str),
+        Default::default(),
+    )
+    .parse()
     {
         Ok(_) => {
             // 15. Assert: parseResult is a Pattern Parse Node.
@@ -214,11 +219,11 @@ pub(crate) fn reg_exp_initialize<'a>(
             ));
         }
     };
-    let f = f.unwrap_or_else(|f| parse_flags(f.as_str(agent)).unwrap());
+    let f = f.unwrap_or_else(|f| parse_flags(&f.to_string_lossy(agent)).unwrap());
     // 18. Let capturingGroupsCount be CountLeftCapturingParensWithin(parseResult).
     // 19. Let rer be the RegExp Record { [[IgnoreCase]]: i, [[Multiline]]: m, [[DotAll]]: s, [[Unicode]]: u, [[UnicodeSets]]: v, [[CapturingGroupsCount]]: capturingGroupsCount }.
     // 21. Set obj.[[RegExpMatcher]] to CompilePattern of parseResult with argument rer.
-    let reg_exp_matcher = RegExpHeapData::compile_pattern(p.as_str(agent), f);
+    let reg_exp_matcher = RegExpHeapData::compile_pattern(&p.to_string_lossy(agent), f);
     // 16. Set obj.[[OriginalSource]] to P.
     agent[obj].original_source = p.unbind();
     // 17. Set obj.[[OriginalFlags]] to F.
@@ -265,7 +270,7 @@ pub(crate) fn require_internal_slot_reg_exp<'a>(
     let Ok(o) = Object::try_from(o) else {
         let error_message = format!(
             "{} is not an object",
-            o.unbind().try_string_repr(agent, gc).as_str(agent)
+            o.unbind().try_string_repr(agent, gc).to_string_lossy(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
     };
@@ -354,6 +359,20 @@ fn reg_exp_exec_prepare<'a>(
         }
         exec
     };
+
+    // Fast path: native RegExp object and intrinsic exec function.
+    if let Object::RegExp(r) = r {
+        if exec
+            == agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp_prototype_exec()
+                .into_value()
+        {
+            return ControlFlow::Continue((r.unbind(), s.unbind()));
+        }
+    }
+
     // 2. If IsCallable(exec) is true, then
     if let Some(exec) = is_callable(exec, gc.nogc()) {
         // a. Let result be ? Call(exec, R, « S »).
@@ -552,7 +571,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     // 1. Let length be the length of S.
     let length = s.len(agent);
     let r_data = &mut agent.heap.regexps[r];
-    let s_bytes = s.as_str(&agent.heap.strings).as_bytes();
+    let s_bytes = s.as_bytes(&agent.heap.strings);
     // 8. Let matcher be R.[[RegExpMatcher]].
     // SAFETY: reg_exp_builtin_exec_base checks that the matcher is set.
     let matcher = unsafe { r_data.reg_exp_matcher.as_mut().unwrap_unchecked() };
@@ -737,27 +756,36 @@ pub(crate) fn reg_exp_builtin_test<'a>(
 ) -> JsResult<'a, bool> {
     let r = r.bind(gc.nogc());
     let s = s.bind(gc.nogc());
-    if (agent[r].original_flags & (RegExpFlags::G | RegExpFlags::S)).bits() > 0 {
-        // We have to perform the actual matching because global and sticky
-        // RegExp's can observe its match results from lastIndex.
-        return reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|a| a.is_some());
-    }
+    // if (agent[r].original_flags & (RegExpFlags::G | RegExpFlags::S)).bits() > 0 {
+    //     // We have to perform the actual matching because global and sticky
+    //     // RegExp's can observe its match results from lastIndex.
+    //     return reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|a| a.is_some());
+    // }
     let result =
         reg_exp_builtin_exec_prepare(agent, r.unbind(), s.unbind(), gc.reborrow()).unbind()?;
     let gc = gc.into_nogc();
     let RegExpExecBase {
-        r, s, last_index, ..
+        r,
+        s,
+        last_index,
+        sticky,
+        global,
+        ..
     } = result.bind(gc);
 
     // 1. Let length be the length of S.
     let length = s.len(agent);
+    let r_data = &mut agent.heap.regexps[r];
     if last_index > length {
         // i. If global is true or sticky is true, then
+        if global || sticky {
+            // 1. Perform ? Set(R, "lastIndex", +0𝔽, true).
+            r_data.last_index = RegExpLastIndex::ZERO;
+        }
         // ii. Return null.
         return Ok(false);
     }
-    let r_data = &mut agent.heap.regexps[r];
-    let s_bytes = s.as_str(&agent.heap.strings).as_bytes();
+    let s_bytes = s.as_bytes(&agent.heap.strings);
     // 8. Let matcher be R.[[RegExpMatcher]].
     // SAFETY: reg_exp_builtin_exec_base checks that the matcher is set.
     let matcher = unsafe { r_data.reg_exp_matcher.as_mut().unwrap_unchecked() };
@@ -768,8 +796,38 @@ pub(crate) fn reg_exp_builtin_test<'a>(
     // 12. NOTE: Each element of input is considered to be a character.
     // 13. Repeat, while matchSucceeded is false,
     // c. Let r be matcher(input, inputIndex).
-    let result = matcher.is_match_at(s_bytes, last_index);
-    Ok(result)
+    if global || sticky {
+        // Global and sticky flags can observe where we found a test result, so
+        // we need to actually find properly.
+        let result = matcher.find_at(s_bytes, last_index);
+        if let Some(result) = result {
+            if sticky && result.start() != last_index {
+                // sticky did match but not at the start position.
+                // 1. Perform ? Set(R, "lastIndex", +0𝔽, true).
+                r_data.last_index = RegExpLastIndex::ZERO;
+                // 2. Return null.
+                Ok(false)
+            } else {
+                // ii. Set lastIndex to AdvanceStringIndex(S, lastIndex, fullUnicode).
+                let e = result.end();
+                // 15. If fullUnicode is true, set e to GetStringIndex(S, e).
+                let e = s.utf16_index(&agent.heap.strings, e);
+                // 16. If global is true or sticky is true, then
+                // a. Perform ? Set(R, "lastIndex", 𝔽(e), true).
+                r_data.last_index = e.into();
+                Ok(true)
+            }
+        } else {
+            // No match.
+            r_data.last_index = RegExpLastIndex::ZERO;
+            Ok(false)
+        }
+    } else {
+        // Otherwise we can simply try-match.
+        let result = matcher.is_match_at(s_bytes, last_index);
+        r_data.last_index = RegExpLastIndex::ZERO;
+        Ok(result)
+    }
 }
 
 /// ### [22.2.7.3 AdvanceStringIndex ( S, index, unicode )](https://tc39.es/ecma262/#sec-advancestringindex)
@@ -785,17 +843,19 @@ pub(crate) fn advance_string_index(agent: &Agent, s: String, index: usize, unico
         return index + 1;
     }
     // 3. Let length be the length of S.
-    let length = s.len(agent);
+    let length = s.utf16_len(agent);
     // 4. If index + 1 ≥ length, return index + 1.
     if index + 1 >= length {
         return index + 1;
     }
     // 5. Let cp be CodePointAt(S, index).
-    let cp = s
-        .as_str(agent)
-        .chars()
-        .nth(index)
-        .expect("Length was checked already");
+    let cp = s.code_point_at(agent, index);
     // 6. Return index + cp.[[CodeUnitCount]].
-    index + cp.len_utf16()
+    let code = cp.to_u32();
+    if (code & !0xFFFF) > 0 {
+        // Two-code-unit character.
+        index + 2
+    } else {
+        index + 1
+    }
 }

@@ -290,7 +290,7 @@ impl DeclarativeEnvironment<'_> {
             if is_strict {
                 let error_message = format!(
                     "Cannot assign to nonexisting binding '{}'.",
-                    name.as_str(agent)
+                    name.to_string_lossy(agent)
                 );
                 return Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
@@ -319,7 +319,7 @@ impl DeclarativeEnvironment<'_> {
             // a. Throw a ReferenceError exception.
             let error_message = format!(
                 "Identifier '{}' has not been initialized.",
-                name.as_str(agent)
+                name.to_string_lossy(agent)
             );
             return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
@@ -338,7 +338,7 @@ impl DeclarativeEnvironment<'_> {
             if is_strict {
                 let error_message = format!(
                     "Cannot assign to immutable identifier '{}' in strict mode.",
-                    name.as_str(agent)
+                    name.to_string_lossy(agent)
                 );
                 return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }
@@ -372,7 +372,7 @@ impl DeclarativeEnvironment<'_> {
                 // a ReferenceError exception.
                 let error_message = format!(
                     "Could not get value of binding '{}': binding is uninitialized.",
-                    name.as_str(agent)
+                    name.to_string_lossy(agent)
                 );
                 Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
             }

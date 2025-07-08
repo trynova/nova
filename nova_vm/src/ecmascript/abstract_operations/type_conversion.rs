@@ -15,6 +15,7 @@
 //! programmers must call BigInt explicitly to convert values from other types.
 
 use num_bigint::Sign;
+use wtf8::Wtf8;
 
 use crate::{
     SmallInteger,
@@ -350,7 +351,8 @@ pub(crate) fn string_to_number<'gc>(
     // 1. Let literal be ParseText(str, StringNumericLiteral).
     // 2. If literal is a List of errors, return NaN.
     // 3. Return the StringNumericValue of literal.
-    let str = str.as_str(agent).trim_matches(is_trimmable_whitespace);
+    let str = str.to_string_lossy(agent);
+    let str = str.trim_matches(is_trimmable_whitespace);
     match str {
         "+Infinity" | "Infinity" => {
             return Number::pos_inf();
@@ -939,7 +941,7 @@ pub(crate) fn string_to_big_int<'a>(
     // StringIntegerLiteral is either whitespace only or a StrIntegerLiteral surrounded by
     // optional whitespace.
 
-    let literal = argument.as_str(agent); // Extra line literally just for displaying error
+    let literal = argument.to_string_lossy(agent); // Extra line literally just for displaying error
 
     // 4. Let mv be the MV of literal.
     // 5. Assert: mv is an integer.
@@ -1273,11 +1275,11 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
-                Value::String(x) => (agent[*x].as_str(), PropertyKey::String(*x)),
-                Value::SmallString(x) => (x.as_str(), PropertyKey::SmallString(*x)),
+                Value::String(x) => (agent[*x].as_wtf8(), PropertyKey::String(*x)),
+                Value::SmallString(x) => (x.as_wtf8(), PropertyKey::SmallString(*x)),
                 _ => unreachable!(),
             };
-            if let Some(key) = parse_string_to_integer_property_key(str) {
+            if let Some(key) = parse_wtf8_to_integer_property_key(str) {
                 TryResult::Continue(key)
             } else {
                 TryResult::Continue(string_key)
@@ -1338,6 +1340,14 @@ pub(crate) fn to_property_key_complex<'a, 'gc>(
     }
 }
 
+pub(crate) fn parse_wtf8_to_integer_property_key(str: &Wtf8) -> Option<PropertyKey<'static>> {
+    if let Some(str) = str.as_str() {
+        parse_string_to_integer_property_key(str)
+    } else {
+        // Note: invalid UTF-8 cannot parse into an integer.
+        None
+    }
+}
 pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey<'static>> {
     // i64::from_string will accept eg. 0123 as 123 but JS property keys do
     // not agree. Hence, only "0" can start with "0", all other integer

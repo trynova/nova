@@ -31,6 +31,7 @@ pub(crate) use abstract_operations::*;
 pub(crate) use data::RegExpHeapData;
 use data::RegExpLastIndex;
 use oxc_ast::ast::RegExpFlags;
+use wtf8::Wtf8Buf;
 
 use super::ordinary::{ordinary_set, ordinary_try_set};
 
@@ -42,7 +43,7 @@ impl<'a> RegExp<'a> {
     /// Fast-path for RegExp object debug stringifying; this does not take into
     /// account any prototype-modifications.
     #[inline(always)]
-    pub(crate) fn create_regexp_string(self, agent: &Agent) -> std::string::String {
+    pub(crate) fn create_regexp_string(self, agent: &Agent) -> Wtf8Buf {
         agent[self].create_regexp_string(agent)
     }
 

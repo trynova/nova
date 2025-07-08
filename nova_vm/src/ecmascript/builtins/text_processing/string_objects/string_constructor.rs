@@ -2,40 +2,33 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::SmallString;
-use crate::ecmascript::abstract_operations::operations_on_objects::get;
-use crate::ecmascript::abstract_operations::operations_on_objects::length_of_array_like;
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
-use crate::ecmascript::abstract_operations::type_conversion::to_number;
-use crate::ecmascript::abstract_operations::type_conversion::to_object;
-use crate::ecmascript::abstract_operations::type_conversion::to_string;
-use crate::ecmascript::abstract_operations::type_conversion::to_uint16_number;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
-use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Number;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::PropertyKey;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::Value;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::IntrinsicConstructorIndexes;
+use wtf8::{CodePoint, Wtf8Buf};
+
+use crate::{
+    SmallString,
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{get, length_of_array_like},
+            type_conversion::{to_number, to_object, to_string, to_uint16_number},
+        },
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::{get_prototype_from_constructor, ordinary_object_create_with_intrinsics},
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
+            String, Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
+    heap::IntrinsicConstructorIndexes,
+};
 
 pub struct StringConstructor;
 
@@ -234,29 +227,44 @@ impl StringConstructor {
                 return Ok(SmallString::from(cu).into());
             }
         };
+        fn handle_code_point<'a>(
+            agent: &mut Agent,
+            cp: i64,
+            gc: NoGcScope<'a, '_>,
+        ) -> JsResult<'a, CodePoint> {
+            // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+            if (0..=0x10FFFF).contains(&cp) {
+                // SAFETY: checked to be less or equal to 0x10FFFF.
+                let cp = unsafe { CodePoint::from_u32_unchecked(cp as u32) };
+                return Ok(cp);
+            }
+            Err(agent.throw_exception(
+                ExceptionType::RangeError,
+                format!("{cp:#08X} is not a valid code point"),
+                gc,
+            ))
+        }
         // 1. Let result be the empty String.
-        let mut result = std::string::String::with_capacity(code_points.len());
-        if code_points.iter().all(|cp| cp.is_integer()) {
+        let mut result = Wtf8Buf::with_capacity(code_points.len() * 3);
+        if code_points.iter().all(|cp| cp.is_number()) {
             // 2. For each element next of codePoints, do
             for next in code_points.iter() {
-                let Value::Integer(next_cp) = next else {
-                    unreachable!()
-                };
-                let next_cp = next_cp.into_i64();
-                // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-                if (0..=0x10FFFF).contains(&next_cp) {
-                    if let Some(next_cp) = char::from_u32(next_cp as u32) {
-                        // d. Set result to the string-concatenation of result
-                        //    and UTF16EncodeCodePoint(ℝ(nextCP)).
-                        result.push(next_cp);
+                // SAFETY: checked in the iter().all().
+                let next = unsafe { Number::try_from(*next).unwrap_unchecked() };
+                let Number::Integer(next) = next else {
+                    if next == Number::neg_zero() {
+                        // Special case: -0 is an acceptable value here.
+                        result.push_char('\0');
                         continue;
-                    };
-                }
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    format!("{next_cp:?} is not a valid code point"),
-                    gc.into_nogc(),
-                ));
+                    }
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{} is not a valid code point", next.to_real(agent)),
+                        gc.into_nogc(),
+                    ));
+                };
+                let next_cp = next.into_i64();
+                result.push(handle_code_point(agent, next_cp, gc.nogc()).unbind()?);
             }
         } else {
             let code_points = code_points
@@ -270,28 +278,24 @@ impl StringConstructor {
                     .unbind()?
                     .bind(gc.nogc());
                 // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
-                if !is_integral_number(agent, next_cp) {
+                let Number::Integer(next_cp) = next_cp else {
+                    if next_cp == Number::neg_zero() {
+                        // Special case: -0 is an acceptable value here.
+                        result.push_char('\0');
+                        continue;
+                    }
                     return Err(agent.throw_exception(
                         ExceptionType::RangeError,
-                        format!("{:?} is not a valid code point", next_cp.to_real(agent)),
+                        format!("{} is not a valid code point", next_cp.to_real(agent)),
                         gc.into_nogc(),
                     ));
-                }
-                // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-                let next_cp = next_cp.into_i64(agent);
-                if !(0..=0x10FFFF).contains(&next_cp) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::RangeError,
-                        format!("{next_cp:?} is not a valid code point"),
-                        gc.into_nogc(),
-                    ));
-                }
-                // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
-                result.push(char::from_u32(next_cp as u32).unwrap());
+                };
+                let next_cp = next_cp.into_i64();
+                result.push(handle_code_point(agent, next_cp, gc.nogc()).unbind()?);
             }
         }
         // 4. Return result.
-        Ok(String::from_string(agent, result, gc.into_nogc()).into())
+        Ok(String::from_wtf8_buf(agent, result, gc.into_nogc()).into())
     }
 
     /// ### [22.1.2.4 String.raw ( template, ...substitutions )](https://tc39.es/ecma262/#sec-string.raw)
@@ -350,7 +354,7 @@ impl StringConstructor {
                 }
 
                 // 6. Let R be the empty String.
-                let mut r = std::string::String::with_capacity(literal_count as usize);
+                let mut r = Wtf8Buf::with_capacity(literal_count as usize);
 
                 // 7. Let nextIndex be 0.
                 // 8. Repeat,
@@ -371,7 +375,7 @@ impl StringConstructor {
                         .bind(gc.nogc());
 
                     // c. Set R to the string-concatenation of R and nextLiteral.
-                    r.push_str(next_literal.as_str(agent));
+                    r.push_wtf8(next_literal.as_wtf8(agent));
 
                     // d. If nextIndex + 1 = literalCount, return R.
                     // Note: this branch is now below the loop.
@@ -387,12 +391,12 @@ impl StringConstructor {
                             .bind(gc.nogc());
 
                         // iii. Set R to the string-concatenation of R and nextSub.
-                        r.push_str(next_sub.as_str(agent));
+                        r.push_wtf8(next_sub.as_wtf8(agent));
                     }
 
                     // f. Set nextIndex to nextIndex + 1.
                 }
-                Ok(String::from_string(agent, r, gc.into_nogc()).into())
+                Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into())
             },
             gc,
         )

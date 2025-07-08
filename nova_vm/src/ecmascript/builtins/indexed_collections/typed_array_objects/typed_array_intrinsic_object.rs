@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use num_traits::ToPrimitive;
+use wtf8::Wtf8Buf;
 
 use crate::{
     SmallInteger,
@@ -1377,21 +1378,9 @@ impl TypedArrayPrototype {
         if len == 0 {
             return Ok(String::EMPTY_STRING.into_value());
         }
-        let owned_sep = match &sep_string {
-            String::String(heap_string) => Some(heap_string.as_str(agent).to_owned()),
-            String::SmallString(_) => None,
-        };
-        let sep = match &owned_sep {
-            Some(str_data) => str_data.as_str(),
-            None => {
-                let String::SmallString(sep) = &sep_string else {
-                    unreachable!();
-                };
-                sep.as_str()
-            }
-        };
+        let sep = sep_string.as_wtf8(agent).to_owned();
         // 6. Let R be the empty String.
-        let mut r = std::string::String::with_capacity(len * 3);
+        let mut r = Wtf8Buf::with_capacity(len * 3);
         // 7. Let k be 0.
         // 8. Repeat, while k < len,
         let offset = o.byte_offset(agent);
@@ -1418,14 +1407,18 @@ impl TypedArrayPrototype {
             Some(len)
         };
         let Some(after_len) = after_len else {
-            return Ok(
-                String::from_string(agent, sep.repeat(len.saturating_sub(1)), gc).into_value(),
-            );
+            let count = len.saturating_sub(1);
+            let byte_count = count * sep.len();
+            let mut buf = Wtf8Buf::with_capacity(byte_count);
+            for _ in 0..count {
+                buf.push_wtf8(sep);
+            }
+            return Ok(String::from_wtf8_buf(agent, buf, gc).into_value());
         };
         for k in 0..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
             if k > 0 {
-                r.push_str(sep);
+                r.push_wtf8(&sep);
             }
             // c. If element is not undefined, then
             if k >= after_len {
@@ -1450,11 +1443,11 @@ impl TypedArrayPrototype {
             // i. Let S be ! ToString(element).
             let s = unwrap_try(try_to_string(agent, element, gc)).unwrap();
             // ii. Set R to the string-concatenation of R and S.
-            r.push_str(s.as_str(agent));
+            r.push_wtf8(s.as_wtf8(agent));
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_string(agent, r, gc).into_value().unbind())
+        Ok(String::from_wtf8_buf(agent, r, gc).into_value().unbind())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
@@ -2120,7 +2113,7 @@ impl TypedArrayPrototype {
         // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
         let separator = ", ";
         // 4. Let R be the empty String.
-        let mut r = std::string::String::new();
+        let mut r = Wtf8Buf::new();
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -2154,13 +2147,13 @@ impl TypedArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
-                r.push_str(s.as_str(agent));
+                r.push_wtf8(s.as_wtf8(agent));
             };
             // d. Set k to k + 1.
             k += 1;
         }
         // 7. Return R.
-        Ok(Value::from_string(agent, r, gc.into_nogc()))
+        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
     /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tospliced)

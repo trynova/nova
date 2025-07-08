@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::Deref;
+
 use nova_vm::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
@@ -32,7 +34,14 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         if args.is_empty() {
             println!();
         } else {
-            println!("{}", args[0].unbind().to_string(agent, gc)?.as_str(agent));
+            println!(
+                "{}",
+                args[0]
+                    .unbind()
+                    .to_string(agent, gc)?
+                    .as_wtf8(agent)
+                    .to_string_lossy()
+            );
         }
         Ok(Value::Undefined)
     }
@@ -60,7 +69,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
             ));
         };
 
-        let file = match std::fs::read_to_string(path.as_str(agent)) {
+        let file = match std::fs::read_to_string(path.to_string_lossy(agent).deref()) {
             Ok(file) => file,
             Err(e) => {
                 return Err(agent.throw_exception(

@@ -34,6 +34,7 @@ use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use template_literals::get_template_object;
+use wtf8::{CodePoint, Wtf8Buf};
 
 impl<'a, T: CompileEvaluation<'a>> CompileLabelledEvaluation<'a> for T {
     fn compile_labelled(
@@ -111,7 +112,52 @@ impl<'s> CompileEvaluation<'s> for ast::NullLiteral {
 
 impl<'s> CompileEvaluation<'s> for ast::StringLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        let constant = ctx.create_string(self.value.as_str());
+        let constant = if self.lone_surrogates {
+            let mut buf = Wtf8Buf::with_capacity(self.value.len());
+            let mut str = self.value.as_str();
+            while let Some(replacement_character_index) = str.find("\u{FFFD}") {
+                // Lone surrogates are encoded as \u{FFFD}XXXX and \u{FFFD}
+                // itself is encoded as \u{FFFD}fffd: hence the fact that we
+                // found a replacement character means that we're guaranteed to
+                // have 7 bytes ahead of the replacement character index: 3 for
+                // the replacement character itself, 4 for the encoded bytes.
+
+                let (preceding, following) = str.split_at(replacement_character_index);
+                let (encoded_surrogate, rest) = following.split_at(7);
+
+                // First copy our preceding slice into the buffer.
+                if !preceding.is_empty() {
+                    // SAFETY: we're working within our search buffer.
+                    buf.push_str(preceding);
+                }
+                // Drop the replacement character from our str slice.
+                str = rest;
+                // Then split off the encoded bytes.
+                let encoded_bytes: &[u8; 7] = encoded_surrogate.as_bytes().first_chunk().unwrap();
+                fn char_code_to_u16(char_code: u8) -> u16 {
+                    if char_code >= 97 {
+                        // 'a'..'f'
+                        (char_code - 87) as u16
+                    } else {
+                        // '0'..'9'
+                        (char_code - 48) as u16
+                    }
+                }
+                let value = (char_code_to_u16(encoded_bytes[3]) << 12)
+                    + (char_code_to_u16(encoded_bytes[4]) << 8)
+                    + (char_code_to_u16(encoded_bytes[5]) << 4)
+                    + char_code_to_u16(encoded_bytes[6]);
+                // SAFETY: Value cannot be larger than 0xFFFF.
+                let code_point = unsafe { CodePoint::from_u32_unchecked(value as u32) };
+                buf.push(code_point);
+            }
+            if !str.is_empty() {
+                buf.push_str(str);
+            }
+            ctx.create_string_from_wtf8_buf(buf)
+        } else {
+            ctx.create_string(self.value.as_str())
+        };
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }

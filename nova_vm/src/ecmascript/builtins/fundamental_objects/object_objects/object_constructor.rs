@@ -418,7 +418,7 @@ impl ObjectConstructor {
         } else {
             let error_message = format!(
                 "{} is not an object or null",
-                o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
+                o.unbind().string_repr(agent, gc.reborrow()).to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -456,7 +456,7 @@ impl ObjectConstructor {
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
+                o.unbind().string_repr(agent, gc.reborrow()).to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -487,7 +487,7 @@ impl ObjectConstructor {
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
+                o.unbind().string_repr(agent, gc.reborrow()).to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1084,7 +1084,7 @@ impl ObjectConstructor {
                 proto
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .as_str(agent)
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1379,7 +1379,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
                 "Invalid iterator next return value: {} is not an object",
                 next.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .as_str(agent)
+                    .to_string_lossy(agent)
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).

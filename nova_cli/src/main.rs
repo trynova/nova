@@ -8,10 +8,10 @@ use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
     fmt::Debug,
+    ops::Deref,
     path::PathBuf,
     ptr::NonNull,
     rc::Rc,
-    str::FromStr,
 };
 
 use clap::{Parser as ClapParser, Subcommand};
@@ -137,7 +137,7 @@ impl HostHooks for CliHostHooks {
         gc: NoGcScope<'gc, '_>,
     ) {
         let specifier = module_request.specifier(agent);
-        let specifier = specifier.as_str(agent);
+        let specifier = specifier.to_string_lossy(agent);
         let specifier_target = if let Some(specifier) = specifier.strip_prefix("./") {
             let referrer_path = referrer
                 .host_defined(agent)
@@ -155,11 +155,14 @@ impl HostHooks for CliHostHooks {
                 .downcast::<PathBuf>()
                 .unwrap();
             referrer_path
-                .join(specifier)
+                .join(specifier.deref())
                 .canonicalize()
                 .expect("Failed to canonicalize target path")
         } else {
-            PathBuf::from_str(specifier).expect("Failed to parse target path into PathBuf")
+            match specifier {
+                std::borrow::Cow::Borrowed(str) => PathBuf::from(str),
+                std::borrow::Cow::Owned(string) => PathBuf::from(string),
+            }
         };
         let realm = referrer.realm(agent, gc);
         let module_map = realm
@@ -319,8 +322,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 Ok(module) => module,
                                 Err(errors) => {
                                     // Borrow the string data from the Agent
-                                    let source_text = source_text.as_str(agent);
-                                    exit_with_parse_errors(errors, &path, source_text)
+                                    let source_text = source_text.to_string_lossy(agent);
+                                    exit_with_parse_errors(errors, &path, &source_text)
                                 }
                             };
                             module_map
@@ -342,8 +345,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 Ok(script) => script,
                                 Err(errors) => {
                                     // Borrow the string data from the Agent
-                                    let source_text = source_text.as_str(agent);
-                                    exit_with_parse_errors(errors, &path, source_text)
+                                    let source_text = source_text.to_string_lossy(agent);
+                                    exit_with_parse_errors(errors, &path, &source_text)
                                 }
                             };
                             script_evaluation(agent, script.unbind(), gc.reborrow())
@@ -390,7 +393,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .value()
                                         .unbind()
                                         .string_repr(agent, gc.reborrow())
-                                        .as_str(agent)
+                                        .as_wtf8(agent)
+                                        .to_string_lossy()
                                 );
                                 std::process::exit(1);
                             }
@@ -470,7 +474,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Err(error) => {
                             eprintln!(
                                 "Uncaught exception: {}",
-                                error.value().unbind().string_repr(agent, gc).as_str(agent)
+                                error
+                                    .value()
+                                    .unbind()
+                                    .string_repr(agent, gc)
+                                    .to_string_lossy(agent)
                             );
                         }
                     }

@@ -5,7 +5,7 @@
 use core::hash::{Hash, Hasher};
 
 use ahash::AHasher;
-use wtf8::Wtf8;
+use wtf8::{Wtf8, Wtf8Buf};
 
 use crate::{
     SmallInteger, SmallString,
@@ -151,9 +151,9 @@ impl<'a> PropertyKey<'a> {
         matches!(self, PropertyKey::Integer(_))
     }
 
-    pub(self) fn is_str_eq_num(s: &str, n: i64) -> bool {
+    pub(self) fn is_str_eq_num(s: &Wtf8, n: i64) -> bool {
         // TODO: Come up with some advanced algorithm.
-        s == n.to_string()
+        s == Wtf8Buf::from_string(n.to_string())
     }
 
     pub fn equals(self, agent: &Agent, y: Self) -> bool {
@@ -163,15 +163,15 @@ impl<'a> PropertyKey<'a> {
             // Assumes the interner is working correctly.
             (PropertyKey::String(s1), PropertyKey::String(s2)) => s1 == s2,
             (PropertyKey::SmallString(s1), PropertyKey::SmallString(s2)) => {
-                s1.as_str() == s2.as_str()
+                s1.as_wtf8() == s2.as_wtf8()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent[s.unbind()].as_str();
+                let s = agent[s.unbind()].as_wtf8();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
             (PropertyKey::SmallString(s), PropertyKey::Integer(n)) => {
-                Self::is_str_eq_num(s.as_str(), n.into_i64())
+                Self::is_str_eq_num(s.as_wtf8(), n.into_i64())
             }
             (PropertyKey::Integer(n1), PropertyKey::Integer(n2)) => n1.into_i64() == n2.into_i64(),
             (PropertyKey::Integer(_), _) => y.equals(agent, self),
@@ -219,7 +219,7 @@ impl<'a> PropertyKey<'a> {
                 heap[s.unbind()].data.hash(&mut hasher);
             }
             PropertyKey::SmallString(s) => {
-                Wtf8::from_str(s.as_str()).hash(&mut hasher);
+                s.as_wtf8().hash(&mut hasher);
             }
             PropertyKey::Integer(n) => n.into_i64().hash(&mut hasher),
             PropertyKey::PrivateName(p) => {
@@ -255,11 +255,11 @@ impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.key {
             PropertyKey::Integer(data) => data.into_i64().fmt(f),
-            PropertyKey::SmallString(data) => data.as_str().fmt(f),
-            PropertyKey::String(data) => data.as_str(self.agent).fmt(f),
+            PropertyKey::SmallString(data) => data.to_string_lossy().fmt(f),
+            PropertyKey::String(data) => data.to_string_lossy(self.agent).fmt(f),
             PropertyKey::Symbol(data) => {
                 if let Some(descriptor) = self.agent[*data].descriptor {
-                    let descriptor = descriptor.as_str(self.agent);
+                    let descriptor = descriptor.to_string_lossy(self.agent);
                     f.debug_tuple("Symbol").field(&descriptor).finish()
                 } else {
                     "Symbol()".fmt(f)
@@ -327,7 +327,7 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
             String::SmallString(x) => {
                 // NOTE: Makes property keys slightly more correct by converting
                 // small strings to integers when possible.
-                if let Ok(n) = x.as_str().parse::<i64>() {
+                if let Ok(n) = x.to_string_lossy().parse::<i64>() {
                     return PropertyKey::Integer(SmallInteger::try_from(n).unwrap());
                 }
 
@@ -446,16 +446,19 @@ impl Rootable for PropertyKey<'_> {
 
 #[test]
 fn compare_num_str() {
-    assert!(PropertyKey::is_str_eq_num("23", 23));
-    assert!(PropertyKey::is_str_eq_num("-23", -23));
-    assert!(PropertyKey::is_str_eq_num("-120543809", -120543809));
-    assert!(PropertyKey::is_str_eq_num("985493", 985493));
-    assert!(PropertyKey::is_str_eq_num("0", 0));
-    assert!(PropertyKey::is_str_eq_num("5", 5));
-    assert!(PropertyKey::is_str_eq_num("-5", -5));
-    assert!(PropertyKey::is_str_eq_num("9302", 9302));
-    assert!(PropertyKey::is_str_eq_num("19", 19));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("23"), 23));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("-23"), -23));
+    assert!(PropertyKey::is_str_eq_num(
+        Wtf8::from_str("-120543809"),
+        -120543809
+    ));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("985493"), 985493));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("0"), 0));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("5"), 5));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("-5"), -5));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("9302"), 9302));
+    assert!(PropertyKey::is_str_eq_num(Wtf8::from_str("19"), 19));
 
-    assert!(!PropertyKey::is_str_eq_num("19", 91));
-    assert!(!PropertyKey::is_str_eq_num("-19", 19));
+    assert!(!PropertyKey::is_str_eq_num(Wtf8::from_str("19"), 91));
+    assert!(!PropertyKey::is_str_eq_num(Wtf8::from_str("-19"), 19));
 }

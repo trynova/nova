@@ -4,6 +4,7 @@
 
 use num_traits::Num;
 use oxc_ast::ast::RegExpFlags;
+use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
@@ -98,6 +99,10 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
 
     pub(super) fn create_string_from_owned(&mut self, owned: std::string::String) -> String<'gc> {
         String::from_string(self.agent, owned, self.gc)
+    }
+
+    pub(super) fn create_string_from_wtf8_buf(&mut self, buf: Wtf8Buf) -> String<'gc> {
+        String::from_wtf8_buf(self.agent, buf, self.gc)
     }
 
     /// Returns true if the current instruction pointer is a unreachable.

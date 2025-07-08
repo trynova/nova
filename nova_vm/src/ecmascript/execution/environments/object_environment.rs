@@ -528,7 +528,7 @@ impl ObjectEnvironment<'_> {
         let error_message = format!(
             "Property '{}' does not exist in {}.",
             n.as_display(agent),
-            binding_object_repr.as_str(agent)
+            binding_object_repr.to_string_lossy(agent)
         );
         agent.throw_exception(ExceptionType::ReferenceError, error_message, gc)
     }
