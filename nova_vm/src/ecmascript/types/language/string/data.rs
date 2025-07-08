@@ -85,7 +85,7 @@ impl StringHeapData {
 
             let Some((mut idx, _)) = self
                 .as_bytes()
-                .into_iter()
+                .iter()
                 .enumerate()
                 .find(|(_, ch)| !ch.is_ascii())
             else {
@@ -291,13 +291,11 @@ impl StringHeapData {
         match mapping[utf16_idx] {
             Some(wtf8_idx) => {
                 let wtf8_index: usize = wtf8_idx.into();
-                let char = self
-                    .as_wtf8()
+                self.as_wtf8()
                     .slice_from(wtf8_index)
                     .code_points()
                     .next()
-                    .unwrap();
-                return char;
+                    .unwrap()
             }
             None => {
                 // Matched None; this is the second character in a surrogate pair.
@@ -318,7 +316,7 @@ impl StringHeapData {
                 debug_assert_eq!(encoded.len(), 2);
                 let surrogate = encoded[1];
                 // SAFETY: 0..0xFFFF is always less than 0x10FFFF.
-                return unsafe { CodePoint::from_u32_unchecked(surrogate as u32) };
+                unsafe { CodePoint::from_u32_unchecked(surrogate as u32) }
             }
         }
     }

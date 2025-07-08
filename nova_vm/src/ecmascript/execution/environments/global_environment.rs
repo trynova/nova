@@ -227,8 +227,10 @@ impl GlobalEnvironment<'_> {
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
         if dcl_rec.has_binding(agent, name) {
-            let error_message =
-                format!("Redeclaration of global binding '{}'.", name.to_string_lossy(agent));
+            let error_message = format!(
+                "Redeclaration of global binding '{}'.",
+                name.to_string_lossy(agent)
+            );
             Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc))
         } else {
             // 3. Return ! DclRec.CreateMutableBinding(N, D).
@@ -258,8 +260,10 @@ impl GlobalEnvironment<'_> {
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
         if dcl_rec.has_binding(agent, name) {
-            let error_message =
-                format!("Redeclaration of global binding '{}'.", name.to_string_lossy(agent));
+            let error_message = format!(
+                "Redeclaration of global binding '{}'.",
+                name.to_string_lossy(agent)
+            );
             Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc))
         } else {
             // 3. Return ! DclRec.CreateImmutableBinding(N, S).

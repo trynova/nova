@@ -1343,7 +1343,9 @@ impl DatePrototype {
         let Ok(o) = Object::try_from(this_value) else {
             let error_message = format!(
                 "{} is not an object",
-                this_value.string_repr(agent, gc.reborrow()).to_string_lossy(agent)
+                this_value
+                    .string_repr(agent, gc.reborrow())
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,

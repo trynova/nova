@@ -1187,10 +1187,7 @@ impl StringPrototype {
                 s = scoped_s.get(agent).bind(gc.nogc());
                 f
             };
-            let form_result = f
-                .as_str(agent)
-                .ok_or(())
-                .and_then(|s| NormalizeForm::from_str(s));
+            let form_result = f.as_str(agent).ok_or(()).and_then(NormalizeForm::from_str);
             match form_result {
                 Ok(form) => form,
                 // 5. If f is not one of "NFC", "NFD", "NFKC", or "NFKD", throw a RangeError exception.

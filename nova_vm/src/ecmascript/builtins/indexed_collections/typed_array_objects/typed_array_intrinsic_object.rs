@@ -1418,7 +1418,7 @@ impl TypedArrayPrototype {
         for k in 0..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
             if k > 0 {
-                r.push_wtf8(&sep);
+                r.push_wtf8(sep);
             }
             // c. If element is not undefined, then
             if k >= after_len {

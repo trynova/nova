@@ -893,7 +893,7 @@ fn quote_json_string(agent: &Agent, product: &mut Wtf8Buf, value: String) {
                 }
 
                 buf[0] = 0x005C;
-                buf[1] = 'u' as u8;
+                buf[1] = b'u';
                 buf[5] = u16_to_char_code(unit % 16);
                 buf[4] = u16_to_char_code((unit >> 4) % 16);
                 buf[3] = u16_to_char_code((unit >> 8) % 16);

@@ -390,7 +390,10 @@ impl FunctionPrototype {
                             )
                         }
                         crate::ecmascript::types::String::SmallString(string) => {
-                            format!("function {}() {{ [ native code ] }}", string.to_string_lossy())
+                            format!(
+                                "function {}() {{ [ native code ] }}",
+                                string.to_string_lossy()
+                            )
                         }
                     },
                 );

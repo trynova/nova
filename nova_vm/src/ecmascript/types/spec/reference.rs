@@ -624,7 +624,9 @@ pub(crate) fn throw_read_undefined_or_null_error<'a>(
 ) -> JsError<'a> {
     let error_message = format!(
         "Cannot read property '{}' of {}.",
-        referenced_value.try_string_repr(agent, gc).to_string_lossy(agent),
+        referenced_value
+            .try_string_repr(agent, gc)
+            .to_string_lossy(agent),
         if value.is_undefined() {
             "undefined"
         } else {

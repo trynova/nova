@@ -519,8 +519,10 @@ pub(crate) fn global_declaration_instantiation<'a>(
         // a. If env.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
         let name = String::from_str(agent, name.as_str(), gc.nogc());
         if env.has_lexical_declaration(agent, name) {
-            let error_message =
-                format!("Redeclaration of lexical binding '{}'.", name.to_string_lossy(agent));
+            let error_message = format!(
+                "Redeclaration of lexical binding '{}'.",
+                name.to_string_lossy(agent)
+            );
             return Err(agent.throw_exception(
                 ExceptionType::SyntaxError,
                 error_message,
@@ -600,8 +602,10 @@ pub(crate) fn global_declaration_instantiation<'a>(
                         .bind(gc.nogc());
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
-                        let error_message =
-                            format!("Cannot declare global variable '{}'.", vn.to_string_lossy(agent));
+                        let error_message = format!(
+                            "Cannot declare global variable '{}'.",
+                            vn.to_string_lossy(agent)
+                        );
                         return Err(agent.throw_exception(
                             ExceptionType::TypeError,
                             error_message,

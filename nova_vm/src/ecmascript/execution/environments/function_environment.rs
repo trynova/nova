@@ -316,8 +316,10 @@ impl FunctionEnvironment<'_> {
         if !dcl_rec.has_binding(agent, name) {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
-                let error_message =
-                    format!("Could not set mutable binding '{}'.", name.to_string_lossy(agent));
+                let error_message = format!(
+                    "Could not set mutable binding '{}'.",
+                    name.to_string_lossy(agent)
+                );
                 return Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
                     error_message,

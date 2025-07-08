@@ -418,7 +418,9 @@ impl ObjectConstructor {
         } else {
             let error_message = format!(
                 "{} is not an object or null",
-                o.unbind().string_repr(agent, gc.reborrow()).to_string_lossy(agent)
+                o.unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -456,7 +458,9 @@ impl ObjectConstructor {
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.unbind().string_repr(agent, gc.reborrow()).to_string_lossy(agent)
+                o.unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -487,7 +491,9 @@ impl ObjectConstructor {
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.unbind().string_repr(agent, gc.reborrow()).to_string_lossy(agent)
+                o.unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
