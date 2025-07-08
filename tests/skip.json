@@ -13,6 +13,7 @@
   "skip": [
     "annexB",
     "intl402",
+    "built-ins/RegExp/property-escapes/generated",
     "built-ins/Array/S15.4.5.2_A1_T1.js",
     "built-ins/Array/S15.4.5.2_A3_T3.js",
     "built-ins/Array/S15.4_A1.1_T10.js",
