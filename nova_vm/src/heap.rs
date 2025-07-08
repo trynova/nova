@@ -10,6 +10,7 @@ pub mod indexes;
 mod object_entry;
 
 use core::{cell::RefCell, ops::Index};
+use std::ops::Deref;
 
 pub(crate) use self::heap_constants::{
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
@@ -111,7 +112,7 @@ pub(crate) use heap_bits::{
     CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, sweep_side_set,
 };
 use indexes::TypedArrayIndex;
-use wtf8::Wtf8;
+use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
 pub struct Heap {
@@ -222,6 +223,17 @@ impl CreateHeapData<std::string::String, String<'static>> for Heap {
         } else {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { self.alloc_string(data) }
+        }
+    }
+}
+
+impl CreateHeapData<Wtf8Buf, String<'static>> for Heap {
+    fn create(&mut self, data: Wtf8Buf) -> String<'static> {
+        if let Ok(value) = String::try_from(data.deref()) {
+            value
+        } else {
+            // SAFETY: Wtf8Buf couldn't be represented as a SmallString.
+            unsafe { self.alloc_wtf8_buf(data) }
         }
     }
 }
@@ -353,11 +365,11 @@ impl Heap {
         Script::last(&self.scripts)
     }
 
-    /// Allocate a string onto the Agent heap
+    /// Allocate a borrowed string onto the Agent heap
     ///
-    /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its HeapString
-    /// instead of allocating a copy.
+    /// This method will hash the input and look for a matching string on the
+    /// heap, and if found will return its HeapString instead of allocating a
+    /// copy.
     ///
     /// # Safety
     ///
@@ -376,11 +388,11 @@ impl Heap {
         }
     }
 
-    /// Allocate a static string onto the Agent heap
+    /// Allocate an owned string onto the Agent heap
     ///
-    /// This method will currently iterate through all heap strings to look for
-    /// a possible matching string and if found will return its HeapString
-    /// instead of allocating a copy.
+    /// This method will hash the input and look for a matching string on the
+    /// heap, and if found will return its HeapString instead of allocating a
+    /// copy.
     ///
     /// # Safety
     ///
@@ -394,6 +406,29 @@ impl Heap {
             Ok(string) => string,
             Err(hash) => {
                 let data = StringHeapData::from_string(message);
+                self.create((data, hash))
+            }
+        }
+    }
+
+    /// Allocate an owned WTF-8 buffer onto the Agent heap
+    ///
+    /// This method will hash the input and look for a matching string on the
+    /// heap, and if found will return its HeapString instead of allocating a
+    /// copy.
+    ///
+    /// # Safety
+    ///
+    /// The string being allocated must not be representable as a
+    /// SmallString. All SmallStrings must be kept on the stack to ensure that
+    /// comparison between heap allocated strings and SmallStrings can be
+    /// guaranteed to never equal true.
+    unsafe fn alloc_wtf8_buf(&mut self, message: Wtf8Buf) -> String<'static> {
+        let found = self.find_equal_wtf8(message.deref());
+        match found {
+            Ok(string) => string,
+            Err(hash) => {
+                let data = StringHeapData::from_wtf8_buf(message);
                 self.create((data, hash))
             }
         }
@@ -424,8 +459,13 @@ impl Heap {
 
     /// Find existing heap String or return the strings hash.
     fn find_equal_string(&self, message: &str) -> Result<String<'static>, u64> {
-        debug_assert!(message.len() > 7);
         let message = Wtf8::from_str(message);
+        self.find_equal_wtf8(message)
+    }
+
+    /// Find existing heap String or return the strings hash.
+    fn find_equal_wtf8(&self, message: &Wtf8) -> Result<String<'static>, u64> {
+        debug_assert!(message.len() > 7);
         let hash = self.string_hasher.hash_one(message);
         self.string_lookup_table
             .find(hash, |heap_string| {

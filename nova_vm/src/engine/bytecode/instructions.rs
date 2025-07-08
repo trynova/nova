@@ -941,11 +941,11 @@ fn debug_print_constant(
 ) -> std::string::String {
     let constant = exe.fetch_constant(agent, index, gc);
     if let Ok(string_constant) = String::try_from(constant) {
-        format!("\"{}\"", string_constant.as_str(agent))
+        format!("\"{}\"", string_constant.to_string_lossy(agent))
     } else {
         constant
             .try_string_repr(agent, gc)
-            .as_str(agent)
+            .to_string_lossy(agent)
             .to_string()
     }
 }
@@ -957,7 +957,7 @@ fn debug_print_identifier(
     gc: NoGcScope,
 ) -> std::string::String {
     let identifier = exe.fetch_identifier(agent, index, gc);
-    identifier.as_str(agent).to_string()
+    identifier.to_string_lossy(agent).to_string()
 }
 
 fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {

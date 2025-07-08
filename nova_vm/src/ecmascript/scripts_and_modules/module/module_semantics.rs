@@ -154,10 +154,10 @@ impl<'r> ModuleRequest<'r> {
     ) -> Self {
         let mut state = AHasher::default();
         let attributes = attributes.into_boxed_slice();
-        specifier.as_str(agent).hash(&mut state);
+        specifier.to_string_lossy(agent).hash(&mut state);
         for attribute in attributes.iter() {
-            attribute.key.as_str(agent).hash(&mut state);
-            attribute.value.as_str(agent).hash(&mut state);
+            attribute.key.to_string_lossy(agent).hash(&mut state);
+            attribute.value.to_string_lossy(agent).hash(&mut state);
         }
         let hash = state.finish();
         let index = agent.heap.module_request_records.len() as u32;

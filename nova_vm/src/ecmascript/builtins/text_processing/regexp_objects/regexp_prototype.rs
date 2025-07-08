@@ -7,15 +7,15 @@ use oxc_ast::ast::RegExpFlags;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, set, try_create_data_property_or_throw},
+            operations_on_objects::{get, set, try_create_data_property_or_throw, try_get},
             type_conversion::{to_boolean, to_length, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic, array_create,
             regexp::{
-                advance_string_index, reg_exp_builtin_exec, reg_exp_exec,
-                require_internal_slot_reg_exp,
+                advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
+                reg_exp_test, require_internal_slot_reg_exp,
             },
         },
         execution::{
@@ -28,6 +28,7 @@ use crate::{
         },
     },
     engine::{
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -481,7 +482,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 5. If flags does not contain "g", then
-        if !flags.as_str(agent).contains("g") {
+        if !flags.to_string_lossy(agent).contains("g") {
             // a. Return ? RegExpExec(rx, S).
             reg_exp_exec(
                 agent,
@@ -496,8 +497,8 @@ impl RegExpPrototype {
             // 6. Else,
             // a. If flags contains "u" or flags contains "v", let fullUnicode
             //    be true. Otherwise, let fullUnicode be false.
-            let full_unicode =
-                flags.as_str(agent).contains("u") || flags.as_str(agent).contains("v");
+            let full_unicode = flags.to_string_lossy(agent).contains("u")
+                || flags.to_string_lossy(agent).contains("v");
             // b. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
@@ -677,6 +678,25 @@ impl RegExpPrototype {
         let s = arguments.get(0).bind(gc.nogc());
         // 1. Let R be the this value.
         let r = this_value.bind(gc.nogc());
+        if let (Ok(s), Value::RegExp(r)) = (String::try_from(s), r) {
+            let exec = try_get(
+                agent,
+                r,
+                BUILTIN_STRING_MEMORY.exec.to_property_key(),
+                gc.nogc(),
+            );
+            if exec
+                == TryResult::Continue(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .reg_exp_prototype_exec()
+                        .into_value(),
+                )
+            {
+                return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into_value());
+            }
+        }
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(r) else {
             return Err(throw_not_an_object(agent, gc.into_nogc()));
@@ -688,11 +708,11 @@ impl RegExpPrototype {
             .bind(gc.nogc());
         let r = unsafe { r.take(agent) }.bind(gc.nogc());
         // 4. Let match be ? RegExpExec(R, string).
-        let r#match = reg_exp_exec(agent, r.unbind(), string.unbind(), gc.reborrow())
+        let r#match = reg_exp_test(agent, r.unbind(), string.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         // 5. If match is not null, return true; else return false.
-        Ok(r#match.is_some().into_value())
+        Ok(r#match.into_value())
     }
 
     /// ### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
@@ -718,7 +738,7 @@ impl RegExpPrototype {
                 this_value
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .as_str(agent)
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -730,7 +750,7 @@ impl RegExpPrototype {
             // Fast path for RegExp objects: This is not actually proper as it
             // does not take into account prototype mutations.
             let regexp_string = r.create_regexp_string(agent);
-            return Ok(String::from_string(agent, regexp_string, nogc)
+            return Ok(String::from_wtf8_buf(agent, regexp_string, nogc)
                 .into_value()
                 .unbind());
         }
@@ -762,8 +782,8 @@ impl RegExpPrototype {
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!(
             "/{}/{}",
-            pattern.get(agent).bind(gc.nogc()).as_str(agent),
-            flags.as_str(agent)
+            pattern.get(agent).bind(gc.nogc()).to_string_lossy(agent),
+            flags.to_string_lossy(agent)
         );
         let result = String::from_string(agent, result, gc.into_nogc());
         // 6. Return result.

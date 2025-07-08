@@ -90,7 +90,7 @@ pub(crate) fn throw_not_weak_key_error<'a>(
     let string_repr = target.try_string_repr(agent, gc);
     let message = format!(
         "{} is not a non-null object or unique symbol",
-        string_repr.as_str(agent)
+        string_repr.to_string_lossy(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, message, gc)
 }

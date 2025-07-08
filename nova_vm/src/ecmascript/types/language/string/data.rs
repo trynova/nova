@@ -3,8 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::{cell::OnceCell, hash::Hash, num::NonZeroUsize};
+use std::borrow::Cow;
 
-use wtf8::{Wtf8, Wtf8Buf};
+use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
@@ -77,9 +78,17 @@ impl StringHeapData {
 
     fn index_mapping(&self) -> &IndexMapping {
         self.mapping.get_or_init(|| {
-            let mut iter = self.as_str().char_indices();
+            fn is_surrogate_pair(cp: CodePoint) -> bool {
+                let code = cp.to_u32();
+                (code & !0xFFFF) > 0
+            }
 
-            let Some((idx, ch)) = iter.find(|(_, ch)| !ch.is_ascii()) else {
+            let Some((mut idx, _)) = self
+                .as_bytes()
+                .iter()
+                .enumerate()
+                .find(|(_, ch)| !ch.is_ascii())
+            else {
                 return IndexMapping::Ascii;
             };
 
@@ -87,17 +96,34 @@ impl StringHeapData {
             // indices less *or equal* than `idx` map to that same UTF-8 index
             let mut mapping: Vec<Option<NonZeroUsize>> = (0..=idx).map(NonZeroUsize::new).collect();
 
-            if ch.len_utf16() != 1 {
-                debug_assert_eq!(ch.len_utf16(), 2);
+            let mut buf = [0u8; 4];
+            let mut iter = self.as_wtf8().slice_from(idx).code_points();
+
+            // SAFETY: We
+            let ch = unsafe { iter.next().unwrap_unchecked() };
+
+            if is_surrogate_pair(ch) {
                 mapping.push(None);
             }
 
-            for (idx, ch) in iter {
-                assert_ne!(idx, 0);
+            if let Some(ch) = ch.to_char() {
+                idx += ch.encode_utf8(&mut buf).len();
+            } else {
+                // Lone surrogate; these always take 3 bytes in WTF-8.
+                idx += 3;
+            }
+
+            assert_ne!(idx, 0);
+            for ch in iter {
                 mapping.push(NonZeroUsize::new(idx));
-                if ch.len_utf16() != 1 {
-                    debug_assert_eq!(ch.len_utf16(), 2);
+                if is_surrogate_pair(ch) {
                     mapping.push(None);
+                }
+                if let Some(ch) = ch.to_char() {
+                    idx += ch.encode_utf8(&mut buf).len();
+                } else {
+                    // Lone surrogate; these always take 3 bytes in WTF-8.
+                    idx += 3;
                 }
             }
 
@@ -120,22 +146,51 @@ impl StringHeapData {
     }
 
     // TODO: This should return a wtf8::CodePoint.
-    pub fn utf16_char(&self, idx: usize) -> char {
-        let utf8_idx = if idx != 0 {
+    pub fn char_code_at(&self, idx: usize) -> CodePoint {
+        let (utf8_idx, take_latter_half): (usize, bool) = if idx != 0 {
             match self.index_mapping() {
-                IndexMapping::Ascii => idx,
+                IndexMapping::Ascii => {
+                    // SAFETY: ASCII is always valid CodePoints.
+                    return unsafe { CodePoint::from_u32_unchecked(self.as_bytes()[idx] as u32) };
+                }
                 IndexMapping::NonAscii { mapping } => {
-                    // TODO: Deal with surrogates.
-                    mapping[idx].unwrap().get()
+                    match mapping[idx] {
+                        Some(idx) => (idx.into(), false),
+                        None => {
+                            // We got a None; that means we're looking at a latter
+                            // surrogate here.
+                            // SAFETY: idx is not 0.
+                            let idx = mapping[unsafe { idx.unchecked_sub(1) }].unwrap();
+                            (idx.into(), true)
+                        }
+                    }
                 }
             }
         } else {
-            0
+            (0, false)
         };
-        let ch = self.as_str()[utf8_idx..].chars().next().unwrap();
-        // TODO: Deal with surrogates.
-        assert_eq!(ch.len_utf16(), 1);
-        ch
+        let char = self
+            .as_wtf8()
+            .slice_from(utf8_idx)
+            .code_points()
+            .next()
+            .unwrap();
+        let code = char.to_u32();
+        if (code & 0xFFFF) == code {
+            // Single-char character.
+            return char;
+        }
+        let char = char
+            .to_char()
+            .expect("Surrogate pair did not map to a char");
+        let encoded = &mut [0; 2];
+        let enc = char.encode_utf16(encoded);
+        // Note: since this is a surrogate pair, it should always
+        // encode into two u16s.
+        debug_assert_eq!(enc.len(), 2);
+        let surrogate = encoded[if take_latter_half { 1 } else { 0 }];
+        // SAFETY: 0..0xFFFF is always less than 0x10FFFF.
+        unsafe { CodePoint::from_u32_unchecked(surrogate as u32) }
     }
 
     pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
@@ -220,11 +275,76 @@ impl StringHeapData {
         }
     }
 
-    pub fn as_str(&self) -> &str {
-        match &self.data {
-            StringBuffer::Owned(buf) => buf.as_str().unwrap(),
-            StringBuffer::Static(buf) => buf.as_str().unwrap(),
+    pub fn code_point_at(&self, utf16_idx: usize) -> CodePoint {
+        assert!(utf16_idx <= self.utf16_len());
+        let mapping = match self.index_mapping() {
+            // SAFETY: ASCII is all valid CodePoints.
+            IndexMapping::Ascii => {
+                return unsafe { CodePoint::from_u32_unchecked(self.as_bytes()[utf16_idx] as u32) };
+            }
+            IndexMapping::NonAscii { mapping } => mapping,
+        };
+        if utf16_idx == 0 {
+            let char = self.as_wtf8().code_points().next().unwrap();
+            return char;
         }
+        match mapping[utf16_idx] {
+            Some(wtf8_idx) => {
+                let wtf8_index: usize = wtf8_idx.into();
+                self.as_wtf8()
+                    .slice_from(wtf8_index)
+                    .code_points()
+                    .next()
+                    .unwrap()
+            }
+            None => {
+                // Matched None; this is the second character in a surrogate pair.
+                let wtf8_index: usize = mapping[utf16_idx - 1].unwrap().into();
+                let char = self
+                    .as_wtf8()
+                    .slice_from(wtf8_index)
+                    .code_points()
+                    .next()
+                    .unwrap();
+                let char = char
+                    .to_char()
+                    .expect("Surrogate pair did not map to a char");
+                let encoded = &mut [0; 2];
+                let encoded = char.encode_utf16(encoded);
+                // Note: since this is a surrogate pair, it should always
+                // encode into two u16s.
+                debug_assert_eq!(encoded.len(), 2);
+                let surrogate = encoded[1];
+                // SAFETY: 0..0xFFFF is always less than 0x10FFFF.
+                unsafe { CodePoint::from_u32_unchecked(surrogate as u32) }
+            }
+        }
+    }
+
+    /// Lossily convert the string to UTF-8.
+    /// Return an UTF-8 `&str` slice if the contents are well-formed in UTF-8.
+    ///
+    /// Surrogates are replaced with `"\u{FFFD}"` (the replacement character “�”).
+    ///
+    /// This only copies the data if necessary (if it contains any surrogate).
+    pub fn to_string_lossy(&self) -> Cow<str> {
+        self.as_wtf8().to_string_lossy()
+    }
+
+    /// Try to convert the string to UTF-8 and return a `&str` slice.
+    ///
+    /// Return `None` if the string contains surrogates.
+    ///
+    /// This does not copy the data.
+    #[inline]
+    pub fn as_str(&self) -> Option<&str> {
+        self.as_wtf8().as_str()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        let buf = self.as_wtf8();
+        // SAFETY: converting to backing store data.
+        unsafe { core::mem::transmute::<&Wtf8, &[u8]>(buf) }
     }
 
     pub fn as_wtf8(&self) -> &Wtf8 {
@@ -257,6 +377,15 @@ impl StringHeapData {
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringHeapData {
             data: StringBuffer::Owned(Wtf8Buf::from_string(str)),
+            mapping: OnceCell::new(),
+        }
+    }
+
+    pub fn from_wtf8_buf(str: Wtf8Buf) -> Self {
+        debug_assert!(str.len() > 7);
+        assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
+        StringHeapData {
+            data: StringBuffer::Owned(str),
             mapping: OnceCell::new(),
         }
     }

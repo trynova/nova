@@ -29,7 +29,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
         if args.is_empty() {
             println!();
         } else {
-            println!("{}", args[0].to_string(agent, gc)?.as_str(agent));
+            println!("{}", args[0].to_string(agent, gc)?.to_string_lossy(agent));
         }
         Ok(Value::Undefined)
     }
@@ -93,7 +93,10 @@ fn garbage_collection_tests() {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
                 d.display(),
-                err.value().unbind().string_repr(agent, gc).as_str(agent)
+                err.value()
+                    .unbind()
+                    .string_repr(agent, gc)
+                    .to_string_lossy(agent)
             )
         }
     });
@@ -110,7 +113,10 @@ fn garbage_collection_tests() {
                     "Loop index run {} '{}' failed: {:?}",
                     i,
                     d.display(),
-                    err.value().unbind().string_repr(agent, gc).as_str(agent)
+                    err.value()
+                        .unbind()
+                        .string_repr(agent, gc)
+                        .to_string_lossy(agent)
                 )
             }
         });

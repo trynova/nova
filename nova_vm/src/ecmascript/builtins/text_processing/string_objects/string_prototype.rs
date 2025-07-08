@@ -2,12 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{cmp::max, iter::repeat_n, str::FromStr};
+use core::{cmp::max, str::FromStr};
 use small_string::SmallString;
-use std::collections::VecDeque;
+use std::ops::Deref;
 use unicode_normalization::{
     IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
+use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
@@ -437,7 +438,7 @@ impl StringPrototype {
             Ok(Value::Undefined)
         } else {
             // 8. Return the substring of S from k to k + 1.
-            let ch = s.utf16_char(agent, usize::try_from(k).unwrap());
+            let ch = s.char_code_at(agent, usize::try_from(k).unwrap());
             Ok(SmallString::from_code_point(ch).into_value())
         }
     }
@@ -478,7 +479,7 @@ impl StringPrototype {
             Ok(String::EMPTY_STRING.into_value())
         } else {
             // 6. Return the substring of S from position to position + 1.
-            let ch = s.utf16_char(agent, usize::try_from(position).unwrap());
+            let ch = s.char_code_at(agent, usize::try_from(position).unwrap());
             Ok(SmallString::from_code_point(ch).into_value())
         }
     }
@@ -520,8 +521,8 @@ impl StringPrototype {
         } else {
             // 6. Return the Number value for the numeric value of the code unit at index position
             // within the String S.
-            let ch = s.utf16_char(agent, usize::try_from(position).unwrap());
-            Ok(Value::from(ch as u32))
+            let ch = s.char_code_at(agent, usize::try_from(position).unwrap());
+            Ok(Value::from(ch.to_u32()))
         }
     }
 
@@ -561,13 +562,9 @@ impl StringPrototype {
             Ok(Value::Undefined)
         } else {
             // 6. Let cp be CodePointAt(S, position).
+            let cp = s.code_point_at(agent, position as usize);
             // 7. Return 𝔽(cp.[[CodePoint]]).
-            // TODO: Deal with lone surrogates.
-            let u8_idx = s
-                .utf8_index(agent, usize::try_from(position).unwrap())
-                .unwrap();
-            let ch = s.as_str(agent)[u8_idx..].chars().next().unwrap();
-            Ok(Value::from(ch as u32))
+            Ok(Value::from(cp.to_u32()))
         }
     }
 
@@ -732,7 +729,7 @@ impl StringPrototype {
         // 6. Let len be the length of S.
         // 8. Let end be the result of clamping pos between 0 and len.
         let haystack_str = if pos == usize::MAX {
-            s.as_str(agent)
+            s.as_bytes(agent)
         } else {
             let end = if pos != 0 {
                 // NOTE: `pos` was already clamped to 0.
@@ -741,7 +738,7 @@ impl StringPrototype {
                 0
             };
             let u8_idx = s.utf8_index(agent, end).unwrap();
-            &s.as_str(agent)[..u8_idx]
+            &s.as_bytes(agent)[..u8_idx]
         };
 
         // 9. Let searchLength be the length of searchStr.
@@ -752,7 +749,7 @@ impl StringPrototype {
         // 14. If substring is searchStr, return true.
         // 15. Return false.
         Ok(Value::from(
-            haystack_str.ends_with(search_str.as_str(agent)),
+            haystack_str.ends_with(search_str.as_bytes(agent)),
         ))
     }
 
@@ -838,13 +835,15 @@ impl StringPrototype {
             } else {
                 0
             };
-            &s.as_str(agent)[start..]
+            &s.to_string_lossy(agent)[start..]
         };
 
         // 10. Let index be StringIndexOf(S, searchStr, start).
         // 11. If index is not-found, return false.
         // 12. Return true.
-        Ok(Value::from(haystack_str.contains(search_str.as_str(agent))))
+        Ok(Value::from(
+            haystack_str.contains(search_str.to_string_lossy(agent).deref()),
+        ))
     }
 
     /// ### [22.1.3.9 String.prototype.indexOf ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.indexof)
@@ -919,7 +918,9 @@ impl StringPrototype {
         // 8. Let result be StringIndexOf(S, searchStr, start).
         // 9. If result is not-found, return -1𝔽.
         // 10. Return 𝔽(result).
-        if let Some(rel_u8_pos) = s.as_str(agent)[utf8_start..].find(search_str.as_str(agent)) {
+        if let Some(rel_u8_pos) =
+            s.to_string_lossy(agent)[utf8_start..].find(search_str.to_string_lossy(agent).deref())
+        {
             let u8_pos = utf8_start + rel_u8_pos;
             let result = s.utf16_index(agent, u8_pos);
             Ok(Number::try_from(result).unwrap().into_value())
@@ -943,10 +944,7 @@ impl StringPrototype {
         let s = to_string(agent, o.unbind(), gc)?;
 
         // 3. Return IsStringWellFormedUnicode(S).
-        // TODO: For now, all strings are well-formed Unicode. In the future, `.as_str()` will
-        // return None for WTF-8 strings.
-        let _: &str = s.as_str(agent);
-        Ok(Value::Boolean(true))
+        Ok(Value::Boolean(s.as_str(agent).is_some()))
     }
 
     /// ### [22.1.3.11 String.prototype.lastIndexOf ( searchString \[ , position \] )]()
@@ -1034,7 +1032,7 @@ impl StringPrototype {
         // only if start.endsWith(searchLen).
         let haystack_str = {
             if pos == usize::MAX {
-                s.as_str(agent)
+                s.to_string_lossy(agent)
             } else {
                 // When starting from a position, the position may mark the
                 // start of the search string, so we need to include the search
@@ -1042,11 +1040,13 @@ impl StringPrototype {
                 let utf8_pos = s.utf8_index(agent, pos).unwrap();
                 let utf8_len = s.len(agent);
                 let search_str_len = search_str.len(agent);
-                &s.as_str(agent)[..utf8_len.min(utf8_pos + search_str_len)]
+                s.as_wtf8(agent)
+                    .slice_to(utf8_len.min(utf8_pos + search_str_len))
+                    .to_string_lossy()
             }
         };
-        let search_str = search_str.as_str(agent);
-        let utf8_result = haystack_str.rfind(search_str);
+        let search_str = search_str.to_string_lossy(agent);
+        let utf8_result = haystack_str.rfind(search_str.deref());
 
         // 11. If result is not-found, return -1𝔽.
         // 12. Return 𝔽(result).
@@ -1187,7 +1187,7 @@ impl StringPrototype {
                 s = scoped_s.get(agent).bind(gc.nogc());
                 f
             };
-            let form_result = NormalizeForm::from_str(f.as_str(agent));
+            let form_result = f.as_str(agent).ok_or(()).and_then(NormalizeForm::from_str);
             match form_result {
                 Ok(form) => form,
                 // 5. If f is not one of "NFC", "NFD", "NFKC", or "NFKD", throw a RangeError exception.
@@ -1201,8 +1201,10 @@ impl StringPrototype {
             }
         };
 
-        // 6. Let ns be the String value that is the result of normalizing S into the normalization form named by f as specified in the latest Unicode Standard, Normalization Forms.
-        match unicode_normalize(s.as_str(agent), f) {
+        // 6. Let ns be the String value that is the result of normalizing S
+        //    into the normalization form named by f as specified in the latest
+        //    Unicode Standard, Normalization Forms.
+        match unicode_normalize(&s.to_string_lossy(agent), f) {
             // 7. Return ns.
             None => Ok(s.into_value().unbind()),
             Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc()).into_value()),
@@ -1328,7 +1330,7 @@ impl StringPrototype {
         // 6. Return the String value that is made from n copies of S appended together.
         Ok(Value::from_string(
             agent,
-            s.as_str(agent).repeat(n as usize),
+            s.to_string_lossy(agent).repeat(n as usize),
             gc.into_nogc(),
         ))
     }
@@ -1390,7 +1392,9 @@ impl StringPrototype {
             let search_length = search_string.len(agent);
 
             // 8. Let position be StringIndexOf(s, searchString, 0).
-            let position = if let Some(position) = s.as_str(agent).find(search_string.as_str(agent))
+            let position = if let Some(position) = s
+                .to_string_lossy(agent)
+                .find(search_string.to_string_lossy(agent).deref())
             {
                 position
             } else {
@@ -1420,11 +1424,16 @@ impl StringPrototype {
             // 10. Let preceding be the substring of s from 0 to position.
             // 11. Let following be the substring of s from position + searchLength.
             // 12. If functionalReplace is true,
-            let preceding = &s.as_str(agent)[0..position].to_owned();
-            let following = &s.as_str(agent)[position + search_length..].to_owned();
+            let preceding = &s.to_string_lossy(agent)[0..position];
+            let following = &s.to_string_lossy(agent)[position + search_length..];
 
             // 14. Return the string-concatenation of preceding, replacement, and following.
-            let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
+            let concatenated_result = format!(
+                "{}{}{}",
+                preceding,
+                result.to_string_lossy(agent),
+                following
+            );
             return Ok(
                 String::from_string(agent, concatenated_result, gc.into_nogc()).into_value(),
             );
@@ -1438,9 +1447,9 @@ impl StringPrototype {
             .bind(gc.nogc());
 
         // Everything are strings: `"foo".replace("o", "a")` => use rust's replace
-        let result = s.as_str(agent).replacen(
-            search_string_root.as_str(agent),
-            replace_string.as_str(agent),
+        let result = s.to_string_lossy(agent).into_owned().replacen(
+            search_string_root.to_string_lossy(agent).deref(),
+            &replace_string.to_string_lossy(agent),
             1,
         );
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
@@ -1521,14 +1530,14 @@ impl StringPrototype {
             let mut match_positions: Vec<usize> = vec![];
 
             // 10. Let position be StringIndexOf(s, searchString, 0).
-            let search_str = search_string.as_str(agent);
-            let subject = s.as_str(agent).to_owned();
+            let search_str = search_string.to_string_lossy(agent);
+            let subject = s.to_string_lossy(agent).into_owned();
             let mut position = 0;
 
             // 11. Repeat, while position is not not-found,
             while let Some(pos) = subject
                 .split_at_checked(position)
-                .and_then(|(_, str)| str.find(search_str))
+                .and_then(|(_, str)| str.find(search_str.deref()))
             {
                 // a. Append position to matchPositions.
                 match_positions.push(position + pos);
@@ -1572,10 +1581,10 @@ impl StringPrototype {
                 // a. Let preserved be the substring of string from endOfLastMatch to p.
                 let preserved = &subject[end_of_last_match..p];
                 // d. Set result to the string-concatenation of result, preserved, and replacement.
-                let replacement_str = replacement.as_str(agent);
+                let replacement_str = replacement.to_string_lossy(agent);
                 result.reserve(preserved.len() + replacement_str.len());
                 result.push_str(preserved);
-                result.push_str(replacement_str);
+                result.push_str(&replacement_str);
                 end_of_last_match = p + search_length;
             }
 
@@ -1596,9 +1605,10 @@ impl StringPrototype {
         // Everything are strings: `"foo".replaceAll("o", "a")` => use rust's replace
         search_string = search_string_root.get(agent).bind(gc.nogc());
         let s = s.get(agent).bind(gc.nogc());
-        let result = s
-            .as_str(agent)
-            .replace(search_string.as_str(agent), replace_string.as_str(agent));
+        let result = s.to_string_lossy(agent).into_owned().replace(
+            search_string.to_string_lossy(agent).deref(),
+            &replace_string.to_string_lossy(agent),
+        );
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
@@ -1686,13 +1696,13 @@ impl StringPrototype {
             (Some(0), None) => return Ok(s.into_value()),
             (Some(from_idx), None) => {
                 let u8_from = s.utf8_index(agent, from_idx).unwrap();
-                &s.as_str(agent)[u8_from..]
+                &s.to_string_lossy(agent)[u8_from..]
             }
             (Some(from_idx), Some(to_idx)) if from_idx >= to_idx => "",
             (Some(from_idx), Some(to_idx)) => {
                 let u8_from = s.utf8_index(agent, from_idx).unwrap();
                 let u8_to = s.utf8_index(agent, to_idx).unwrap();
-                &s.as_str(agent)[u8_from..u8_to]
+                &s.to_string_lossy(agent)[u8_from..u8_to]
             }
         };
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
@@ -1782,7 +1792,7 @@ impl StringPrototype {
 
         // 9. If separatorLength = 0, then split into characters
         if separator_length == 0 {
-            let subject = s.as_str(agent);
+            let subject = s.to_string_lossy(agent);
             let head = subject.split("");
 
             let mut results: Vec<Value> = head
@@ -1809,9 +1819,9 @@ impl StringPrototype {
         }
 
         // 11-17. Normal split
-        let subject = s.as_str(agent).to_owned();
-        let separator = r.as_str(agent).to_owned();
-        let head = subject.split(&separator);
+        let subject = s.to_string_lossy(agent);
+        let separator = r.to_string_lossy(agent);
+        let head = subject.split(separator.deref());
         let mut results: Vec<Value> = Vec::new();
 
         for (i, part) in head.enumerate() {
@@ -1912,17 +1922,19 @@ impl StringPrototype {
         // 14. If substring is searchStr, return true.
         // 15. Return false.
         let haystack_str = if start == 0 {
-            s.as_str(agent)
+            s.to_string_lossy(agent)
         } else {
             let len = s.utf16_len(agent);
             if start >= len {
-                ""
+                "".into()
             } else {
                 let start = s.utf8_index(agent, start).unwrap();
-                &s.as_str(agent)[start..]
+                s.as_wtf8(agent).slice_from(start).to_string_lossy()
             }
         };
-        Ok(haystack_str.starts_with(search_str.as_str(agent)).into())
+        Ok(haystack_str
+            .starts_with(search_str.to_string_lossy(agent).deref())
+            .into())
     }
 
     fn substring<'gc>(
@@ -2018,7 +2030,7 @@ impl StringPrototype {
         } else {
             s.len(agent)
         };
-        let substring = &s.as_str(agent)[u8_from..u8_to];
+        let substring = &s.to_string_lossy(agent)[u8_from..u8_to];
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
         let substring: &'static str = unsafe { core::mem::transmute(substring) };
@@ -2045,7 +2057,7 @@ impl StringPrototype {
         // 4. Let lowerText be toLowercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
-        let lower_case_string: std::string::String = s.as_str(agent).to_lowercase();
+        let lower_case_string: std::string::String = s.to_string_lossy(agent).to_lowercase();
         Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
     }
 
@@ -2069,7 +2081,7 @@ impl StringPrototype {
         // 4. Let upperText be toUppercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
-        let upper_case_string = s.as_str(agent).to_uppercase();
+        let upper_case_string = s.to_string_lossy(agent).to_uppercase();
         Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
     }
 
@@ -2095,7 +2107,7 @@ impl StringPrototype {
         // 4. Let lowerText be toLowercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
-        let lower_case_string = s.as_str(agent).to_lowercase();
+        let lower_case_string = s.to_string_lossy(agent).to_lowercase();
         Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
     }
 
@@ -2121,7 +2133,7 @@ impl StringPrototype {
         // 4. Let upperText be toUppercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
-        let upper_case_string = s.as_str(agent).to_uppercase();
+        let upper_case_string = s.to_string_lossy(agent).to_uppercase();
         Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
     }
 
@@ -2153,10 +2165,14 @@ impl StringPrototype {
         //     d. Set k to k + cp.[[CodeUnitCount]].
         // 7. Return result.
 
-        // TODO: For now, all strings are well-formed Unicode. In the future, `.as_str()` will
-        // return None for WTF-8 strings.
-        let _: &str = s.as_str(agent);
-        Ok(s.into_value().unbind())
+        match s.to_string_lossy(agent) {
+            // String is already well-formed UTF-8.
+            std::borrow::Cow::Borrowed(_) => Ok(s.into_value().unbind()),
+            std::borrow::Cow::Owned(string) => {
+                // String was ill-formed UTF-8 and a well-formed copy was created.
+                Ok(String::from_string(agent, string, gc.into_nogc()).into_value())
+            }
+        }
     }
 
     /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
@@ -2188,7 +2204,7 @@ impl StringPrototype {
         let gc = gc.into_nogc();
         let s = s.bind(gc);
 
-        let s_str = s.as_str(agent);
+        let s_str = s.to_string_lossy(agent);
 
         let t = match trim_where {
             // 3. If where is start, then
@@ -2342,7 +2358,7 @@ impl StringPrototype {
         // 11. Return the substring of S from intStart to intEnd.
         let gc = gc.into_nogc();
         let s = scoped_s.get(agent).bind(gc);
-        let s_str = s.as_str(agent);
+        let s_str = s.to_string_lossy(agent);
         Ok(String::from_string(
             agent,
             s_str[int_start as usize..int_end as usize].to_string(),
@@ -2758,56 +2774,45 @@ fn string_pad<'gc>(
     }
 
     // 4. Let fillLen be maxLength - stringLength.
-    let fill_len = max_len - string_len;
-    let fill_string_len = fill_string.utf16_len(agent) as i64;
+    // Note: we checked that max_len > string_len above; this is always >0.
+    let fill_len = max_len.wrapping_sub(string_len) as usize;
 
-    // 5. Let truncatedStringFiller be the String value consisting of repeated concatenations of fillString truncated to length fillLen.
-    let mut strings = if fill_len == fill_string_len {
-        let mut vec = VecDeque::with_capacity(2);
-        vec.push_back(fill_string);
-        vec
-    } else if fill_len % fill_string_len == 0 {
-        let fill_count = (fill_len / fill_string_len) as usize;
-        let mut vec = VecDeque::with_capacity(fill_count + 1);
-        vec.extend(repeat_n(fill_string, fill_count));
-        vec
-    } else if fill_len < fill_string_len {
-        let mut vec = VecDeque::with_capacity(2);
-        let mut sub_string = vec![0; fill_len as usize];
-        for i in 0..fill_len {
-            fill_string
-                .utf16_char(agent, i as usize)
-                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..]);
-        }
-        let sub_string = core::str::from_utf8(&sub_string).unwrap();
-        // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
-        vec.push_back(String::from_string(agent, sub_string.to_owned(), gc));
-        vec
-    } else {
-        let fill_count = (fill_len / fill_string_len) as usize;
-        let mut vec = VecDeque::with_capacity(fill_count + 2);
-        vec.extend(repeat_n(fill_string, fill_count));
-        let sub_string_len = (fill_len % fill_string_len) as usize;
-        let mut sub_string = vec![0; sub_string_len];
-        for i in 0..sub_string_len {
-            fill_string
-                .utf16_char(agent, i)
-                .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap()..]);
-        }
-        let sub_string = core::str::from_utf8(&sub_string).unwrap();
-        vec.push_back(String::from_string(agent, sub_string.to_owned(), gc));
-        vec
-    };
+    let fill_string_len = fill_string.utf16_len(agent);
 
-    // 6. If placement is start, return the string-concatenation of truncatedStringFiller and S.
+    // 5. Let truncatedStringFiller be the String value consisting of repeated
+    //    concatenations of fillString truncated to length fillLen.
+    let fill_count = fill_len / fill_string_len;
+    let overflow_len = fill_len % fill_string_len;
+    let fill_buf = fill_string.as_wtf8(agent);
+    let wtf8_index = fill_string.utf8_index(agent, overflow_len).unwrap();
+    let mut buf = Wtf8Buf::with_capacity(s.len(agent) + fill_count * fill_buf.len() + wtf8_index);
+
+    // 6. If placement is start, return the string-concatenation of
+    //    truncatedStringFiller and S.
+    if !placement_start {
+        buf.push_wtf8(s.as_wtf8(agent));
+    }
+    for _ in 0..fill_count {
+        buf.push_wtf8(fill_buf);
+    }
+    if overflow_len > 0 {
+        for cp in char::decode_utf16(fill_buf.to_ill_formed_utf16().take(overflow_len)) {
+            match cp {
+                Ok(char) => buf.push_char(char),
+                // SAFETY: unpaired surrogates fail parsing, and they're in the
+                // CodePoint range.
+                Err(code) => buf.push(unsafe {
+                    CodePoint::from_u32_unchecked(code.unpaired_surrogate() as u32)
+                }),
+            }
+        }
+    }
     // 7. Else, return the string-concatenation of S and truncatedStringFiller.
     if placement_start {
-        strings.push_back(s);
-    } else {
-        strings.push_front(s);
+        buf.push_wtf8(s.as_wtf8(agent));
     }
 
-    Ok(String::concat(agent, strings.into_iter().collect::<Vec<String>>(), gc).into_value())
+    Ok(String::from_wtf8_buf(agent, buf, gc).into_value())
 }
 
 /// ### [22.1.3.17.3 ToZeroPaddedDecimalString ( n, minLength )](https://tc39.es/ecma262/#sec-tozeropaddeddecimalstring)
@@ -2927,16 +2932,16 @@ fn create_html<'gc>(
             v
         };
         // b. Let escapedV be the String value that is the same as V except that each occurrence of the code unit 0x0022 (QUOTATION MARK) in V has been replaced with the six code unit sequence "&quot;".
-        let escaped_v = v.as_str(agent).replace('"', "&quot;");
+        let escaped_v = v.to_string_lossy(agent).replace('"', "&quot;");
 
-        let s_str = s.as_str(agent);
+        let s_str = s.to_string_lossy(agent);
         Ok(String::from_string(
             agent,
             format!("<{tag} {attribute}=\"{escaped_v}\">{s_str}</{tag}>"),
             gc.into_nogc(),
         ))
     } else {
-        let s_str = s.as_str(agent);
+        let s_str = s.to_string_lossy(agent);
         Ok(String::from_string(
             agent,
             format!("<{tag}>{s_str}</{tag}>"),

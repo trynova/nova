@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ast::ast::{self, LabelIdentifier, RegExpFlags, Statement};
+use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
@@ -191,6 +192,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Create a new JavaScript String from an owned string.
     pub(super) fn create_string_from_owned(&mut self, owned: std::string::String) -> String<'gc> {
         self.executable.create_string_from_owned(owned)
+    }
+
+    /// Create a new JavaScript String from an owned Wtf8Buf.
+    pub(super) fn create_string_from_wtf8_buf(&mut self, buf: Wtf8Buf) -> String<'gc> {
+        self.executable.create_string_from_wtf8_buf(buf)
     }
 
     /// Enter a labelled statement.

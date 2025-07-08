@@ -10,6 +10,7 @@ use binding_methods::{execute_simple_array_binding, execute_simple_object_bindin
 use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
+use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
@@ -1562,7 +1563,7 @@ impl Vm {
                 // 7. Perform MakeMethod(closure, object).
                 make_method(agent, closure, object.into_object());
                 // 8. Perform SetFunctionName(closure, propKey).
-                let function_name = format!("#{}", description.as_str(agent));
+                let function_name = format!("#{}", description.to_string_lossy(agent));
                 let function_name = String::from_string(agent, function_name, gc.nogc());
                 set_function_name(
                     agent,
@@ -1819,7 +1820,7 @@ impl Vm {
                     };
                     let error_message = format!(
                         "'{}' is not a constructor.",
-                        constructor_string.as_str(agent)
+                        constructor_string.to_string_lossy(agent)
                     );
                     return Err(agent.throw_exception(
                         ExceptionType::TypeError,
@@ -1877,7 +1878,7 @@ impl Vm {
                                 constructor
                                     .into_value()
                                     .string_repr(agent, gc)
-                                    .as_str(agent)
+                                    .to_string_lossy(agent)
                             )
                         },
                         gc.reborrow(),
@@ -3093,11 +3094,11 @@ fn concat_string_from_slice<'gc>(
     string_length: usize,
     gc: NoGcScope<'gc, '_>,
 ) -> String<'gc> {
-    let mut result_string = std::string::String::with_capacity(string_length);
+    let mut result_string = Wtf8Buf::with_capacity(string_length);
     for string in slice.iter() {
-        result_string.push_str(string.as_str(agent));
+        result_string.push_wtf8(string.as_wtf8(agent));
     }
-    String::from_string(agent, result_string, gc)
+    String::from_wtf8_buf(agent, result_string, gc)
 }
 
 /// ### [13.15.3 ApplyStringOrNumericBinaryOperator ( lval, opText, rval )](https://tc39.es/ecma262/#sec-applystringornumericbinaryoperator)
@@ -3440,7 +3441,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             target
                 .into_value()
                 .string_repr(agent, gc.reborrow())
-                .as_str(agent)
+                .to_string_lossy(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
@@ -3476,7 +3477,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
                 target
                     .into_value()
                     .string_repr(agent, gc.reborrow())
-                    .as_str(agent)
+                    .to_string_lossy(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -3661,7 +3662,7 @@ fn throw_error_in_target_not_object<'a>(
 ) -> JsError<'a> {
     let error_message = format!(
         "right-hand side of 'in' should be an object, got {}.",
-        typeof_operator(agent, value, gc).as_str(agent)
+        typeof_operator(agent, value, gc).to_string_lossy(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }

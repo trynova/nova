@@ -68,7 +68,7 @@ impl<'a> Symbol<'a> {
         if let Some(descriptor) = agent[self].descriptor {
             // c. Else, set name to the string-concatenation of
             //    "[", description, and "]".
-            let description = descriptor.as_str(agent);
+            let description = descriptor.to_string_lossy(agent);
             String::from_string(agent, format!("[{description}]"), gc)
         } else {
             // b. If description is undefined, set name to the

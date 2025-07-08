@@ -99,7 +99,11 @@ impl ErrorPrototype {
             Ok(name.into_value())
         } else {
             // 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
-            let result = format!("{}: {}", name.as_str(agent), msg.as_str(agent));
+            let result = format!(
+                "{}: {}",
+                name.to_string_lossy(agent),
+                msg.to_string_lossy(agent)
+            );
             Ok(String::from_string(agent, result, gc).into_value())
         }
     }

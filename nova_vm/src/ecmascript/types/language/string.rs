@@ -9,6 +9,7 @@ use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
+use std::borrow::Cow;
 
 use super::{
     IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
@@ -30,7 +31,7 @@ use crate::{
 
 pub use data::StringHeapData;
 use hashbrown::HashTable;
-use wtf8::{Wtf8, Wtf8Buf};
+use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 
 /// String data allocated onto the Agent heap.
 ///
@@ -55,7 +56,11 @@ impl HeapString<'_> {
         self.0.into_index()
     }
 
-    pub fn as_str(self, agent: &Agent) -> &str {
+    pub fn to_string_lossy(self, agent: &Agent) -> Cow<str> {
+        agent[self].to_string_lossy()
+    }
+
+    pub fn as_str(self, agent: &Agent) -> Option<&str> {
         agent[self].as_str()
     }
 }
@@ -215,6 +220,19 @@ impl TryFrom<&str> for String<'static> {
     }
 }
 
+impl TryFrom<&Wtf8> for String<'static> {
+    type Error = ();
+    fn try_from(value: &Wtf8) -> Result<Self, Self::Error> {
+        SmallString::try_from(value).map(String::SmallString)
+    }
+}
+
+impl From<CodePoint> for String<'static> {
+    fn from(value: CodePoint) -> Self {
+        Self::from_code_point(value)
+    }
+}
+
 impl<'a> TryFrom<Value<'a>> for String<'a> {
     type Error = ();
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
@@ -335,7 +353,7 @@ impl<'a> String<'a> {
                     buf.push_wtf8(agent[heap_string].as_wtf8());
                 }
                 String::SmallString(small_string) => {
-                    buf.push_str(small_string.as_str());
+                    buf.push_wtf8(small_string.as_wtf8());
                 }
             }
         }
@@ -394,7 +412,7 @@ impl<'a> String<'a> {
                 let str_slice = unsafe { core::str::from_utf8_unchecked(&data[..len]) };
                 SmallString::from_str_unchecked(str_slice).into()
             }
-            Status::String(string) => agent.heap.create(string.into_string().unwrap()).bind(gc),
+            Status::String(string) => agent.heap.create(string).bind(gc),
         }
     }
 
@@ -417,15 +435,25 @@ impl<'a> String<'a> {
         }
     }
 
-    // TODO: This should return a wtf8::CodePoint.
-    pub fn utf16_char(
+    pub fn char_code_at(
         self,
         agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
         idx: usize,
-    ) -> char {
+    ) -> CodePoint {
         match self {
-            String::String(s) => agent[s.unbind()].utf16_char(idx),
-            String::SmallString(s) => s.utf16_char(idx),
+            String::String(s) => agent[s.unbind()].char_code_at(idx),
+            String::SmallString(s) => s.char_code_at(idx),
+        }
+    }
+
+    pub fn code_point_at(
+        self,
+        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        utf16_idx: usize,
+    ) -> CodePoint {
+        match self {
+            String::String(s) => agent[s.unbind()].code_point_at(utf16_idx),
+            String::SmallString(s) => s.code_point_at(utf16_idx),
         }
     }
 
@@ -480,15 +508,65 @@ impl<'a> String<'a> {
     /// If the string has not been properly bound (and is not internally a
     /// static string) then garbage collection may deallocate the backing data,
     /// causing the string slice to dangle.
-    pub fn as_str(&self, agent: &impl Index<HeapString<'a>, Output = StringHeapData>) -> &str {
+    pub fn to_string_lossy(
+        &self,
+        agent: &impl Index<HeapString<'a>, Output = StringHeapData>,
+    ) -> Cow<str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
             // exclusive by the heap and thus the reference never invalidates.
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
-            String::String(s) => unsafe { std::mem::transmute::<&str, &str>(agent[*s].as_str()) },
+            String::String(s) => unsafe {
+                std::mem::transmute::<Cow<str>, Cow<str>>(agent[*s].to_string_lossy())
+            },
+            String::SmallString(s) => s.to_string_lossy(),
+        }
+    }
+
+    pub fn as_str(
+        &self,
+        agent: &impl Index<HeapString<'a>, Output = StringHeapData>,
+    ) -> Option<&str> {
+        match self {
+            // SAFETY: Assuming that user has properly bound the String, the
+            // backing string data is guaranteed to never be accessed as
+            // exclusive by the heap and thus the reference never invalidates.
+            // As `&self` is bound to the GC lfietime, the StringHeapData will
+            // not be dropped while the `&str` is being used.
+            String::String(s) => {
+                Some(unsafe { std::mem::transmute::<&str, &str>(agent[*s].as_str()?) })
+            }
             String::SmallString(s) => s.as_str(),
+        }
+    }
+
+    pub fn as_wtf8(&self, agent: &impl Index<HeapString<'a>, Output = StringHeapData>) -> &Wtf8 {
+        match self {
+            // SAFETY: Assuming that user has properly bound the String, the
+            // backing string data is guaranteed to never be accessed as
+            // exclusive by the heap and thus the reference never invalidates.
+            // As `&self` is bound to the GC lfietime, the StringHeapData will
+            // not be dropped while the `&str` is being used.
+            String::String(s) => unsafe {
+                std::mem::transmute::<&Wtf8, &Wtf8>(agent[*s].as_wtf8())
+            },
+            String::SmallString(s) => s.as_wtf8(),
+        }
+    }
+
+    pub fn as_bytes(&self, agent: &impl Index<HeapString<'a>, Output = StringHeapData>) -> &[u8] {
+        match self {
+            // SAFETY: Assuming that user has properly bound the String, the
+            // backing string data is guaranteed to never be accessed as
+            // exclusive by the heap and thus the reference never invalidates.
+            // As `&self` is bound to the GC lfietime, the StringHeapData will
+            // not be dropped while the `&str` is being used.
+            String::String(s) => unsafe {
+                std::mem::transmute::<&[u8], &[u8]>(agent[*s].as_bytes())
+            },
+            String::SmallString(s) => s.as_bytes(),
         }
     }
 
@@ -531,7 +609,7 @@ impl<'a> String<'a> {
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if index >= 0 && (index as usize) < self.utf16_len(agent) {
-                let ch = self.utf16_char(agent, index as usize);
+                let ch = self.char_code_at(agent, index as usize);
                 Some(PropertyDescriptor {
                     value: Some(SmallString::from_code_point(ch).into_value()),
                     writable: Some(false),
@@ -560,7 +638,7 @@ impl<'a> String<'a> {
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if index >= 0 && (index as usize) < self.utf16_len(agent) {
-                let ch = self.utf16_char(agent, index as usize);
+                let ch = self.char_code_at(agent, index as usize);
                 Some(SmallString::from_code_point(ch).into_value())
             } else {
                 None
@@ -574,6 +652,45 @@ impl<'a> String<'a> {
 impl<'gc> String<'gc> {
     pub fn from_str(agent: &mut Agent, str: &str, _gc: NoGcScope<'gc, '_>) -> Self {
         agent.heap.create(str)
+    }
+
+    pub const fn from_code_point(cp: CodePoint) -> Self {
+        // UTF-8 ranges and tags for encoding characters
+        // Copied from 48d5fe9ec560b53b1f5069219b0d62015e1de5ba^:src/libcore/char.rs
+        const TAG_CONT: u8 = 0b1000_0000;
+        const TAG_TWO_B: u8 = 0b1100_0000;
+        const TAG_THREE_B: u8 = 0b1110_0000;
+        const TAG_FOUR_B: u8 = 0b1111_0000;
+        const MAX_ONE_B: u32 = 0x80;
+        const MAX_TWO_B: u32 = 0x800;
+        const MAX_THREE_B: u32 = 0x10000;
+
+        /// Adapted from 48d5fe9ec560b53b1f5069219b0d62015e1de5ba^:src/libcore/char.rs
+        #[inline]
+        const fn encode_utf8_raw(code: u32, dst: &mut [u8; 7]) {
+            // Marked #[inline] to allow llvm optimizing it away
+            if code < MAX_ONE_B {
+                dst[0] = code as u8;
+            } else if code < MAX_TWO_B {
+                dst[0] = (code >> 6 & 0x1F) as u8 | TAG_TWO_B;
+                dst[1] = (code & 0x3F) as u8 | TAG_CONT;
+            } else if code < MAX_THREE_B {
+                dst[0] = (code >> 12 & 0x0F) as u8 | TAG_THREE_B;
+                dst[1] = (code >> 6 & 0x3F) as u8 | TAG_CONT;
+                dst[2] = (code & 0x3F) as u8 | TAG_CONT;
+            } else {
+                dst[0] = (code >> 18 & 0x07) as u8 | TAG_FOUR_B;
+                dst[1] = (code >> 12 & 0x3F) as u8 | TAG_CONT;
+                dst[2] = (code >> 6 & 0x3F) as u8 | TAG_CONT;
+                dst[3] = (code & 0x3F) as u8 | TAG_CONT;
+            }
+        }
+
+        let mut small_string = SmallString::EMPTY;
+        // SAFETY: transmute to backing data type. This is done for const.
+        let cp = unsafe { core::mem::transmute::<CodePoint, u32>(cp) };
+        encode_utf8_raw(cp, small_string.data_mut());
+        Self::SmallString(small_string)
     }
 
     pub(crate) fn from_str_direct(
@@ -632,6 +749,10 @@ impl<'gc> String<'gc> {
         agent.heap.create(string).bind(gc)
     }
 
+    pub fn from_wtf8_buf(agent: &mut Agent, string: Wtf8Buf, gc: NoGcScope<'gc, '_>) -> Self {
+        agent.heap.create(string).bind(gc)
+    }
+
     pub fn from_static_str(agent: &mut Agent, str: &'static str, _gc: NoGcScope<'gc, '_>) -> Self {
         if let Ok(value) = String::try_from(str) {
             value
@@ -658,14 +779,17 @@ unsafe impl Bindable for String<'_> {
 }
 
 impl Scoped<'_, String<'static>> {
-    pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
+    pub fn to_string_lossy<'string, 'agent: 'string>(
+        &'string self,
+        agent: &'agent Agent,
+    ) -> Cow<'string, str> {
         match &self.inner {
-            StringRootRepr::SmallString(small_string) => small_string.as_str(),
+            StringRootRepr::SmallString(s) => s.to_string_lossy(),
             StringRootRepr::HeapRef(_) => {
-                let String::String(string) = self.get(agent) else {
+                let String::String(s) = self.get(agent) else {
                     unreachable!();
                 };
-                string.as_str(agent)
+                s.to_string_lossy(agent)
             }
         }
     }

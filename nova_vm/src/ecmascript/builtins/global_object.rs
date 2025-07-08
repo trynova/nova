@@ -8,6 +8,7 @@ use ahash::AHashSet;
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
+use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
@@ -439,7 +440,7 @@ pub fn eval_declaration_instantiation<'a>(
                         ExceptionType::SyntaxError,
                         format!(
                             "Redeclaration of lexical declaration '{}'",
-                            name.as_str(agent)
+                            name.to_string_lossy(agent)
                         ),
                         gc.into_nogc(),
                     ));
@@ -547,7 +548,7 @@ pub fn eval_declaration_instantiation<'a>(
                             ExceptionType::TypeError,
                             format!(
                                 "Cannot declare global function '{}'.",
-                                function_name.as_str(agent)
+                                function_name.to_string_lossy(agent)
                             ),
                             gc.into_nogc(),
                         ));
@@ -592,7 +593,10 @@ pub fn eval_declaration_instantiation<'a>(
                         if !vn_definable {
                             return Err(agent.throw_exception(
                                 ExceptionType::TypeError,
-                                format!("Cannot declare global variable '{}'.", vn.as_str(agent)),
+                                format!(
+                                    "Cannot declare global variable '{}'.",
+                                    vn.to_string_lossy(agent)
+                                ),
                                 gc.into_nogc(),
                             ));
                         }
@@ -868,9 +872,8 @@ impl GlobalObject {
             .bind(gc.nogc());
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
-        let trimmed_string = input_string
-            .as_str(agent)
-            .trim_start_matches(is_trimmable_whitespace);
+        let trimmed_string = input_string.to_string_lossy(agent);
+        let trimmed_string = trimmed_string.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let trimmed be StringToCodePoints(trimmedString).
         // 4. Let trimmedPrefix be the longest prefix of trimmed that satisfies the syntax of a StrDecimalLiteral, which might be trimmed itself. If there is no such prefix, return NaN.
@@ -973,7 +976,8 @@ impl GlobalObject {
         };
 
         // 2. Let S be ! TrimString(inputString, start).
-        let s = s.as_str(agent).trim_start_matches(is_trimmable_whitespace);
+        let s = s.to_string_lossy(agent);
+        let s = s.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let sign be 1.
         // 4. If S is not empty and the first code unit of S is the code unit 0x002D (HYPHEN-MINUS), set sign to -1.
@@ -1304,7 +1308,7 @@ where
     // 1. Let strLen be the length of string.
     let str_len = string.utf16_len(agent);
     // 2. Let R be the empty String.
-    let mut r = std::string::String::with_capacity(string.len(agent));
+    let mut r = Wtf8Buf::with_capacity(string.len(agent));
     let mut octets = Vec::with_capacity(4);
 
     // 3. Let k be 0.
@@ -1313,14 +1317,14 @@ where
     loop {
         // a. If k = strLen, return R.
         if k == str_len {
-            return Ok(String::from_string(agent, r, gc));
+            return Ok(String::from_wtf8_buf(agent, r, gc));
         }
 
         // b. Let C be the code unit at index k within string.
-        let c = string.utf16_char(agent, k);
+        let c = string.char_code_at(agent, k);
 
         // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
-        if c != '%' {
+        if c != CodePoint::from_char('%') {
             // i. Let S be the String value containing only the code unit C.
             r.push(c);
         } else {
@@ -1341,8 +1345,8 @@ where
             // hexadecimal digits, throw a URIError exception.
             // iv. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
             let Some(b) = decode_hex_byte(
-                string.utf16_char(agent, k + 1),
-                string.utf16_char(agent, k + 2),
+                string.char_code_at(agent, k + 1),
+                string.char_code_at(agent, k + 2),
             ) else {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::UriError,
@@ -1370,7 +1374,7 @@ where
                     // a. Let S be the substring of string from start to k + 1.
                     let start = string.utf8_index(agent, start).unwrap();
                     let k = string.utf8_index(agent, k).unwrap();
-                    r.push_str(&string.as_str(agent)[start..=k])
+                    r.push_str(&string.to_string_lossy(agent)[start..=k])
                 }
             } else {
                 // viii. Else,
@@ -1402,7 +1406,7 @@ where
                     k += 1;
 
                     // b. If the code unit at index k within string is not the code unit 0x0025 (PERCENT SIGN), throw a URIError exception.
-                    if string.utf16_char(agent, k) != '%' {
+                    if string.char_code_at(agent, k) != CodePoint::from_char('%') {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "escape characters must be preceded with a % sign",
@@ -1413,8 +1417,8 @@ where
                     // c. If the code units at index (k + 1) and (k + 2) within string do not represent hexadecimal digits, throw a URIError exception.
                     // d. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
                     let Some(b) = decode_hex_byte(
-                        string.utf16_char(agent, k + 1),
-                        string.utf16_char(agent, k + 2),
+                        string.char_code_at(agent, k + 1),
+                        string.char_code_at(agent, k + 2),
                     ) else {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
@@ -1467,11 +1471,8 @@ where
 /// Adapted from Boa JS engine. Source https://github.com/boa-dev/boa/blob/ced222fdbabacc695f8f081c5b009afc9be6b8d0/core/engine/src/builtins/uri/mod.rs#L514
 ///
 /// Copyright (c) 2019 Jason Williams
-fn decode_hex_byte(high: char, low: char) -> Option<u8> {
-    match (
-        char::from_u32(u32::from(high)),
-        char::from_u32(u32::from(low)),
-    ) {
+fn decode_hex_byte(high: CodePoint, low: CodePoint) -> Option<u8> {
+    match (high.to_char(), low.to_char()) {
         (Some(high), Some(low)) => match (high.to_digit(16), low.to_digit(16)) {
             (Some(high), Some(low)) => Some(((high as u8) << 4) + low as u8),
             _ => None,

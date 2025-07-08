@@ -61,27 +61,50 @@ impl<'a> SourceCode<'a> {
         // keep references to the string buffer.
         let (source, source_text) = match source {
             String::String(source) => {
-                // SAFETY: Caller guarantees to keep SourceCode from being
-                // garbage collected until the parsed Program is dropped.
-                // Thus the source text is kept from garbage collection.
-                let source_text =
-                    unsafe { core::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
-                (source.unbind(), source_text)
+                match source.to_string_lossy(agent) {
+                    std::borrow::Cow::Borrowed(source_text) => {
+                        // Source text is a valid heap-allocated UTF-8 string.
+                        // SAFETY: Caller guarantees to keep SourceCode from being
+                        // garbage collected until the parsed Program is dropped.
+                        // Thus the source text is kept from garbage collection.
+                        (source.unbind(), unsafe {
+                            core::mem::transmute::<&str, &'static str>(source_text)
+                        })
+                    }
+                    std::borrow::Cow::Owned(string) => {
+                        // Source text is invalid UTF-8 and needed to be copied.
+                        let String::String(source) = String::from_string(agent, string, gc) else {
+                            unreachable!()
+                        };
+                        // SAFETY: Allocating a String into the heap cannot
+                        // turn it into non-UTF-8.
+                        let source_text = unsafe { source.as_str(agent).unwrap_unchecked() };
+                        // SAFETY: Caller guarantees to keep SourceCode from being
+                        // garbage collected until the parsed Program is dropped.
+                        // Thus the source text is kept from garbage collection.
+                        (source.unbind(), unsafe {
+                            core::mem::transmute::<&str, &'static str>(source_text)
+                        })
+                    }
+                }
             }
             String::SmallString(source) => {
                 // Add 10 whitespace bytes to the end of the eval string. This
                 // should guarantee that the string gets heap-allocated.
                 let original_length = source.len();
-                let data = format!("{}          ", source.as_str());
+                let data = format!("{}          ", source.to_string_lossy());
                 let source = String::from_string(agent, data, gc);
                 let String::String(source) = source else {
                     unreachable!()
                 };
+                // SAFETY: Allocating a String into the heap cannot turn it
+                // into non-UTF-8.
+                let source_text = unsafe { source.as_str(agent).unwrap_unchecked() };
                 // SAFETY: Caller guarantees to keep SourceCode from being
                 // garbage collected until the parsed Program is dropped.
                 // Thus the source text is kept from garbage collection.
                 let source_text =
-                    unsafe { core::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
+                    unsafe { core::mem::transmute::<&str, &'static str>(source_text) };
                 // Slice the source text back to the original length so that the
                 // whitespace we added doesn't get fed to the parser: It shouldn't
                 // need it.
@@ -135,7 +158,9 @@ impl<'a> SourceCode<'a> {
     }
 
     pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
-        agent[agent[self].source].as_str()
+        // SAFETY: parse_source will always copy non-UTF-8 source texts into
+        // well-formed UTF-8.
+        unsafe { agent[agent[self].source].as_str().unwrap_unchecked() }
     }
 
     pub(crate) fn get_index(self) -> usize {

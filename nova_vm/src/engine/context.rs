@@ -4,6 +4,8 @@
 
 use core::marker::PhantomData;
 
+use wtf8::CodePoint;
+
 use super::{Scoped, rootable::Rootable};
 
 /// # ZST type representing access to the garbage collector.
@@ -402,6 +404,7 @@ trivially_bindable!(isize);
 trivially_bindable!(usize);
 trivially_bindable!(f32);
 trivially_bindable!(f64);
+trivially_bindable!(CodePoint);
 
 // SAFETY: Trivially safe.
 unsafe impl<'b, T: 'static + Rootable> Bindable for Scoped<'b, T> {

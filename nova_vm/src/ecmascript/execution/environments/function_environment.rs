@@ -316,8 +316,10 @@ impl FunctionEnvironment<'_> {
         if !dcl_rec.has_binding(agent, name) {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
-                let error_message =
-                    format!("Could not set mutable binding '{}'.", name.as_str(agent));
+                let error_message = format!(
+                    "Could not set mutable binding '{}'.",
+                    name.to_string_lossy(agent)
+                );
                 return Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
                     error_message,
@@ -347,7 +349,7 @@ impl FunctionEnvironment<'_> {
             // a. Throw a ReferenceError exception.
             let error_message = format!(
                 "Identifier '{}' has not been initialized.",
-                name.as_str(agent)
+                name.to_string_lossy(agent)
             );
             return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
@@ -366,7 +368,7 @@ impl FunctionEnvironment<'_> {
             if is_strict {
                 let error_message = format!(
                     "Cannot assign to immutable identifier '{}' in strict mode.",
-                    name.as_str(agent)
+                    name.to_string_lossy(agent)
                 );
                 return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }

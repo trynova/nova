@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_span::SourceType;
+use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
@@ -212,22 +213,22 @@ pub(crate) fn create_dynamic_function<'a>(
             } else {
                 0
             };
-        let mut string = std::string::String::with_capacity(str_len);
+        let mut string = Wtf8Buf::with_capacity(str_len);
         string.push_str(kind.prefix());
         string.push_str(" anonymous(");
         for (i, parameter) in parameter_strings_slice.iter().enumerate() {
             if i != 0 {
-                string.push(',');
+                string.push_char(',');
             }
-            string.push_str(parameter.as_str(agent));
+            string.push_wtf8(parameter.as_wtf8(agent));
         }
         string.push_str("\n) {\n");
-        string.push_str(body_string.as_str(agent));
+        string.push_wtf8(body_string.as_wtf8(agent));
         string.push_str("\n}");
 
         debug_assert_eq!(string.len(), str_len);
 
-        String::from_string(agent, string, gc.nogc())
+        String::from_wtf8_buf(agent, string, gc.nogc())
     };
 
     // The spec says to parse the parameters and the function body separately to

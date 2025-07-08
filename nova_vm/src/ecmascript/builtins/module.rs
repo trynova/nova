@@ -649,7 +649,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let Some(target_env) = target_env else {
                         return Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
-                            format!("Could not resolve module '{}'.", key.as_str(agent)),
+                            format!("Could not resolve module '{}'.", key.to_string_lossy(agent)),
                             gc,
                         ));
                     };
@@ -766,7 +766,8 @@ pub(crate) fn module_namespace_create<'a>(
     // 5. Set M.[[Module]] to module.
     // 6. Let sortedExports be a List whose elements are the elements of
     //    exports, sorted according to lexicographic code unit order.
-    exports.sort_by(|a, b| a.as_str(agent).cmp(b.as_str(agent)));
+    // TODO: this implements UTF-8 lexicographic order, not UTF-16.
+    exports.sort_by(|a, b| a.as_wtf8(agent).cmp(b.as_wtf8(agent)));
     // 7. Set M.[[Exports]] to sortedExports.
     // 8. Create own properties of M corresponding to the definitions in 28.3.
     let m = agent.heap.create(ModuleHeapData { module, exports });

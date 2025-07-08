@@ -643,7 +643,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
                 value
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .as_str(agent)
+                    .to_string_lossy(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
             Err(agent.throw_exception_with_message(
@@ -1141,7 +1141,7 @@ pub(crate) fn set_function_name<'a>(
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
-                    let descriptor = descriptor.as_str(agent);
+                    let descriptor = descriptor.to_string_lossy(agent);
                     String::from_string(
                         agent,
                         format!("{}[{descriptor}]", prefix_into_str(prefix)),
@@ -1157,7 +1157,11 @@ pub(crate) fn set_function_name<'a>(
         ),
         PropertyKey::SmallString(str) => {
             if let Some(prefix) = prefix {
-                String::from_string(agent, format!("{}{}", prefix.into_str(), str.as_str()), gc)
+                String::from_string(
+                    agent,
+                    format!("{}{}", prefix.into_str(), str.to_string_lossy()),
+                    gc,
+                )
             } else {
                 str.into()
             }
@@ -1166,7 +1170,7 @@ pub(crate) fn set_function_name<'a>(
             if let Some(prefix) = prefix {
                 String::from_string(
                     agent,
-                    format!("{}{}", prefix.into_str(), str.as_str(agent)),
+                    format!("{}{}", prefix.into_str(), str.to_string_lossy(agent)),
                     gc,
                 )
             } else {

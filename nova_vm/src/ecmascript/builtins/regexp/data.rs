@@ -4,6 +4,7 @@
 
 use oxc_ast::ast::RegExpFlags;
 use regex::bytes::{Regex, RegexBuilder};
+use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
@@ -139,8 +140,8 @@ impl<'a> RegExpHeapData<'a> {
     }
 
     pub(crate) fn new(agent: &Agent, source: String<'a>, flags: RegExpFlags) -> Self {
-        let str = source.as_str(agent);
-        let regex = Self::compile_pattern(str, flags);
+        let str = source.to_string_lossy(agent);
+        let regex = Self::compile_pattern(&str, flags);
         Self {
             object_index: None,
             reg_exp_matcher: regex,
@@ -150,14 +151,14 @@ impl<'a> RegExpHeapData<'a> {
         }
     }
 
-    pub(super) fn create_regexp_string(&self, agent: &Agent) -> std::string::String {
+    pub(super) fn create_regexp_string(&self, agent: &Agent) -> Wtf8Buf {
         let string_length = self.original_source.len(agent);
         let flags_length = self.original_flags.bits().count_ones();
         let mut regexp_string =
-            std::string::String::with_capacity(1 + string_length + 1 + flags_length as usize);
-        regexp_string.push('/');
-        regexp_string.push_str(self.original_source.as_str(agent));
-        regexp_string.push('/');
+            Wtf8Buf::with_capacity(1 + string_length + 1 + flags_length as usize);
+        regexp_string.push_char('/');
+        regexp_string.push_wtf8(self.original_source.as_wtf8(agent));
+        regexp_string.push_char('/');
         self.original_flags.iter_names().for_each(|(flag, _)| {
             regexp_string.push_str(flag);
         });
