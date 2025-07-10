@@ -56,21 +56,28 @@ impl SmallString {
     }
 
     /// Returns true if the SmallString contains only ASCII characters.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use small_string::SmallString;
+    /// assert!(SmallString::try_from("abc").unwrap().is_ascii());
+    /// assert!(!SmallString::try_from("📦").unwrap().is_ascii());
+    /// ```
     pub const fn is_ascii(&self) -> bool {
-        self.bytes[0] == 0xFF
-            && self.bytes[0] <= 127
-            && self.bytes[1] == 0xFF
-            && self.bytes[1] <= 127
-            && self.bytes[2] == 0xFF
-            && self.bytes[2] <= 127
-            && self.bytes[3] == 0xFF
-            && self.bytes[3] <= 127
-            && self.bytes[4] == 0xFF
-            && self.bytes[4] <= 127
-            && self.bytes[5] == 0xFF
-            && self.bytes[5] <= 127
-            && self.bytes[6] == 0xFF
-            && self.bytes[6] <= 127
+        let mut i = 0;
+        while i < self.bytes.len() {
+            let byte = self.bytes[i];
+            // Padding byte means end of string.
+            if byte == 0xFF {
+                break;
+            }
+            if !byte.is_ascii() {
+                return false;
+            }
+            i += 1;
+        }
+        true
     }
 
     pub fn utf16_len(&self) -> usize {
@@ -507,4 +514,17 @@ fn valid_stack_strings() {
 #[test]
 fn not_valid_stack_strings() {
     assert!(SmallString::try_from("asd asd r 547 gdfg").is_err());
+}
+
+#[test]
+fn test_ascii() {
+    let ascii = ["", "abc", "a\0bc"];
+    for s in ascii {
+        assert!(SmallString::try_from(s).unwrap().is_ascii());
+    }
+
+    let non_ascii = ["📦", "f📦"];
+    for s in non_ascii {
+        assert!(!SmallString::try_from(s).unwrap().is_ascii());
+    }
 }
