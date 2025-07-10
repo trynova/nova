@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::ControlFlow;
+use std::{borrow::Cow, ops::ControlFlow};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::RegExpFlags;
-use oxc_regular_expression::ConstructorParser;
+use oxc_regular_expression::{ConstructorParser, Options};
 
 use crate::{
     ecmascript::{
@@ -196,16 +196,22 @@ pub(crate) fn reg_exp_initialize<'a>(
         Ok(f) => f.as_str().into(),
         Err(f) => f.to_string_lossy(agent),
     };
+    let flags: Option<&str> = if f_str.is_empty() {
+        None
+    } else {
+        Some(f_str.as_ref())
+    };
+
     let allocator = Allocator::new();
     // 13. Let parseResult be ParsePattern(patternText, u, v).
-    match ConstructorParser::new(
-        &allocator,
-        &p.to_string_lossy(agent),
-        Some(&f_str),
-        Default::default(),
-    )
-    .parse()
-    {
+    let pattern_text = if p.len(agent) == 0 {
+        Cow::Borrowed(r#""""#)
+    } else {
+        let s = p.to_string_lossy(agent);
+        // TODO: make a PR into oxc's regex parser to handle non-quoted strings.
+        Cow::Owned(format!(r#""{s}""#))
+    };
+    match ConstructorParser::new(&allocator, &pattern_text, flags, Options::default()).parse() {
         Ok(_) => {
             // 15. Assert: parseResult is a Pattern Parse Node.
         }
