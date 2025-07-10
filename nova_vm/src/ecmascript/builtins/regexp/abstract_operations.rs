@@ -192,7 +192,7 @@ pub(crate) fn reg_exp_initialize<'a>(
     //     elements as a Unicode BMP code point. UTF-16 decoding is not applied
     //     to the elements.
     let f_str = f.map(|f| f.to_inline_string());
-    let f_str =  match &f_str {
+    let f_str = match &f_str {
         Ok(f) => f.as_str().into(),
         Err(f) => f.to_string_lossy(agent),
     };
@@ -211,9 +211,7 @@ pub(crate) fn reg_exp_initialize<'a>(
         // TODO: make a PR into oxc's regex parser to handle non-quoted strings.
         Cow::Owned(format!(r#""{s}""#))
     };
-    match ConstructorParser::new(&allocator, &pattern_text, flags, Options::default())
-        .parse()
-    {
+    match ConstructorParser::new(&allocator, &pattern_text, flags, Options::default()).parse() {
         Ok(_) => {
             // 15. Assert: parseResult is a Pattern Parse Node.
         }
