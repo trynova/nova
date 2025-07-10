@@ -504,7 +504,7 @@ impl TryFrom<&str> for SmallString {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         // We have only 7 bytes to work with, so we must fail to convert if the
         // string is longer than that.
-        if value.as_bytes().len() <= MAX_LEN {
+        if value.len() <= MAX_LEN {
             // SAFETY: we just checked that the string is 7 bytes or fewer.
             Ok(unsafe { Self::from_str_unchecked(value) })
         } else {

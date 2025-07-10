@@ -315,8 +315,7 @@ impl<'a> String<'a> {
     /// If `message` is longer than 7 bytes.
     pub const fn from_small_string(message: &'static str) -> String<'static> {
         assert!(
-            message.as_bytes().len() < 8
-                && (message.is_empty() || message.as_bytes()[message.len() - 1] != 0)
+            message.len() < 8 && (message.is_empty() || message.as_bytes()[message.len() - 1] != 0)
         );
         String::SmallString(unsafe { SmallString::from_str_unchecked(message) })
     }
