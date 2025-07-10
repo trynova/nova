@@ -7,11 +7,14 @@ use std::borrow::Cow;
 
 use wtf8::{CodePoint, Wtf8};
 
+/// Maximum number of bytes a [SmallString] can inline.
+const MAX_LEN: usize = 7;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmallString {
     /// The string will be padded to 7 bytes with the 0xFF byte, which is never
     /// contained in valid UTF-8 or WTF-8.
-    bytes: [u8; 7],
+    bytes: [u8; MAX_LEN],
 }
 
 impl Ord for SmallString {
@@ -23,6 +26,20 @@ impl Ord for SmallString {
 impl PartialOrd for SmallString {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl PartialEq<str> for SmallString {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.as_bytes().eq(other.as_bytes())
+    }
+}
+
+impl PartialEq<&str> for SmallString {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        self.eq(*other)
     }
 }
 
@@ -48,7 +65,7 @@ impl SmallString {
                 break;
             }
             position += 1;
-            if position == 7 {
+            if position == MAX_LEN as u8 {
                 break;
             }
         }
@@ -251,12 +268,12 @@ impl SmallString {
     }
 
     #[inline]
-    pub const fn data(&self) -> &[u8; 7] {
+    pub const fn data(&self) -> &[u8; MAX_LEN] {
         &self.bytes
     }
 
     #[inline]
-    pub const fn data_mut(&mut self) -> &mut [u8; 7] {
+    pub const fn data_mut(&mut self) -> &mut [u8; MAX_LEN] {
         &mut self.bytes
     }
 
@@ -265,12 +282,18 @@ impl SmallString {
         matches!(self.bytes, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
     }
 
-    pub const fn from_str_unchecked(string: &str) -> Self {
+    /// Create a [SmallString] from a [str] without checking that it is small
+    /// enough to fit in the inline buffer.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that `string` 7 bytes or fewer long.
+    pub const unsafe fn from_str_unchecked(string: &str) -> Self {
         let string_bytes = string.as_bytes();
 
         // We have only 7 bytes to work with, so we must fail to convert if the
         // string is longer than that.
-        debug_assert!(string_bytes.len() < 8);
+        unsafe { std::hint::assert_unchecked(string_bytes.len() <= MAX_LEN) };
 
         match string_bytes.len() {
             0 => Self {
@@ -349,14 +372,31 @@ impl SmallString {
         }
     }
 
-    pub const fn from_wtf8_unchecked(string: &Wtf8) -> Self {
+    /// Inline a [Wtf8] into a [SmallString].
+    ///
+    /// # Panics
+    ///
+    /// If `string` is longer than 7 bytes.
+    #[inline]
+    pub fn from_wtf8(string: &Wtf8) -> Self {
+        assert!(string.len() <= MAX_LEN);
+        unsafe { Self::from_wtf8_unchecked(string) }
+    }
+
+    /// Create a [SmallString] from a [Wtf8] without checking that it is small
+    /// enough to fit in the inline buffer.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that `string` 7 bytes or fewer long.
+    pub const unsafe fn from_wtf8_unchecked(string: &Wtf8) -> Self {
         // SAFETY: The backing data of a WTF8 buffer is indeed a u8 buffer.
         // This is very sketchy but completely safe.
         let string_bytes = unsafe { core::mem::transmute::<&Wtf8, &[u8]>(string) };
 
         // We have only 7 bytes to work with, so we must fail to convert if the
         // string is longer than that.
-        debug_assert!(string_bytes.len() < 8);
+        unsafe { std::hint::assert_unchecked(string_bytes.len() <= MAX_LEN) };
 
         match string_bytes.len() {
             0 => Self {
@@ -436,7 +476,7 @@ impl SmallString {
     }
 
     pub fn from_char(ch: char) -> Self {
-        let mut bytes = [0xFF; 7];
+        let mut bytes = [0xFF; MAX_LEN];
         ch.encode_utf8(&mut bytes);
         SmallString { bytes }
     }
@@ -445,7 +485,7 @@ impl SmallString {
         if let Some(char) = ch.to_char() {
             Self::from_char(char)
         } else {
-            let mut bytes = [0xFFu8; 7];
+            let mut bytes = [0xFFu8; MAX_LEN];
 
             // Lone surrogate: these are U+D800 to U+DFFF.
             let p = ch.to_u32();
@@ -464,8 +504,9 @@ impl TryFrom<&str> for SmallString {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         // We have only 7 bytes to work with, so we must fail to convert if the
         // string is longer than that.
-        if value.len() < 8 {
-            Ok(Self::from_str_unchecked(value))
+        if value.len() <= MAX_LEN {
+            // SAFETY: we just checked that the string is 7 bytes or fewer.
+            Ok(unsafe { Self::from_str_unchecked(value) })
         } else {
             Err(())
         }
@@ -477,8 +518,9 @@ impl TryFrom<&Wtf8> for SmallString {
     fn try_from(value: &Wtf8) -> Result<Self, Self::Error> {
         // We have only 7 bytes to work with, so we must fail to convert if the
         // string is longer than that.
-        if value.len() < 8 {
-            Ok(Self::from_wtf8_unchecked(value))
+        if value.len() <= MAX_LEN {
+            // SAFETY: we just checked that the string is 7 bytes or fewer.
+            Ok(unsafe { Self::from_wtf8_unchecked(value) })
         } else {
             Err(())
         }
@@ -527,4 +569,21 @@ fn test_ascii() {
     for s in non_ascii {
         assert!(!SmallString::try_from(s).unwrap().is_ascii());
     }
+}
+
+#[test]
+fn str_conversion() {
+    let unicode = "🤗";
+    let str = SmallString::try_from(unicode).unwrap();
+    assert_eq!(str.len(), 4);
+    assert_eq!(str, unicode);
+
+    let str = SmallString::try_from(Wtf8::from_str(unicode)).unwrap();
+    assert_eq!(str.len(), 4);
+    assert_eq!(str, unicode);
+
+    // less than 7 characters, but more than 7 bytes
+    let too_large_unicode = "🤗🤗🤗";
+    assert!(SmallString::try_from(too_large_unicode).is_err());
+    assert!(SmallString::try_from(Wtf8::from_str(too_large_unicode)).is_err());
 }

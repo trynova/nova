@@ -311,11 +311,13 @@ impl<'a> String<'a> {
         }
     }
 
+    /// # Panics
+    /// If `message` is longer than 7 bytes.
     pub const fn from_small_string(message: &'static str) -> String<'static> {
         assert!(
             message.len() < 8 && (message.is_empty() || message.as_bytes()[message.len() - 1] != 0)
         );
-        String::SmallString(SmallString::from_str_unchecked(message))
+        String::SmallString(unsafe { SmallString::from_str_unchecked(message) })
     }
 
     pub fn concat<'gc>(
@@ -410,7 +412,8 @@ impl<'a> String<'a> {
                 // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
                 // concatenating UTF-8 strings, which is always valid UTF-8.
                 let str_slice = unsafe { core::str::from_utf8_unchecked(&data[..len]) };
-                SmallString::from_str_unchecked(str_slice).into()
+                // SAFETY: small statuses are guaranteed to be 7 bytes or fewer.
+                unsafe { SmallString::from_str_unchecked(str_slice) }.into()
             }
             Status::String(string) => agent.heap.create(string).bind(gc),
         }

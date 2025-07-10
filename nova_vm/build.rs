@@ -70,9 +70,9 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
         output.push_str("    r#");
         output.push_str(&replace_invalid_key_characters(string));
         if SmallString::try_from(string.as_str()).is_ok() {
-            output.push_str(": crate::ecmascript::types::String::SmallString(SmallString::from_str_unchecked(\"");
+            output.push_str(": crate::ecmascript::types::String::SmallString(unsafe { SmallString::from_str_unchecked(\"");
             output.push_str(string.as_str());
-            output.push_str("\")),\n");
+            output.push_str("\") }),\n");
         } else {
             output.push_str(
                 ": crate::ecmascript::types::String::String(HeapString(StringIndex::from_index(",
