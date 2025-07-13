@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{borrow::Cow, ops::ControlFlow};
+use std::ops::ControlFlow;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::RegExpFlags;
-use oxc_regular_expression::{ConstructorParser, Options};
+use oxc_regular_expression::{LiteralParser, Options};
 
 use crate::{
     ecmascript::{
@@ -204,14 +204,14 @@ pub(crate) fn reg_exp_initialize<'a>(
 
     let allocator = Allocator::new();
     // 13. Let parseResult be ParsePattern(patternText, u, v).
-    let pattern_text = if p.len(agent) == 0 {
-        Cow::Borrowed(r#""""#)
-    } else {
-        let s = p.to_string_lossy(agent);
-        // TODO: make a PR into oxc's regex parser to handle non-quoted strings.
-        Cow::Owned(format!(r#""{s}""#))
-    };
-    match ConstructorParser::new(&allocator, &pattern_text, flags, Options::default()).parse() {
+    match LiteralParser::new(
+        &allocator,
+        &p.to_string_lossy(agent),
+        flags,
+        Options::default(),
+    )
+    .parse()
+    {
         Ok(_) => {
             // 15. Assert: parseResult is a Pattern Parse Node.
         }
@@ -247,22 +247,25 @@ fn parse_flags(f: &str) -> Option<RegExpFlags> {
     let mut flags: u8 = 0;
     for cu in f.as_bytes() {
         match cu {
+            b'd' => flags |= RegExpFlags::D.bits(),
+            b'g' => flags |= RegExpFlags::G.bits(),
             // 6. If F contains "i", let i be true; else let i be false.
-            b'i' => flags &= RegExpFlags::I.bits(),
+            b'i' => flags |= RegExpFlags::I.bits(),
             // 7. If F contains "m", let m be true; else let m be false.
-            b'm' => flags &= RegExpFlags::M.bits(),
+            b'm' => flags |= RegExpFlags::M.bits(),
             // 8. If F contains "s", let s be true; else let s be false.
-            b's' => flags &= RegExpFlags::S.bits(),
+            b's' => flags |= RegExpFlags::S.bits(),
             // 9. If F contains "u", let u be true; else let u be false.
-            b'u' => flags &= RegExpFlags::U.bits(),
+            b'u' => flags |= RegExpFlags::U.bits(),
             // 10. If F contains "v", let v be true; else let v be false.
-            b'v' => flags &= RegExpFlags::V.bits(),
+            b'v' => flags |= RegExpFlags::V.bits(),
+            b'y' => flags |= RegExpFlags::Y.bits(),
+            // 5. If F contains any code unit other than "d", "g", "i", "m",
+            //    "s", "u", "v", or "y", or if F contains any code unit more
+            //    than once, throw a SyntaxError exception.
             _ => return None,
         }
     }
-    // 5. If F contains any code unit other than "d", "g", "i", "m", "s", "u",
-    //    "v", or "y", or if F contains any code unit more than once, throw a
-    //    SyntaxError exception.
     Some(RegExpFlags::from_bits_retain(flags))
 }
 
