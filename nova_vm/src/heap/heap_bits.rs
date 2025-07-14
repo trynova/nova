@@ -47,6 +47,7 @@ use crate::ecmascript::{
         keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
         map::Map,
         module::Module,
+        ordinary::shape::ObjectShape,
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
@@ -117,6 +118,7 @@ pub struct HeapBits {
     pub module_request_records: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub object_environments: Box<[bool]>,
+    pub object_shapes: Box<[bool]>,
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
     pub private_environments: Box<[bool]>,
@@ -198,6 +200,7 @@ pub(crate) struct WorkQueues {
     pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironment<'static>>,
     pub objects: Vec<OrdinaryObject<'static>>,
+    pub object_shapes: Vec<ObjectShape<'static>>,
     pub primitive_objects: Vec<PrimitiveObject<'static>>,
     pub private_environments: Vec<PrivateEnvironment<'static>>,
     pub promises: Vec<Promise<'static>>,
@@ -277,6 +280,7 @@ impl HeapBits {
         let module_request_records = vec![false; heap.module_request_records.len()];
         let numbers = vec![false; heap.numbers.len()];
         let object_environments = vec![false; heap.environments.object.len()];
+        let object_shapes = vec![false; heap.object_shapes.len()];
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
@@ -354,6 +358,7 @@ impl HeapBits {
             module_request_records: module_request_records.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             object_environments: object_environments.into_boxed_slice(),
+            object_shapes: object_shapes.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
             promise_reaction_records: promise_reaction_records.into_boxed_slice(),
@@ -437,6 +442,7 @@ impl WorkQueues {
             module_request_records: Vec::with_capacity(heap.module_request_records.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
+            object_shapes: Vec::with_capacity(heap.object_shapes.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             private_environments: Vec::with_capacity(heap.environments.private.len() / 4),
@@ -522,6 +528,7 @@ impl WorkQueues {
             module_request_records,
             numbers,
             object_environments,
+            object_shapes,
             objects,
             primitive_objects,
             private_environments,
@@ -619,6 +626,7 @@ impl WorkQueues {
             && module_request_records.is_empty()
             && numbers.is_empty()
             && object_environments.is_empty()
+            && object_shapes.is_empty()
             && objects.is_empty()
             && primitive_objects.is_empty()
             && private_environments.is_empty()
@@ -945,6 +953,7 @@ pub(crate) struct CompactionLists {
     pub module_request_records: CompactionList,
     pub numbers: CompactionList,
     pub object_environments: CompactionList,
+    pub object_shapes: CompactionList,
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
     pub private_environments: CompactionList,
@@ -1035,6 +1044,7 @@ impl CompactionLists {
             module_environments: CompactionList::from_mark_bits(&bits.module_environments),
             module_request_records: CompactionList::from_mark_bits(&bits.module_request_records),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
+            object_shapes: CompactionList::from_mark_bits(&bits.object_shapes),
             objects: CompactionList::from_mark_bits(&bits.objects),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             private_environments: CompactionList::from_mark_bits(&bits.private_environments),
@@ -1177,6 +1187,19 @@ where
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.iter_mut()
             .for_each(|entry| entry.sweep_values(compactions))
+    }
+}
+
+impl<T> HeapMarkAndSweep for Vec<T>
+where
+    T: HeapMarkAndSweep,
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.as_slice().mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.as_mut_slice().sweep_values(compactions);
     }
 }
 

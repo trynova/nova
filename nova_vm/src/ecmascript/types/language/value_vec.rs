@@ -11,7 +11,6 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::HeapRootCollectionData,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Value;
@@ -102,16 +101,6 @@ unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<Value<'static>>> {
     #[inline(always)]
     fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
         self
-    }
-}
-
-impl HeapMarkAndSweep for Vec<Value<'static>> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.as_slice().mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.as_mut_slice().sweep_values(compactions);
     }
 }
 

@@ -54,6 +54,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
+            ordinary::shape::ObjectShape,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -148,6 +149,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             modules,
             module_request_records,
             numbers,
+            object_shapes,
+            object_shape_transitions,
             objects,
             primitive_objects,
             promise_reaction_records,
@@ -574,6 +577,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 generators.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut object_marks: Box<[ObjectShape]> = queues.object_shapes.drain(..).collect();
+        object_marks.sort();
+        object_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.object_shapes.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                object_shapes.get(index).mark_values(&mut queues);
+                object_shape_transitions.get(index).mark_values(&mut queues);
             }
         });
         let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
@@ -1260,6 +1277,8 @@ fn sweep(
         modules,
         module_request_records,
         numbers,
+        object_shapes,
+        object_shape_transitions,
         objects,
         primitive_objects,
         promise_reaction_records,
@@ -1638,6 +1657,18 @@ fn sweep(
         if !object.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(object, &compactions, &bits.object_environments);
+            });
+        }
+        if !object_shapes.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(object_shapes, &compactions, &bits.object_shapes);
+            });
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    object_shape_transitions,
+                    &compactions,
+                    &bits.object_shapes,
+                );
             });
         }
         if !objects.is_empty() {
