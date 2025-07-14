@@ -88,7 +88,7 @@ use crate::{
             source_code::SourceCodeHeapData,
         },
         types::{
-            BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
+            BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
             HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject,
             PropertyKey, String, StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
@@ -100,6 +100,7 @@ use crate::{
         rootable::HeapRootData,
         small_f64::SmallF64,
     },
+    heap::indexes::StringIndex,
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -337,9 +338,63 @@ impl Heap {
             alloc_counter: 0,
         };
 
-        for builtin_string in BUILTIN_STRINGS_LIST {
-            unsafe { heap.alloc_static_str(builtin_string) };
+        const {
+            assert!(BUILTIN_STRINGS_LIST.len() < u32::MAX as usize);
         }
+        for (index, builtin_string) in BUILTIN_STRINGS_LIST.into_iter().enumerate() {
+            let hash = heap.string_hasher.hash_one(Wtf8::from_str(builtin_string));
+            let data = StringHeapData::from_static_str(builtin_string);
+            heap.strings.push(Some(data));
+            let index = StringIndex::from_u32_index(index as u32);
+            let heap_string = HeapString(index);
+            heap.string_lookup_table
+                .insert_unique(hash, heap_string, |_| hash);
+        }
+
+        heap.symbols.extend_from_slice(
+            &[
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_iterator),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_match),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_matchAll),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_replace),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_search),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_species),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_split),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_unscopables),
+                },
+            ]
+            .map(Some),
+        );
 
         heap
     }

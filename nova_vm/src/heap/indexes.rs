@@ -127,7 +127,7 @@ impl<T: ?Sized> BaseIndex<'_, T> {
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
         Self(
-            unsafe { NonZeroU32::new_unchecked(value + 1) },
+            unsafe { NonZeroU32::new_unchecked(value.wrapping_add(1)) },
             PhantomData,
             PhantomData,
         )

@@ -7,11 +7,13 @@ use std::{marker::PhantomData, num::NonZeroU32};
 use hashbrown::HashTable;
 
 use crate::{
-    ecmascript::types::{Object, PropertyKey},
+    ecmascript::types::{Object, OrdinaryObject, PropertyKey},
     engine::context::{Bindable, GcToken, NoGcScope},
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        element_array::ElementArrayKey, indexes::PropertyKeyIndex,
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicObjectIndexes,
+        WorkQueues,
+        element_array::ElementArrayKey,
+        indexes::{ObjectIndex, PropertyKeyIndex},
     },
 };
 
@@ -94,6 +96,33 @@ pub struct ObjectShapeRecord<'a> {
     len: u32,
 }
 
+impl ObjectShapeRecord<'_> {
+    /// Null Object Shape Record.
+    ///
+    /// This record has a `null` prototype and no keys.
+    pub(crate) const NULL: Self = Self {
+        prototype: None,
+        keys: PropertyKeyIndex::from_index(0),
+        len: 0,
+    };
+
+    /// Base Object Shape Record.
+    ///
+    /// This record has a `%Object.prototype%` prototype and no keys.
+    ///
+    /// > NOTE: The `%Object.prototype%` is created statically and does not
+    /// > point to the current Realm's intrinsic but to the "0th" Realm's
+    /// > intrinsic. This should only be used in static initialisation of the
+    /// > heap.
+    pub(crate) const BASE: Self = Self {
+        prototype: Some(Object::Object(OrdinaryObject::new(
+            IntrinsicObjectIndexes::ObjectPrototype.get_object_index(ObjectIndex::from_index(0)),
+        ))),
+        keys: PropertyKeyIndex::from_index(0),
+        len: 0,
+    };
+}
+
 /// Data structure for finding a forward transition from an Object Shape to a
 /// larger one when a property key is added.
 #[derive(Debug)]
@@ -124,6 +153,17 @@ pub(crate) struct ObjectShapeTransitionMap<'a> {
     // The defined ordering is also stable as long as our GC implementation
     // index/creation order of heap strings and symbols.
     table: HashTable<(PropertyKey<'a>, ObjectShape<'a>)>,
+}
+
+impl ObjectShapeTransitionMap<'_> {
+    /// Root Object Shape transition map.
+    ///
+    /// This transition map has no parent and (initially) contains no
+    /// transitions.
+    pub(crate) const ROOT: Self = Self {
+        parent: None,
+        table: HashTable::new(),
+    };
 }
 
 impl HeapMarkAndSweep for ObjectShape<'static> {
