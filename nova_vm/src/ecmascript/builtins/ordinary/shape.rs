@@ -21,6 +21,8 @@ use crate::{
 pub(crate) struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
 impl ObjectShape<'_> {
+    /// Get the implied usize index of the ObjectShape reference.
+    #[inline(always)]
     pub(crate) fn get_index(self) -> usize {
         self.0.get().wrapping_sub(1) as usize
     }
