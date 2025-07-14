@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, num::NonZeroU32};
 
 use hashbrown::HashTable;
 
@@ -10,19 +10,19 @@ use crate::{
     ecmascript::types::{Object, PropertyKey},
     engine::context::{Bindable, GcToken, NoGcScope},
     heap::{
-        CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementArrayKey,
-        indexes::PropertyKeyIndex,
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        element_array::ElementArrayKey, indexes::PropertyKeyIndex,
     },
 };
 
 /// Data structure describing the shape of an object.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ObjectShape<'a>(u32, PhantomData<&'a GcToken>);
+pub(crate) struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
 impl ObjectShape<'_> {
     pub(crate) fn get_index(self) -> usize {
-        self.0 as usize
+        self.0.get().wrapping_sub(1) as usize
     }
 }
 
@@ -96,11 +96,32 @@ pub struct ObjectShapeRecord<'a> {
 /// larger one when a property key is added.
 #[derive(Debug)]
 pub(crate) struct ObjectShapeTransitionMap<'a> {
+    /// Parent Shape back-pointer.
+    ///
+    /// This is garbage collection wise the main way to access other shapes.
+    parent: Option<ObjectShape<'a>>,
     /// Hash table keyed by PropertKeys, pointing to an ObjectShape that is
     /// reached by adding said property key to the current Shape.
-    table: HashTable<u32>,
-    keys: Vec<PropertyKey<'a>>,
-    values: Vec<ObjectShape<'a>>,
+    ///
+    /// > NOTE 1: The table is unordered.
+    ///
+    /// > NOTE 2: The Shapes in the table are weakly held.
+    // TODO: Consider using a BTreeMap here instead. We can define a total
+    // order over PropertyKeys as follows:
+    // 1. PrivateName keys in order of definition/creation.
+    // 2. Integer keys in order of value.
+    // 3. Small string keys in lexicographic order.
+    // 4. Heap string keys in order of index/creation.
+    // 5. Symbol keys in order of index/creation.
+    //
+    // With this ordering (or any other) we can use binary search for our key
+    // lookup, which may often be faster than a hash lookup. Importantly, the
+    // order is defined entirely by the key value and does not depend on the
+    // data of the key (the heap strings, specifically). This means that the
+    // lookup does not need to access any other memory than the table itself.
+    // The defined ordering is also stable as long as our GC implementation
+    // index/creation order of heap strings and symbols.
+    table: HashTable<(PropertyKey<'a>, ObjectShape<'a>)>,
 }
 
 impl HeapMarkAndSweep for ObjectShape<'static> {
@@ -109,7 +130,18 @@ impl HeapMarkAndSweep for ObjectShape<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.object_shapes.shift_u32_index(&mut self.0);
+        compactions
+            .object_shapes
+            .shift_non_zero_u32_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for ObjectShape<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions
+            .object_shapes
+            .shift_weak_non_zero_u32_index(self.0)
+            .map(|i| Self(i, PhantomData))
     }
 }
 
@@ -157,22 +189,27 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
 
 impl HeapMarkAndSweep for ObjectShapeTransitionMap<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            table: _,
-            keys,
-            values,
-        } = self;
-        keys.mark_values(queues);
-        values.mark_values(queues);
+        let Self { parent, table } = self;
+        parent.mark_values(queues);
+        // NOTE: values are weakly held; we do not mark them.
+        for (key, _) in table.iter() {
+            key.mark_values(queues);
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            table: _,
-            keys,
-            values,
-        } = self;
-        keys.sweep_values(compactions);
-        values.sweep_values(compactions);
+        let Self { parent, table } = self;
+        parent.sweep_values(compactions);
+        table.retain(|(key, value)| {
+            // Note: if our value was held strongly by someone else, then we
+            // keep it in our transition table and sweep it and its key.
+            let Some(new_value) = value.sweep_weak_reference(compactions) else {
+                // Otherwise, we drop it off the table, key and all.
+                return false;
+            };
+            key.sweep_values(compactions);
+            *value = new_value;
+            true
+        });
     }
 }

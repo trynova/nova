@@ -753,9 +753,12 @@ impl CompactionList {
         // 1-indexed value
         let base_index: u32 = (*index).into();
         // 0-indexed value
-        let base_index = base_index - 1;
+        // SAFETY: NonZeroU32 as u32 cannot wrap when 1 is subtracted.
+        let base_index = unsafe { base_index.unchecked_sub(1) };
         // SAFETY: Shifted base index can be 0, adding 1 makes it non-zero.
-        *index = unsafe { NonZeroU32::new_unchecked(self.shift_strong_u32_index(base_index) + 1) };
+        *index = unsafe {
+            NonZeroU32::new_unchecked(self.shift_strong_u32_index(base_index).unchecked_add(1))
+        };
     }
 
     /// Shift a weakly held reference index. Returns a new index if the
@@ -767,6 +770,20 @@ impl CompactionList {
         let base_index = index.into_u32_index();
         let base_index = self.shift_weak_u32_index(base_index)?;
         Some(BaseIndex::from_u32_index(base_index))
+    }
+
+    /// Shift a weakly held non-zero reference index. Returns a new index if
+    /// the reference target is live, otherwise returns None.
+    pub(crate) fn shift_weak_non_zero_u32_index(&self, index: NonZeroU32) -> Option<NonZeroU32> {
+        // 1-indexed value
+        let base_index: u32 = index.into();
+        // 0-indexed value
+        let base_index = base_index.wrapping_sub(1);
+        let base_index = self.shift_weak_u32_index(base_index)?.wrapping_add(1);
+        // SAFETY: we added 1 to the u32, which itself comes from our original
+        // index. It can be shifted down but will never wrap around, so adding
+        // the 1 cannot wrap around to 0 either.
+        Some(unsafe { NonZeroU32::new_unchecked(base_index) })
     }
 
     fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
@@ -1121,12 +1138,14 @@ impl<T> HeapMarkAndSweep for Option<T>
 where
     T: HeapMarkAndSweep,
 {
+    #[inline]
     fn mark_values(&self, queues: &mut WorkQueues) {
         if let Some(content) = self {
             content.mark_values(queues);
         }
     }
 
+    #[inline]
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         if let Some(content) = self {
             content.sweep_values(compactions);
