@@ -73,7 +73,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData,
             module::{Module, data::ModuleHeapData},
-            ordinary::shape::{ObjectShapeRecord, ObjectShapeTransitionMap},
+            ordinary::shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
@@ -154,8 +154,9 @@ pub struct Heap {
     pub maps: Vec<Option<MapHeapData<'static>>>,
     pub map_iterators: Vec<Option<MapIteratorHeapData<'static>>>,
     pub numbers: Vec<Option<NumberHeapData>>,
-    pub object_shapes: Vec<ObjectShapeRecord<'static>>,
+    pub(crate) object_shapes: Vec<ObjectShapeRecord<'static>>,
     pub(crate) object_shape_transitions: Vec<ObjectShapeTransitionMap<'static>>,
+    pub(crate) prototype_shapes: PrototypeShapeTable<'static>,
     pub objects: Vec<Option<ObjectHeapData<'static>>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
@@ -299,6 +300,7 @@ impl Heap {
             numbers: Vec::with_capacity(1024),
             object_shapes: Vec::with_capacity(256),
             object_shape_transitions: Vec::with_capacity(256),
+            prototype_shapes: PrototypeShapeTable::with_capacity(64),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
             promise_reaction_records: Vec::with_capacity(0),
@@ -395,6 +397,13 @@ impl Heap {
             ]
             .map(Some),
         );
+
+        // Set up the `{ __proto__: null }` shape; all null-proto objects are
+        // children of this shape, regardless of their realm, so this is always
+        // added in here.
+        heap.object_shapes.push(ObjectShapeRecord::NULL);
+        heap.object_shape_transitions
+            .push(ObjectShapeTransitionMap::ROOT);
 
         heap
     }

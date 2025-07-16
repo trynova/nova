@@ -23,6 +23,13 @@ use crate::{
 pub(crate) struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
 impl ObjectShape<'_> {
+    /// Object Shape for `{ __proto__: null }`.
+    ///
+    /// This is the root Object Shape for all null-prototype objects, hence why
+    /// it can be accessed statically.
+    // SAFETY: statically safe.
+    pub(crate) const NULL: Self = Self(unsafe { NonZeroU32::new_unchecked(1) }, PhantomData);
+
     /// Get the implied usize index of the ObjectShape reference.
     #[inline(always)]
     pub(crate) fn get_index(self) -> usize {
@@ -166,6 +173,26 @@ impl ObjectShapeTransitionMap<'_> {
     };
 }
 
+/// Lookup-table to find a root Object Shape for a given prototype.
+///
+/// > NOTE: The values in the map are held weakly, while keys are held
+/// > strongly. We do not mind keeping the prototype object in memory a single
+/// > extra GC collection cycle. Entries are removed from the table if no child
+/// > shape refers to them (transitively) anymore.
+#[derive(Debug)]
+#[repr(transparent)]
+pub(crate) struct PrototypeShapeTable<'a> {
+    table: HashTable<(Object<'a>, ObjectShape<'a>)>,
+}
+
+impl PrototypeShapeTable<'_> {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            table: HashTable::with_capacity(capacity),
+        }
+    }
+}
+
 impl HeapMarkAndSweep for ObjectShape<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.object_shapes.push(*self);
@@ -234,7 +261,7 @@ impl HeapMarkAndSweep for ObjectShapeTransitionMap<'static> {
         let Self { parent, table } = self;
         parent.mark_values(queues);
         // NOTE: values are weakly held; we do not mark them.
-        for (key, _) in table.iter() {
+        for (key, _) in table {
             key.mark_values(queues);
         }
     }
@@ -242,6 +269,31 @@ impl HeapMarkAndSweep for ObjectShapeTransitionMap<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self { parent, table } = self;
         parent.sweep_values(compactions);
+        table.retain(|(key, value)| {
+            // Note: if our value was held strongly by someone else, then we
+            // keep it in our transition table and sweep it and its key.
+            let Some(new_value) = value.sweep_weak_reference(compactions) else {
+                // Otherwise, we drop it off the table, key and all.
+                return false;
+            };
+            key.sweep_values(compactions);
+            *value = new_value;
+            true
+        });
+    }
+}
+
+impl HeapMarkAndSweep for PrototypeShapeTable<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self { table } = self;
+        // Note: we do not mark the values, they're held weakly.
+        for (key, _) in table {
+            key.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self { table } = self;
         table.retain(|(key, value)| {
             // Note: if our value was held strongly by someone else, then we
             // keep it in our transition table and sweep it and its key.

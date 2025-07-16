@@ -110,6 +110,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         WellKnownSymbolIndexes::ToStringTag.into(),
         WellKnownSymbolIndexes::Unscopables.into(),
     ]);
+    queues.object_shapes.push(ObjectShape::NULL);
     agent.mark_values(&mut queues);
 
     while !queues.is_empty() {
@@ -151,6 +152,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             numbers,
             object_shapes,
             object_shape_transitions,
+            prototype_shapes,
             objects,
             primitive_objects,
             promise_reaction_records,
@@ -215,6 +217,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             k2pow24,
             k2pow32,
         } = elements;
+
+        prototype_shapes.mark_values(&mut queues);
+
         let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
         module_marks.sort();
         module_marks.iter().for_each(|&idx| {
@@ -1279,6 +1284,7 @@ fn sweep(
         numbers,
         object_shapes,
         object_shape_transitions,
+        prototype_shapes,
         objects,
         primitive_objects,
         promise_reaction_records,
@@ -1345,6 +1351,8 @@ fn sweep(
         k2pow24,
         k2pow32,
     } = elements;
+
+    prototype_shapes.sweep_values(&compactions);
 
     let mut globals = globals.borrow_mut();
     let globals_iter = globals.iter_mut();
