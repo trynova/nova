@@ -432,6 +432,12 @@ impl Test262Runner {
             builder.use_current_thread().build().unwrap()
         };
 
+        if !self.inner.tests_base.exists() {
+            let dir = self.inner.tests_base.display();
+            panic!(
+                "Test262 directory at {dir} does not exist. Did you forget to run `git submodule update --init`?"
+            );
+        }
         thread_pool.install(|| {
             self.walk_dir(&self.inner.tests_base.clone(), filters);
         });
@@ -464,19 +470,23 @@ impl Test262Runner {
     /// directory) will be run.
     fn walk_dir(&self, path: &PathBuf, filters: &TestFilters) {
         // Iterate through every entry in this directory in parallel.
-        read_dir(path).unwrap().par_bridge().for_each(|entry| {
-            let entry = entry.unwrap();
+        read_dir(path)
+            .map_err(|e| format!("Failed to open directory {}: {e}", path.display()))
+            .unwrap()
+            .par_bridge()
+            .for_each(|entry| {
+                let entry = entry.unwrap();
 
-            if entry.file_type().unwrap().is_dir() {
-                if let Some(child_filters) = filters.filter_dir(&entry.file_name()) {
-                    self.walk_dir(&entry.path(), &child_filters);
+                if entry.file_type().unwrap().is_dir() {
+                    if let Some(child_filters) = filters.filter_dir(&entry.file_name()) {
+                        self.walk_dir(&entry.path(), &child_filters);
+                    }
                 }
-            }
 
-            if entry.file_type().unwrap().is_file() && filters.filter_file(&entry.file_name()) {
-                self.run_test(&entry.path());
-            }
-        })
+                if entry.file_type().unwrap().is_file() && filters.filter_file(&entry.file_name()) {
+                    self.run_test(&entry.path());
+                }
+            })
     }
 
     fn run_test(&self, path: &PathBuf) {

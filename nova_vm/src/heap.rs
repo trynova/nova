@@ -8,6 +8,8 @@ mod heap_constants;
 pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
+// mod subspace_old;
+mod subspace;
 
 use core::{cell::RefCell, ops::Index};
 use std::ops::Deref;
@@ -22,12 +24,16 @@ pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
+// pub(crate) use self::subspace::{
+//     HeapResident, IsoSubspace, Subspace, SubspaceResident, declare_nominal_heap_resident,
+// };
+pub(crate) use subspace::*;
 use self::{
     element_array::{
         ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
         ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
     },
-    indexes::NumberIndex,
+    indexes::{BaseIndex, NumberIndex},
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
@@ -364,6 +370,15 @@ impl Heap {
         self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
         Script::last(&self.scripts)
     }
+
+    // pub(crate) fn alloc<'a, T, U>(&'a mut self, data: T) -> U
+    // where
+    //     T: subspace::SubspaceResident,
+    //     U: From<BaseIndex<'a, T>>,
+    // {
+    //     let subspace = T::subspace_for_mut(self);
+    //     subspace.alloc(data).into()
+    // }
 
     /// Allocate a borrowed string onto the Agent heap
     ///

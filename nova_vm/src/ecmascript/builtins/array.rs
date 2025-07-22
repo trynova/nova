@@ -36,29 +36,24 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues,
+        WellKnownSymbolIndexes, WorkQueues, declare_subspace_resident,
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
-        indexes::ArrayIndex,
+        indexes::{ArrayIndex, BaseIndex},
     },
 };
 
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Array<'a>(ArrayIndex<'a>);
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+// pub struct Array<'a>(ArrayIndex<'a>);
+declare_subspace_resident!(iso; struct Array, ArrayHeapData);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl<'a> Array<'a> {
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(ArrayIndex::from_u32_index(0))
-    }
-
     /// Creates a new array with the given elements.
     ///
     /// This is equal to the [CreateArrayFromList](https://tc39.es/ecma262/#sec-createarrayfromlist)
@@ -66,10 +61,6 @@ impl<'a> Array<'a> {
     #[inline]
     pub fn from_slice(agent: &mut Agent, elements: &[Value], gc: NoGcScope<'a, '_>) -> Self {
         create_array_from_list(agent, elements, gc)
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     pub fn len(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> u32 {
@@ -228,27 +219,6 @@ impl<'a> Array<'a> {
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
         let elements = agent[self].elements;
         &mut agent[&elements]
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Array<'_> {
-    type Of<'a> = Array<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> From<ArrayIndex<'a>> for Array<'a> {
-    fn from(value: ArrayIndex<'a>) -> Self {
-        Array(value)
     }
 }
 
