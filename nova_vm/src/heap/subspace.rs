@@ -1,23 +1,26 @@
 mod iso_subspace;
 
-pub(crate) use iso_subspace::{IsoSubspace, IsoSubspaceResident};
+pub(crate) use iso_subspace::IsoSubspace;
 
 use super::*;
-// type Ptr<'a, T: ?Sized> = BaseIndex<'a, T>;
 
-pub trait Subspace<'a, T: ?Sized, Ptr: ?Sized> {
-    fn alloc(&'a mut self, data: T) -> Ptr;
+pub trait Subspace<T: SubspaceResident> {
+    fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a>;
 }
-
-pub trait SubspaceResident<'a, HeapRepr: ?Sized> {
-    type Space: Subspace<'a, HeapRepr, Self>;
+pub(crate) trait SubspaceResident: Bindable {
+    type Key<'a>: SubspaceIndex<'a, Self>;
+    type Bound<'a>: Bindable<Of<'static> = Self>;
+}
+pub trait WithSubspace<T: SubspaceResident> {
+    type Space: Subspace<T>;
+    // type Bound<'a> : Bindable<Of<'static> = Self>;
     fn subspace_for(heap: &Heap) -> &Self::Space;
     fn subspace_for_mut(heap: &mut Heap) -> &mut Self::Space;
 }
+
 pub(crate) trait HeapIndexable {
     fn get_index(self) -> usize;
 }
-
 
 pub(crate) trait SubspaceIndex<'a, T: Bindable>:
     From<BaseIndex<'a, T>> + HeapIndexable
@@ -25,25 +28,10 @@ pub(crate) trait SubspaceIndex<'a, T: Bindable>:
     /// # Do not use this
     /// This is only for Value discriminant creation.
     const _DEF: Self;
-    // const fn _def() -> Self {
-    //     Self(BaseIndex::from_u32_index(0))
-    // }
-    // fn get_index(self) -> usize;
-    //  {
-    //     self.0.into_index()
-    // }
-    // fn id(self) -> BaseIndex<'a, T>;
-    // fn get_index(self) -> usize {
-
-    // }
 }
 
-// pub trait IsoSubspaceResident {
-//     type Data<'a>: Bindable<Of<'a> = Self::Data<'a>>;
-// }
-
 macro_rules! declare_subspace_resident {
-    (iso; struct $Nominal:ident, $Data:ident) => {
+    (iso = $space:ident; struct $Nominal:ident, $Data:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub struct $Nominal<'a>(BaseIndex<'a, $Data<'static>>);
 
@@ -79,9 +67,18 @@ macro_rules! declare_subspace_resident {
             }
         }
 
-        impl crate::heap::IsoSubspaceResident for $Data<'static> {
+        impl crate::heap::SubspaceResident for $Data<'static> {
             type Key<'a> = $Nominal<'a>;
-            type X<'a> = $Data<'a>;
+            type Bound<'a> = $Data<'a>;
+        }
+        impl crate::heap::WithSubspace<$Data<'static>> for $Nominal<'_> {
+            type Space = IsoSubspace<$Data<'static>>;
+            fn subspace_for(heap: &Heap) -> &Self::Space {
+                &heap.$space
+            }
+            fn subspace_for_mut(heap: &mut Heap) -> &mut Self::Space {
+                &mut heap.$space
+            }
         }
     };
 }

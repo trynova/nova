@@ -1,4 +1,4 @@
-use super::{HeapIndexable, Subspace, SubspaceIndex};
+use super::{HeapIndexable, Subspace};
 use std::{fmt, ops};
 // use crate::{engine::context::Bindable, heap::indexes::BaseIndex};
 use crate::heap::*;
@@ -7,12 +7,6 @@ pub struct IsoSubspace<D> {
     name: &'static str,
     alloc_count: usize,
     data: Vec<Option<D>>,
-    // _marker: PhantomData<T>,
-}
-
-pub trait IsoSubspaceResident: Bindable {
-    type Key<'a>: SubspaceIndex<'a, Self>;
-    type X<'a>: Bindable<Of<'static> = Self>;
 }
 
 impl<D> IsoSubspace<D> {
@@ -25,7 +19,6 @@ impl<D> IsoSubspace<D> {
             name,
             alloc_count: 0,
             data: Vec::with_capacity(capacity),
-            // _marker: PhantomData,
         }
     }
 
@@ -44,15 +37,13 @@ impl<D> IsoSubspace<D> {
 
 impl<T> IsoSubspace<T>
 where
-    T: IsoSubspaceResident,
+    T: SubspaceResident,
 {
     pub fn get(&self, key: T::Key<'_>) -> Option<&T> {
         self.data.get(key.get_index()).and_then(Option::as_ref)
     }
     pub fn get_mut(&mut self, key: T::Key<'_>) -> Option<&mut T> {
-        self.data
-            .get_mut(key.get_index())
-            .and_then(Option::as_mut)
+        self.data.get_mut(key.get_index()).and_then(Option::as_mut)
     }
     pub fn slot(&self, key: T::Key<'_>) -> &Option<T> {
         self.data.get(key.get_index()).expect("Slot out of bounds")
@@ -64,36 +55,9 @@ where
     }
 }
 
-// impl<T, D> ops::Index<T> for IsoSubspace<T, D>
-// where
-//     T: HeapIndexable,
-// {
-//     type Output = D;
-//     fn index(&self, index: T) -> &Self::Output {
-//         self.data
-//             .get(index.get_index())
-//             .expect("subspace index out of bounds")
-//             .as_ref()
-//             .expect("subspace slot is empty")
-//     }
-// }
-
-// impl<T, D> ops::IndexMut<T> for IsoSubspace<T, D>
-// where
-//     T: HeapIndexable,
-// {
-//     fn index_mut(&mut self, index: T) -> &mut Self::Output {
-//         self.data
-//             .get_mut(index.get_index())
-//             .expect("subspace index out of bounds")
-//             .as_mut()
-//             .expect("subspace slot is empty")
-//     }
-// }
-
 impl<T> ops::Index<T::Key<'_>> for IsoSubspace<T>
 where
-    T: IsoSubspaceResident,
+    T: SubspaceResident,
 {
     type Output = T;
 
@@ -108,7 +72,7 @@ where
 
 impl<T> ops::IndexMut<T::Key<'_>> for IsoSubspace<T>
 where
-    T: IsoSubspaceResident,
+    T: SubspaceResident,
 {
     fn index_mut(&mut self, index: T::Key<'_>) -> &mut Self::Output {
         self.data
@@ -119,15 +83,12 @@ where
     }
 }
 
-impl<'a, T> Subspace<'a, T, T::Key<'a>> for IsoSubspace<T>
+impl<T> Subspace<T> for IsoSubspace<T>
 where
-    // R: IsoSubspaceResident + From<BaseIndex<'a, R::Data<'static>>>,
-    T: IsoSubspaceResident,
+    T: SubspaceResident,
 {
-    fn alloc(&'a mut self, data: T) -> T::Key<'a> {
-        // SAFETY: this is not safe. fixme.
-        // let d: R::Data<'static> = unsafe { std::mem::transmute(data) };
-        self.data.push(Some(data));
+    fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
+        self.data.push(Some(data.unbind()));
         self.alloc_count += core::mem::size_of::<T>();
         T::Key::from(BaseIndex::from_usize(self.data.len()))
     }
@@ -135,45 +96,25 @@ where
 
 impl<T> IsoSubspace<T>
 where
-    T: IsoSubspaceResident,
+    T: SubspaceResident,
 {
-    pub (crate) fn reserve_intrinsic(&mut self) -> T::Key<'static> {
+    pub(crate) fn reserve_intrinsic(&mut self) -> T::Key<'static> {
         self.data.push(None);
         // note: not from_index b/c len is now +1
         T::Key::from(BaseIndex::from_usize(self.len()))
-
     }
-    pub(crate) fn create<'a>(&mut self, data: T::X<'a>) -> T::Key<'a>
-        // for<'a> U: IsoSubspaceResident<Key<'a> = T::Key<'a>, Of<'a> = T::Of<'a>>,
-    {
+    pub(crate) fn create<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
         let d: T = unsafe { core::mem::transmute(data.unbind()) };
 
         self.data.push(Some(d));
         self.alloc_count += core::mem::size_of::<T>();
         T::Key::from(BaseIndex::from_usize(self.data.len()))
     }
-    // fn create<U>(&mut self, data: U) -> T::Key<'_>
-    // where
-    //     for<'a> U: IsoSubspaceResident<Key<'a> = T::Key<'a>, Of<'a> = T::Of<'a>>,
-    // {
 }
-
-// impl<'a, /* static */ T, /* gc bound*/ U> IsoSubspace<T>
-// where
-//     T: IsoSubspaceResident<Of<'a> = U>,
-//     U: IsoSubspaceResident<Of<'static> = T>,
-//     // T::Of<'static>
-// {
-//     pub fn create(&mut self, data: U) -> T::Key<'a> {
-//         self.data.push(Some(data.unbind()));
-//         self.alloc_count += core::mem::size_of::<T>();
-//         return T::Key::from(BaseIndex::from_usize(self.data.len()));
-//     }
-// }
 
 impl<T> IsoSubspace<T>
 where
-    T: IsoSubspaceResident + HeapMarkAndSweep,
+    T: SubspaceResident + HeapMarkAndSweep,
 {
     pub(crate) fn mark<'a, M>(
         &'a self, //

@@ -24,16 +24,23 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}, unwrap_try, TryResult
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        unwrap_try,
     },
     heap::{
-        declare_subspace_resident, element_array::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IsoSubspace, WellKnownSymbolIndexes, WorkQueues, declare_subspace_resident,
+        element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        }, indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IsoSubspace, WellKnownSymbolIndexes, WorkQueues
+        },
+        indexes::BaseIndex,
     },
 };
 
@@ -42,7 +49,7 @@ pub use data::ArrayHeapData;
 
 // #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 // pub struct Array<'a>(ArrayIndex<'a>);
-declare_subspace_resident!(iso; struct Array, ArrayHeapData);
+declare_subspace_resident!(iso = arrays; struct Array, ArrayHeapData);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
@@ -156,7 +163,7 @@ impl<'a> Array<'a> {
             object_index: None,
             elements: cloned_elements,
         };
-        agent.heap.create(data)
+        agent.heap.alloc::<ArrayHeapData<'static>>(data)
     }
 
     #[inline]
@@ -775,16 +782,16 @@ impl Rootable for Array<'_> {
     }
 }
 
-impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
-    fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
-        // self.arrays.alloc(data.unbind())
-        let arr: Array<'a> = self.arrays.create(data);
-        arr
-        // self.arrays.push(Some(data.unbind()));
-        // self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        // Array::from(ArrayIndex::last(&self.arrays))
-    }
-}
+// impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
+//     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
+//         // self.arrays.alloc(data.unbind())
+//         let arr: Array<'a> = self.arrays.create(data);
+//         arr
+//         // self.arrays.push(Some(data.unbind()));
+//         // self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
+//         // Array::from(ArrayIndex::last(&self.arrays))
+//     }
+// }
 
 impl HeapMarkAndSweep for Array<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -1093,7 +1100,7 @@ fn insert_element_descriptor(
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
-    arrays: &'a IsoSubspace<ArrayHeapData<'static>>
+    arrays: &'a IsoSubspace<ArrayHeapData<'static>>,
 }
 
 impl ArrayHeap<'_> {

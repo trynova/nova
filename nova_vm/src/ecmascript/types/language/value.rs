@@ -19,22 +19,43 @@ use crate::ecmascript::builtins::{
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::{
+    SmallInteger, SmallString,
     ecmascript::{
         abstract_operations::type_conversion::{
             to_big_int, to_int16, to_int32, to_number, to_numeric, to_string, to_uint16, to_uint32,
             try_to_string,
         },
         builtins::{
-            async_generator_objects::AsyncGenerator, bound_function::BoundFunction, control_abstraction_objects::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            async_generator_objects::AsyncGenerator,
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
                 generator_objects::Generator,
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            }, embedder_object::EmbedderObject, error::Error, finalization_registry::FinalizationRegistry, indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator, keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator, map::Map, module::Module, primitive_objects::PrimitiveObject, promise::Promise, proxy::Proxy, text_processing::string_objects::string_iterator_objects::StringIterator, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction
+            },
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult},
-        types::{Object, BUILTIN_STRING_MEMORY},
-    }, engine::{
-        context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}, small_bigint::SmallBigInt, small_f64::SmallF64, Scoped, TryResult
-    }, heap::{CompactionLists, HeapIndexable as _, HeapMarkAndSweep, SubspaceIndex, WorkQueues}, SmallInteger, SmallString
+        types::{BUILTIN_STRING_MEMORY, Object},
+    },
+    engine::{
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_bigint::SmallBigInt,
+        small_f64::SmallF64,
+    },
+    heap::{CompactionLists, HeapIndexable as _, HeapMarkAndSweep, SubspaceIndex, WorkQueues},
 };
 #[cfg(feature = "array-buffer")]
 use crate::{

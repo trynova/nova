@@ -26,7 +26,6 @@ pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 // pub(crate) use self::subspace::{
 //     HeapResident, IsoSubspace, Subspace, SubspaceResident, declare_nominal_heap_resident,
 // };
-pub(crate) use subspace::*;
 use self::{
     element_array::{
         ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
@@ -57,31 +56,53 @@ use crate::ecmascript::builtins::{
     weak_set::data::WeakSetHeapData,
 };
 use crate::{
+    SmallInteger,
     ecmascript::{
         builtins::{
-            array_buffer::DetachKey, async_generator_objects::AsyncGeneratorHeapData, control_abstraction_objects::{
+            ArrayBuffer, ArrayHeapData,
+            array_buffer::DetachKey,
+            async_generator_objects::AsyncGeneratorHeapData,
+            control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorHeapData,
                 promise_objects::promise_abstract_operations::{
                     promise_reaction_records::PromiseReactionRecord,
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
-            }, embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData, finalization_registry::data::FinalizationRegistryHeapData, indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData, keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData, map::data::MapHeapData, module::{data::ModuleHeapData, Module}, primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData, proxy::data::ProxyHeapData, text_processing::string_objects::string_iterator_objects::StringIteratorHeapData, ArrayBuffer, ArrayHeapData
+            },
+            embedder_object::data::EmbedderObjectHeapData,
+            error::ErrorHeapData,
+            finalization_registry::data::FinalizationRegistryHeapData,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+            map::data::MapHeapData,
+            module::{Module, data::ModuleHeapData},
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
             module::module_semantics::{
-                source_text_module_records::SourceTextModuleHeap, ModuleRequestRecord
+                ModuleRequestRecord, source_text_module_records::SourceTextModuleHeap,
             },
             script::{Script, ScriptRecord},
             source_code::SourceCodeHeapData,
         },
         types::{
-            bigint::HeapBigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject, PropertyKey, String, StringHeapData, Symbol, SymbolHeapData, Value, BUILTIN_STRINGS_LIST
+            BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
+            BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+            HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject,
+            PropertyKey, String, StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
         },
-    }, engine::{
-        context::{Bindable, NoGcScope}, rootable::HeapRootData, small_f64::SmallF64, ExecutableHeapData
-    }, SmallInteger
+    },
+    engine::{
+        ExecutableHeapData,
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+        small_f64::SmallF64,
+    },
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -95,6 +116,7 @@ pub(crate) use heap_bits::{
     CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, sweep_side_set,
 };
 use indexes::TypedArrayIndex;
+pub(crate) use subspace::*;
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
@@ -347,6 +369,13 @@ impl Heap {
         self.scripts.push(Some(script.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
         Script::last(&self.scripts)
+    }
+
+    pub(crate) fn alloc<'a, T: SubspaceResident>(&mut self, value: T::Bound<'a>) -> T::Key<'a>
+    where
+        T::Key<'a>: WithSubspace<T>,
+    {
+        T::Key::subspace_for_mut(self).alloc(value)
     }
 
     // pub(crate) fn alloc<'a, T, U>(&'a mut self, data: T) -> U
@@ -614,6 +643,14 @@ pub(crate) trait PropertyKeyHeapIndexable:
 impl PropertyKeyHeapIndexable for PropertyKeyHeap<'_> {}
 impl PropertyKeyHeapIndexable for Agent {}
 
+// impl<'a, T> CreateHeapData<T::Bound<'a>, T::Key<'a>> for T::Key<'a>
+// where
+//     T: SubspaceResident,
+// {
+//     fn create(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
+//         self.alloc(data)
+//     }
+// }
 #[test]
 fn init_heap() {
     let heap = Heap::new();

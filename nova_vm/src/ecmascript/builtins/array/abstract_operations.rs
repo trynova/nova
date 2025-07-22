@@ -75,7 +75,7 @@ pub(crate) fn array_create<'a>(
     };
 
     // 7. Return A.
-    Ok(agent.heap.create(data))
+    Ok(agent.heap.alloc::<ArrayHeapData<'static>>(data))
 }
 
 /// ### [10.4.2.3 ArraySpeciesCreate ( originalArray, length )](https://tc39.es/ecma262/#sec-arrayspeciescreate)

@@ -326,17 +326,6 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         let mut array_marks: Box<[Array]> = queues.arrays.drain(..).collect();
         array_marks.sort();
         arrays.mark(array_marks, &mut bits.arrays, &mut queues);
-        // array_marks.iter().for_each(|&idx| {
-        //     let index = idx.get_index();
-        //     if let Some(marked) = bits.arrays.get_mut(index) {
-        //         if *marked {
-        //             // Already marked, ignore
-        //             return;
-        //         }
-        //         *marked = true;
-        //         arrays.get(index).mark_values(&mut queues);
-        //     }
-        // });
         #[cfg(feature = "array-buffer")]
         {
             let mut array_buffer_marks: Box<[ArrayBuffer]> =
@@ -1492,9 +1481,7 @@ fn sweep(
             });
         }
         if !arrays.is_empty() {
-            s.spawn(|| {
-                arrays.sweep(&compactions, &bits.arrays)
-            });
+            s.spawn(|| arrays.sweep(&compactions, &bits.arrays));
         }
         if !array_iterators.is_empty() {
             s.spawn(|| {
