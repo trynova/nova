@@ -24,23 +24,16 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY
         },
     },
     engine::{
-        TryResult,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try,
+        context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}, unwrap_try, TryResult
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, declare_subspace_resident,
-        element_array::{
+        declare_subspace_resident, element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        },
-        indexes::{ArrayIndex, BaseIndex},
+        }, indexes::{ArrayIndex, BaseIndex}, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IsoSubspace, Subspace as _, WellKnownSymbolIndexes, WorkQueues
     },
 };
 
@@ -739,25 +732,25 @@ impl IndexMut<Array<'_>> for Agent {
     }
 }
 
-impl Index<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
-    type Output = ArrayHeapData<'static>;
+// impl Index<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
+//     type Output = ArrayHeapData<'static>;
 
-    fn index(&self, index: Array) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Array out of bounds")
-            .as_ref()
-            .expect("Array slot empty")
-    }
-}
+//     fn index(&self, index: Array) -> &Self::Output {
+//         self.get(index.get_index())
+//             .expect("Array out of bounds")
+//             .as_ref()
+//             .expect("Array slot empty")
+//     }
+// }
 
-impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Array out of bounds")
-            .as_mut()
-            .expect("Array slot empty")
-    }
-}
+// impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
+//     fn index_mut(&mut self, index: Array) -> &mut Self::Output {
+//         self.get_mut(index.get_index())
+//             .expect("Array out of bounds")
+//             .as_mut()
+//             .expect("Array slot empty")
+//     }
+// }
 
 impl Rootable for Array<'_> {
     type RootRepr = HeapRootRef;
@@ -784,9 +777,12 @@ impl Rootable for Array<'_> {
 
 impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
-        self.arrays.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        Array::from(ArrayIndex::last(&self.arrays))
+        // self.arrays.alloc(data.unbind())
+        let arr: Array<'a> = self.arrays.create(data);
+        arr
+        // self.arrays.push(Some(data.unbind()));
+        // self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
+        // Array::from(ArrayIndex::last(&self.arrays))
     }
 }
 
@@ -1097,13 +1093,13 @@ fn insert_element_descriptor(
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
-    arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+    arrays: &'a IsoSubspace<ArrayHeapData<'static>>
 }
 
 impl ArrayHeap<'_> {
     pub(crate) fn new<'a>(
         elements: &'a ElementArrays,
-        arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+        arrays: &'a IsoSubspace<ArrayHeapData<'static>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }

@@ -66,7 +66,7 @@ use crate::ecmascript::{
 use crate::{
     ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray},
     engine::context::NoGcScope,
-    heap::indexes::TypedArrayIndex,
+    heap::{HeapIndexable, indexes::TypedArrayIndex},
 };
 use crate::{
     ecmascript::{

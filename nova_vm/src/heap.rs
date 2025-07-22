@@ -8,7 +8,6 @@ mod heap_constants;
 pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
-// mod subspace_old;
 mod subspace;
 
 use core::{cell::RefCell, ops::Index};
@@ -105,7 +104,7 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
     // pub arrays: Vec<Option<ArrayHeapData<'static>>>,
-    pub arrays: IsoSubspace<Array<'static>, ArrayHeapData<'static>>,
+    pub arrays: IsoSubspace<ArrayHeapData<'static>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
     pub async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
     pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,

@@ -20,7 +20,7 @@ pub(crate) trait HeapIndexable {
 
 
 pub(crate) trait SubspaceIndex<'a, T: Bindable>:
-    From<BaseIndex<'a, T::Of<'static>>> + HeapIndexable
+    From<BaseIndex<'a, T>> + HeapIndexable
 {
     /// # Do not use this
     /// This is only for Value discriminant creation.
@@ -60,7 +60,7 @@ macro_rules! declare_subspace_resident {
             }
         }
 
-        impl<'a> crate::heap::SubspaceIndex<'a, $Data<'a>> for $Nominal<'a> {
+        impl<'a> crate::heap::SubspaceIndex<'a, $Data<'static>> for $Nominal<'a> {
             const _DEF: Self = Self(BaseIndex::from_u32_index(0));
         }
 
@@ -79,8 +79,9 @@ macro_rules! declare_subspace_resident {
             }
         }
 
-        impl crate::heap::IsoSubspaceResident for $Data<'_> {
+        impl crate::heap::IsoSubspaceResident for $Data<'static> {
             type Key<'a> = $Nominal<'a>;
+            type X<'a> = $Data<'a>;
         }
     };
 }

@@ -259,7 +259,7 @@ impl Intrinsics {
             .heap
             .builtin_functions
             .extend((0..intrinsic_function_count()).map(|_| None));
-        agent.heap.arrays.push(None);
+        let array_prototype = agent.heap.arrays.reserve_intrinsic();
 
         Self {
             object_index_base,

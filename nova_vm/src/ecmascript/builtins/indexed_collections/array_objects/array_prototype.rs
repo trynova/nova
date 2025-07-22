@@ -4204,9 +4204,9 @@ impl ArrayPrototype {
             })
             .build();
 
-        let slot = agent.heap.arrays.get_mut(this.get_index()).unwrap();
+        let slot = agent.heap.arrays.slot_mut(this);
         assert!(slot.is_none());
-        *slot = Some(ArrayHeapData {
+        slot.replace(ArrayHeapData {
             object_index: Some(this_base_object),
             // has a "length" property whose initial value is +0𝔽 and whose
             // attributes are { [[Writable]]: true, [[Enumerable]]: false,
