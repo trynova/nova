@@ -244,10 +244,8 @@ impl PromiseConstructor {
             ));
         }
 
-        // Get the first argument from the ArgumentsList
         let first_arg = arguments.get(0).bind(gc.nogc());
 
-        // Try to convert to Array to extract promises
         let Ok(promise_array) = Array::try_from(first_arg.unbind()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -256,7 +254,6 @@ impl PromiseConstructor {
             ));
         };
 
-        // Get the first promise from the array
         let array_slice = promise_array.as_slice(agent);
         if array_slice.is_empty() {
             return Err(agent.throw_exception_with_static_message(
@@ -274,7 +271,6 @@ impl PromiseConstructor {
             ));
         };
 
-        // Convert Value to Promise
         let Value::Promise(promise_to_await) = first_element.unbind() else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -283,61 +279,11 @@ impl PromiseConstructor {
             ));
         };
 
-        // Check if the promise is already settled
-        if let Some(result) = promise_to_await.try_get_result(agent, gc.nogc()) {
-            // Promise is already settled, return its result
-            match result {
-                Ok(value) => {
-                    // Create a resolved promise with the value
-                    let result_capability = PromiseCapability::new(agent, gc.nogc());
-                    let result_promise = result_capability.promise().scope(agent, gc.nogc());
-                    result_capability
-                        .unbind()
-                        .resolve(agent, value.unbind(), gc.reborrow());
-                    return Ok(result_promise.get(agent).into_value());
-                }
-                Err(error) => {
-                    // Create a rejected promise with the error
-                    return Ok(Promise::new_rejected(
-                        agent,
-                        error.value().unbind(),
-                        gc.into_nogc(),
-                    )
-                    .into_value());
-                }
-            }
-        }
-
-        // Promise is pending, we need to wait for it using await reaction
-        // Create a promise capability for our result
         let result_capability = PromiseCapability::new(agent, gc.nogc());
         let result_promise = result_capability.promise().scope(agent, gc.nogc());
 
-        // For await reactions, we typically need an async executable and execution context
-        // Since we're in Promise.all (not an async function), we'll use a simpler approach
-        // and use regular promise reactions instead of await reactions
-
-        // Use inner_promise_then to wait for the promise
-        // For simplicity, we'll use Empty handlers which will pass through the value
         let fulfill_handler = PromiseReactionHandler::Empty;
         let reject_handler = PromiseReactionHandler::Empty;
-
-        // Note: For a real await reaction, you would need:
-        // 1. An AwaitReactionRecord with execution context and VM state
-        // 2. A suspended VM that can be resumed
-        // 3. An async executable (async function or module)
-
-        // Here's how you would create an await reaction (commented out as it requires more setup):
-        /*
-        let await_reaction_record = AwaitReactionRecord {
-            vm: Some(suspended_vm), // Would need a suspended VM
-            async_executable: Some(AsyncExecutable::AsyncFunction(async_function)), // Would need async function
-            execution_context: Some(execution_context), // Would need execution context
-            return_promise_capability: result_capability.clone(),
-        };
-        let await_reaction = agent.heap.create(await_reaction_record);
-        let await_handler = PromiseReactionHandler::Await(await_reaction);
-        */
 
         // For now, let's use a simpler approach that demonstrates the concept
         inner_promise_then(
