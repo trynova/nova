@@ -66,7 +66,7 @@ use crate::{
                     promise_reaction_records::PromiseReactionRecord,
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
-            }, embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData, finalization_registry::data::FinalizationRegistryHeapData, indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData, keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData, map::data::MapHeapData, module::{data::ModuleHeapData, Module}, primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData, proxy::data::ProxyHeapData, text_processing::string_objects::string_iterator_objects::StringIteratorHeapData, Array, ArrayBuffer, ArrayHeapData
+            }, embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData, finalization_registry::data::FinalizationRegistryHeapData, indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData, keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData, map::data::MapHeapData, module::{data::ModuleHeapData, Module}, primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData, proxy::data::ProxyHeapData, text_processing::string_objects::string_iterator_objects::StringIteratorHeapData, ArrayBuffer, ArrayHeapData
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{

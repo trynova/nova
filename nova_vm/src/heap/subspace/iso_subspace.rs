@@ -1,5 +1,5 @@
-use super::{HeapIndexable, Subspace, SubspaceIndex, SubspaceResident};
-use std::{borrow::Borrow, cell::Cell, fmt, marker::PhantomData, ops};
+use super::{HeapIndexable, Subspace, SubspaceIndex};
+use std::{fmt, ops};
 // use crate::{engine::context::Bindable, heap::indexes::BaseIndex};
 use crate::heap::*;
 
@@ -47,13 +47,12 @@ where
     T: IsoSubspaceResident,
 {
     pub fn get(&self, key: T::Key<'_>) -> Option<&T> {
-        self.data.get(key.get_index()).map(Option::as_ref).flatten()
+        self.data.get(key.get_index()).and_then(Option::as_ref)
     }
     pub fn get_mut(&mut self, key: T::Key<'_>) -> Option<&mut T> {
         self.data
             .get_mut(key.get_index())
-            .map(Option::as_mut)
-            .flatten()
+            .and_then(Option::as_mut)
     }
     pub fn slot(&self, key: T::Key<'_>) -> &Option<T> {
         self.data.get(key.get_index()).expect("Slot out of bounds")
@@ -130,7 +129,7 @@ where
         // let d: R::Data<'static> = unsafe { std::mem::transmute(data) };
         self.data.push(Some(data));
         self.alloc_count += core::mem::size_of::<T>();
-        return T::Key::from(BaseIndex::from_usize(self.data.len()));
+        T::Key::from(BaseIndex::from_usize(self.data.len()))
     }
 }
 
@@ -141,7 +140,7 @@ where
     pub (crate) fn reserve_intrinsic(&mut self) -> T::Key<'static> {
         self.data.push(None);
         // note: not from_index b/c len is now +1
-        return T::Key::from(BaseIndex::from_usize(self.len()))
+        T::Key::from(BaseIndex::from_usize(self.len()))
 
     }
     pub(crate) fn create<'a>(&mut self, data: T::X<'a>) -> T::Key<'a>
@@ -151,7 +150,7 @@ where
 
         self.data.push(Some(d));
         self.alloc_count += core::mem::size_of::<T>();
-        return T::Key::from(BaseIndex::from_usize(self.data.len()));
+        T::Key::from(BaseIndex::from_usize(self.data.len()))
     }
     // fn create<U>(&mut self, data: U) -> T::Key<'_>
     // where

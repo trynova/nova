@@ -33,7 +33,7 @@ use crate::{
     heap::{
         declare_subspace_resident, element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        }, indexes::{ArrayIndex, BaseIndex}, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IsoSubspace, Subspace as _, WellKnownSymbolIndexes, WorkQueues
+        }, indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IsoSubspace, WellKnownSymbolIndexes, WorkQueues
     },
 };
 
