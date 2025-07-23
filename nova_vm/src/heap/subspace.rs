@@ -85,6 +85,22 @@ pub(crate) trait SubspaceIndex<'a, T: Bindable>:
     const _DEF: Self;
 }
 
+/// Declare a newtype backed by a heap allocation.
+///
+/// There is currently a single variant of this macro, that takes the form
+/// ```rust,nocompile
+/// declare_subspace_resident(iso = foospace; struct Foo, FooHeapData);
+/// ```
+/// where
+/// - `foospace` is a property on [`Heap`] that is an [`IsoSubspace`] storing `FooHeapData<'static>`s.
+/// - `Foo` is a newtime that wraps a [heap index](crate::heap::indexes::BaseIndex)
+/// - `FooHeapData` is a struct that stores data in the heap.
+///
+/// This form is intended for declaring intrinsics within Nova. It should not be
+/// used externally.
+///
+/// This macro creates `Foo<'a>` and attaches traits to it. It also implements
+/// [`SubspaceResident`] for `FooHeapData<'static>`.
 macro_rules! declare_subspace_resident {
     (iso = $space:ident; struct $Nominal:ident, $Data:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
