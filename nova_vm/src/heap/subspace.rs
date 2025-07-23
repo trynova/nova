@@ -2,7 +2,34 @@
 //!
 //! ## Notes
 //!
-//! There a
+//! Subspaces are designed around two primary types: a _resident_ that allocated
+//! on the heap (and in a subspace) and a pointer-like _key_ newtype that looks it
+//! up.  both types are generic over the lifetime of the heap. They may be
+//! bound/unbound to a garbage collection scope. This means there are actually 4 types:
+//! `Key<'a>`, `Key<'static>`, `Resident<'a>`, `Resident<'static>`.
+//! 
+//! Since trait impls may not pass lifetimes to the types they're being implemented on,
+//! we're forced to use associated types. [`SubspaceResident`], which should be
+//! implemented on `Resident<'static>` holds those types via
+//! `SubspaceResident::Key<'a>` and `SubspaceResident::Bound<'a>`.
+//! 
+//! The `Key<'a>` is effectively a pointer to a `Resident<'a>`, but uses a [`BaseIndex`]
+//! to make it smaller. Note that this API does not use [`BaseIndex`] directly, preferring
+//! a newtype wrapper around it to prevent indexing into other subspaces.
+//! 
+//! > note: I originally designed this with the goal of having `&'a Resident<'static>`
+//! > as a valid implementation of `Key<'a>`. The `From<BaseIndex<'a, Resident<'static>>>`
+//! > type constraint currently prevents this. This would allow things like storing
+//! > strings in a subspace, and using a straight-up pointer as a key.
+//! 
+//! The `Bound<'a>` type must be
+//! - the same exact type as `Resident<'a>`, but accepting a lifetime parameter.
+//! - the type bound/unbound to a garbage collection scope via [`bind`] /[`unbind`]
+//! Note that this is actually the same restriction since [`Bindable`] requires those
+//! methods are semantically equivalent to a lifetime transmute.
+//! 
+//! [`bind`]: crate::engine::context::Bindable::bind
+//! [`unbind`]: crate::engine::context::Bindable::unbind
 mod iso_subspace;
 mod name;
 

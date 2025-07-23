@@ -23,9 +23,6 @@ pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
-// pub(crate) use self::subspace::{
-//     HeapResident, IsoSubspace, Subspace, SubspaceResident, declare_nominal_heap_resident,
-// };
 use self::{
     element_array::{
         ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
@@ -371,21 +368,13 @@ impl Heap {
         Script::last(&self.scripts)
     }
 
+    /// Allocate a value within the heap.
     pub(crate) fn alloc<'a, T: SubspaceResident>(&mut self, value: T::Bound<'a>) -> T::Key<'a>
     where
         T::Key<'a>: WithSubspace<T>,
     {
         T::Key::subspace_for_mut(self).alloc(value)
     }
-
-    // pub(crate) fn alloc<'a, T, U>(&'a mut self, data: T) -> U
-    // where
-    //     T: subspace::SubspaceResident,
-    //     U: From<BaseIndex<'a, T>>,
-    // {
-    //     let subspace = T::subspace_for_mut(self);
-    //     subspace.alloc(data).into()
-    // }
 
     /// Allocate a borrowed string onto the Agent heap
     ///
