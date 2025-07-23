@@ -145,7 +145,7 @@ use crate::{
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
+        indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
 };

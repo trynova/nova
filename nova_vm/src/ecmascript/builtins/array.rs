@@ -24,23 +24,16 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY
         },
     },
     engine::{
-        TryResult,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try,
+        context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}, unwrap_try, TryResult
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IsoSubspace, WellKnownSymbolIndexes, WorkQueues, declare_subspace_resident,
-        element_array::{
+        declare_subspace_resident, element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        },
-        indexes::BaseIndex,
+        }, indexes::BaseIndex, CompactionLists, CreateHeapData as _, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IsoSubspace, WellKnownSymbolIndexes, WorkQueues
     },
 };
 
@@ -163,7 +156,7 @@ impl<'a> Array<'a> {
             object_index: None,
             elements: cloned_elements,
         };
-        agent.heap.alloc::<ArrayHeapData<'static>>(data)
+        agent.heap.create(data)
     }
 
     #[inline]

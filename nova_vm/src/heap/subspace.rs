@@ -93,6 +93,12 @@ macro_rules! declare_subspace_resident {
                 &mut heap.$space
             }
         }
+
+        impl<'a> crate::heap::CreateHeapData<$Data<'a>, $Nominal<'a>> for Heap {
+            fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
+                self.alloc::<$Data<'static>>(data)
+            }
+        }
     };
 }
 pub(crate) use declare_subspace_resident;

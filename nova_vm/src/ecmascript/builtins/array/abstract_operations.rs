@@ -21,7 +21,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CreateHeapData, Heap, WellKnownSymbolIndexes},
+    heap::{Heap, WellKnownSymbolIndexes},
 };
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
@@ -75,7 +75,7 @@ pub(crate) fn array_create<'a>(
     };
 
     // 7. Return A.
-    Ok(agent.heap.alloc::<ArrayHeapData<'static>>(data))
+    Ok(agent.heap.create(data))
 }
 
 /// ### [10.4.2.3 ArraySpeciesCreate ( originalArray, length )](https://tc39.es/ecma262/#sec-arrayspeciescreate)

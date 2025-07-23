@@ -373,7 +373,7 @@ impl Heap {
 
     pub(crate) fn alloc<'a, T: SubspaceResident>(&mut self, value: T::Bound<'a>) -> T::Key<'a>
     where
-        T::Key<'a>: WithSubspace<T>,
+        T::Key<'a>: WithSubspace<T>
     {
         T::Key::subspace_for_mut(self).alloc(value)
     }
