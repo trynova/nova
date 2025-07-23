@@ -62,11 +62,12 @@ where
     type Output = T;
 
     fn index(&self, index: T::Key<'_>) -> &Self::Output {
+        let i = index.get_index();
         self.data
-            .get(index.get_index())
-            .expect("subspace index out of bounds")
+            .get(i)
+            .unwrap_or_else(|| panic!("subspace {}: index out of bounds", self.name))
             .as_ref()
-            .expect("subspace slot is empty")
+            .unwrap_or_else(|| panic!("subspace {}: slot {i} is empty", self.name))
     }
 }
 
@@ -75,11 +76,12 @@ where
     T: SubspaceResident,
 {
     fn index_mut(&mut self, index: T::Key<'_>) -> &mut Self::Output {
+        let i = index.get_index();
         self.data
-            .get_mut(index.get_index())
-            .expect("subspace index out of bounds")
+            .get_mut(i)
+            .unwrap_or_else(|| panic!("subspace {}: index out of bounds", self.name))
             .as_mut()
-            .expect("subspace slot is empty")
+            .unwrap_or_else(|| panic!("subspace {}: slot {i} is empty", self.name))
     }
 }
 
@@ -139,6 +141,7 @@ where
     pub(crate) fn sweep(&mut self, compactions: &CompactionLists, bits: &[bool]) {
         assert_eq!(self.data.len(), bits.len());
         let mut iter = bits.iter();
+        let items_before = self.data.len();
         self.data.retain_mut(|item| {
             let do_retain = iter.next().unwrap();
             if *do_retain {
@@ -148,6 +151,8 @@ where
                 false
             }
         });
+        let items_dropped = items_before.saturating_sub(self.data.len());
+        self.alloc_count -= items_dropped * core::mem::size_of::<T>()
     }
 }
 

@@ -4,16 +4,25 @@ pub(crate) use iso_subspace::IsoSubspace;
 
 use super::*;
 
+/// An isolated region of heap-managed memory.
+///
+/// 1. Subspaces choose how to allocate their residents, as well as the
+///    best way to store those allocations. It may be a [`Vec`]. It may be a
+///    map. It may be whatever.
+/// 2. Subspaces should, but are not required to, store homogenous data.
+///    Subspaces _may_ choose to upgrade that suggestion to a requirement.
 pub trait Subspace<T: SubspaceResident> {
+    // note: please be very selective when expanding this API.
+    // when possible, prefer expanding APIs for concrete subspaces.
     fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a>;
 }
-pub(crate) trait SubspaceResident: Bindable {
+/// A thing that can live within a [`Subspace`].
+pub trait SubspaceResident: Bindable {
     type Key<'a>: SubspaceIndex<'a, Self>;
     type Bound<'a>: Bindable<Of<'static> = Self>;
 }
 pub trait WithSubspace<T: SubspaceResident> {
     type Space: Subspace<T>;
-    // type Bound<'a> : Bindable<Of<'static> = Self>;
     fn subspace_for(heap: &Heap) -> &Self::Space;
     fn subspace_for_mut(heap: &mut Heap) -> &mut Self::Space;
 }

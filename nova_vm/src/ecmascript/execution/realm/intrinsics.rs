@@ -245,7 +245,6 @@ impl Intrinsics {
             PrimitiveObjectIndex::from_index(agent.heap.primitive_objects.len());
         let builtin_function_index_base =
             BuiltinFunctionIndex::from_index(agent.heap.builtin_functions.len());
-        let array_prototype = Array::from(ArrayIndex::from_index(agent.heap.arrays.len()));
 
         agent
             .heap
