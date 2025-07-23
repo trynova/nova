@@ -35,30 +35,25 @@ use crate::{
         unwrap_try,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues,
+        CompactionLists, CreateHeapData as _, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IsoSubspace, WellKnownSymbolIndexes, WorkQueues, declare_subspace_resident,
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
-        indexes::ArrayIndex,
+        indexes::BaseIndex,
     },
 };
 
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Array<'a>(ArrayIndex<'a>);
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+// pub struct Array<'a>(ArrayIndex<'a>);
+declare_subspace_resident!(iso = arrays; struct Array, ArrayHeapData);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl<'a> Array<'a> {
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(ArrayIndex::from_u32_index(0))
-    }
-
     /// Creates a new array with the given elements.
     ///
     /// This is equal to the [CreateArrayFromList](https://tc39.es/ecma262/#sec-createarrayfromlist)
@@ -66,10 +61,6 @@ impl<'a> Array<'a> {
     #[inline]
     pub fn from_slice(agent: &mut Agent, elements: &[Value], gc: NoGcScope<'a, '_>) -> Self {
         create_array_from_list(agent, elements, gc)
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     pub fn len(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> u32 {
@@ -228,27 +219,6 @@ impl<'a> Array<'a> {
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
         let elements = agent[self].elements;
         &mut agent[&elements]
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Array<'_> {
-    type Of<'a> = Array<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> From<ArrayIndex<'a>> for Array<'a> {
-    fn from(value: ArrayIndex<'a>) -> Self {
-        Array(value)
     }
 }
 
@@ -769,26 +739,6 @@ impl IndexMut<Array<'_>> for Agent {
     }
 }
 
-impl Index<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
-    type Output = ArrayHeapData<'static>;
-
-    fn index(&self, index: Array) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Array out of bounds")
-            .as_ref()
-            .expect("Array slot empty")
-    }
-}
-
-impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Array out of bounds")
-            .as_mut()
-            .expect("Array slot empty")
-    }
-}
-
 impl Rootable for Array<'_> {
     type RootRepr = HeapRootRef;
 
@@ -809,14 +759,6 @@ impl Rootable for Array<'_> {
             HeapRootData::Array(object) => Some(object),
             _ => None,
         }
-    }
-}
-
-impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
-    fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
-        self.arrays.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        Array::from(ArrayIndex::last(&self.arrays))
     }
 }
 
@@ -1127,13 +1069,13 @@ fn insert_element_descriptor(
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
-    arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+    arrays: &'a IsoSubspace<ArrayHeapData<'static>>,
 }
 
 impl ArrayHeap<'_> {
     pub(crate) fn new<'a>(
         elements: &'a ElementArrays,
-        arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+        arrays: &'a IsoSubspace<ArrayHeapData<'static>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }

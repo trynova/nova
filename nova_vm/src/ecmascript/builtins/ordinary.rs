@@ -1211,7 +1211,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     };
 
     let object = match proto_intrinsics {
-        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
+        ProtoIntrinsics::Array => agent
+            .heap
+            .create(ArrayHeapData::default())
+            .into_object(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::ArrayBuffer => agent
             .heap

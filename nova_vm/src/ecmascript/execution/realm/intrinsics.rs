@@ -145,7 +145,7 @@ use crate::{
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
+        indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
 };
@@ -245,7 +245,6 @@ impl Intrinsics {
             PrimitiveObjectIndex::from_index(agent.heap.primitive_objects.len());
         let builtin_function_index_base =
             BuiltinFunctionIndex::from_index(agent.heap.builtin_functions.len());
-        let array_prototype = Array::from(ArrayIndex::from_index(agent.heap.arrays.len()));
 
         agent
             .heap
@@ -259,7 +258,7 @@ impl Intrinsics {
             .heap
             .builtin_functions
             .extend((0..intrinsic_function_count()).map(|_| None));
-        agent.heap.arrays.push(None);
+        let array_prototype = agent.heap.arrays.reserve_intrinsic();
 
         Self {
             object_index_base,

@@ -55,7 +55,7 @@ use crate::{
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapIndexable as _, HeapMarkAndSweep, SubspaceIndex, WorkQueues},
 };
 #[cfg(feature = "array-buffer")]
 use crate::{
@@ -258,7 +258,7 @@ pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallBigInt(SmallBigInt::zero()));
 pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(OrdinaryObject::_def()));
-pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
+pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_DEF));
 #[cfg(feature = "array-buffer")]
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));

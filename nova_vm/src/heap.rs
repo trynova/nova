@@ -8,6 +8,7 @@ mod heap_constants;
 pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
+mod subspace;
 
 use core::{cell::RefCell, ops::Index};
 use std::ops::Deref;
@@ -27,7 +28,7 @@ use self::{
         ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
         ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
     },
-    indexes::NumberIndex,
+    indexes::{BaseIndex, NumberIndex},
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
@@ -112,6 +113,7 @@ pub(crate) use heap_bits::{
     CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, sweep_side_set,
 };
 use indexes::TypedArrayIndex;
+pub(crate) use subspace::*;
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
@@ -120,7 +122,8 @@ pub struct Heap {
     pub array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
-    pub arrays: Vec<Option<ArrayHeapData<'static>>>,
+    // pub arrays: Vec<Option<ArrayHeapData<'static>>>,
+    pub arrays: IsoSubspace<ArrayHeapData<'static>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
     pub async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
     pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,
@@ -245,7 +248,7 @@ impl Heap {
             array_buffers: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             array_buffer_detach_keys: AHashMap::with_capacity(0),
-            arrays: Vec::with_capacity(1024),
+            arrays: IsoSubspace::with_capacity(c"array", 1024),
             array_iterators: Vec::with_capacity(256),
             async_generators: Vec::with_capacity(0),
             await_reactions: Vec::with_capacity(1024),
@@ -363,6 +366,14 @@ impl Heap {
         self.scripts.push(Some(script.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
         Script::last(&self.scripts)
+    }
+
+    /// Allocate a value within the heap.
+    pub(crate) fn alloc<'a, T: SubspaceResident>(&mut self, value: T::Bound<'a>) -> T::Key<'a>
+    where
+        T::Key<'a>: WithSubspace<T>,
+    {
+        T::Key::subspace_for_mut(self).alloc(value)
     }
 
     /// Allocate a borrowed string onto the Agent heap
@@ -621,6 +632,14 @@ pub(crate) trait PropertyKeyHeapIndexable:
 impl PropertyKeyHeapIndexable for PropertyKeyHeap<'_> {}
 impl PropertyKeyHeapIndexable for Agent {}
 
+// impl<'a, T> CreateHeapData<T::Bound<'a>, T::Key<'a>> for T::Key<'a>
+// where
+//     T: SubspaceResident,
+// {
+//     fn create(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
+//         self.alloc(data)
+//     }
+// }
 #[test]
 fn init_heap() {
     let heap = Heap::new();
