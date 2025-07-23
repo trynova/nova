@@ -24,16 +24,23 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}, unwrap_try, TryResult
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        unwrap_try,
     },
     heap::{
-        declare_subspace_resident, element_array::{
+        CompactionLists, CreateHeapData as _, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IsoSubspace, WellKnownSymbolIndexes, WorkQueues, declare_subspace_resident,
+        element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        }, indexes::BaseIndex, CompactionLists, CreateHeapData as _, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IsoSubspace, WellKnownSymbolIndexes, WorkQueues
+        },
+        indexes::BaseIndex,
     },
 };
 

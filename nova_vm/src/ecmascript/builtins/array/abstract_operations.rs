@@ -21,7 +21,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{Heap, WellKnownSymbolIndexes},
+    heap::{CreateHeapData as _, Heap, WellKnownSymbolIndexes},
 };
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)

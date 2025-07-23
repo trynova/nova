@@ -1,52 +1,16 @@
-use super::{HeapIndexable, Subspace};
+use super::{HeapIndexable, Subspace, SubspaceResident, name::Name};
+use crate::heap::{BaseIndex, Bindable, CompactionLists, HeapMarkAndSweep, WorkQueues};
 use core::ffi::CStr;
 use std::{fmt, ops};
-// use crate::{engine::context::Bindable, heap::indexes::BaseIndex};
-use crate::heap::*;
 
 /// A [`Subspace`] storing data of a single [`Sized`] type.
 pub struct IsoSubspace<D> {
-    /// display name for debugging purposes.
+    /// Display name for debugging purposes.
     ///
-    /// We use this instead of &'static str to save a word in IsoSubspace's size.
+    /// We use [`Name`] over `&'static str` to save 1 word in memory layout.
     name: Name,
     alloc_count: usize,
     data: Vec<Option<D>>,
-}
-
-/// This is a &'static CStr converted into a pointer to avoid storying a
-/// word for the string's length. this comes at the cost of O(n) casts into
-/// &'static str, which is fine because if we're doing so its either for
-/// debugging or because Nova is about to panic.
-#[derive(Clone, Copy)]
-struct Name(*const core::ffi::c_char);
-// SAFETY: pointer is &'static and never mutable.
-unsafe impl Send for Name {}
-unsafe impl Sync for Name {}
-
-impl Name {
-    const fn new(s: &'static CStr) -> Self {
-        assert!(s.to_str().is_ok());
-        Self(s.as_ptr())
-    }
-    const fn as_str(self) -> &'static str {
-        // SAFETY: inner string is always created from a &'static CStr that is
-        // known to be valid utf-8
-        match unsafe { CStr::from_ptr(self.0).to_str() } {
-            Ok(s) => s,
-            Err(_) => unreachable!(),
-        }
-    }
-}
-impl fmt::Debug for Name {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (*self).as_str().fmt(f)
-    }
-}
-impl fmt::Display for Name {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
 }
 
 impl<D> IsoSubspace<D> {
@@ -82,16 +46,25 @@ where
     pub fn get(&self, key: T::Key<'_>) -> Option<&T> {
         self.data.get(key.get_index()).and_then(Option::as_ref)
     }
+
     pub fn get_mut(&mut self, key: T::Key<'_>) -> Option<&mut T> {
         self.data.get_mut(key.get_index()).and_then(Option::as_mut)
     }
+
     pub fn slot(&self, key: T::Key<'_>) -> &Option<T> {
         self.data.get(key.get_index()).expect("Slot out of bounds")
     }
+
     pub fn slot_mut(&mut self, key: T::Key<'_>) -> &mut Option<T> {
         self.data
             .get_mut(key.get_index())
             .expect("Slot out of bounds")
+    }
+
+    pub(crate) fn reserve_intrinsic(&mut self) -> T::Key<'static> {
+        self.data.push(None);
+        // note: not from_index b/c len is now +1
+        T::Key::from(BaseIndex::from_usize(self.len()))
     }
 }
 
@@ -135,24 +108,6 @@ where
 
     fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
         self.data.push(Some(data.unbind()));
-        self.alloc_count += core::mem::size_of::<T>();
-        T::Key::from(BaseIndex::from_usize(self.data.len()))
-    }
-}
-
-impl<T> IsoSubspace<T>
-where
-    T: SubspaceResident,
-{
-    pub(crate) fn reserve_intrinsic(&mut self) -> T::Key<'static> {
-        self.data.push(None);
-        // note: not from_index b/c len is now +1
-        T::Key::from(BaseIndex::from_usize(self.len()))
-    }
-    pub(crate) fn create<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
-        let d: T = unsafe { core::mem::transmute(data.unbind()) };
-
-        self.data.push(Some(d));
         self.alloc_count += core::mem::size_of::<T>();
         T::Key::from(BaseIndex::from_usize(self.data.len()))
     }

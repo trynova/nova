@@ -1,4 +1,10 @@
+//! Regions of semi-isolated heap-managed memory.
+//!
+//! ## Notes
+//!
+//! There a
 mod iso_subspace;
+mod name;
 
 pub(crate) use iso_subspace::IsoSubspace;
 
@@ -15,16 +21,52 @@ use super::*;
 /// 2. Subspaces should, but are not required to, store homogenous data.
 ///    Subspaces _may_ choose to upgrade that suggestion to a requirement.
 pub trait Subspace<T: SubspaceResident> {
+    /// Display name for debugging purposes.
+    ///
+    /// Names are not guaranteed to be unique.  Do not rely on subspaces
+    /// returning the same name in all cases; for example, a subspace may
+    /// provide a `name` in debug builds but not in release builds.
     fn name(&self) -> Option<&str> {
         None
     }
+    /// Store `data` into this subspace, returning a handle to the allocation.
+    /// `data` may contain references to, or ownership of, other heap-allocated
+    /// values.
+    ///
+    /// ## Safety
+    /// - The lifetime parameter `'a` must be of the currently active [`NoGcScope`].
+    /// - The subspace have the exact same lifetime as the [`Heap`] it belongs to,
+    ///   which obviously must live longer than `'a`.
+    ///
+    /// The latter point is easy to enforce for subspaces put directly onto the
+    /// [`Heap`], but if we decide to allow external subspaces, this could
+    /// become more challenging
     fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a>;
+    // TODO: drop? len?
 }
+
 /// A thing that can live within a [`Subspace`].
 pub trait SubspaceResident: Bindable {
     type Key<'a>: SubspaceIndex<'a, Self>;
     type Bound<'a>: Bindable<Of<'static> = Self>;
 }
+
+/// Ties a type to a specific [`Subspace`]. Implementing this trait
+/// allows for `T`s to be created using [`Heap::alloc`].
+///
+/// ## Notes
+/// - Eventually this will be used to support [`EmbedderObject`]s
+/// - Ideally (and hopefully in the future) this will take the [`Agent`] instead of the [`Heap`] as an argument.
+///   This would allow external consumers (e.g. runtimes) to put custom subspaces
+///   into [`HostHooks`].
+/// - Another possible alternative to the above option is storing a dynamic list
+///   of subspaces, possibly an [`IndexVec`]. This introduces the challenge of
+///   statically storing/knowing which index a data structure is stored in.
+///
+/// [`EmbedderObject`]: crate::ecmascript::builtins::embedder_object::EmbedderObject
+/// [`HostHooks`]: crate::ecmascript::execution::agent::HostHooks
+/// [`Agent`]: crate::ecmascript::execution::Agent
+/// [`IndexVec`]: https://docs.rs/indexvec/latest/indexvec/struct.IndexVec.html
 pub trait WithSubspace<T: SubspaceResident> {
     type Space: Subspace<T>;
     fn subspace_for(heap: &Heap) -> &Self::Space;
