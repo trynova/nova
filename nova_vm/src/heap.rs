@@ -251,7 +251,7 @@ impl Heap {
             array_buffers: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             array_buffer_detach_keys: AHashMap::with_capacity(0),
-            arrays: IsoSubspace::with_capacity("array", 1024),
+            arrays: IsoSubspace::with_capacity(c"array", 1024),
             array_iterators: Vec::with_capacity(256),
             async_generators: Vec::with_capacity(0),
             await_reactions: Vec::with_capacity(1024),

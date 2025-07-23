@@ -4,6 +4,9 @@ pub(crate) use iso_subspace::IsoSubspace;
 
 use super::*;
 
+// NOTE: please be very selective when expanding this API.
+// when possible, prefer expanding APIs for concrete subspaces.
+//
 /// An isolated region of heap-managed memory.
 ///
 /// 1. Subspaces choose how to allocate their residents, as well as the
@@ -12,8 +15,9 @@ use super::*;
 /// 2. Subspaces should, but are not required to, store homogenous data.
 ///    Subspaces _may_ choose to upgrade that suggestion to a requirement.
 pub trait Subspace<T: SubspaceResident> {
-    // note: please be very selective when expanding this API.
-    // when possible, prefer expanding APIs for concrete subspaces.
+    fn name(&self) -> Option<&str> {
+        None
+    }
     fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a>;
 }
 /// A thing that can live within a [`Subspace`].
@@ -42,10 +46,10 @@ pub(crate) trait SubspaceIndex<'a, T: Bindable>:
 macro_rules! declare_subspace_resident {
     (iso = $space:ident; struct $Nominal:ident, $Data:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct $Nominal<'a>(BaseIndex<'a, $Data<'static>>);
+        pub struct $Nominal<'a>(crate::heap::indexes::BaseIndex<'a, $Data<'static>>);
 
         impl<'a> From<BaseIndex<'a, $Data<'static>>> for $Nominal<'a> {
-            fn from(value: BaseIndex<'a, $Data<'static>>) -> Self {
+            fn from(value: crate::heap::indexes::BaseIndex<'a, $Data<'static>>) -> Self {
                 $Nominal(value)
             }
         }
@@ -58,7 +62,7 @@ macro_rules! declare_subspace_resident {
         }
 
         impl<'a> crate::heap::SubspaceIndex<'a, $Data<'static>> for $Nominal<'a> {
-            const _DEF: Self = Self(BaseIndex::from_u32_index(0));
+            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::from_u32_index(0));
         }
 
         // SAFETY: Property implemented as a lifetime transmute.
@@ -71,7 +75,7 @@ macro_rules! declare_subspace_resident {
             }
 
             #[inline(always)]
-            fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+            fn bind<'a>(self, _gc: crate::engine::context::NoGcScope<'a, '_>) -> Self::Of<'a> {
                 unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
             }
         }
@@ -81,7 +85,7 @@ macro_rules! declare_subspace_resident {
             type Bound<'a> = $Data<'a>;
         }
         impl crate::heap::WithSubspace<$Data<'static>> for $Nominal<'_> {
-            type Space = IsoSubspace<$Data<'static>>;
+            type Space = crate::heap::IsoSubspace<$Data<'static>>;
             fn subspace_for(heap: &Heap) -> &Self::Space {
                 &heap.$space
             }

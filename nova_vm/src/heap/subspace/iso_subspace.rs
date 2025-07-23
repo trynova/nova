@@ -1,22 +1,62 @@
 use super::{HeapIndexable, Subspace};
+use core::ffi::CStr;
 use std::{fmt, ops};
 // use crate::{engine::context::Bindable, heap::indexes::BaseIndex};
 use crate::heap::*;
 
+/// A [`Subspace`] storing data of a single [`Sized`] type.
 pub struct IsoSubspace<D> {
-    name: &'static str,
+    /// display name for debugging purposes.
+    ///
+    /// We use this instead of &'static str to save a word in IsoSubspace's size.
+    name: Name,
     alloc_count: usize,
     data: Vec<Option<D>>,
 }
 
+/// This is a &'static CStr converted into a pointer to avoid storying a
+/// word for the string's length. this comes at the cost of O(n) casts into
+/// &'static str, which is fine because if we're doing so its either for
+/// debugging or because Nova is about to panic.
+#[derive(Clone, Copy)]
+struct Name(*const core::ffi::c_char);
+// SAFETY: pointer is &'static and never mutable.
+unsafe impl Send for Name {}
+unsafe impl Sync for Name {}
+
+impl Name {
+    const fn new(s: &'static CStr) -> Self {
+        assert!(s.to_str().is_ok());
+        Self(s.as_ptr())
+    }
+    const fn as_str(self) -> &'static str {
+        // SAFETY: inner string is always created from a &'static CStr that is
+        // known to be valid utf-8
+        match unsafe { CStr::from_ptr(self.0).to_str() } {
+            Ok(s) => s,
+            Err(_) => unreachable!(),
+        }
+    }
+}
+impl fmt::Debug for Name {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (*self).as_str().fmt(f)
+    }
+}
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
 impl<D> IsoSubspace<D> {
-    fn new(name: &'static str) -> Self {
+    fn new(name: &'static CStr) -> Self {
         Self::with_capacity(name, 0)
     }
 
-    pub fn with_capacity(name: &'static str, capacity: usize) -> Self {
+    pub fn with_capacity(name: &'static CStr, capacity: usize) -> Self {
         Self {
-            name,
+            name: Name::new(name),
             alloc_count: 0,
             data: Vec::with_capacity(capacity),
         }
@@ -89,6 +129,10 @@ impl<T> Subspace<T> for IsoSubspace<T>
 where
     T: SubspaceResident,
 {
+    fn name(&self) -> Option<&str> {
+        Some(self.name.as_str())
+    }
+
     fn alloc<'a>(&mut self, data: T::Bound<'a>) -> T::Key<'a> {
         self.data.push(Some(data.unbind()));
         self.alloc_count += core::mem::size_of::<T>();
