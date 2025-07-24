@@ -183,7 +183,7 @@ impl<'a> ActiveIterator<'a> {
         self.get(agent).remaining_length_estimate(agent)
     }
 
-    pub(super) fn get<'agent>(&self, agent: &'agent Agent) -> &'agent VmIteratorRecord {
+    pub(super) fn get<'agent>(&self, agent: &'agent Agent) -> &'agent VmIteratorRecord<'a> {
         // SAFETY: VM is held exclusively in an above call stack.
         unsafe { agent.vm_stack.last().expect("No VM found").as_ref() }.get_active_iterator()
     }
@@ -619,7 +619,7 @@ impl<'a> ObjectPropertiesIterator<'a> {
         iter.visited_keys.insert(agent, key);
     }
 
-    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent ObjectPropertiesIteratorRecord {
+    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent ObjectPropertiesIteratorRecord<'a> {
         let VmIteratorRecord::ObjectProperties(iter) = self.iter.get(agent) else {
             unreachable!()
         };
@@ -987,7 +987,7 @@ impl<'a> GenericIterator<'a> {
         }
     }
 
-    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord {
+    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord<'a> {
         match self.iter.get(agent) {
             VmIteratorRecord::GenericIterator(iter) => iter,
             _ => unreachable!(),
@@ -1058,7 +1058,7 @@ impl<'a> AsyncFromSyncGenericIterator<'a> {
         AsyncFromSyncIteratorPrototype::throw(agent, sync_iterator.unbind(), value, gc)
     }
 
-    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord {
+    fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord<'a> {
         match self.iter.get(agent) {
             VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter,
             _ => unreachable!(),

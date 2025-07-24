@@ -110,17 +110,13 @@ impl HeapMarkAndSweep for ObjectEnvironmentRecord {
     }
 }
 
-impl ObjectEnvironment<'_> {
-    pub(crate) fn get_binding_object<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
-        agent[self].binding_object.bind(gc)
+impl<'e> ObjectEnvironment<'e> {
+    pub(crate) fn get_binding_object(self, agent: &Agent) -> Object<'e> {
+        agent[self].binding_object
     }
 
-    pub(crate) fn get_outer_env<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Environment<'a>> {
-        agent[self].outer_env.bind(gc)
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
+        agent[self].outer_env
     }
 
     /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
@@ -714,7 +710,7 @@ impl ObjectEnvironment<'_> {
     ///
     /// The WithBaseObject concrete method of an Object Environment Record
     /// envRec takes no arguments and returns an Object or undefined.
-    pub(crate) fn with_base_object(self, agent: &Agent) -> Option<Object> {
+    pub(crate) fn with_base_object(self, agent: &Agent) -> Option<Object<'e>> {
         let env_rec = &agent[self];
         // 1. If envRec.[[IsWithEnvironment]] is true, return envRec.[[BindingObject]].
         if env_rec.is_with_environment {

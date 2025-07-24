@@ -1140,7 +1140,7 @@ pub(crate) fn ordinary_own_property_keys<'a>(
     } = object.get_property_storage(agent);
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
-    let mut keys_vec = Vec::with_capacity(keys.len() as usize);
+    let mut keys_vec = Vec::with_capacity(keys.len());
     let mut symbol_keys = vec![];
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in

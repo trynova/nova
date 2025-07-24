@@ -32,7 +32,7 @@ impl<'a> ObjectShape<'a> {
     /// This is the root Object Shape for all null-prototype objects, hence why
     /// it can be accessed statically.
     // SAFETY: statically safe.
-    pub(crate) const NULL: Self = Self(unsafe { NonZeroU32::new_unchecked(1) }, PhantomData);
+    pub(crate) const NULL: Self = Self(NonZeroU32::new(1).unwrap(), PhantomData);
 
     /// Get the implied usize index of the ObjectShape reference.
     #[inline(always)]
@@ -204,8 +204,7 @@ impl<'a> ObjectShape<'a> {
                 as *const [PropertyKey<'static>];
             // SAFETY: Creating shapes below cannot invalidate the keys pointer.
             let keys = unsafe { &*keys };
-            for i in i..len {
-                let key = keys[i];
+            for (i, key) in keys.iter().enumerate().take(len).skip(i) {
                 let next_shape = agent.heap.create((
                     ObjectShapeRecord::create(prototype, index, cap, i.wrapping_add(1)),
                     ObjectShapeTransitionMap::with_parent(shape),
@@ -213,7 +212,7 @@ impl<'a> ObjectShape<'a> {
                 let previous_transitions =
                     shape.get_transitions_mut(&mut agent.heap.object_shape_transitions);
                 previous_transitions.insert(
-                    key,
+                    *key,
                     next_shape,
                     &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
                 );

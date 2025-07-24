@@ -1841,7 +1841,7 @@ fn ordinary_enumerable_own_keys<'gc>(
     let props = o.get_property_storage(agent);
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
-    let mut result_keys = Vec::with_capacity(props.len() as usize);
+    let mut result_keys = Vec::with_capacity(props.len());
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do

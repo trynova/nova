@@ -742,7 +742,7 @@ pub(crate) fn ordinary_call_bind_this(
         return;
     }
     // 3. Let calleeRealm be F.[[Realm]].
-    let callee_realm = function_heap_data.realm;
+    let callee_realm = function_heap_data.realm.bind(gc);
     // 4. Let localEnv be the LexicalEnvironment of calleeContext.
     // 5. If thisMode is STRICT, then
     let this_value = if this_mode == ThisMode::Strict {
@@ -757,7 +757,7 @@ pub(crate) fn ordinary_call_bind_this(
             // ii. Assert: globalEnv is a Global Environment Record.
             let global_env = global_env.unwrap();
             // iii. Let thisValue be globalEnv.[[GlobalThisValue]].
-            global_env.get_this_binding(agent, gc).into_value()
+            global_env.get_this_binding(agent).into_value()
         } else {
             // b. Else,
             // i. Let thisValue be ! ToObject(thisArgument).

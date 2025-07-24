@@ -48,7 +48,7 @@ impl core::fmt::Debug for Realm<'_> {
     }
 }
 
-impl Realm<'_> {
+impl<'r> Realm<'r> {
     /// Creates a realm identififer from a usize.
     ///
     /// ## Panics
@@ -101,7 +101,7 @@ impl Realm<'_> {
     }
 
     /// ### \[\[GlobalObject]]
-    pub fn global_object(self, agent: &mut Agent) -> Object {
+    pub fn global_object(self, agent: &mut Agent) -> Object<'r> {
         agent[self].global_object
     }
 
@@ -476,10 +476,10 @@ pub(crate) fn set_default_global_bindings<'a>(
     // 19.1 Value Properties of the Global Object
     {
         // 19.1.1 globalThis
-        let global_env = agent[realm_id].global_env;
+        let global_env = agent[realm_id].global_env.bind(gc.nogc());
         let value = global_env
             .unwrap()
-            .get_this_binding(agent, gc.nogc())
+            .get_this_binding(agent)
             .into_value()
             .unbind();
         define_property!(globalThis, value, None, None, None);

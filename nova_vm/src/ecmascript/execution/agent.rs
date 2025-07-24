@@ -673,7 +673,7 @@ impl Agent {
         self.get_realm_record_by_id_mut(self.current_realm_id_internal())
     }
 
-    pub(crate) fn get_realm_record_by_id(&self, id: Realm) -> &RealmRecord {
+    pub(crate) fn get_realm_record_by_id<'r>(&self, id: Realm<'r>) -> &RealmRecord<'r> {
         &self[id]
     }
 

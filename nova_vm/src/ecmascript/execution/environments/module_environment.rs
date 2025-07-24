@@ -110,8 +110,8 @@ impl<'e> ModuleEnvironment<'e> {
             .declarative_environment
     }
 
-    pub(crate) fn get_outer_env<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> OuterEnv<'a> {
-        self.get_declarative_env(agent).get_outer_env(agent, gc)
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv<'e> {
+        self.get_declarative_env(agent).get_outer_env(agent)
     }
 
     /// ### [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)

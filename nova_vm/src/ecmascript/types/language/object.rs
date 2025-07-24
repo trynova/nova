@@ -320,7 +320,7 @@ impl<'a> OrdinaryObject<'a> {
                 |elements, len| {
                     let (key, index) = elements.allocate_keys_with_capacity(len);
                     let keys_memory = elements.get_keys_uninit_raw(key, index);
-                    for (slot, key) in keys_memory.into_iter().zip(entries.iter().map(|e| e.key)) {
+                    for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
                         *slot = Some(key.unbind());
                     }
                     (ElementArrayKey::from(len), index)

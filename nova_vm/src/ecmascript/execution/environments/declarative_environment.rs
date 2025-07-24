@@ -202,13 +202,9 @@ impl HeapMarkAndSweep for Binding {
     }
 }
 
-impl DeclarativeEnvironment<'_> {
-    pub(crate) fn get_outer_env<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Environment<'a>> {
-        agent[self].outer_env.bind(gc)
+impl<'e> DeclarativeEnvironment<'e> {
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
+        agent[self].outer_env
     }
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)

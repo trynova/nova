@@ -368,7 +368,7 @@ pub(super) fn create_intrinsic_backing_object(
             .elements
             .allocate_keys_with_capacity(properties_count);
         let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
-        for (slot, key) in keys_memory.into_iter().zip(properties.iter().map(|e| e.0)) {
+        for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
             *slot = Some(key.unbind());
         }
         agent.heap.create((

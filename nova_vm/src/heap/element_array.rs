@@ -20,7 +20,7 @@ use core::{
     mem::MaybeUninit,
     ops::{Index, IndexMut},
 };
-use std::{collections::hash_map::Entry, u32};
+use std::collections::hash_map::Entry;
 
 /// Shared access to an element storage.
 pub(crate) struct ElementStorageRef<'a, 'gc> {
@@ -1192,7 +1192,7 @@ impl<const N: usize> ElementArray<N> {
     }
 
     #[inline]
-    fn get_descriptors_and_values_mut(&mut self, vector: &ElementsVector) -> ElementStorageMut {
+    fn get_descriptors_and_values_mut(&mut self, vector: &ElementsVector) -> ElementStorageMut<'_> {
         ElementStorageMut {
             values: &mut self
                 .values
@@ -1209,7 +1209,7 @@ impl<const N: usize> ElementArray<N> {
         &mut self,
         index: ElementIndex<'static>,
         len: u32,
-    ) -> ElementStorageMut {
+    ) -> ElementStorageMut<'_> {
         ElementStorageMut {
             values: &mut self.values[index].as_mut_slice()[0..len as usize],
             descriptors: self.descriptors.entry(index),
@@ -1221,7 +1221,7 @@ impl<const N: usize> ElementArray<N> {
     fn get_descriptors_and_values_uninit(
         &mut self,
         vector: &ElementsVector,
-    ) -> ElementStorageUninit {
+    ) -> ElementStorageUninit<'_> {
         ElementStorageUninit {
             values: self
                 .values
@@ -1239,7 +1239,7 @@ impl<const N: usize> ElementArray<N> {
     fn get_descriptors_and_values_uninit_raw(
         &mut self,
         index: ElementIndex<'static>,
-    ) -> ElementStorageUninit {
+    ) -> ElementStorageUninit<'_> {
         ElementStorageUninit {
             values: self.values[index].as_mut_slice(),
             descriptors: self.descriptors.entry(index),
@@ -1919,7 +1919,10 @@ impl ElementArrays {
     ///
     /// Value slots with None are either array holes, or accessor properties.
     /// For accessor properties a descriptor for the same index exists.
-    pub(crate) fn get_element_storage_mut(&mut self, vector: &ElementsVector) -> ElementStorageMut {
+    pub(crate) fn get_element_storage_mut(
+        &mut self,
+        vector: &ElementsVector,
+    ) -> ElementStorageMut<'_> {
         match vector.cap {
             ElementArrayKey::Empty => unreachable!(),
             ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_mut(vector),
@@ -1943,7 +1946,7 @@ impl ElementArrays {
         &mut self,
         index: ElementIndex,
         cap: ElementArrayKey,
-    ) -> ElementStorageUninit {
+    ) -> ElementStorageUninit<'_> {
         let index = index.unbind();
         match cap {
             ElementArrayKey::Empty => unreachable!(),
@@ -2016,7 +2019,7 @@ impl ElementArrays {
         &self,
         vector: &ElementsVector,
         index: usize,
-    ) -> Option<ElementDescriptor> {
+    ) -> Option<ElementDescriptor<'_>> {
         let Ok(index) = u32::try_from(index) else {
             return None;
         };

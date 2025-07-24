@@ -454,7 +454,7 @@ pub(crate) trait CyclicModuleSlots: Copy {
     fn has_tla(self, agent: &Agent) -> bool;
 
     /// ### \[\[TopLevelCapability]]
-    fn top_level_capability(self, agent: &Agent) -> Option<PromiseCapability>;
+    fn top_level_capability(self, agent: &Agent) -> Option<PromiseCapability<'_>>;
 
     /// Set \[\[TopLevelCapability]].
     fn set_top_level_capability(self, agent: &mut Agent, capability: PromiseCapability);
@@ -477,7 +477,7 @@ pub(crate) trait CyclicModuleSlots: Copy {
     fn decrement_pending_async_dependencies(self, agent: &mut Agent);
 
     /// ### \[\[AsyncParentModules]].
-    fn get_async_parent_modules(self, agent: &Agent) -> &[SourceTextModule];
+    fn get_async_parent_modules(self, agent: &Agent) -> &[SourceTextModule<'_>];
 
     /// Append a CyclicModule to \[\[AsyncParentModules]].
     fn append_async_parent_module(self, agent: &mut Agent, module: SourceTextModule);

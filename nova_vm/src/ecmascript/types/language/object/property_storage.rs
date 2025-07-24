@@ -316,13 +316,13 @@ impl<'a> PropertyStorage<'a> {
     ///
     /// The abstract operation PrivateElementFind takes arguments O (an Object)
     /// and P (a Private Name) and returns a PrivateElement or empty.
-    pub(crate) fn private_element_find_mut<'b>(
+    pub(crate) fn private_element_find_mut(
         self,
-        agent: &'b mut Agent,
+        agent: &mut Agent,
         private_name: PrivateName,
     ) -> Option<(
-        Option<&'b mut Value<'static>>,
-        Option<&'b ElementDescriptor<'static>>,
+        Option<&mut Value<'static>>,
+        Option<&ElementDescriptor<'static>>,
     )> {
         // 1. If O.[[PrivateElements]] contains a PrivateElement pe such that
         //    pe.[[Key]] is P, then

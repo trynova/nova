@@ -56,7 +56,7 @@ impl HeapString<'_> {
         self.0.into_index()
     }
 
-    pub fn to_string_lossy(self, agent: &Agent) -> Cow<str> {
+    pub fn to_string_lossy(self, agent: &Agent) -> Cow<'_, str> {
         agent[self].to_string_lossy()
     }
 
@@ -514,7 +514,7 @@ impl<'a> String<'a> {
     pub fn to_string_lossy(
         &self,
         agent: &impl Index<HeapString<'a>, Output = StringHeapData>,
-    ) -> Cow<str> {
+    ) -> Cow<'_, str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as

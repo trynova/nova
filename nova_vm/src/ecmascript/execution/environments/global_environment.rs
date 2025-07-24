@@ -154,7 +154,7 @@ pub(crate) fn new_global_environment<'a>(
     // 9. Return env.
 }
 
-impl GlobalEnvironment<'_> {
+impl<'e> GlobalEnvironment<'e> {
     /// ### Try [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Global Environment Record envRec
@@ -167,7 +167,8 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
@@ -192,8 +193,9 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
+        let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
@@ -222,7 +224,8 @@ impl GlobalEnvironment<'_> {
         is_deletable: bool,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
@@ -255,7 +258,8 @@ impl GlobalEnvironment<'_> {
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
@@ -287,7 +291,8 @@ impl GlobalEnvironment<'_> {
         value: Value,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -320,9 +325,10 @@ impl GlobalEnvironment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
+        let env = self.bind(nogc);
         let name = name.bind(nogc);
         let value = value.bind(nogc);
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -357,7 +363,8 @@ impl GlobalEnvironment<'_> {
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -391,9 +398,10 @@ impl GlobalEnvironment<'_> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
+        let env = self.bind(nogc);
         let name = name.bind(nogc);
         let value = value.bind(nogc);
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -431,7 +439,8 @@ impl GlobalEnvironment<'_> {
         s: bool,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, Value<'a>>> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -463,8 +472,9 @@ impl GlobalEnvironment<'_> {
         s: bool,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, Value<'a>> {
+        let env = self.bind(gc.nogc());
         let n = n.bind(gc.nogc());
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -491,7 +501,8 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, bool>> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -502,7 +513,7 @@ impl GlobalEnvironment<'_> {
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc);
         // 4. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc);
+        let global_object = obj_rec.get_binding_object(agent);
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let existing_prop = try_has_own_property(agent, global_object, n, gc)?;
@@ -512,7 +523,7 @@ impl GlobalEnvironment<'_> {
             let status = obj_rec.try_delete_binding(agent, name, gc)?;
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
-                let env_rec = &mut agent[self];
+                let env_rec = &mut agent[env];
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(&name.unbind());
@@ -538,8 +549,9 @@ impl GlobalEnvironment<'_> {
         name: String,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
+        let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -548,22 +560,30 @@ impl GlobalEnvironment<'_> {
             return Ok(dcl_rec.delete_binding(agent, name));
         }
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 4. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent);
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let scoped_name = name.scope(agent, gc.nogc());
+        let env = env.scope(agent, gc.nogc());
+        let obj_rec = obj_rec.scope(agent, gc.nogc());
         let existing_prop =
             has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow()).unbind()?;
+        // SAFETY: obj_rec not shared.
+        let obj_rec = unsafe { obj_rec.take(agent).bind(gc.nogc()) };
         // 6. If existingProp is true, then
         if existing_prop {
             // a. Let status be ? ObjRec.DeleteBinding(N).
-            let status = obj_rec.delete_binding(agent, scoped_name.get(agent), gc)?;
+            let status = obj_rec
+                .unbind()
+                .delete_binding(agent, scoped_name.get(agent), gc.reborrow())
+                .unbind()?;
+            let env = unsafe { env.take(agent) }.bind(gc.nogc());
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
                 let name = scoped_name.get(agent);
-                let env_rec = &mut agent[self];
+                let env_rec = &mut agent[env];
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(&name);
@@ -613,10 +633,9 @@ impl GlobalEnvironment<'_> {
     /// The GetThisBinding concrete method of a Global Environment Record
     /// envRec takes no arguments and returns a normal completion containing an
     /// Object.
-    pub(crate) fn get_this_binding<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
-        let env_rec = &agent[self];
+    pub(crate) fn get_this_binding(self, agent: &Agent) -> Object<'e> {
         // 1. Return envRec.[[GlobalThisValue]].
-        env_rec.global_this_value.bind(gc)
+        agent[self].global_this_value
     }
 
     /// ### [9.1.1.4.12 HasVarDeclaration ( N )](https://tc39.es/ecma262/#sec-hasvardeclaration)
@@ -663,11 +682,12 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc);
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc);
+        let global_object = obj_rec.get_binding_object(agent);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
@@ -693,12 +713,13 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
+        let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
         let existing_prop =
@@ -728,11 +749,12 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc);
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc);
+        let global_object = obj_rec.get_binding_object(agent);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
         let has_property = try_has_own_property(agent, global_object, n, gc)?;
@@ -759,12 +781,13 @@ impl GlobalEnvironment<'_> {
         name: String,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
+        let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent);
         let scoped_global_object = global_object.scope(agent, gc.nogc());
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
@@ -792,11 +815,12 @@ impl GlobalEnvironment<'_> {
         name: String,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc);
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc);
+        let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
@@ -832,11 +856,12 @@ impl GlobalEnvironment<'_> {
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[self];
+        let env = self.bind(gc.nogc());
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc.nogc());
+        let global_object = obj_rec.get_binding_object(agent);
         let scoped_global_object = global_object.scope(agent, gc.nogc());
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
@@ -879,11 +904,12 @@ impl GlobalEnvironment<'_> {
         is_deletable: bool,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc);
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc);
+        let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property = try_has_own_property(agent, global_object, n, gc)?;
@@ -903,7 +929,7 @@ impl GlobalEnvironment<'_> {
 
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
-        let env_rec = &mut agent[self];
+        let env_rec = &mut agent[env];
         env_rec.var_names.insert(name.unbind());
 
         // 7. Return UNUSED.
@@ -927,15 +953,18 @@ impl GlobalEnvironment<'_> {
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
+        let env = self.bind(nogc);
         let name = name.bind(nogc);
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, nogc);
+        let global_object = obj_rec.get_binding_object(agent);
         let scoped_global_object = global_object.scope(agent, nogc);
         let n = PropertyKey::from(name);
         let name = name.scope(agent, nogc);
+        let env = env.scope(agent, nogc);
+        let obj_rec = obj_rec.scope(agent, nogc);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property =
             has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow()).unbind()?;
@@ -946,18 +975,30 @@ impl GlobalEnvironment<'_> {
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
             obj_rec
+                .get(agent)
                 .create_mutable_binding(agent, name.get(agent), is_deletable, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            obj_rec.initialize_binding(agent, name.get(agent), Value::Undefined, gc)?;
+            // SAFETY: obj_rec is not shared.
+            unsafe { obj_rec.take(agent) }.initialize_binding(
+                agent,
+                name.get(agent),
+                Value::Undefined,
+                gc,
+            )?;
+        } else {
+            // SAFETY: obj_rec is not shared
+            let _ = unsafe { obj_rec.take(agent) };
         }
 
-        // 6. If envRec.[[VarNames]] does not contain N, then
-        //    a. Append N to envRec.[[VarNames]].
+        // SAFETY: env is not shared.
+        let env = unsafe { env.take(agent) };
         // SAFETY: name is not shared.
         let name = unsafe { name.take(agent) };
-        agent[self].var_names.insert(name);
+        // 6. If envRec.[[VarNames]] does not contain N, then
+        //    a. Append N to envRec.[[VarNames]].
+        agent[env].var_names.insert(name);
 
         // 7. Return UNUSED.
         Ok(())
@@ -980,11 +1021,12 @@ impl GlobalEnvironment<'_> {
         d: bool,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc);
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc);
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, gc);
+        let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
@@ -1021,7 +1063,7 @@ impl GlobalEnvironment<'_> {
         }
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
-        let env_rec = &mut agent[self];
+        let env_rec = &mut agent[env];
         env_rec.var_names.insert(name.unbind());
         // 9. Return UNUSED.
         TryResult::Continue(Ok(()))
@@ -1052,16 +1094,18 @@ impl GlobalEnvironment<'_> {
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
+        let env = self.bind(nogc);
         let name = name.bind(nogc);
         let value = value.scope(agent, nogc);
-        let env_rec = &agent[self];
+        let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record;
+        let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent, nogc);
+        let global_object = obj_rec.get_binding_object(agent);
         let scoped_global_object = global_object.scope(agent, nogc);
         let n = PropertyKey::from(name);
         let scoped_n = n.scope(agent, nogc);
+        let env = env.scope(agent, nogc);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let existing_prop = global_object
             .unbind()
@@ -1109,11 +1153,15 @@ impl GlobalEnvironment<'_> {
             false,
             gc,
         )?;
+        // SAFETY: env is not shared.
+        let env = unsafe { env.take(agent) };
+        // SAFETY: scoped_n is not shared.
+        let name = unsafe { scoped_n.take(agent) };
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
         // SAFETY: Name of a global function cannot be a numeric string.
-        let n = unsafe { String::try_from(scoped_n.get(agent).into_value_unchecked()).unwrap() };
-        agent[self].var_names.insert(n);
+        let n = unsafe { String::try_from(name.into_value_unchecked()).unwrap() };
+        agent[env].var_names.insert(n);
         // 9. Return UNUSED.
         Ok(())
         // NOTE
