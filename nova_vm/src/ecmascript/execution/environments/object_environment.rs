@@ -110,17 +110,13 @@ impl HeapMarkAndSweep for ObjectEnvironmentRecord {
     }
 }
 
-impl ObjectEnvironment<'_> {
-    pub(crate) fn get_binding_object<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
-        agent[self].binding_object.bind(gc)
+impl<'e> ObjectEnvironment<'e> {
+    pub(crate) fn get_binding_object(self, agent: &Agent) -> Object<'e> {
+        agent[self].binding_object
     }
 
-    pub(crate) fn get_outer_env<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Environment<'a>> {
-        agent[self].outer_env.bind(gc)
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
+        agent[self].outer_env
     }
 
     /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
@@ -141,14 +137,13 @@ impl ObjectEnvironment<'_> {
         let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from(n).bind(gc);
 
-        if !is_with_environment {
-            if let Object::Object(binding_object) = binding_object {
-                if let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name) {
-                    // We either found a value or checked each property in the
-                    // prototype chain and found nothing.
-                    return TryResult::Continue(value.is_some());
-                }
-            }
+        if !is_with_environment
+            && let Object::Object(binding_object) = binding_object
+            && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
+        {
+            // We either found a value or checked each property in the
+            // prototype chain and found nothing.
+            return TryResult::Continue(value.is_some());
         }
 
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
@@ -199,14 +194,13 @@ impl ObjectEnvironment<'_> {
         let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from(n).bind(gc.nogc());
 
-        if !is_with_environment {
-            if let Object::Object(binding_object) = binding_object {
-                if let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name) {
-                    // We either found a value or checked each property in the
-                    // prototype chain and found nothing.
-                    return Ok(value.is_some());
-                }
-            }
+        if !is_with_environment
+            && let Object::Object(binding_object) = binding_object
+            && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
+        {
+            // We either found a value or checked each property in the
+            // prototype chain and found nothing.
+            return Ok(value.is_some());
         }
 
         let scoped_binding_object = binding_object.scope(agent, gc.nogc());
@@ -420,17 +414,17 @@ impl ObjectEnvironment<'_> {
         let binding_object = env_rec.binding_object.bind(gc);
         let n = PropertyKey::from(n).bind(gc);
 
-        if let Object::Object(binding_object) = binding_object {
-            if let Some(set_value) = try_set_ordinary_object_value(agent, binding_object, n, v) {
-                // Key was found on binding object directly and contained a
-                // data property.
-                if !set_value && s {
-                    // The key was unwritable and we're in strict mode;
-                    // need to throw an error.
-                    return TryResult::Continue(throw_set_error(agent, n, gc));
-                }
-                return TryResult::Continue(Ok(()));
-            };
+        if let Object::Object(binding_object) = binding_object
+            && let Some(set_value) = try_set_ordinary_object_value(agent, binding_object, n, v)
+        {
+            // Key was found on binding object directly and contained a
+            // data property.
+            if !set_value && s {
+                // The key was unwritable and we're in strict mode;
+                // need to throw an error.
+                return TryResult::Continue(throw_set_error(agent, n, gc));
+            }
+            return TryResult::Continue(Ok(()));
         }
 
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
@@ -473,17 +467,17 @@ impl ObjectEnvironment<'_> {
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let n = PropertyKey::from(n).bind(gc.nogc());
 
-        if let Object::Object(binding_object) = binding_object {
-            if let Some(set_value) = try_set_ordinary_object_value(agent, binding_object, n, v) {
-                // Key was found on binding object directly and contained a
-                // data property.
-                if !set_value && s {
-                    // The key was unwritable and we're in strict mode;
-                    // need to throw an error.
-                    return throw_set_error(agent, n.unbind(), gc.into_nogc());
-                }
-                return Ok(());
-            };
+        if let Object::Object(binding_object) = binding_object
+            && let Some(set_value) = try_set_ordinary_object_value(agent, binding_object, n, v)
+        {
+            // Key was found on binding object directly and contained a
+            // data property.
+            if !set_value && s {
+                // The key was unwritable and we're in strict mode;
+                // need to throw an error.
+                return throw_set_error(agent, n.unbind(), gc.into_nogc());
+            }
+            return Ok(());
         }
 
         let scoped_binding_object = binding_object.scope(agent, gc.nogc());
@@ -541,28 +535,28 @@ impl ObjectEnvironment<'_> {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn try_get_binding_value<'a>(
+    pub(crate) fn try_get_binding_value(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, Value<'a>>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> TryResult<JsResult<'e, Value<'e>>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
         let name = PropertyKey::from(n).bind(gc);
 
-        if let Object::Object(binding_object) = binding_object {
-            if let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name) {
-                return if let Some(value) = value {
-                    // Found the property value.
-                    TryResult::Continue(Ok(value))
-                } else {
-                    // Property did not exist.
-                    TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
-                };
-            }
+        if let Object::Object(binding_object) = binding_object
+            && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
+        {
+            return if let Some(value) = value {
+                // Found the property value.
+                TryResult::Continue(Ok(value))
+            } else {
+                // Property did not exist.
+                TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
+            };
         }
 
         // 2. Let value be ? HasProperty(bindingObject, N).
@@ -596,16 +590,16 @@ impl ObjectEnvironment<'_> {
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let name = PropertyKey::from(name).bind(gc.nogc());
 
-        if let Object::Object(binding_object) = binding_object {
-            if let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name) {
-                return if let Some(value) = value {
-                    // Found the property value.
-                    Ok(value.unbind())
-                } else {
-                    // Property did not exist.
-                    Self::handle_property_not_found(agent, name.unbind(), s, gc.into_nogc())
-                };
-            }
+        if let Object::Object(binding_object) = binding_object
+            && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
+        {
+            return if let Some(value) = value {
+                // Found the property value.
+                Ok(value.unbind())
+            } else {
+                // Property did not exist.
+                Self::handle_property_not_found(agent, name.unbind(), s, gc.into_nogc())
+            };
         }
 
         let scoped_binding_object = binding_object.scope(agent, gc.nogc());
@@ -714,7 +708,7 @@ impl ObjectEnvironment<'_> {
     ///
     /// The WithBaseObject concrete method of an Object Environment Record
     /// envRec takes no arguments and returns an Object or undefined.
-    pub(crate) fn with_base_object(self, agent: &Agent) -> Option<Object> {
+    pub(crate) fn with_base_object(self, agent: &Agent) -> Option<Object<'e>> {
         let env_rec = &agent[self];
         // 1. If envRec.[[IsWithEnvironment]] is true, return envRec.[[BindingObject]].
         if env_rec.is_with_environment {

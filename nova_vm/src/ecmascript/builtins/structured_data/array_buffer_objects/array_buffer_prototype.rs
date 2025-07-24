@@ -304,11 +304,15 @@ impl ArrayBufferPrototype {
         // 14. Let newLen be max(final - first, 0).
         let new_len = (final_end as isize - first as isize).max(0) as usize;
         // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
-        let ctor = agent.current_realm_record().intrinsics().array_buffer();
+        let ctor = agent
+            .current_realm_record()
+            .intrinsics()
+            .array_buffer()
+            .bind(gc.nogc());
         // 16. Let new be ? Construct(ctor, « 𝔽(newLen) »).
         let Object::ArrayBuffer(new) = construct(
             agent,
-            ctor.into_function(),
+            ctor.into_function().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [(new_len as i64)
                 .try_into()
                 .unwrap()])),

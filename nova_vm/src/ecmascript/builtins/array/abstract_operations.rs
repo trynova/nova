@@ -14,7 +14,10 @@ use crate::{
             array::{Array, ArrayHeapData},
         },
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, Number, Object, PropertyDescriptor, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, IntoObject, Number, Object, OrdinaryObject, PropertyDescriptor,
+            Value,
+        },
     },
     engine::{
         TryResult,
@@ -56,7 +59,7 @@ pub(crate) fn array_create<'a>(
         {
             None
         } else {
-            Some(agent.heap.create_object_with_prototype(proto, &[]).bind(gc))
+            Some(OrdinaryObject::create_object(agent, Some(proto), &[]).bind(gc))
         }
     } else {
         None

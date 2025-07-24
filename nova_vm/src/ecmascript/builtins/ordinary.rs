@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+pub mod shape;
+
 use core::ops::{Index, IndexMut};
 use std::{collections::hash_map::Entry, vec};
 
@@ -15,7 +17,10 @@ use crate::{
         rootable::Scopable,
         unwrap_try,
     },
-    heap::{Heap, HeapSweepWeakReference, element_array::PropertyStorageMut},
+    heap::{
+        HeapSweepWeakReference,
+        element_array::{PropertyStorageMut, PropertyStorageRef},
+    },
 };
 use crate::{
     ecmascript::{
@@ -1128,15 +1133,19 @@ pub(crate) fn ordinary_own_property_keys<'a>(
     object: OrdinaryObject<'a>,
     gc: NoGcScope<'a, '_>,
 ) -> Vec<PropertyKey<'a>> {
-    let props = &agent[object].property_storage;
+    let PropertyStorageRef {
+        keys,
+        values: _,
+        descriptors: _,
+    } = object.get_property_storage(agent);
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
-    let mut keys = Vec::with_capacity(props.len() as usize);
+    let mut keys_vec = Vec::with_capacity(keys.len());
     let mut symbol_keys = vec![];
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
-    for key in props.keys(agent).iter() {
+    for key in keys.iter() {
         // SAFETY: Keys are all PropertyKeys reinterpreted as Values without
         // conversion.
         match key {
@@ -1146,14 +1155,14 @@ pub(crate) fn ordinary_own_property_keys<'a>(
                     // Integer property key! This requires sorting
                     integer_keys.push(key_value as u32);
                 } else {
-                    keys.push(key.bind(gc));
+                    keys_vec.push(key.bind(gc));
                 }
             }
             PropertyKey::Symbol(symbol) => symbol_keys.push(symbol.bind(gc)),
             // Note: PrivateName keys are always invisible.
             PropertyKey::PrivateName(_) => {}
             // a. Append P to keys.
-            _ => keys.push(key.bind(gc)),
+            _ => keys_vec.push(key.bind(gc)),
         }
     }
 
@@ -1162,18 +1171,18 @@ pub(crate) fn ordinary_own_property_keys<'a>(
         // in ascending numeric index order, do
         integer_keys.sort();
         // a. Append P to keys.
-        keys.splice(0..0, integer_keys.into_iter().map(|key| key.into()));
+        keys_vec.splice(0..0, integer_keys.into_iter().map(|key| key.into()));
     }
 
     // 4. For each own property key P of O such that P is a Symbol,
     if !symbol_keys.is_empty() {
         // in ascending chronological order of property creation, do
         // a. Append P to keys.
-        keys.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
+        keys_vec.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
     }
 
     // 5. Return keys.
-    keys
+    keys_vec
 }
 
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
@@ -1207,7 +1216,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
 ) -> Object<'a> {
     let Some(proto_intrinsics) = proto_intrinsics else {
         assert!(prototype.is_none());
-        return agent.heap.create_null_object(&[]).into();
+        return OrdinaryObject::create_object(agent, None, &[]).into();
     };
 
     let object = match proto_intrinsics {
@@ -1244,17 +1253,18 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(PrimitiveObjectHeapData::new_number_object(0.into()))
             .into_object(),
-        ProtoIntrinsics::Object => agent
-            .heap
-            .create_object_with_prototype(
+        ProtoIntrinsics::Object => OrdinaryObject::create_object(
+            agent,
+            Some(
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
-                &[],
-            )
-            .into(),
+            ),
+            &[],
+        )
+        .into(),
         ProtoIntrinsics::RangeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::RangeError, None, None))
@@ -1352,17 +1362,18 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::Int8Array => {
             Object::Int8Array(agent.heap.create(TypedArrayHeapData::default()))
         }
-        ProtoIntrinsics::Iterator => agent
-            .heap
-            .create_object_with_prototype(
+        ProtoIntrinsics::Iterator => OrdinaryObject::create_object(
+            agent,
+            Some(
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .iterator_prototype()
                     .into_object(),
-                &[],
-            )
-            .into_object(),
+            ),
+            &[],
+        )
+        .into_object(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
         ProtoIntrinsics::MapIterator => agent
             .heap
@@ -1681,9 +1692,12 @@ pub(crate) fn try_get_ordinary_object_value<'a>(
     binding_object: OrdinaryObject<'a>,
     name: PropertyKey<'a>,
 ) -> Result<Option<Value<'a>>, ()> {
-    let props = &agent[binding_object].property_storage;
-    let index = props
-        .keys(agent)
+    let PropertyStorageRef {
+        keys,
+        values,
+        descriptors,
+    } = binding_object.get_property_storage(agent);
+    let index = keys
         .iter()
         .enumerate()
         .find(|(_, k)| **k == name)
@@ -1691,8 +1705,15 @@ pub(crate) fn try_get_ordinary_object_value<'a>(
     if let Some(index) = index {
         // If value is None, it means that the slot is a getter or setter
         // and we cannot handle those on the fast path.
-        let Some(value) = props.values(agent)[index] else {
+        let Some(value) = values[index] else {
             // Getter or setter, break the fast path.
+            if descriptors.is_some_and(|d| {
+                d.get(&(index as u32))
+                    .is_some_and(|d| d.has_setter() && !d.has_getter())
+            }) {
+                // Setter-only, return undefined.
+                return Ok(Some(Value::Undefined));
+            }
             return Err(());
         };
         // Otherwise, we got a real Value for this property and can return
@@ -1727,16 +1748,11 @@ pub(crate) fn try_set_ordinary_object_value(
     name: PropertyKey,
     value: Value,
 ) -> Option<bool> {
-    let Heap {
-        objects, elements, ..
-    } = &mut agent.heap;
     let PropertyStorageMut {
         keys,
         values,
         descriptors,
-    } = objects[binding_object]
-        .property_storage
-        .get_storage_mut(elements)?;
+    } = binding_object.get_property_storage_mut(agent)?;
     let index = keys
         .iter()
         .enumerate()

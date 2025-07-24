@@ -266,14 +266,14 @@ pub(crate) enum Environment<'a> {
     Object(ObjectEnvironment<'a>),
 }
 
-impl Environment<'_> {
-    pub(crate) fn get_outer_env<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> OuterEnv<'a> {
+impl<'e> Environment<'e> {
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv<'e> {
         match self {
-            Environment::Declarative(e) => e.get_outer_env(agent, gc),
-            Environment::Function(e) => e.get_outer_env(agent, gc),
+            Environment::Declarative(e) => e.get_outer_env(agent),
+            Environment::Function(e) => e.get_outer_env(agent),
             Environment::Global(_) => None,
-            Environment::Module(e) => e.get_outer_env(agent, gc),
-            Environment::Object(e) => e.get_outer_env(agent, gc),
+            Environment::Module(e) => e.get_outer_env(agent),
+            Environment::Object(e) => e.get_outer_env(agent),
         }
     }
 
@@ -545,13 +545,13 @@ impl Environment<'_> {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn try_get_binding_value<'a>(
+    pub(crate) fn try_get_binding_value(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, Value<'a>>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> TryResult<JsResult<'e, Value<'e>>> {
         match self {
             Environment::Declarative(e) => {
                 TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
@@ -588,13 +588,17 @@ impl Environment<'_> {
     ) -> JsResult<'a, Value<'a>> {
         match self {
             Environment::Declarative(e) => {
-                e.get_binding_value(agent, name, is_strict, gc.into_nogc())
+                let gc = gc.into_nogc();
+                e.bind(gc).get_binding_value(agent, name, is_strict, gc)
             }
-            Environment::Function(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
+            Environment::Function(e) => {
+                let gc = gc.into_nogc();
+                e.bind(gc).get_binding_value(agent, name, is_strict, gc)
+            }
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 let gc = gc.into_nogc();
-                let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
+                let Some(value) = e.bind(gc).get_binding_value(agent, name, is_strict, gc) else {
                     return Err(throw_uninitialized_binding(agent, name, gc));
                 };
                 Ok(value)
@@ -674,14 +678,14 @@ impl Environment<'_> {
     /// ## Panics
     ///
     /// Panics if the environment does not have a `this` binding.
-    pub(crate) fn get_this_binding<'a>(
+    pub(crate) fn get_this_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> JsResult<'e, Value<'e>> {
         match self {
             Environment::Function(e) => e.get_this_binding(agent, gc),
-            Environment::Global(e) => Ok(e.get_this_binding(agent, gc).into_value()),
+            Environment::Global(e) => Ok(e.get_this_binding(agent).into_value()),
             Environment::Module(_) => Ok(Value::Undefined),
             _ => unreachable!(),
         }
@@ -702,7 +706,7 @@ impl Environment<'_> {
     ///
     /// If this Environment Record is associated with a with statement, return
     /// the with object. Otherwise, return undefined.
-    pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object> {
+    pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object<'e>> {
         match self {
             Environment::Object(e) => e.with_base_object(agent),
             _ => None,
@@ -850,7 +854,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     // 4. Else,
     else {
         // a. Let outer be env.[[OuterEnv]].
-        let outer = env.get_outer_env(agent, gc);
+        let outer = env.get_outer_env(agent);
 
         let Some(outer) = outer else {
             // a. Return the Reference Record {
@@ -913,21 +917,18 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
 
     // 3. If exists is true, then
     if exists {
-        let env = env.unbind();
-        let name = name.unbind();
-        let gc = gc.into_nogc();
         // a. Return the Reference Record {
         // [[Base]]: env,
         // [[ReferencedName]]: name,
         // [[Strict]]: strict,
-        Ok(Reference::new_variable_reference(env, name, strict).bind(gc))
+        Ok(Reference::new_variable_reference(env, name, strict).unbind())
         // [[ThisValue]]: EMPTY
         // }.
     }
     // 4. Else,
     else {
         // a. Let outer be env.[[OuterEnv]].
-        let outer = env.unbind().get_outer_env(agent, gc.nogc());
+        let outer = env.get_outer_env(agent);
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
         get_identifier_reference(agent, outer.unbind(), name.unbind(), strict, gc)
@@ -1147,7 +1148,7 @@ pub(crate) fn get_this_environment<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> 
         // c. Let outer be env.[[OuterEnv]].
         // d. Assert: outer is not null.
         // e. Set env to outer.
-        env = env.get_outer_env(agent, gc).unwrap();
+        env = env.get_outer_env(agent).unwrap();
     }
 }
 

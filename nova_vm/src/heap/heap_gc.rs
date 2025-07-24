@@ -54,6 +54,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
+            ordinary::shape::ObjectShape,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -109,6 +110,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         WellKnownSymbolIndexes::ToStringTag.into(),
         WellKnownSymbolIndexes::Unscopables.into(),
     ]);
+    queues.object_shapes.push(ObjectShape::NULL);
     agent.mark_values(&mut queues);
 
     while !queues.is_empty() {
@@ -148,6 +150,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             modules,
             module_request_records,
             numbers,
+            object_shapes,
+            object_shape_transitions,
+            prototype_shapes,
             objects,
             primitive_objects,
             promise_reaction_records,
@@ -212,6 +217,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             k2pow24,
             k2pow32,
         } = elements;
+
+        prototype_shapes.mark_values(&mut queues);
+
         let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
         module_marks.sort();
         module_marks.iter().for_each(|&idx| {
@@ -574,6 +582,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 generators.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut object_marks: Box<[ObjectShape]> = queues.object_shapes.drain(..).collect();
+        object_marks.sort();
+        object_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.object_shapes.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                object_shapes.get(index).mark_values(&mut queues);
+                object_shape_transitions.get(index).mark_values(&mut queues);
             }
         });
         let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
@@ -1067,10 +1089,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_4.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u8;
@@ -1085,10 +1105,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_6.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u8;
@@ -1103,10 +1121,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_8.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u8;
@@ -1121,10 +1137,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_10.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u16;
@@ -1139,10 +1153,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_12.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u16;
@@ -1157,10 +1169,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_16.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u16;
@@ -1175,10 +1185,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_24.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len;
@@ -1193,10 +1201,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_32.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len;
@@ -1260,6 +1266,9 @@ fn sweep(
         modules,
         module_request_records,
         numbers,
+        object_shapes,
+        object_shape_transitions,
+        prototype_shapes,
         objects,
         primitive_objects,
         promise_reaction_records,
@@ -1326,6 +1335,8 @@ fn sweep(
         k2pow24,
         k2pow32,
     } = elements;
+
+    prototype_shapes.sweep_values(&compactions);
 
     let mut globals = globals.borrow_mut();
     let globals_iter = globals.iter_mut();
@@ -1640,6 +1651,18 @@ fn sweep(
                 sweep_heap_vector_values(object, &compactions, &bits.object_environments);
             });
         }
+        if !object_shapes.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(object_shapes, &compactions, &bits.object_shapes);
+            });
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    object_shape_transitions,
+                    &compactions,
+                    &bits.object_shapes,
+                );
+            });
+        }
         if !objects.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(objects, &compactions, &bits.objects);
@@ -1789,11 +1812,10 @@ fn test_heap_gc() {
     let (mut gc, mut scope) = unsafe { GcScope::create_root() };
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
-    let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
-    println!("Object: {obj:#?}",);
+    let obj = HeapRootData::Object(OrdinaryObject::create_object(&mut agent, None, &[]));
     agent.heap.globals.borrow_mut().push(Some(obj));
     heap_gc(&mut agent, &mut [], gc.reborrow());
-    println!("Objects: {:#?}", agent.heap.objects);
+
     assert_eq!(agent.heap.objects.len(), 1);
     assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);
     assert!(agent.heap.globals.borrow().last().is_some());

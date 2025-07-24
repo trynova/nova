@@ -76,7 +76,7 @@ impl<'a> MapHeapData<'a> {
         self.map_data.keys.fill(None);
     }
 
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &MapData {
+    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &MapData<'a> {
         self.map_data.rehash_if_needed(arena);
         &self.map_data
     }

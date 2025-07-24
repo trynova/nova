@@ -1147,7 +1147,7 @@ impl CyclicModuleSlots for SourceTextModule<'_> {
             .set_async_evaluation_done();
     }
 
-    fn top_level_capability(self, agent: &Agent) -> Option<PromiseCapability> {
+    fn top_level_capability(self, agent: &Agent) -> Option<PromiseCapability<'_>> {
         self.get(agent)
             .cyclic_fields
             .top_level_capability()

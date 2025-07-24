@@ -200,7 +200,11 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         gc,
     ))
     .unwrap();
-    let throw_type_error = agent.current_realm_record().intrinsics().throw_type_error();
+    let throw_type_error = agent
+        .current_realm_record()
+        .intrinsics()
+        .throw_type_error()
+        .bind(gc);
     // 8. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor {
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.callee);
     unwrap_try(try_define_property_or_throw(

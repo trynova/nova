@@ -660,15 +660,15 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
 
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
-        if self.is_declaration() {
-            if let Some(class_identifier) = class_identifier {
-                // 4. Let env be the running execution context's LexicalEnvironment.
-                // 5. Perform ? InitializeBoundName(className, value, env).
-                // => a. Perform ! environment.InitializeBinding(name, value).
-                ctx.add_instruction(Instruction::StoreCopy);
-                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
-                ctx.add_instruction(Instruction::InitializeReferencedBinding);
-            }
+        if self.is_declaration()
+            && let Some(class_identifier) = class_identifier
+        {
+            // 4. Let env be the running execution context's LexicalEnvironment.
+            // 5. Perform ? InitializeBoundName(className, value, env).
+            // => a. Perform ! environment.InitializeBinding(name, value).
+            ctx.add_instruction(Instruction::StoreCopy);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
         ctx.add_instruction(Instruction::Store);

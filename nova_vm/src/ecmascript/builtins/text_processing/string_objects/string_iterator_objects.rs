@@ -56,7 +56,7 @@ impl<'a> StringIterator<'a> {
         self.0.into_index()
     }
 
-    pub(crate) fn get_data(self, agent: &Agent) -> &StringIteratorHeapData {
+    pub(crate) fn get_data(self, agent: &Agent) -> &StringIteratorHeapData<'a> {
         agent
             .heap
             .string_iterators

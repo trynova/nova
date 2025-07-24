@@ -191,7 +191,7 @@ pub fn perform_eval<'gc>(
         // b. If thisEnvRec is a Function Environment Record, then
         if let Environment::Function(this_env_rec) = this_env_rec {
             // i. Let F be thisEnvRec.[[FunctionObject]].
-            let f = this_env_rec.get_function_object(agent, gc.nogc());
+            let f = this_env_rec.get_function_object(agent);
             // ii. Set inFunction to true.
             _in_function = true;
             // iii. Set inMethod to thisEnvRec.HasSuperBinding().
@@ -484,7 +484,7 @@ pub fn eval_declaration_instantiation<'a>(
                 }
             }
             // ii. Set thisEnv to thisEnv.[[OuterEnv]].
-            this_env = this_env.get_outer_env(agent, gc.nogc()).unwrap();
+            this_env = this_env.get_outer_env(agent).unwrap();
             // SAFETY: scoped_this_env is not shared.
             unsafe { scoped_this_env.replace(agent, this_env.unbind()) };
             var_env = scoped_var_env.get(agent).bind(gc.nogc());
@@ -504,7 +504,7 @@ pub fn eval_declaration_instantiation<'a>(
         //    binding.[[Description]], append binding.[[Description]] to
         //    privateIdentifiers.
         // b. Set pointer to pointer.[[OuterPrivateEnvironment]].
-        pointer = p.get_outer_env(agent, gc.nogc());
+        pointer = p.get_outer_env(agent);
     }
 
     // TODO:

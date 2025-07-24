@@ -148,17 +148,17 @@ impl Job {
 
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut pushed_context = false;
-        if let Some(realm) = self.realm {
-            if agent.current_realm(gc.nogc()) != realm {
-                agent.push_execution_context(ExecutionContext {
-                    ecmascript_code: None,
-                    function: None,
-                    realm,
-                    script_or_module: None,
-                });
-                pushed_context = true;
-            }
-        };
+        if let Some(realm) = self.realm
+            && agent.current_realm(gc.nogc()) != realm
+        {
+            agent.push_execution_context(ExecutionContext {
+                ecmascript_code: None,
+                function: None,
+                realm,
+                script_or_module: None,
+            });
+            pushed_context = true;
+        }
 
         let result = match self.inner {
             InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
@@ -419,7 +419,7 @@ impl GcAgent {
 
     /// Creates a default realm suitable for basic testing only.
     pub fn create_default_realm(&mut self) -> RealmRoot {
-        let realm = self.agent.create_default_realm().unbind();
+        let realm = self.agent.create_default_realm();
         self.root_realm(realm)
     }
 
@@ -607,7 +607,7 @@ impl Agent {
     /// Creates a default realm suitable for basic testing only.
     ///
     /// This is intended for usage within BuiltinFunction calls.
-    fn create_default_realm(&mut self) -> Realm {
+    fn create_default_realm(&mut self) -> Realm<'static> {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
@@ -665,7 +665,7 @@ impl Agent {
         self.execution_context_stack.last().unwrap().realm
     }
 
-    pub(crate) fn current_realm_record(&self) -> &RealmRecord {
+    pub(crate) fn current_realm_record(&self) -> &RealmRecord<'static> {
         self.get_realm_record_by_id(self.current_realm_id_internal())
     }
 
@@ -673,7 +673,7 @@ impl Agent {
         self.get_realm_record_by_id_mut(self.current_realm_id_internal())
     }
 
-    pub(crate) fn get_realm_record_by_id(&self, id: Realm) -> &RealmRecord {
+    pub(crate) fn get_realm_record_by_id<'r>(&self, id: Realm<'r>) -> &RealmRecord<'r> {
         &self[id]
     }
 

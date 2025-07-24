@@ -47,6 +47,7 @@ use crate::ecmascript::{
         keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
         map::Map,
         module::Module,
+        ordinary::shape::ObjectShape,
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
@@ -117,6 +118,7 @@ pub struct HeapBits {
     pub module_request_records: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub object_environments: Box<[bool]>,
+    pub object_shapes: Box<[bool]>,
     pub objects: Box<[bool]>,
     pub primitive_objects: Box<[bool]>,
     pub private_environments: Box<[bool]>,
@@ -198,6 +200,7 @@ pub(crate) struct WorkQueues {
     pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironment<'static>>,
     pub objects: Vec<OrdinaryObject<'static>>,
+    pub object_shapes: Vec<ObjectShape<'static>>,
     pub primitive_objects: Vec<PrimitiveObject<'static>>,
     pub private_environments: Vec<PrivateEnvironment<'static>>,
     pub promises: Vec<Promise<'static>>,
@@ -277,6 +280,7 @@ impl HeapBits {
         let module_request_records = vec![false; heap.module_request_records.len()];
         let numbers = vec![false; heap.numbers.len()];
         let object_environments = vec![false; heap.environments.object.len()];
+        let object_shapes = vec![false; heap.object_shapes.len()];
         let objects = vec![false; heap.objects.len()];
         let primitive_objects = vec![false; heap.primitive_objects.len()];
         let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
@@ -354,6 +358,7 @@ impl HeapBits {
             module_request_records: module_request_records.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             object_environments: object_environments.into_boxed_slice(),
+            object_shapes: object_shapes.into_boxed_slice(),
             objects: objects.into_boxed_slice(),
             primitive_objects: primitive_objects.into_boxed_slice(),
             promise_reaction_records: promise_reaction_records.into_boxed_slice(),
@@ -437,6 +442,7 @@ impl WorkQueues {
             module_request_records: Vec::with_capacity(heap.module_request_records.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
+            object_shapes: Vec::with_capacity(heap.object_shapes.len() / 4),
             objects: Vec::with_capacity(heap.objects.len() / 4),
             primitive_objects: Vec::with_capacity(heap.primitive_objects.len() / 4),
             private_environments: Vec::with_capacity(heap.environments.private.len() / 4),
@@ -522,6 +528,7 @@ impl WorkQueues {
             module_request_records,
             numbers,
             object_environments,
+            object_shapes,
             objects,
             primitive_objects,
             private_environments,
@@ -619,6 +626,7 @@ impl WorkQueues {
             && module_request_records.is_empty()
             && numbers.is_empty()
             && object_environments.is_empty()
+            && object_shapes.is_empty()
             && objects.is_empty()
             && primitive_objects.is_empty()
             && private_environments.is_empty()
@@ -745,9 +753,12 @@ impl CompactionList {
         // 1-indexed value
         let base_index: u32 = (*index).into();
         // 0-indexed value
-        let base_index = base_index - 1;
+        // SAFETY: NonZeroU32 as u32 cannot wrap when 1 is subtracted.
+        let base_index = unsafe { base_index.unchecked_sub(1) };
         // SAFETY: Shifted base index can be 0, adding 1 makes it non-zero.
-        *index = unsafe { NonZeroU32::new_unchecked(self.shift_strong_u32_index(base_index) + 1) };
+        *index = unsafe {
+            NonZeroU32::new_unchecked(self.shift_strong_u32_index(base_index).unchecked_add(1))
+        };
     }
 
     /// Shift a weakly held reference index. Returns a new index if the
@@ -759,6 +770,20 @@ impl CompactionList {
         let base_index = index.into_u32_index();
         let base_index = self.shift_weak_u32_index(base_index)?;
         Some(BaseIndex::from_u32_index(base_index))
+    }
+
+    /// Shift a weakly held non-zero reference index. Returns a new index if
+    /// the reference target is live, otherwise returns None.
+    pub(crate) fn shift_weak_non_zero_u32_index(&self, index: NonZeroU32) -> Option<NonZeroU32> {
+        // 1-indexed value
+        let base_index: u32 = index.into();
+        // 0-indexed value
+        let base_index = base_index.wrapping_sub(1);
+        let base_index = self.shift_weak_u32_index(base_index)?.wrapping_add(1);
+        // SAFETY: we added 1 to the u32, which itself comes from our original
+        // index. It can be shifted down but will never wrap around, so adding
+        // the 1 cannot wrap around to 0 either.
+        Some(unsafe { NonZeroU32::new_unchecked(base_index) })
     }
 
     fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
@@ -945,6 +970,7 @@ pub(crate) struct CompactionLists {
     pub module_request_records: CompactionList,
     pub numbers: CompactionList,
     pub object_environments: CompactionList,
+    pub object_shapes: CompactionList,
     pub objects: CompactionList,
     pub primitive_objects: CompactionList,
     pub private_environments: CompactionList,
@@ -1035,6 +1061,7 @@ impl CompactionLists {
             module_environments: CompactionList::from_mark_bits(&bits.module_environments),
             module_request_records: CompactionList::from_mark_bits(&bits.module_request_records),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
+            object_shapes: CompactionList::from_mark_bits(&bits.object_shapes),
             objects: CompactionList::from_mark_bits(&bits.objects),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             private_environments: CompactionList::from_mark_bits(&bits.private_environments),
@@ -1111,12 +1138,14 @@ impl<T> HeapMarkAndSweep for Option<T>
 where
     T: HeapMarkAndSweep,
 {
+    #[inline]
     fn mark_values(&self, queues: &mut WorkQueues) {
         if let Some(content) = self {
             content.mark_values(queues);
         }
     }
 
+    #[inline]
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         if let Some(content) = self {
             content.sweep_values(compactions);
@@ -1180,6 +1209,19 @@ where
     }
 }
 
+impl<T> HeapMarkAndSweep for Vec<T>
+where
+    T: HeapMarkAndSweep,
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.as_slice().mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.as_mut_slice().sweep_values(compactions);
+    }
+}
+
 impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapMarkAndSweep>
     HeapMarkAndSweep for AHashMap<K, V>
 {
@@ -1211,6 +1253,53 @@ impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapMar
             let binding = self.remove(&old_key).unwrap();
             let did_insert = self.insert(new_key, binding).is_none();
             assert!(did_insert, "Failed to insert key {new_key:#?}");
+        }
+    }
+}
+
+// HeapMarkAndSweep implementation for hash maps from strong keys to weak
+// values. If the weak value drops, the entire entry is dropped.
+//
+// Note that this is not an emphemeron map (weak key if strongly held holds the
+// value strongly as well).
+impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapSweepWeakReference>
+    HeapMarkAndSweep for AHashMap<K, WeakReference<V>>
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        // Note: we do not mark values as they are held weakly.
+        for (key, _) in self.iter() {
+            key.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let mut replacements = Vec::new();
+        // Sweep all values, while also sweeping keys and making note of all
+        // changes in them: Those need to be updated in a separate loop.
+        for (key, value) in self.iter_mut() {
+            let old_key = *key;
+            let Some(new_value) = value.sweep_weak_reference(compactions) else {
+                // Value was dropped: remove the old key.
+                replacements.push((old_key, None));
+                continue;
+            };
+            *value = new_value;
+            let mut new_key = *key;
+            new_key.sweep_values(compactions);
+            if old_key != new_key {
+                replacements.push((old_key, Some(new_key)));
+            }
+        }
+        // Note: Replacement keys are in indeterminate order, we need to sort
+        // them so that "cascading" replacements are applied in the correct
+        // order.
+        replacements.sort();
+        for (old_key, new_key) in replacements.into_iter() {
+            let value = self.remove(&old_key).unwrap();
+            if let Some(new_key) = new_key {
+                let did_insert = self.insert(new_key, value).is_none();
+                assert!(did_insert, "Failed to insert key {new_key:#?}");
+            }
         }
     }
 }
@@ -1436,6 +1525,21 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
         // the key must necessarily exist in the descriptors hash map.
         let descriptor = unsafe { descriptors.remove(&old_key).unwrap_unchecked() };
         descriptors.insert(new_key, descriptor);
+    }
+}
+
+/// Weakly held garbage-collectable reference value.
+///
+/// This is a thin wrapper struct over the reference value, intended only for
+/// enabling automatic weak reference sweeping.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct WeakReference<T: HeapSweepWeakReference>(pub(crate) T);
+
+impl<T: Sized + Copy + HeapSweepWeakReference> HeapSweepWeakReference for WeakReference<T> {
+    #[inline(always)]
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        self.0.sweep_weak_reference(compactions).map(Self)
     }
 }
 

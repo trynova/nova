@@ -306,7 +306,7 @@ pub(crate) fn resolve_private_identifier(
     resolve_private_identifier(agent, outer_private_env, identifier)
 }
 
-impl PrivateEnvironment<'_> {
+impl<'e> PrivateEnvironment<'e> {
     fn get_data(self, agent: &Agent) -> &PrivateEnvironmentRecord {
         agent.heap.environments.get_private_environment(self)
     }
@@ -315,12 +315,8 @@ impl PrivateEnvironment<'_> {
         agent.heap.environments.get_private_environment_mut(self)
     }
 
-    pub(crate) fn get_outer_env<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<PrivateEnvironment<'a>> {
-        self.get_data(agent).outer_private_environment.bind(gc)
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<PrivateEnvironment<'e>> {
+        self.get_data(agent).outer_private_environment
     }
 
     /// Gets a PrivateName by offset in the Private Environment.

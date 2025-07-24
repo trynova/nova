@@ -1855,8 +1855,8 @@ impl Vm {
                 // 2. Assert: newTarget is an Object.
                 // 3. Let func be GetSuperConstructor().
                 let (new_target, func) = {
-                    let new_target = this_env.get_new_target(agent, gc.nogc());
-                    let function_object = this_env.get_function_object(agent, gc.nogc());
+                    let new_target = this_env.get_new_target(agent);
+                    let function_object = this_env.get_function_object(agent);
                     (
                         Function::try_from(new_target.unwrap())
                             .unwrap()
@@ -1923,9 +1923,7 @@ impl Vm {
                     .bind(gc.nogc());
                 // 9. Let F be thisER.[[FunctionObject]].
                 // 10. Assert: F is an ECMAScript function object.
-                let Function::ECMAScriptFunction(_f) =
-                    this_er.get_function_object(agent, gc.nogc())
-                else {
+                let Function::ECMAScriptFunction(_f) = this_er.get_function_object(agent) else {
                     unreachable!();
                 };
                 // 11. Perform ? InitializeInstanceElements(result, F).
@@ -2389,14 +2387,14 @@ impl Vm {
             Instruction::ExitDeclarativeEnvironment => {
                 let old_env = agent
                     .current_lexical_environment(gc.nogc())
-                    .get_outer_env(agent, gc.nogc())
+                    .get_outer_env(agent)
                     .unwrap();
                 agent.set_current_lexical_environment(old_env);
             }
             Instruction::ExitVariableEnvironment => {
                 let old_env = agent
                     .current_variable_environment(gc.nogc())
-                    .get_outer_env(agent, gc.nogc())
+                    .get_outer_env(agent)
                     .unwrap();
                 agent.set_current_variable_environment(old_env);
             }
@@ -2404,7 +2402,7 @@ impl Vm {
                 let old_env = agent
                     .current_private_environment(gc.nogc())
                     .unwrap()
-                    .get_outer_env(agent, gc.nogc());
+                    .get_outer_env(agent);
                 agent.set_current_private_environment(old_env);
             }
             Instruction::CreateMutableBinding => {
@@ -2955,7 +2953,7 @@ impl Vm {
                 // 3. Return envRec.[[NewTarget]].
                 vm.result = Some(
                     env_rec
-                        .get_new_target(agent, gc.nogc())
+                        .get_new_target(agent)
                         .map_or(Value::Undefined, |v| v.into_value())
                         .unbind(),
                 );
@@ -2998,7 +2996,9 @@ impl Vm {
                         // a. Set importMeta to OrdinaryObjectCreate(null).
                         // c. For each Record { [[Key]], [[Value]] } p of importMetaValues, do
                         // i. Perform ! CreateDataPropertyOrThrow(importMeta, p.[[Key]], p.[[Value]]).
-                        let import_meta = agent.heap.create_null_object(
+                        let import_meta = OrdinaryObject::create_object(
+                            agent,
+                            None,
                             &import_meta_values
                                 .into_iter()
                                 .map(|(key, value)| ObjectEntry::new_data_entry(key, value))

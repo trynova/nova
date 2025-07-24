@@ -85,7 +85,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
-            ordinary::ordinary_object_create_with_intrinsics,
+            ordinary::{ordinary_object_create_with_intrinsics, shape::ObjectShape},
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -101,10 +101,16 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::ObjectIndex,
+        ObjectEntry, WorkQueues,
+        element_array::{
+            ElementArrayKey, ElementDescriptor, ElementStorageUninit, ElementsVector,
+            PropertyStorageMut, PropertyStorageRef,
+        },
+        indexes::ObjectIndex,
     },
 };
 
+use ahash::AHashMap;
 pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::InternalSlots;
@@ -117,7 +123,7 @@ pub use property_storage::PropertyStorage;
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
 ///
 /// In Nova
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum Object<'a> {
     Object(OrdinaryObject<'a>) = OBJECT_DISCRIMINANT,
@@ -202,6 +208,209 @@ impl Object<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
+
+impl<'a> OrdinaryObject<'a> {
+    pub(crate) const fn _def() -> Self {
+        Self(ObjectIndex::from_u32_index(0))
+    }
+    pub(crate) const fn new(value: ObjectIndex<'a>) -> Self {
+        Self(value)
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
+    /// Returns true if the Object has no properties.
+    pub(crate) fn is_empty(self, agent: &Agent) -> bool {
+        agent[self].is_empty()
+    }
+
+    /// Returns the number of properties in the object.
+    pub(crate) fn len(self, agent: &Agent) -> u32 {
+        agent[self].len()
+    }
+
+    pub(crate) fn reserve(self, agent: &mut Agent, new_len: u32) {
+        agent.heap.objects[self].reserve(&mut agent.heap.elements, new_len);
+    }
+
+    pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
+        let Object::Object(ordinary) =
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
+        else {
+            unreachable!()
+        };
+        ordinary
+    }
+
+    pub(crate) fn get_shape(self, agent: &Agent) -> ObjectShape<'a> {
+        agent[self].get_shape()
+    }
+
+    pub(crate) fn get_property_storage<'b>(self, agent: &'b Agent) -> PropertyStorageRef<'b, 'a> {
+        let Heap {
+            object_shapes,
+            elements,
+            objects,
+            ..
+        } = &agent.heap;
+        let data = &objects[self];
+        let shape = data.get_shape();
+        let keys = shape.keys(object_shapes, elements);
+        let elements = data.get_storage(elements);
+        assert_eq!(keys.len(), elements.values.len());
+        PropertyStorageRef::from_keys_and_elements(keys, elements)
+    }
+
+    pub(crate) fn get_property_storage_mut<'b>(
+        self,
+        agent: &'b mut Agent,
+    ) -> Option<PropertyStorageMut<'b, 'a>> {
+        let Heap {
+            object_shapes,
+            elements,
+            objects,
+            ..
+        } = &mut agent.heap;
+        let data = &objects[self];
+        let shape = data.get_shape();
+        elements.get_property_storage_mut_raw(
+            shape.get_keys(object_shapes),
+            shape.get_cap(object_shapes),
+            data.get_values(),
+            data.get_cap(),
+            data.len(),
+        )
+    }
+
+    pub(crate) fn get_elements_storage_uninit<'b>(
+        self,
+        agent: &'b mut Agent,
+    ) -> ElementStorageUninit<'b> {
+        let Heap {
+            elements, objects, ..
+        } = &mut agent.heap;
+        let data = &objects[self];
+        elements.get_element_storage_uninit_raw(data.get_values(), data.get_cap())
+    }
+
+    pub fn create_object(
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
+        entries: &[ObjectEntry<'a>],
+    ) -> Self {
+        let base_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
+        let (
+            shape,
+            ElementsVector {
+                elements_index: values,
+                cap,
+                len,
+                len_writable: extensible,
+            },
+        ) = {
+            let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
+            let len = entries.len();
+            let shape = base_shape.get_or_create_child_shape(
+                agent,
+                prototype,
+                len,
+                |_, i| entries[i].key.unbind(),
+                |elements, len| {
+                    let (key, index) = elements.allocate_keys_with_capacity(len);
+                    let keys_memory = elements.get_keys_uninit_raw(key, index);
+                    for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
+                        *slot = Some(key.unbind());
+                    }
+                    (ElementArrayKey::from(len), index)
+                },
+            );
+            agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
+                + if nontrivial_entry_count > 0 {
+                    core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
+                        + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
+                            * nontrivial_entry_count
+                } else {
+                    0
+                };
+            let elements = agent
+                .heap
+                .elements
+                .allocate_object_property_storage_from_entries_slice(entries);
+            (shape, elements)
+        };
+        agent
+            .heap
+            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+    }
+
+    /// Attempts to make this ordinary Object a copy of some source ordinary
+    /// Object. This only succeeds if the current Object is empty, the
+    /// prototypes of the two Objects match, and all own keys in the source
+    /// Object are enumerable keys (descriptor is enumerable, key is not symbol
+    /// or private), and the source Object contains no getters.
+    ///
+    /// Returns true if the copy succeeded. If the copy does not succeed, no
+    /// changes to either object are performed and the function returns false.
+    pub(crate) fn try_copy_from_object(self, agent: &mut Agent, source: OrdinaryObject) -> bool {
+        if source.is_empty(agent) {
+            // It's always possible to copy an empty object.
+            return true;
+        }
+        if !self.is_empty(agent)
+            || source.internal_prototype(agent) != self.internal_prototype(agent)
+        {
+            // Our own object is not empty or our prototypes don't match; can't
+            // perform the copy.
+            return false;
+        }
+        // Copying properties from one ordinary object to another and they
+        // have the same prototype: we may be able to perform a trivial copy.
+        let PropertyStorageRef {
+            keys, descriptors, ..
+        } = source.unbind().get_property_storage(agent);
+        if descriptors.is_some_and(|d| d.iter().any(|(_, d)| !d.is_enumerable() || d.has_getter()))
+            || keys.iter().any(|k| k.is_symbol() || k.is_private_name())
+        {
+            // Found a non-enumerable property, a getter, or a non-enumerable
+            // key. Cannot perform the copy.
+            return false;
+        }
+        // All properties in the source object are enumerable, none are
+        // getters, and no key is a symbol or private name: the shape of the
+        // source and the self objects will be identical after this operation.
+        // Note: we need to copy the descriptors anyway, so we'll just do it
+        // here.
+        let source_descriptors = descriptors.cloned();
+        let len = keys.len() as u32;
+        let source_shape = agent[source].get_shape();
+        agent.heap.objects[self].reserve(&mut agent.heap.elements, len);
+        agent[self].set_len(len);
+        agent[self].set_shape(source_shape);
+        // Note: this call can reallocate descriptors.
+        let PropertyStorageMut {
+            descriptors: target_descriptors,
+            values: target_values,
+            ..
+        } = self.get_property_storage_mut(agent).unwrap();
+        if let Some(source_descriptors) = source_descriptors {
+            target_descriptors.insert_entry(source_descriptors);
+        }
+        // Descriptors are now set, then just copy the values over.
+        let target_values = target_values as *mut [Option<Value<'static>>];
+        let PropertyStorageRef {
+            values: source_values,
+            ..
+        } = source.unbind().get_property_storage(agent);
+        // SAFETY: self and source are two distinct objects (otherwise we'd
+        // have returned early from self not being empty, or source being
+        // empty). Thus, the values slices here are distinct from one another.
+        let target_values = unsafe { &mut *target_values };
+        target_values.copy_from_slice(source_values);
+        true
+    }
+}
 
 // SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for Object<'_> {
@@ -289,41 +498,35 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 
     fn internal_extensible(self, agent: &Agent) -> bool {
-        agent[self.unbind()].property_storage.extensible
+        agent[self].get_extensible()
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        agent[self.unbind()].property_storage.extensible = value;
+        agent[self].set_extensible(value)
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
-        agent[self.unbind()].prototype
+        agent[self].get_prototype(agent)
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        agent[self.unbind()].prototype = prototype.unbind();
-    }
-}
-
-impl<'a> OrdinaryObject<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(ObjectIndex::from_u32_index(0))
-    }
-    pub(crate) const fn new(value: ObjectIndex<'a>) -> Self {
-        Self(value)
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
-        let Object::Object(ordinary) =
-            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
-        else {
-            unreachable!()
-        };
-        ordinary
+        let original_shape = agent[self].get_shape();
+        if original_shape.get_prototype(agent) == prototype {
+            return;
+        }
+        let original_cap = original_shape.get_cap(agent);
+        let original_keys = original_shape.get_keys(agent);
+        let len = original_shape.get_length(agent);
+        let cap = ElementArrayKey::from(len);
+        let root_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
+        let shape = root_shape.get_or_create_child_shape(
+            agent,
+            prototype,
+            len as usize,
+            |elements, i| elements.get_keys_raw(cap, original_keys, len)[i],
+            |_, _| (original_cap, original_keys),
+        );
+        agent[self].set_shape(shape);
     }
 }
 

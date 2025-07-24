@@ -368,10 +368,10 @@ impl NumberPrototype {
                 .pop()
                 .expect("already checked that length is bigger than precision")
                 as u8;
-            if let Some(first) = to_round.chars().next() {
-                if first > '4' {
-                    digit += 1;
-                }
+            if let Some(first) = to_round.chars().next()
+                && first > '4'
+            {
+                digit += 1;
             }
 
             if digit as char == ':' {
@@ -552,14 +552,14 @@ fn this_number_value<'gc>(
         return Ok(value.bind(gc));
     }
     // 2. If value is an Object and value has a [[NumberData]] internal slot, then
-    if let Ok(value) = PrimitiveObject::try_from(value) {
-        if value.is_number_object(agent) {
-            // a. Let n be value.[[NumberData]].
-            // b. Assert: n is a Number.
-            let n: Number = agent[value].data.try_into().unwrap();
-            // c. Return n.
-            return Ok(n.bind(gc));
-        }
+    if let Ok(value) = PrimitiveObject::try_from(value)
+        && value.is_number_object(agent)
+    {
+        // a. Let n be value.[[NumberData]].
+        // b. Assert: n is a Number.
+        let n: Number = agent[value].data.try_into().unwrap();
+        // c. Return n.
+        return Ok(n.bind(gc));
     }
     // 3. Throw a TypeError exception.
     Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a Number", gc))

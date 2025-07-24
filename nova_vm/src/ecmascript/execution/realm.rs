@@ -48,7 +48,7 @@ impl core::fmt::Debug for Realm<'_> {
     }
 }
 
-impl Realm<'_> {
+impl<'r> Realm<'r> {
     /// Creates a realm identififer from a usize.
     ///
     /// ## Panics
@@ -101,7 +101,7 @@ impl Realm<'_> {
     }
 
     /// ### \[\[GlobalObject]]
-    pub fn global_object(self, agent: &mut Agent) -> Object {
+    pub fn global_object(self, agent: &mut Agent) -> Object<'r> {
         agent[self].global_object
     }
 
@@ -400,11 +400,11 @@ pub(crate) fn set_realm_global_object(
         // a. Let intrinsics be realmRec.[[Intrinsics]].
         let intrinsics = &agent.get_realm_record_by_id(realm_id).intrinsics;
         // b. Set globalObj to OrdinaryObjectCreate(intrinsics.[[%Object.prototype%]]).
-        Object::Object(
-            agent
-                .heap
-                .create_object_with_prototype(intrinsics.object_prototype().into(), &[]),
-        )
+        Object::Object(OrdinaryObject::create_object(
+            agent,
+            Some(intrinsics.object_prototype().into()),
+            &[],
+        ))
     });
 
     // 2. Assert: globalObj is an Object.
@@ -476,10 +476,10 @@ pub(crate) fn set_default_global_bindings<'a>(
     // 19.1 Value Properties of the Global Object
     {
         // 19.1.1 globalThis
-        let global_env = agent[realm_id].global_env;
+        let global_env = agent[realm_id].global_env.bind(gc.nogc());
         let value = global_env
             .unwrap()
-            .get_this_binding(agent, gc.nogc())
+            .get_this_binding(agent)
             .into_value()
             .unbind();
         define_property!(globalThis, value, None, None, None);

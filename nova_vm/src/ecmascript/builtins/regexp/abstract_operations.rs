@@ -370,16 +370,15 @@ fn reg_exp_exec_prepare<'a>(
     };
 
     // Fast path: native RegExp object and intrinsic exec function.
-    if let Object::RegExp(r) = r {
-        if exec
+    if let Object::RegExp(r) = r
+        && exec
             == agent
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp_prototype_exec()
                 .into_value()
-        {
-            return ControlFlow::Continue((r.unbind(), s.unbind()));
-        }
+    {
+        return ControlFlow::Continue((r.unbind(), s.unbind()));
     }
 
     // 2. If IsCallable(exec) is true, then

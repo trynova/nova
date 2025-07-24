@@ -57,9 +57,9 @@ fn count_test_files(path: PathBuf) -> usize {
             .and_then(|path| path.to_str())
             .is_some_and(is_test_file)
     {
-        return 1;
+        1
     } else {
-        return 0;
+        0
     }
 }
 
@@ -133,10 +133,10 @@ impl TestFilters {
     }
 
     fn filter_file(&self, os_file_name: &OsStr) -> bool {
-        if let Some(str_file_name) = os_file_name.to_str() {
-            if !is_test_file(str_file_name) {
-                return false;
-            }
+        if let Some(str_file_name) = os_file_name.to_str()
+            && !is_test_file(str_file_name)
+        {
+            return false;
         }
         if self.denylist.iter().any(|path| path == os_file_name) {
             return false;
@@ -467,10 +467,10 @@ impl Test262Runner {
         read_dir(path).unwrap().par_bridge().for_each(|entry| {
             let entry = entry.unwrap();
 
-            if entry.file_type().unwrap().is_dir() {
-                if let Some(child_filters) = filters.filter_dir(&entry.file_name()) {
-                    self.walk_dir(&entry.path(), &child_filters);
-                }
+            if entry.file_type().unwrap().is_dir()
+                && let Some(child_filters) = filters.filter_dir(&entry.file_name())
+            {
+                self.walk_dir(&entry.path(), &child_filters);
             }
 
             if entry.file_type().unwrap().is_file() && filters.filter_file(&entry.file_name()) {

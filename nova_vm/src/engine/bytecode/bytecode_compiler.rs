@@ -906,14 +906,13 @@ fn compile_arguments<'s>(
 impl<'s> CompileEvaluation<'s> for ast::CallExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Direct eval
-        if !self.optional {
-            if let ast::Expression::Identifier(ident) = &self.callee {
-                if ident.name == "eval" {
-                    let num_arguments = compile_arguments(&self.arguments, ctx);
-                    ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
-                    return;
-                }
-            }
+        if !self.optional
+            && let ast::Expression::Identifier(ident) = &self.callee
+            && ident.name == "eval"
+        {
+            let num_arguments = compile_arguments(&self.arguments, ctx);
+            ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
+            return;
         }
 
         // 1. Let ref be ? Evaluation of CallExpression.
@@ -1474,13 +1473,8 @@ impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::TemplateLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        if self.is_no_substitution_template() {
-            let constant = ctx.create_string(
-                self.quasi()
-                    .as_ref()
-                    .expect("Invalid escape sequence in template literal")
-                    .as_str(),
-            );
+        if let Some(quasi) = self.single_quasi() {
+            let constant = ctx.create_string(&quasi);
             ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
         } else {
             let mut count = 0;

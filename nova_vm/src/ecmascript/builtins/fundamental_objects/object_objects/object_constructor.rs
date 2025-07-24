@@ -411,10 +411,10 @@ impl ObjectConstructor {
         let nogc = gc.nogc();
         let o = arguments.get(0).bind(nogc);
         let properties = arguments.get(1).bind(nogc);
-        let obj: OrdinaryObject = if o == Value::Null {
-            agent.heap.create_null_object(&[]).bind(nogc)
+        let proto = if o == Value::Null {
+            None
         } else if let Ok(o) = Object::try_from(o) {
-            agent.heap.create_object_with_prototype(o, &[]).bind(nogc)
+            Some(o)
         } else {
             let error_message = format!(
                 "{} is not an object or null",
@@ -428,6 +428,7 @@ impl ObjectConstructor {
                 gc.into_nogc(),
             ));
         };
+        let obj = OrdinaryObject::create_object(agent, proto, &[]).bind(nogc);
         if properties != Value::Undefined {
             Ok(object_define_properties(
                 agent,
@@ -600,17 +601,14 @@ impl ObjectConstructor {
         let mut iterable = arguments.get(0).bind(gc.nogc());
         // Fast path: Simple, dense array of N simple, dense arrays.
         if matches!(iterable, Value::Array(_)) {
-            let array_prototype = agent.current_realm_record().intrinsics().array_prototype();
-            let intrinsic_array_iterator = agent
-                .current_realm_record()
-                .intrinsics()
-                .array_prototype_values()
-                .into_function()
-                .unbind();
             let scoped_iterable = iterable.scope(agent, gc.nogc());
             let array_iterator = get_method(
                 agent,
-                array_prototype.into_value(),
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .array_prototype()
+                    .into_value(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
             )
@@ -626,7 +624,14 @@ impl ObjectConstructor {
             // the behaviour of the iterator (access elements one by one) and
             // we know that accessing the elements will not trigger calls into
             // JavaScript. Hence, we can access the elements directly.
-            if array_iterator == Some(intrinsic_array_iterator)
+            if array_iterator
+                == Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .array_prototype_values()
+                        .into_function(),
+                )
                 && entries_array.is_simple(agent)
                 && entries_array.is_dense(agent)
             {
@@ -686,12 +691,15 @@ impl ObjectConstructor {
                     }
                 }
                 if valid {
-                    let object = agent.heap.create_object_with_prototype(
-                        agent
-                            .current_realm_record()
-                            .intrinsics()
-                            .object_prototype()
-                            .into_object(),
+                    let object = OrdinaryObject::create_object(
+                        agent,
+                        Some(
+                            agent
+                                .current_realm_record()
+                                .intrinsics()
+                                .object_prototype()
+                                .into_object(),
+                        ),
                         &object_entries,
                     );
                     return Ok(object.into_value().unbind());
@@ -797,17 +805,18 @@ impl ObjectConstructor {
             i += 1;
         }
         // 3. Let descriptors be OrdinaryObjectCreate(%Object.prototype%).
-        let descriptors = agent
-            .heap
-            .create_object_with_prototype(
+        let descriptors = OrdinaryObject::create_object(
+            agent,
+            Some(
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
-                &descriptors,
-            )
-            .bind(gc.nogc());
+            ),
+            &descriptors,
+        )
+        .bind(gc.nogc());
         if i < own_keys.len() {
             let _ = own_keys.drain(..i);
             let obj = scoped_obj.unwrap_or_else(|| obj.scope(agent, gc.nogc()));
@@ -905,7 +914,7 @@ impl ObjectConstructor {
                 )
             })
             .collect::<Vec<_>>();
-        let object = agent.heap.create_null_object(&entries).bind(gc);
+        let object = OrdinaryObject::create_object(agent, None, &entries).bind(gc);
 
         // 4. Return obj.
         Ok(object.into_value())

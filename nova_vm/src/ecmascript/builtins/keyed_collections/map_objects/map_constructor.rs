@@ -289,124 +289,122 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
     let mut target = target.bind(nogc);
     let mut iterable = iterable.bind(nogc);
     let mut adder = adder.bind(nogc);
-    if let Function::BuiltinFunction(bf) = adder {
-        if agent[bf].behaviour == MapPrototypeSet::BEHAVIOUR {
-            // Normal Map.prototype.set
-            if let Value::Array(arr_iterable) = iterable {
-                let scoped_target = target.scope(agent, nogc);
-                let scoped_iterable = arr_iterable.scope(agent, nogc);
-                let scoped_adder = bf.scope(agent, nogc);
-                let using_iterator = get_method(
-                    agent,
-                    arr_iterable.into_value().unbind(),
-                    WellKnownSymbolIndexes::Iterator.into(),
-                    gc.reborrow(),
+    if let Function::BuiltinFunction(bf) = adder
+        && agent[bf].behaviour == MapPrototypeSet::BEHAVIOUR
+    {
+        // Normal Map.prototype.set
+        if let Value::Array(arr_iterable) = iterable {
+            let scoped_target = target.scope(agent, nogc);
+            let scoped_iterable = arr_iterable.scope(agent, nogc);
+            let scoped_adder = bf.scope(agent, nogc);
+            let using_iterator = get_method(
+                agent,
+                arr_iterable.into_value().unbind(),
+                WellKnownSymbolIndexes::Iterator.into(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            target = scoped_target.get(agent).bind(gc.nogc());
+            if using_iterator
+                == Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .array_prototype_values()
+                        .into_function(),
                 )
-                .unbind()?
-                .bind(gc.nogc());
-                target = scoped_target.get(agent).bind(gc.nogc());
-                if using_iterator
-                    == Some(
-                        agent
-                            .current_realm_record()
-                            .intrinsics()
-                            .array_prototype_values()
-                            .into_function(),
-                    )
+            {
+                let arr_iterable = scoped_iterable.get(agent).bind(gc.nogc());
+                let Heap {
+                    elements,
+                    arrays,
+                    bigints,
+                    numbers,
+                    strings,
+                    maps,
+                    ..
+                } = &mut agent.heap;
+                let array_heap = ArrayHeap::new(elements, arrays);
+                let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+                // Iterable uses the normal Array iterator of this realm.
+                if arr_iterable.len(&array_heap) == 0 {
+                    // Array iterator does not iterate empty arrays.
+                    return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
+                }
+                if arr_iterable.is_trivial(&array_heap)
+                    && arr_iterable.as_slice(&array_heap).iter().all(|entry| {
+                        if let Some(Value::Array(entry)) = *entry {
+                            entry.len(&array_heap) == 2
+                                && entry.is_trivial(&array_heap)
+                                && entry.is_dense(&array_heap)
+                        } else {
+                            false
+                        }
+                    })
                 {
-                    let arr_iterable = scoped_iterable.get(agent).bind(gc.nogc());
-                    let Heap {
-                        elements,
-                        arrays,
-                        bigints,
-                        numbers,
-                        strings,
-                        maps,
+                    // Trivial, dense array of trivial, dense arrays of two elements.
+                    let target = target.unbind();
+                    let arr_iterable = arr_iterable.unbind();
+                    let gc = gc.into_nogc();
+                    let target = target.bind(gc);
+                    let arr_iterable = arr_iterable.bind(gc);
+                    let length = arr_iterable.len(&array_heap);
+                    let MapData {
+                        keys,
+                        values,
+                        map_data,
                         ..
-                    } = &mut agent.heap;
-                    let array_heap = ArrayHeap::new(elements, arrays);
-                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+                    } = maps[target].borrow_mut(&primitive_heap);
+                    let map_data = map_data.get_mut();
 
-                    // Iterable uses the normal Array iterator of this realm.
-                    if arr_iterable.len(&array_heap) == 0 {
-                        // Array iterator does not iterate empty arrays.
-                        return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
-                    }
-                    if arr_iterable.is_trivial(&array_heap)
-                        && arr_iterable.as_slice(&array_heap).iter().all(|entry| {
-                            if let Some(Value::Array(entry)) = *entry {
-                                entry.len(&array_heap) == 2
-                                    && entry.is_trivial(&array_heap)
-                                    && entry.is_dense(&array_heap)
-                            } else {
-                                false
-                            }
-                        })
-                    {
-                        // Trivial, dense array of trivial, dense arrays of two elements.
-                        let target = target.unbind();
-                        let arr_iterable = arr_iterable.unbind();
-                        let gc = gc.into_nogc();
-                        let target = target.bind(gc);
-                        let arr_iterable = arr_iterable.bind(gc);
-                        let length = arr_iterable.len(&array_heap);
-                        let MapData {
-                            keys,
-                            values,
-                            map_data,
-                            ..
-                        } = maps[target].borrow_mut(&primitive_heap);
-                        let map_data = map_data.get_mut();
-
-                        let length = length as usize;
-                        keys.reserve(length);
-                        values.reserve(length);
-                        // Note: The Map is empty at this point, we don't need the hasher function.
-                        assert!(map_data.is_empty());
-                        map_data.reserve(length, |_| 0);
-                        let hasher = |value: Value| {
-                            let mut hasher = AHasher::default();
-                            value.hash(&primitive_heap, &mut hasher);
-                            hasher.finish()
+                    let length = length as usize;
+                    keys.reserve(length);
+                    values.reserve(length);
+                    // Note: The Map is empty at this point, we don't need the hasher function.
+                    assert!(map_data.is_empty());
+                    map_data.reserve(length, |_| 0);
+                    let hasher = |value: Value| {
+                        let mut hasher = AHasher::default();
+                        value.hash(&primitive_heap, &mut hasher);
+                        hasher.finish()
+                    };
+                    for entry in arr_iterable.as_slice(&array_heap).iter() {
+                        let Some(Value::Array(entry)) = *entry else {
+                            unreachable!()
                         };
-                        for entry in arr_iterable.as_slice(&array_heap).iter() {
-                            let Some(Value::Array(entry)) = *entry else {
-                                unreachable!()
-                            };
-                            let slice = entry.as_slice(&array_heap);
-                            let key = canonicalize_keyed_collection_key(
-                                numbers,
-                                slice[0].unwrap().bind(gc),
-                            );
-                            let key_hash = hasher(key);
-                            let value = slice[1].unwrap().bind(gc);
-                            let next_index = keys.len() as u32;
-                            let entry = map_data.entry(
-                                key_hash,
-                                |hash_equal_index| keys[*hash_equal_index as usize].unwrap() == key,
-                                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
-                            );
-                            match entry {
-                                hashbrown::hash_table::Entry::Occupied(occupied) => {
-                                    // We have duplicates in the array. Latter
-                                    // ones overwrite earlier ones.
-                                    let index = *occupied.get();
-                                    values[index as usize] = Some(value.unbind());
-                                }
-                                hashbrown::hash_table::Entry::Vacant(vacant) => {
-                                    vacant.insert(next_index);
-                                    keys.push(Some(key.unbind()));
-                                    values.push(Some(value.unbind()));
-                                }
+                        let slice = entry.as_slice(&array_heap);
+                        let key =
+                            canonicalize_keyed_collection_key(numbers, slice[0].unwrap().bind(gc));
+                        let key_hash = hasher(key);
+                        let value = slice[1].unwrap().bind(gc);
+                        let next_index = keys.len() as u32;
+                        let entry = map_data.entry(
+                            key_hash,
+                            |hash_equal_index| keys[*hash_equal_index as usize].unwrap() == key,
+                            |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
+                        );
+                        match entry {
+                            hashbrown::hash_table::Entry::Occupied(occupied) => {
+                                // We have duplicates in the array. Latter
+                                // ones overwrite earlier ones.
+                                let index = *occupied.get();
+                                values[index as usize] = Some(value.unbind());
+                            }
+                            hashbrown::hash_table::Entry::Vacant(vacant) => {
+                                vacant.insert(next_index);
+                                keys.push(Some(key.unbind()));
+                                values.push(Some(value.unbind()));
                             }
                         }
-                        return Ok(scoped_target.get(agent).bind(gc));
                     }
+                    return Ok(scoped_target.get(agent).bind(gc));
                 }
-                let gc = gc.nogc();
-                iterable = scoped_iterable.get(agent).bind(gc).into_value();
-                adder = scoped_adder.get(agent).bind(gc).into_function();
             }
+            let gc = gc.nogc();
+            iterable = scoped_iterable.get(agent).bind(gc).into_value();
+            adder = scoped_adder.get(agent).bind(gc).into_function();
         }
     }
 

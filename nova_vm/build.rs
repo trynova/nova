@@ -14,10 +14,10 @@ fn replace_invalid_key_characters(string: &str) -> String {
     }
 
     // If the first character is a number or a hyphen, prefix the string with an underscore.
-    if let Some(first_char) = string.chars().next() {
-        if first_char.is_numeric() || first_char == '-' {
-            string = format!("_{string}");
-        }
+    if let Some(first_char) = string.chars().next()
+        && (first_char.is_numeric() || first_char == '-')
+    {
+        string = format!("_{string}");
     }
 
     string.replace(['[', ']', '(', ')', ' ', '.', '-', '*'], "_")

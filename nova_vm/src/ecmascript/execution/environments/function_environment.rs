@@ -217,29 +217,17 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
     )
 }
 
-impl FunctionEnvironment<'_> {
-    pub(crate) fn get_function_object<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Function<'a> {
-        agent[self].function_object.bind(gc)
+impl<'e> FunctionEnvironment<'e> {
+    pub(crate) fn get_function_object(self, agent: &Agent) -> Function<'e> {
+        agent[self].function_object
     }
 
-    pub(crate) fn get_new_target<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Object<'a>> {
-        agent[self].new_target.bind(gc)
+    pub(crate) fn get_new_target(self, agent: &Agent) -> Option<Object<'e>> {
+        agent[self].new_target
     }
 
-    pub(crate) fn get_outer_env<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Environment<'a>> {
-        agent[self].declarative_environment.get_outer_env(agent, gc)
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
+        agent[self].declarative_environment.get_outer_env(agent)
     }
 
     pub(crate) fn get_this_binding_status(self, agent: &Agent) -> ThisBindingStatus {
@@ -379,13 +367,13 @@ impl FunctionEnvironment<'_> {
     }
 
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
-    pub(crate) fn get_binding_value<'a>(
+    pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> JsResult<'e, Value<'e>> {
         agent[self]
             .declarative_environment
             .get_binding_value(agent, name, is_strict, gc)

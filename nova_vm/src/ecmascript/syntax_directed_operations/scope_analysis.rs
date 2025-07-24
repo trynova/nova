@@ -642,18 +642,14 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 // 1. Let names1 be the BoundNames of ForBinding.
                 // 2. Let names2 be the VarDeclaredNames of Statement.
                 // 3. Return the list-concatenation of names1 and names2.
-                if !st.left.is_lexical_declaration() {
-                    if let ForStatementLeft::VariableDeclaration(decl) = &st.left {
+                if !st.left.is_lexical_declaration() && let ForStatementLeft::VariableDeclaration(decl) = &st.left {
                         decl.bound_names(f);
-                    }
                 }
                 st.body.var_declared_names(f);
             },
             Statement::ForOfStatement(st) => {
-                if !st.left.is_lexical_declaration() {
-                    if let ForStatementLeft::VariableDeclaration(decl) = &st.left {
+                if !st.left.is_lexical_declaration() && let ForStatementLeft::VariableDeclaration(decl) = &st.left {
                         decl.bound_names(f);
-                    }
                 }
                 st.body.var_declared_names(f);
             },
@@ -665,11 +661,9 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                 // 3. Return the list-concatenation of names1 and names2.
                 // ForStatement : for ( LexicalDeclaration Expressionopt ; Expressionopt ) Statement
                 // 1. Return the VarDeclaredNames of Statement.
-                if let Some(ForStatementInit::VariableDeclaration(decl)) = &st.init {
-                    if decl.kind.is_var() {
+                if let Some(ForStatementInit::VariableDeclaration(decl)) = &st.init && decl.kind.is_var() {
                         // 1. Let names1 be BoundNames of VariableDeclarationList.
                         decl.bound_names(f);
-                    }
                 }
                 st.body.var_declared_names(f);
             },
@@ -753,10 +747,8 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
             // 1. If ExportDeclaration is export VariableStatement, return BoundNames of ExportDeclaration.
             // 2. Return a new empty List.
             Statement::ExportNamedDeclaration(decl) => {
-                if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration {
-                    if decl.kind.is_var() {
-                        decl.bound_names(f);
-                    }
+                if let Some(Declaration::VariableDeclaration(decl)) = &decl.declaration && decl.kind.is_var() {
+                    decl.bound_names(f);
                 }
             },
             Statement::TSEnumDeclaration(_) |

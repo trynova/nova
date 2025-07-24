@@ -477,11 +477,7 @@ pub(crate) fn create_builtin_constructor<'a>(
         },
     };
     let entries = [length_entry, name_entry, prototype_entry];
-    let backing_object = if let Some(prototype) = args.prototype {
-        agent.heap.create_object_with_prototype(prototype, &entries)
-    } else {
-        agent.heap.create_null_object(&entries)
-    };
+    let backing_object = OrdinaryObject::create_object(agent, args.prototype, &entries);
 
     // 13. Return func.
     agent

@@ -729,12 +729,15 @@ pub(crate) fn create_iter_result_object<'a>(
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
     // 4. Return obj.
-    agent.heap.create_object_with_prototype(
-        agent
-            .current_realm_record()
-            .intrinsics()
-            .object_prototype()
-            .into_object(),
+    OrdinaryObject::create_object(
+        agent,
+        Some(
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+        ),
         &[
             ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.value),

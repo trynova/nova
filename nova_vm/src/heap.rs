@@ -73,6 +73,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData,
             module::{Module, data::ModuleHeapData},
+            ordinary::shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
@@ -87,10 +88,10 @@ use crate::{
             source_code::SourceCodeHeapData,
         },
         types::{
-            BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
+            BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject,
-            PropertyKey, String, StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
+            HeapNumber, HeapString, NumberHeapData, ObjectHeapData, PropertyKey, String,
+            StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -99,17 +100,19 @@ use crate::{
         rootable::HeapRootData,
         small_f64::SmallF64,
     },
+    heap::indexes::StringIndex,
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
 use element_array::{
-    ElementArray2Pow4, ElementArray2Pow6, ElementDescriptor, PropertyKeyArray2Pow4,
+    ElementArray2Pow4, ElementArray2Pow6, ElementDescriptor, ElementsVector, PropertyKeyArray2Pow4,
     PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
-    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32, PropertyStorageVector,
+    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
 };
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{
-    CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, sweep_side_set,
+    CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
+    sweep_side_set,
 };
 use indexes::TypedArrayIndex;
 use wtf8::{Wtf8, Wtf8Buf};
@@ -152,6 +155,9 @@ pub struct Heap {
     pub maps: Vec<Option<MapHeapData<'static>>>,
     pub map_iterators: Vec<Option<MapIteratorHeapData<'static>>>,
     pub numbers: Vec<Option<NumberHeapData>>,
+    pub(crate) object_shapes: Vec<ObjectShapeRecord<'static>>,
+    pub(crate) object_shape_transitions: Vec<ObjectShapeTransitionMap<'static>>,
+    pub(crate) prototype_shapes: PrototypeShapeTable,
     pub objects: Vec<Option<ObjectHeapData<'static>>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
@@ -293,6 +299,9 @@ impl Heap {
             modules: Vec::with_capacity(0),
             module_request_records: Vec::with_capacity(0),
             numbers: Vec::with_capacity(1024),
+            object_shapes: Vec::with_capacity(256),
+            object_shape_transitions: Vec::with_capacity(256),
+            prototype_shapes: PrototypeShapeTable::with_capacity(64),
             objects: Vec::with_capacity(1024),
             primitive_objects: Vec::with_capacity(0),
             promise_reaction_records: Vec::with_capacity(0),
@@ -332,9 +341,70 @@ impl Heap {
             alloc_counter: 0,
         };
 
-        for builtin_string in BUILTIN_STRINGS_LIST {
-            unsafe { heap.alloc_static_str(builtin_string) };
+        const {
+            assert!(BUILTIN_STRINGS_LIST.len() < u32::MAX as usize);
         }
+        for (index, builtin_string) in BUILTIN_STRINGS_LIST.into_iter().enumerate() {
+            let hash = heap.string_hasher.hash_one(Wtf8::from_str(builtin_string));
+            let data = StringHeapData::from_static_str(builtin_string);
+            heap.strings.push(Some(data));
+            let index = StringIndex::from_u32_index(index as u32);
+            let heap_string = HeapString(index);
+            heap.string_lookup_table
+                .insert_unique(hash, heap_string, |_| hash);
+        }
+
+        heap.symbols.extend_from_slice(
+            &[
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_iterator),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_match),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_matchAll),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_replace),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_search),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_species),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_split),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
+                },
+                SymbolHeapData {
+                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_unscopables),
+                },
+            ]
+            .map(Some),
+        );
+
+        // Set up the `{ __proto__: null }` shape; all null-proto objects are
+        // children of this shape, regardless of their realm, so this is always
+        // added in here.
+        heap.object_shapes.push(ObjectShapeRecord::NULL);
+        heap.object_shape_transitions
+            .push(ObjectShapeTransitionMap::ROOT);
 
         heap
     }
@@ -495,22 +565,6 @@ impl Heap {
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
-    pub(crate) fn create_elements_with_object_entries<'gc>(
-        &mut self,
-        entries: &[ObjectEntry<'gc>],
-    ) -> PropertyStorageVector<'gc> {
-        self.alloc_counter += entries.iter().fold(0, |acc, entry| {
-            acc + core::mem::size_of::<Option<Value>>() * 2
-                + if entry.is_trivial() {
-                    0
-                } else {
-                    core::mem::size_of::<(u32, ElementDescriptor)>()
-                }
-        });
-        self.elements
-            .allocate_object_property_storage_from_entries_slice(entries)
-    }
-
     pub(crate) fn create_elements_with_key_value_descriptor_entries<'gc>(
         &mut self,
         entries: Vec<(
@@ -518,7 +572,7 @@ impl Heap {
             Option<ElementDescriptor>,
             Option<Value<'gc>>,
         )>,
-    ) -> PropertyStorageVector<'gc> {
+    ) -> ElementsVector<'gc> {
         self.alloc_counter += entries.iter().fold(0, |acc, entry| {
             acc + core::mem::size_of::<Option<Value>>() * 2
                 + if entry.1.is_none() {
@@ -529,31 +583,6 @@ impl Heap {
         });
         self.elements
             .allocate_object_property_storage_from_entries_vec(entries)
-    }
-
-    pub(crate) fn create_null_object<'gc>(
-        &mut self,
-        entries: &[ObjectEntry<'gc>],
-    ) -> OrdinaryObject<'gc> {
-        let property_storage = self.create_elements_with_object_entries(entries);
-        let object_data = ObjectHeapData {
-            prototype: None,
-            property_storage,
-        };
-        self.create(object_data)
-    }
-
-    pub(crate) fn create_object_with_prototype<'gc>(
-        &mut self,
-        prototype: Object<'gc>,
-        entries: &[ObjectEntry<'gc>],
-    ) -> OrdinaryObject<'gc> {
-        let property_storage = self.create_elements_with_object_entries(entries);
-        let object_data = ObjectHeapData {
-            prototype: Some(prototype.unbind()),
-            property_storage,
-        };
-        self.create(object_data)
     }
 }
 

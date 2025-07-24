@@ -318,8 +318,15 @@ impl<'a> InternalSlots<'a> for Array<'a> {
             object_index.internal_set_prototype(agent, prototype)
         } else {
             // 1. Let current be O.[[Prototype]].
-            let current = agent.current_realm_record().intrinsics().array_prototype();
-            if prototype == Some(current.into_object()) {
+            if prototype
+                == Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .array_prototype()
+                        .into_object(),
+                )
+            {
                 return;
             }
             // Create array base object with custom prototype
@@ -362,21 +369,19 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // Out of bounds
                 return TryResult::Continue(None);
             }
-            let index = index as usize;
+            let ElementStorageRef {
+                values,
+                descriptors,
+            } = elements.get_storage(agent);
             // We checked that we're within the vector bounds.
-            let value = agent
-                .heap
-                .elements
-                .get_values(elements)
-                .get(index)
-                .unwrap()
-                .bind(gc);
-            let descriptor = agent.heap.elements.get_descriptor(elements, index).bind(gc);
+            let value = values[index as usize].bind(gc);
+            let descriptor = descriptors.and_then(|d| d.get(&index));
             return if value.is_none() && descriptor.is_none() {
                 TryResult::Continue(None)
             } else {
                 TryResult::Continue(Some(ElementDescriptor::to_property_descriptor(
-                    descriptor, value,
+                    descriptor.cloned(),
+                    value,
                 )))
             };
         }
@@ -470,13 +475,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 TryResult::Continue(true)
             } else {
                 // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
-                return TryResult::Continue(ordinary_define_own_property_for_array(
+                TryResult::Continue(ordinary_define_own_property_for_array(
                     agent,
                     elements,
                     index,
                     property_descriptor,
                     gc,
-                ));
+                ))
             }
         } else {
             let backing_object = self
@@ -601,14 +606,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             } else {
                 let ElementStorageRef { descriptors, .. } =
                     agent.heap.elements.get_element_storage(&elements);
-                if let Some(descriptors) = descriptors {
-                    if let Some(descriptor) = descriptors.get(&index) {
-                        if let Some(_getter) = descriptor.getter_function(gc) {
-                            // 7. Return ? Call(getter, Receiver).
-                            // return call_function(agent, getter, receiver, None, gc);
-                            return TryResult::Break(());
-                        }
-                    }
+                if let Some(descriptors) = descriptors
+                    && let Some(descriptor) = descriptors.get(&index)
+                    && descriptor.has_getter()
+                {
+                    // 7. Return ? Call(getter, Receiver).
+                    // return call_function(agent, getter, receiver, None, gc);
+                    return TryResult::Break(());
                 }
                 if let Some(prototype) = self.internal_prototype(agent) {
                     prototype.try_get(agent, property_key, receiver, gc)
@@ -656,13 +660,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             } else {
                 let ElementStorageRef { descriptors, .. } =
                     agent.heap.elements.get_element_storage(&elements);
-                if let Some(descriptors) = descriptors {
-                    if let Some(descriptor) = descriptors.get(&index) {
-                        if let Some(getter) = descriptor.getter_function(gc.nogc()) {
-                            // 7. Return ? Call(getter, Receiver).
-                            return call_function(agent, getter.unbind(), receiver, None, gc);
-                        }
-                    }
+                if let Some(descriptors) = descriptors
+                    && let Some(descriptor) = descriptors.get(&index)
+                    && let Some(getter) = descriptor.getter_function(gc.nogc())
+                {
+                    // 7. Return ? Call(getter, Receiver).
+                    return call_function(agent, getter.unbind(), receiver, None, gc);
                 }
                 if let Some(prototype) = self.internal_prototype(agent) {
                     prototype.internal_get(agent, property_key.unbind(), receiver, gc)
@@ -940,18 +943,18 @@ fn ordinary_define_own_property_for_array(
         if current_is_accessor_descriptor {
             // i. If Desc has a [[Get]] field and SameValue(Desc.[[Get]], current.[[Get]]) is false,
             //    return false.
-            if let Some(desc_get) = descriptor.get {
-                if current_getter != Some(desc_get) {
-                    return false;
-                }
+            if let Some(desc_get) = descriptor.get
+                && current_getter != Some(desc_get)
+            {
+                return false;
             }
 
             // ii. If Desc has a [[Set]] field and SameValue(Desc.[[Set]], current.[[Set]]) is
             //     false, return false.
-            if let Some(desc_set) = descriptor.set {
-                if current_setter != Some(desc_set) {
-                    return false;
-                }
+            if let Some(desc_set) = descriptor.set
+                && current_setter != Some(desc_set)
+            {
+                return false;
             }
         }
         // e. Else if current.[[Writable]] is false, then
@@ -963,10 +966,10 @@ fn ordinary_define_own_property_for_array(
 
             // ii. If Desc has a [[Value]] field and SameValue(Desc.[[Value]], current.[[Value]])
             //     is false, return false.
-            if let Some(desc_value) = descriptor.value {
-                if !same_value(agent, desc_value, current_value.unwrap()) {
-                    return false;
-                }
+            if let Some(desc_value) = descriptor.value
+                && !same_value(agent, desc_value, current_value.unwrap())
+            {
+                return false;
             }
         }
     }

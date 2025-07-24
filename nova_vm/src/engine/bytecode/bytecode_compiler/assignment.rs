@@ -739,12 +739,12 @@ fn compile_initializer<'s>(
     ctx.add_instruction(Instruction::Store);
     // result: value
     // stack: []
-    if is_anonymous_function_definition(&target.init) {
-        if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) = &target.binding {
-            let identifier_string = ctx.create_string(identifier.name.as_str());
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
-            ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-        }
+    if is_anonymous_function_definition(&target.init)
+        && let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) = &target.binding
+    {
+        let identifier_string = ctx.create_string(identifier.name.as_str());
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
+        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
     }
     target.init.compile(ctx);
     ctx.name_identifier = None;
