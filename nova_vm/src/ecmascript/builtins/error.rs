@@ -126,21 +126,16 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                 configurable: true,
             },
         });
-        let backing_object = if let (Some(message_entry), Some(cause_entry)) =
-            (message_entry, cause_entry)
-        {
-            OrdinaryObject::create_object(
-                agent,
-                Some(prototype),
-                &[message_entry, cause_entry],
-            )
-        } else if let Some(message_entry) = message_entry {
-            OrdinaryObject::create_object(agent, Some(prototype), &[message_entry])
-        } else if let Some(cause_entry) = cause_entry {
-            OrdinaryObject::create_object(agent, Some(prototype), &[cause_entry])
-        } else {
-            OrdinaryObject::create_object(agent, Some(prototype), &[])
-        };
+        let backing_object =
+            if let (Some(message_entry), Some(cause_entry)) = (message_entry, cause_entry) {
+                OrdinaryObject::create_object(agent, Some(prototype), &[message_entry, cause_entry])
+            } else if let Some(message_entry) = message_entry {
+                OrdinaryObject::create_object(agent, Some(prototype), &[message_entry])
+            } else if let Some(cause_entry) = cause_entry {
+                OrdinaryObject::create_object(agent, Some(prototype), &[cause_entry])
+            } else {
+                OrdinaryObject::create_object(agent, Some(prototype), &[])
+            };
         self.set_backing_object(agent, backing_object);
         backing_object
     }

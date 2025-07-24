@@ -536,11 +536,7 @@ fn create_throw_type_error_backing_object(
             configurable: false,
         },
     };
-    let object = OrdinaryObject::create_object(
-        agent,
-        Some(prototype),
-        &[length_entry, name_entry],
-    );
+    let object = OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry]);
     // The value of the [[Extensible]] internal slot of this function is false.
     object.internal_set_extensible(agent, false);
     object

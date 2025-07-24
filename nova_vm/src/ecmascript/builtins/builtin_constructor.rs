@@ -477,8 +477,7 @@ pub(crate) fn create_builtin_constructor<'a>(
         },
     };
     let entries = [length_entry, name_entry, prototype_entry];
-    let backing_object =
-        OrdinaryObject::create_object(agent, args.prototype, &entries);
+    let backing_object = OrdinaryObject::create_object(agent, args.prototype, &entries);
 
     // 13. Return func.
     agent
