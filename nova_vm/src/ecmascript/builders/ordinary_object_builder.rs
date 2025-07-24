@@ -6,12 +6,12 @@ use crate::{
     ecmascript::{
         builtins::{
             Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter,
-            ordinary::shape::{ObjectShapeRecord, ObjectShapeTransitionMap},
+            ordinary::shape::{ObjectShape, ObjectShapeRecord, ObjectShapeTransitionMap},
         },
         execution::{Agent, Realm},
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyKey, Value, get_or_create_shape_for_prototype,
+            OrdinaryObject, PropertyKey, Value,
         },
     },
     engine::context::Bindable,
@@ -348,7 +348,7 @@ pub(super) fn create_intrinsic_backing_object(
     extensible: bool,
 ) {
     let shape = if properties.is_empty() {
-        get_or_create_shape_for_prototype(agent, prototype)
+        ObjectShape::get_or_create_shape_for_prototype(agent, prototype)
     } else {
         assert_eq!(properties.len(), properties.capacity());
         {

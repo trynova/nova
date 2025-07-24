@@ -119,7 +119,6 @@ pub use property_key::PropertyKey;
 pub use property_key_set::PropertyKeySet;
 pub(crate) use property_key_vec::ScopedPropertyKey;
 pub use property_storage::PropertyStorage;
-pub(crate) use property_storage::{find_or_create_shape, get_or_create_shape_for_prototype};
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
 ///
@@ -301,7 +300,7 @@ impl<'a> OrdinaryObject<'a> {
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],
     ) -> Self {
-        let base_shape = get_or_create_shape_for_prototype(agent, prototype);
+        let base_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
         let (
             shape,
             ElementsVector {
@@ -313,10 +312,9 @@ impl<'a> OrdinaryObject<'a> {
         ) = {
             let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
             let len = entries.len();
-            let shape = find_or_create_shape(
+            let shape = base_shape.get_or_create_child_shape(
                 agent,
                 prototype,
-                base_shape,
                 len,
                 |_, i| entries[i].key.unbind(),
                 |elements, len| {
@@ -520,11 +518,10 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
         let original_keys = original_shape.get_keys(agent);
         let len = original_shape.get_length(agent);
         let cap = ElementArrayKey::from(len);
-        let root_shape = get_or_create_shape_for_prototype(agent, prototype);
-        let shape = find_or_create_shape(
+        let root_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
+        let shape = root_shape.get_or_create_child_shape(
             agent,
             prototype,
-            root_shape,
             len as usize,
             |elements, i| elements.get_keys_raw(cap, original_keys, len)[i],
             |_, _| (original_cap, original_keys),

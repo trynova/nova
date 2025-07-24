@@ -10,18 +10,17 @@ use ahash::AHashMap;
 use crate::{
     Heap,
     ecmascript::{
-        builtins::ordinary::shape::{ObjectShape, ObjectShapeRecord, ObjectShapeTransitionMap},
+        builtins::ordinary::shape::ObjectShape,
         execution::{Agent, JsResult, PrivateField, RealmRecord, agent::ExceptionType},
         types::{IntoValue, PrivateName, PropertyDescriptor, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
-        CreateHeapData, PropertyKeyHeap,
         element_array::{
-            ElementArrayKey, ElementArrays, ElementDescriptor, ElementStorageUninit,
-            PropertyStorageMut, PropertyStorageRef,
+            ElementArrayKey, ElementDescriptor, ElementStorageUninit, PropertyStorageMut,
+            PropertyStorageRef,
         },
-        indexes::{ElementIndex, PropertyKeyIndex},
+        indexes::ElementIndex,
     },
 };
 
@@ -45,81 +44,6 @@ fn verify_writable(
             // Note: if we have an accessor property here, it is not writable.
             .unwrap_or(false)
     })
-}
-
-pub(crate) fn get_or_create_shape_for_prototype<'gc>(
-    agent: &mut Agent,
-    prototype: Option<Object<'gc>>,
-) -> ObjectShape<'gc> {
-    if let Some(prototype) = prototype {
-        if let Some(base_shape) = agent
-            .heap
-            .prototype_shapes
-            .get_shape_for_prototype(prototype)
-        {
-            return base_shape;
-        }
-        agent.heap.create((
-            ObjectShapeRecord::create_root(prototype),
-            ObjectShapeTransitionMap::ROOT,
-        ))
-    } else {
-        ObjectShape::NULL
-    }
-}
-
-pub(crate) fn find_or_create_shape(
-    agent: &mut Agent,
-    prototype: Option<Object>,
-    mut shape: ObjectShape,
-    len: usize,
-    get_key: impl Fn(&ElementArrays, usize) -> PropertyKey<'static>,
-    get_index: impl FnOnce(&mut ElementArrays, usize) -> (ElementArrayKey, PropertyKeyIndex<'static>),
-) -> ObjectShape<'static> {
-    let start_len = shape.get_length(agent) as usize;
-    for i in start_len..len {
-        let key = get_key(&agent.heap.elements, i);
-        if let Some(next_shape) = shape.get_transition_to(
-            key,
-            agent,
-            &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
-        ) {
-            shape = next_shape.unbind();
-            continue;
-        };
-        // Couldn't find the next shape: we need to create all the rest.
-        // First let's create the keys storage for the rest of the shapes.
-        let (cap, index) = get_index(&mut agent.heap.elements, len);
-        // We now have an initialised keys storage for our shapes.
-        // Now to just create the remaining shapes.
-        let count = len.wrapping_sub(i);
-        agent.heap.object_shapes.reserve(count);
-        agent.heap.object_shape_transitions.reserve(count);
-        agent.heap.alloc_counter += (core::mem::size_of::<ObjectShapeRecord>()
-            + core::mem::size_of::<ObjectShapeTransitionMap>())
-            * count;
-        let keys = agent.heap.elements.get_keys_raw(cap, index, len as u32)
-            as *const [PropertyKey<'static>];
-        // SAFETY: Creating shapes below cannot invalidate the keys pointer.
-        let keys = unsafe { &*keys };
-        for i in i..len {
-            let key = keys[i];
-            let next_shape = agent.heap.create((
-                ObjectShapeRecord::create(prototype, index, cap, i.wrapping_add(1)),
-                ObjectShapeTransitionMap::with_parent(shape),
-            ));
-            let previous_transitions =
-                shape.get_transitions_mut(&mut agent.heap.object_shape_transitions);
-            previous_transitions.insert(
-                key,
-                next_shape,
-                &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
-            );
-            shape = next_shape.unbind();
-        }
-        break;
-    }
-    shape.unbind()
 }
 
 impl<'a> PropertyStorage<'a> {
@@ -207,16 +131,15 @@ impl<'a> PropertyStorage<'a> {
         };
         let insertion_end_index = insertion_index.wrapping_add(private_fields.len());
         let prototype = original_shape.get_prototype(agent);
-        let root_shape = get_or_create_shape_for_prototype(agent, prototype);
+        let root_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
         // Note: use saturating_mul to avoid a panic site.
         agent.heap.alloc_counter +=
             core::mem::size_of::<Option<Value>>().saturating_mul(private_fields.len());
         let cap = ElementArrayKey::from(original_len);
         let keys_index = original_shape.get_keys(agent);
-        let new_shape = find_or_create_shape(
+        let new_shape = root_shape.get_or_create_child_shape(
             agent,
             prototype,
-            root_shape,
             original_len
                 .checked_add(private_fields.len() as u32)
                 .expect("Unreasonable amount of fields") as usize,
@@ -490,10 +413,9 @@ impl<'a> PropertyStorage<'a> {
                 let shape = object.get_shape(agent);
                 let shape_cap = shape.get_cap(agent);
                 let shape_keys = shape.get_keys(agent);
-                let shape = find_or_create_shape(
+                let shape = shape.get_or_create_child_shape(
                     agent,
                     prototype,
-                    shape,
                     new_len as usize,
                     |_, _| key.unbind(),
                     |elements, len| {
@@ -543,10 +465,9 @@ impl<'a> PropertyStorage<'a> {
         } else {
             let prototype = object.internal_prototype(agent);
             let shape = object.get_shape(agent);
-            let shape = find_or_create_shape(
+            let shape = shape.get_or_create_child_shape(
                 agent,
                 prototype,
-                shape,
                 1,
                 |_, _| key.unbind(),
                 |elements, _| {
@@ -639,15 +560,14 @@ impl<'a> PropertyStorage<'a> {
             }
         }
         let prototype = object.internal_prototype(agent);
-        let base_shape = get_or_create_shape_for_prototype(agent, prototype);
+        let base_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
         let shape = object.get_shape(agent);
         let shape_cap = shape.get_cap(agent);
         let shape_keys = shape.get_keys(agent);
         let old_len = shape.get_length(agent);
-        let new_shape = find_or_create_shape(
+        let new_shape = base_shape.get_or_create_child_shape(
             agent,
             prototype,
-            base_shape,
             new_len,
             |elements, i| {
                 // When we reach our removal index, we start

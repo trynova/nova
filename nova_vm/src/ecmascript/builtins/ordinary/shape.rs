@@ -144,6 +144,85 @@ impl<'a> ObjectShape<'a> {
             .prototype_shapes
             .set_shape_for_prototype(prototype, shape);
     }
+
+    pub(crate) fn get_or_create_shape_for_prototype<'gc>(
+        agent: &mut Agent,
+        prototype: Option<Object<'gc>>,
+    ) -> ObjectShape<'gc> {
+        if let Some(prototype) = prototype {
+            if let Some(base_shape) = agent
+                .heap
+                .prototype_shapes
+                .get_shape_for_prototype(prototype)
+            {
+                return base_shape;
+            }
+            agent.heap.create((
+                ObjectShapeRecord::create_root(prototype),
+                ObjectShapeTransitionMap::ROOT,
+            ))
+        } else {
+            ObjectShape::NULL
+        }
+    }
+
+    pub(crate) fn get_or_create_child_shape(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+        len: usize,
+        get_key: impl Fn(&ElementArrays, usize) -> PropertyKey<'static>,
+        get_index: impl FnOnce(
+            &mut ElementArrays,
+            usize,
+        ) -> (ElementArrayKey, PropertyKeyIndex<'static>),
+    ) -> Self {
+        let mut shape = self;
+        let start_len = shape.get_length(agent) as usize;
+        for i in start_len..len {
+            let key = get_key(&agent.heap.elements, i);
+            if let Some(next_shape) = shape.get_transition_to(
+                key,
+                agent,
+                &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
+            ) {
+                shape = next_shape.unbind();
+                continue;
+            };
+            // Couldn't find the next shape: we need to create all the rest.
+            // First let's create the keys storage for the rest of the shapes.
+            let (cap, index) = get_index(&mut agent.heap.elements, len);
+            // We now have an initialised keys storage for our shapes.
+            // Now to just create the remaining shapes.
+            let count = len.wrapping_sub(i);
+            agent.heap.object_shapes.reserve(count);
+            agent.heap.object_shape_transitions.reserve(count);
+            agent.heap.alloc_counter += (core::mem::size_of::<ObjectShapeRecord>()
+                + core::mem::size_of::<ObjectShapeTransitionMap>())
+                * count;
+            let keys = agent.heap.elements.get_keys_raw(cap, index, len as u32)
+                as *const [PropertyKey<'static>];
+            // SAFETY: Creating shapes below cannot invalidate the keys pointer.
+            let keys = unsafe { &*keys };
+            for i in i..len {
+                let key = keys[i];
+                let next_shape = agent.heap.create((
+                    ObjectShapeRecord::create(prototype, index, cap, i.wrapping_add(1)),
+                    ObjectShapeTransitionMap::with_parent(shape),
+                ));
+                let previous_transitions =
+                    shape.get_transitions_mut(&mut agent.heap.object_shape_transitions);
+                previous_transitions.insert(
+                    key,
+                    next_shape,
+                    &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
+                );
+                shape = next_shape.unbind();
+            }
+            break;
+        }
+        shape.unbind()
+    }
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
