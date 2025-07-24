@@ -1474,13 +1474,8 @@ impl<'s> CompileEvaluation<'s> for ast::TaggedTemplateExpression<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::TemplateLiteral<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        if self.is_no_substitution_template() {
-            let constant = ctx.create_string(
-                self.quasi()
-                    .as_ref()
-                    .expect("Invalid escape sequence in template literal")
-                    .as_str(),
-            );
+        if let Some(quasi) = self.single_quasi() {
+            let constant = ctx.create_string(&quasi);
             ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
         } else {
             let mut count = 0;
