@@ -273,7 +273,7 @@ impl<'a> PropertyStorage<'a> {
             mut descriptors,
         } = object.get_elements_storage_uninit(agent);
 
-        if insertion_index != 0 {
+        if insertion_index != original_len as usize {
             // Shift keys over by necessary amount.
             // Then do the same for values.
             values.copy_within(insertion_index..original_len as usize, insertion_end_index);
@@ -283,14 +283,9 @@ impl<'a> PropertyStorage<'a> {
                 let lower_bound = insertion_index as u32;
                 let upper_bound = original_len;
                 let range = lower_bound..upper_bound;
-                let keys_to_shift = d
-                    .keys()
-                    .filter(|k| range.contains(k))
-                    .copied()
-                    .collect::<Vec<_>>();
-                for i in keys_to_shift {
-                    let desc = d.remove(&i).unwrap();
-                    d.insert(i + private_fields.len() as u32, desc);
+                let keys_to_shift = d.extract_if(|k, _| range.contains(k)).collect::<Vec<_>>();
+                for (k, v) in keys_to_shift {
+                    d.insert(k + private_fields.len() as u32, v);
                 }
             }
         }
