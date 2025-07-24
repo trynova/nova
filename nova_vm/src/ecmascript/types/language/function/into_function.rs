@@ -76,9 +76,11 @@ pub(crate) fn function_create_backing_object<'a>(
             configurable: true,
         },
     };
-    let backing_object = agent
-        .heap
-        .create_object_with_prototype(prototype, &[length_entry, name_entry]);
+    let backing_object = OrdinaryObject::create_object(
+        agent,
+        Some(prototype),
+        &[length_entry, name_entry],
+    );
     func.set_backing_object(agent, backing_object);
     backing_object
 }

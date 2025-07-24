@@ -362,21 +362,19 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // Out of bounds
                 return TryResult::Continue(None);
             }
-            let index = index as usize;
+            let ElementStorageRef {
+                values,
+                descriptors,
+            } = elements.get_storage(agent);
             // We checked that we're within the vector bounds.
-            let value = agent
-                .heap
-                .elements
-                .get_values(elements)
-                .get(index)
-                .unwrap()
-                .bind(gc);
-            let descriptor = agent.heap.elements.get_descriptor(elements, index).bind(gc);
+            let value = values[index as usize].bind(gc);
+            let descriptor = descriptors.and_then(|d| d.get(&index));
             return if value.is_none() && descriptor.is_none() {
                 TryResult::Continue(None)
             } else {
                 TryResult::Continue(Some(ElementDescriptor::to_property_descriptor(
-                    descriptor, value,
+                    descriptor.cloned(),
+                    value,
                 )))
             };
         }

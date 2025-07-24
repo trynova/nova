@@ -2,9 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::execution::agent::JsError;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -20,11 +17,18 @@ use crate::{
                 data::{PromiseHeapData, PromiseState},
             },
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            Value,
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, JsError},
         },
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyKey, String, Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
@@ -404,12 +408,15 @@ impl PromiseConstructor {
         // 4. Perform ! CreateDataPropertyOrThrow(obj, "promise", promiseCapability.[[Promise]]).
         // 5. Perform ! CreateDataPropertyOrThrow(obj, "resolve", promiseCapability.[[Resolve]]).
         // 6. Perform ! CreateDataPropertyOrThrow(obj, "reject", promiseCapability.[[Reject]]).
-        let obj = agent.heap.create_object_with_prototype(
-            agent
-                .current_realm_record()
-                .intrinsics()
-                .object_prototype()
-                .into_object(),
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+            ),
             &[
                 ObjectEntry::new_data_entry(
                     BUILTIN_STRING_MEMORY.promise.into(),

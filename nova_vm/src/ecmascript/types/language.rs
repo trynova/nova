@@ -31,11 +31,11 @@ pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
-pub(crate) use object::ScopedPropertyKey;
 pub use object::{
     InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject,
     PropertyKey, PropertyKeySet,
 };
+pub(crate) use object::{ScopedPropertyKey, get_or_create_shape_for_prototype};
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
 pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringHeapData};

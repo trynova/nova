@@ -400,11 +400,11 @@ pub(crate) fn set_realm_global_object(
         // a. Let intrinsics be realmRec.[[Intrinsics]].
         let intrinsics = &agent.get_realm_record_by_id(realm_id).intrinsics;
         // b. Set globalObj to OrdinaryObjectCreate(intrinsics.[[%Object.prototype%]]).
-        Object::Object(
-            agent
-                .heap
-                .create_object_with_prototype(intrinsics.object_prototype().into(), &[]),
-        )
+        Object::Object(OrdinaryObject::create_object(
+            agent,
+            Some(intrinsics.object_prototype().into()),
+            &[],
+        ))
     });
 
     // 2. Assert: globalObj is an Object.

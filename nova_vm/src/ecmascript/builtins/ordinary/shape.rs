@@ -4,15 +4,19 @@
 
 use std::{marker::PhantomData, num::NonZeroU32};
 
-use hashbrown::HashTable;
+use ahash::AHashMap;
+use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
-    ecmascript::types::{Object, OrdinaryObject, PropertyKey},
+    ecmascript::{
+        execution::{Agent, Realm},
+        types::{IntoObject, Object, OrdinaryObject, PropertyKey},
+    },
     engine::context::{Bindable, GcToken, NoGcScope},
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicObjectIndexes,
-        WorkQueues,
-        element_array::ElementArrayKey,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IntrinsicObjectIndexes, PropertyKeyHeap, WeakReference, WorkQueues,
+        element_array::{ElementArrayKey, ElementArrays},
         indexes::{ObjectIndex, PropertyKeyIndex},
     },
 };
@@ -22,7 +26,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
-impl ObjectShape<'_> {
+impl<'a> ObjectShape<'a> {
     /// Object Shape for `{ __proto__: null }`.
     ///
     /// This is the root Object Shape for all null-prototype objects, hence why
@@ -34,6 +38,111 @@ impl ObjectShape<'_> {
     #[inline(always)]
     pub(crate) fn get_index(self) -> usize {
         self.0.get().wrapping_sub(1) as usize
+    }
+
+    pub(crate) fn keys<'e>(
+        self,
+        object_shapes: &[ObjectShapeRecord<'static>],
+        elements: &'e ElementArrays,
+    ) -> &'e [PropertyKey<'a>] {
+        let data = &object_shapes[self.get_index()];
+        let cap = ElementArrayKey::from(data.len);
+        elements.get_keys_raw(cap, data.keys, data.len)
+    }
+
+    /// Get the PropertyKeyIndex of the Object Shape.
+    pub(crate) fn get_keys(
+        self,
+        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+    ) -> PropertyKeyIndex<'a> {
+        agent.as_ref()[self.get_index()].keys
+    }
+
+    /// Get the capacity of the Object Shape.
+    pub(crate) fn get_cap(
+        self,
+        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+    ) -> ElementArrayKey {
+        agent.as_ref()[self.get_index()].cap
+    }
+
+    /// Get the length of the Object Shape keys.
+    pub(crate) fn get_length(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
+        agent.as_ref()[self.get_index()].len
+    }
+
+    /// Get the prototype of the Object Shape.
+    pub(crate) fn get_prototype(
+        self,
+        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+    ) -> Option<Object<'a>> {
+        agent.as_ref()[self.get_index()].prototype
+    }
+
+    /// Get the parent Object Shape of this Object Shape.
+    pub(crate) fn get_parent(
+        self,
+        agent: &impl AsRef<[ObjectShapeTransitionMap<'static>]>,
+    ) -> Option<ObjectShape<'a>> {
+        agent.as_ref()[self.get_index()].parent
+    }
+
+    /// Get the Object Shape that is reached by adding the given property to
+    /// this Object Shape.
+    ///
+    /// Returns None if no transition exists.
+    pub(crate) fn get_transition_to(
+        self,
+        key: PropertyKey<'a>,
+        transitions: &impl AsRef<[ObjectShapeTransitionMap<'static>]>,
+        property_key_heap: &PropertyKeyHeap,
+    ) -> Option<ObjectShape<'a>> {
+        let transitions = &transitions.as_ref()[self.get_index()];
+        let hash = key.heap_hash(property_key_heap);
+        transitions
+            .table
+            .find(hash, |(k, _)| *k == key)
+            .map(|(_, shape)| *shape)
+    }
+
+    /// Get the Object Shape transitions as mutable.
+    pub(crate) fn get_transitions_mut(
+        self,
+        transitions: &mut impl AsMut<[ObjectShapeTransitionMap<'static>]>,
+    ) -> &mut ObjectShapeTransitionMap<'static> {
+        &mut transitions.as_mut()[self.get_index()]
+    }
+
+    /// Get an Object Shape pointing to the last Object Shape Record.
+    pub(crate) fn last(shapes: &[ObjectShapeRecord<'static>]) -> Self {
+        debug_assert!(!shapes.is_empty());
+        ObjectShape(
+            // SAFETY: The shapes list is not empty.
+            unsafe { NonZeroU32::new_unchecked(shapes.len() as u32) },
+            PhantomData,
+        )
+    }
+
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
+        // Create basic shapes.
+        let prototype = agent
+            .get_realm_record_by_id(realm)
+            .intrinsics()
+            .object_prototype()
+            .into_object();
+        agent
+            .heap
+            .object_shapes
+            .push(ObjectShapeRecord::create_root(prototype));
+        agent
+            .heap
+            .object_shape_transitions
+            .push(ObjectShapeTransitionMap::ROOT);
+        let shape = ObjectShape::last(&agent.heap.object_shapes);
+        agent
+            .heap
+            .prototype_shapes
+            .set_shape_for_prototype(prototype, shape);
     }
 }
 
@@ -94,22 +203,21 @@ pub struct ObjectShapeRecord<'a> {
     /// Keys storage of the shape.
     ///
     /// The keys storage index is given by this value, while the vector
-    /// (capacity) is determined by the length value. The capacity is always
-    /// the smallest possible capacity that can fit all keys.
+    /// (capacity) is determined by the cap field.
     keys: PropertyKeyIndex<'a>,
+    cap: ElementArrayKey,
     /// Length of the keys storage of the shape.
-    ///
-    /// This determines the keys storage vector (capacity) as well.
     len: u32,
 }
 
-impl ObjectShapeRecord<'_> {
+impl<'a> ObjectShapeRecord<'a> {
     /// Null Object Shape Record.
     ///
     /// This record has a `null` prototype and no keys.
     pub(crate) const NULL: Self = Self {
         prototype: None,
         keys: PropertyKeyIndex::from_index(0),
+        cap: ElementArrayKey::Empty,
         len: 0,
     };
 
@@ -126,8 +234,48 @@ impl ObjectShapeRecord<'_> {
             IntrinsicObjectIndexes::ObjectPrototype.get_object_index(ObjectIndex::from_index(0)),
         ))),
         keys: PropertyKeyIndex::from_index(0),
+        cap: ElementArrayKey::Empty,
         len: 0,
     };
+
+    /// Create an Object Shape for the given prototype.
+    pub(crate) fn create_root(prototype: Object<'a>) -> Self {
+        Self {
+            prototype: Some(prototype),
+            keys: PropertyKeyIndex::from_index(0),
+            cap: ElementArrayKey::Empty,
+            len: 0,
+        }
+    }
+
+    pub(crate) fn create(
+        prototype: Option<Object<'a>>,
+        keys: PropertyKeyIndex<'a>,
+        cap: ElementArrayKey,
+        len: usize,
+    ) -> Self {
+        Self {
+            prototype,
+            keys,
+            cap,
+            len: u32::try_from(len).expect("Unreasonable object size"),
+        }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ObjectShapeRecord<'_> {
+    type Of<'a> = ObjectShapeRecord<'static>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 /// Data structure for finding a forward transition from an Object Shape to a
@@ -162,7 +310,7 @@ pub(crate) struct ObjectShapeTransitionMap<'a> {
     table: HashTable<(PropertyKey<'a>, ObjectShape<'a>)>,
 }
 
-impl ObjectShapeTransitionMap<'_> {
+impl<'a> ObjectShapeTransitionMap<'a> {
     /// Root Object Shape transition map.
     ///
     /// This transition map has no parent and (initially) contains no
@@ -171,8 +319,46 @@ impl ObjectShapeTransitionMap<'_> {
         parent: None,
         table: HashTable::new(),
     };
+
+    /// Create a new Object Shape transition map with the given parent.
+    pub(crate) fn with_parent(parent: ObjectShape<'a>) -> Self {
+        Self {
+            parent: Some(parent),
+            table: HashTable::new(),
+        }
+    }
+
+    /// Insert a new transition into
+    pub(crate) fn insert(&mut self, key: PropertyKey, shape: ObjectShape, heap: &PropertyKeyHeap) {
+        let key = key.unbind();
+        let shape = shape.unbind();
+        let hash = key.heap_hash(heap);
+        match self
+            .table
+            .entry(hash, |e| e.0 == key, |e| e.0.heap_hash(heap))
+        {
+            Entry::Occupied(_) => {
+                unreachable!("Attempted to overwrite an existing Object Shape transition")
+            }
+            Entry::Vacant(e) => e.insert((key, shape)),
+        };
+    }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ObjectShapeTransitionMap<'_> {
+    type Of<'a> = ObjectShapeTransitionMap<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
 /// Lookup-table to find a root Object Shape for a given prototype.
 ///
 /// > NOTE: The values in the map are held weakly, while keys are held
@@ -181,15 +367,67 @@ impl ObjectShapeTransitionMap<'_> {
 /// > shape refers to them (transitively) anymore.
 #[derive(Debug)]
 #[repr(transparent)]
-pub(crate) struct PrototypeShapeTable<'a> {
-    table: HashTable<(Object<'a>, ObjectShape<'a>)>,
+pub(crate) struct PrototypeShapeTable {
+    table: AHashMap<Object<'static>, WeakReference<ObjectShape<'static>>>,
 }
 
-impl PrototypeShapeTable<'_> {
+impl PrototypeShapeTable {
+    /// Create a new PrototypeShapeTable with the given capacity.
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
-            table: HashTable::with_capacity(capacity),
+            table: AHashMap::with_capacity(capacity),
         }
+    }
+
+    /// Get the base Object Shape for the given prototype.
+    ///
+    /// Returns None if the no base Object Shape exists for the given prototype.
+    pub(crate) fn get_shape_for_prototype<'a>(
+        &self,
+        prototype: Object<'a>,
+    ) -> Option<ObjectShape<'a>> {
+        let shape = self.table.get(&prototype)?;
+        Some(shape.0)
+    }
+
+    pub(crate) fn set_shape_for_prototype<'a>(
+        &mut self,
+        prototype: Object<'a>,
+        shape: ObjectShape<'a>,
+    ) {
+        let previous = self
+            .table
+            .insert(prototype.unbind(), WeakReference(shape.unbind()));
+        assert!(previous.is_none(), "Re-set prototype root Object Shape");
+    }
+}
+
+impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), ObjectShape<'a>>
+    for Heap
+{
+    fn create(
+        &mut self,
+        data: (ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>),
+    ) -> ObjectShape<'a> {
+        let (record, transitions) = data;
+        let is_root = record.len == 0;
+        let prototype = record.prototype;
+        if is_root {
+            assert_eq!(
+                transitions.parent, None,
+                "Object Shape has zero properties but has a parent"
+            );
+        }
+        self.object_shapes.push(record.unbind());
+        self.object_shape_transitions.push(transitions.unbind());
+        let shape = ObjectShape::last(&self.object_shapes);
+        if let Some(prototype) = prototype
+            && is_root
+        {
+            self.prototype_shapes
+                .set_shape_for_prototype(prototype, shape);
+        }
+        shape
     }
 }
 
@@ -219,10 +457,11 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         let Self {
             prototype,
             keys,
+            cap,
             len,
         } = self;
         prototype.mark_values(queues);
-        match ElementArrayKey::from(*len) {
+        match cap {
             ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => queues.k_2_4.push((*keys, *len)),
             ElementArrayKey::E6 => queues.k_2_6.push((*keys, *len)),
@@ -239,10 +478,11 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         let Self {
             prototype,
             keys,
-            len,
+            cap,
+            len: _,
         } = self;
         prototype.sweep_values(compactions);
-        match ElementArrayKey::from(*len) {
+        match cap {
             ElementArrayKey::Empty => {}
             ElementArrayKey::E4 => compactions.k_2_4.shift_index(keys),
             ElementArrayKey::E6 => compactions.k_2_6.shift_index(keys),
@@ -283,27 +523,38 @@ impl HeapMarkAndSweep for ObjectShapeTransitionMap<'static> {
     }
 }
 
-impl HeapMarkAndSweep for PrototypeShapeTable<'static> {
+impl HeapMarkAndSweep for PrototypeShapeTable {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self { table } = self;
-        // Note: we do not mark the values, they're held weakly.
-        for (key, _) in table {
-            key.mark_values(queues);
-        }
+        table.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self { table } = self;
-        table.retain(|(key, value)| {
-            // Note: if our value was held strongly by someone else, then we
-            // keep it in our transition table and sweep it and its key.
-            let Some(new_value) = value.sweep_weak_reference(compactions) else {
-                // Otherwise, we drop it off the table, key and all.
-                return false;
-            };
-            key.sweep_values(compactions);
-            *value = new_value;
-            true
-        });
+        table.sweep_values(compactions);
+    }
+}
+
+impl AsRef<[ObjectShapeRecord<'static>]> for Agent {
+    fn as_ref(&self) -> &[ObjectShapeRecord<'static>] {
+        &self.heap.object_shapes
+    }
+}
+
+impl AsMut<[ObjectShapeRecord<'static>]> for Agent {
+    fn as_mut(&mut self) -> &mut [ObjectShapeRecord<'static>] {
+        &mut self.heap.object_shapes
+    }
+}
+
+impl AsRef<[ObjectShapeTransitionMap<'static>]> for Agent {
+    fn as_ref(&self) -> &[ObjectShapeTransitionMap<'static>] {
+        &self.heap.object_shape_transitions
+    }
+}
+
+impl AsMut<[ObjectShapeTransitionMap<'static>]> for Agent {
+    fn as_mut(&mut self) -> &mut [ObjectShapeTransitionMap<'static>] {
+        &mut self.heap.object_shape_transitions
     }
 }

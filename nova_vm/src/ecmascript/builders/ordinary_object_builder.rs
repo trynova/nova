@@ -4,14 +4,22 @@
 
 use crate::{
     ecmascript::{
-        builtins::{Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter},
+        builtins::{
+            Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter,
+            ordinary::shape::{ObjectShapeRecord, ObjectShapeTransitionMap},
+        },
         execution::{Agent, Realm},
         types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, ObjectHeapData,
-            OrdinaryObject, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
+            OrdinaryObject, PropertyKey, Value, get_or_create_shape_for_prototype,
         },
     },
-    heap::{element_array::ElementDescriptor, indexes::ObjectIndex},
+    engine::context::Bindable,
+    heap::{
+        CreateHeapData,
+        element_array::{ElementDescriptor, ElementsVector},
+        indexes::ObjectIndex,
+    },
 };
 
 use super::{
@@ -28,14 +36,14 @@ pub struct CreatorPrototype<T: IntoObject<'static>>(T);
 #[derive(Default, Clone, Copy)]
 pub struct NoProperties;
 
-#[derive(Clone)]
-pub struct CreatorProperties(
-    Vec<(
-        PropertyKey<'static>,
-        Option<ElementDescriptor<'static>>,
-        Option<Value<'static>>,
-    )>,
+pub type PropertyDefinition = (
+    PropertyKey<'static>,
+    Option<ElementDescriptor<'static>>,
+    Option<Value<'static>>,
 );
+
+#[derive(Clone)]
+pub struct CreatorProperties(Vec<PropertyDefinition>);
 
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,
@@ -288,90 +296,63 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
 
 impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        let mut property_storage = self
-            .agent
-            .heap
-            .elements
-            .allocate_object_property_storage_from_entries_vec(vec![]);
-        property_storage.extensible = self.extensible;
-        let slot = self
-            .agent
-            .heap
-            .objects
-            .get_mut(self.this.get_index())
-            .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ObjectHeapData {
-            prototype: None,
-            property_storage,
-        });
+        create_intrinsic_backing_object(self.agent, self.this, None, vec![], self.extensible);
         self.this
     }
 }
 
 impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        let mut property_storage = self
-            .agent
-            .heap
-            .elements
-            .allocate_object_property_storage_from_entries_vec(vec![]);
-        property_storage.extensible = self.extensible;
-        let slot = self
-            .agent
-            .heap
-            .objects
-            .get_mut(self.this.get_index())
-            .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ObjectHeapData {
-            prototype: Some(self.prototype.0.into_object()),
-            property_storage,
-        });
+        create_intrinsic_backing_object(
+            self.agent,
+            self.this,
+            Some(self.prototype.0.into_object()),
+            vec![],
+            self.extensible,
+        );
         self.this
     }
 }
 
 impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        assert_eq!(self.properties.0.len(), self.properties.0.capacity());
-        {
-            let slice = self.properties.0.as_slice();
-            let duplicate = (1..slice.len()).find(|first_index| {
-                slice[*first_index..]
-                    .iter()
-                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
-            });
-            if let Some(index) = duplicate {
-                panic!("Duplicate key found: {:?}", slice[index].0);
-            }
-        }
-        let mut property_storage = self
-            .agent
-            .heap
-            .elements
-            .allocate_object_property_storage_from_entries_vec(self.properties.0);
-        property_storage.extensible = self.extensible;
-        let slot = self
-            .agent
-            .heap
-            .objects
-            .get_mut(self.this.get_index())
-            .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ObjectHeapData {
-            prototype: None,
-            property_storage,
-        });
+        create_intrinsic_backing_object(
+            self.agent,
+            self.this,
+            None,
+            self.properties.0,
+            self.extensible,
+        );
         self.this
     }
 }
 
 impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
-        assert_eq!(self.properties.0.len(), self.properties.0.capacity());
+        create_intrinsic_backing_object(
+            self.agent,
+            self.this,
+            Some(self.prototype.0.into_object()),
+            self.properties.0,
+            self.extensible,
+        );
+        self.this
+    }
+}
+
+pub(super) fn create_intrinsic_backing_object(
+    agent: &mut Agent,
+    backing_object: OrdinaryObject,
+    prototype: Option<Object>,
+    properties: Vec<PropertyDefinition>,
+    extensible: bool,
+) {
+    let shape = if properties.is_empty() {
+        get_or_create_shape_for_prototype(agent, prototype)
+    } else {
+        assert_eq!(properties.len(), properties.capacity());
         {
-            let slice = self.properties.0.as_slice();
+            let slice = properties.as_slice();
             let duplicate = (1..slice.len()).find(|first_index| {
                 slice[*first_index..]
                     .iter()
@@ -381,23 +362,36 @@ impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, Crea
                 panic!("Duplicate key found: {:?}", slice[index].0);
             }
         }
-        let mut property_storage = self
-            .agent
+        let properties_count = properties.len();
+        let (cap, index) = agent
             .heap
             .elements
-            .allocate_object_property_storage_from_entries_vec(self.properties.0);
-        property_storage.extensible = self.extensible;
-        let slot = self
-            .agent
-            .heap
-            .objects
-            .get_mut(self.this.get_index())
-            .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ObjectHeapData {
-            prototype: Some(self.prototype.0.into_object()),
-            property_storage,
-        });
-        self.this
-    }
+            .allocate_keys_with_capacity(properties_count);
+        let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
+        for (slot, key) in keys_memory.into_iter().zip(properties.iter().map(|e| e.0)) {
+            *slot = Some(key.unbind());
+        }
+        agent.heap.create((
+            ObjectShapeRecord::create(prototype, index, cap, properties_count),
+            ObjectShapeTransitionMap::ROOT,
+        ))
+    };
+
+    let ElementsVector {
+        elements_index: values,
+        cap,
+        len,
+        len_writable: _,
+    } = agent
+        .heap
+        .elements
+        .allocate_object_property_storage_from_entries_vec(properties);
+
+    let slot = agent
+        .heap
+        .objects
+        .get_mut(backing_object.get_index())
+        .unwrap();
+    assert!(slot.is_none());
+    *slot = Some(ObjectHeapData::new(shape, values, cap, len, extensible).unbind());
 }

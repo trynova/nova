@@ -2998,7 +2998,9 @@ impl Vm {
                         // a. Set importMeta to OrdinaryObjectCreate(null).
                         // c. For each Record { [[Key]], [[Value]] } p of importMetaValues, do
                         // i. Perform ! CreateDataPropertyOrThrow(importMeta, p.[[Key]], p.[[Value]]).
-                        let import_meta = agent.heap.create_null_object(
+                        let import_meta = OrdinaryObject::create_object(
+                            agent,
+                            None,
                             &import_meta_values
                                 .into_iter()
                                 .map(|(key, value)| ObjectEntry::new_data_entry(key, value))

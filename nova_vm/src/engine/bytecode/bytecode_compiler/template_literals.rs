@@ -13,13 +13,16 @@ use crate::{
     ecmascript::{
         builtins::{Array, array_create},
         execution::Agent,
-        types::{BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
+            String, Value,
+        },
     },
     engine::{
         context::{Bindable, NoGcScope},
         unwrap_try,
     },
-    heap::element_array::ElementDescriptor,
+    heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},
 };
 
 /// ### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)
@@ -145,26 +148,29 @@ pub(super) fn get_template_object<'a>(
     }
     // 13. Perform ! SetIntegrityLevel(rawObj, frozen).
     unwrap_try(raw_obj.try_prevent_extensions(agent, gc));
-    let template_backing_object = template.get_or_create_backing_object(agent);
-    let template_backing_storage =
-        &mut agent.heap.objects[template_backing_object].property_storage;
-    template_backing_storage.reserve(&mut agent.heap.elements, 1);
-    let template_backing_storage_data =
-        template_backing_storage.get_storage_uninit(&mut agent.heap.elements);
-    // 14. Perform ! DefinePropertyOrThrow(template, "raw",
-    template_backing_storage_data.keys[0] = Some(BUILTIN_STRING_MEMORY.raw.to_property_key());
-    //     PropertyDescriptor {
-    //         [[Value]]: rawObj,
-    template_backing_storage_data.values[0] = Some(raw_obj.into_value().unbind());
-    //         [[Writable]]: false,
-    //         [[Enumerable]]: false,
-    //         [[Configurable]]: false
-    template_backing_storage_data
-        .descriptors
-        .or_insert_with(|| AHashMap::with_capacity(1))
-        .insert(0, ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData);
-    //     }).
-    template_backing_storage.len += 1;
+    let prototype = template.internal_prototype(agent).unwrap();
+    // 14. Perform ! DefinePropertyOrThrow(template,
+    let template_backing_object = OrdinaryObject::create_object(
+        agent,
+        Some(prototype),
+        &[ObjectEntry {
+            // "raw",
+            key: BUILTIN_STRING_MEMORY.raw.to_property_key(),
+            // PropertyDescriptor {
+            value: ObjectEntryPropertyDescriptor::Data {
+                // [[Value]]: rawObj,
+                value: raw_obj.into_value(),
+                // [[Writable]]: false,
+                writable: false,
+                // [[Enumerable]]: false,
+                enumerable: false,
+                // [[Configurable]]: false
+                configurable: false,
+            },
+            // }).
+        }],
+    );
+    template.set_backing_object(agent, template_backing_object.unbind());
     // 15. Perform ! SetIntegrityLevel(template, frozen).
     unwrap_try(template.try_prevent_extensions(agent, gc));
     // 16. Append the Record { [[Site]]: templateLiteral, [[Array]]: template }

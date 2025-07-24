@@ -1257,6 +1257,53 @@ impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapMar
     }
 }
 
+// HeapMarkAndSweep implementation for hash maps from strong keys to weak
+// values. If the weak value drops, the entire entry is dropped.
+//
+// Note that this is not an emphemeron map (weak key if strongly held holds the
+// value strongly as well).
+impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapSweepWeakReference>
+    HeapMarkAndSweep for AHashMap<K, WeakReference<V>>
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        // Note: we do not mark values as they are held weakly.
+        for (key, _) in self.iter() {
+            key.mark_values(queues);
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let mut replacements = Vec::new();
+        // Sweep all values, while also sweeping keys and making note of all
+        // changes in them: Those need to be updated in a separate loop.
+        for (key, value) in self.iter_mut() {
+            let old_key = *key;
+            let Some(new_value) = value.sweep_weak_reference(compactions) else {
+                // Value was dropped: remove the old key.
+                replacements.push((old_key, None));
+                continue;
+            };
+            *value = new_value;
+            let mut new_key = *key;
+            new_key.sweep_values(compactions);
+            if old_key != new_key {
+                replacements.push((old_key, Some(new_key)));
+            }
+        }
+        // Note: Replacement keys are in indeterminate order, we need to sort
+        // them so that "cascading" replacements are applied in the correct
+        // order.
+        replacements.sort();
+        for (old_key, new_key) in replacements.into_iter() {
+            let value = self.remove(&old_key).unwrap();
+            if let Some(new_key) = new_key {
+                let did_insert = self.insert(new_key, value).is_none();
+                assert!(did_insert, "Failed to insert key {new_key:#?}");
+            }
+        }
+    }
+}
+
 pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     array: &[T; N],
     queues: &mut WorkQueues,
@@ -1478,6 +1525,21 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
         // the key must necessarily exist in the descriptors hash map.
         let descriptor = unsafe { descriptors.remove(&old_key).unwrap_unchecked() };
         descriptors.insert(new_key, descriptor);
+    }
+}
+
+/// Weakly held garbage-collectable reference value.
+///
+/// This is a thin wrapper struct over the reference value, intended only for
+/// enabling automatic weak reference sweeping.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct WeakReference<T: HeapSweepWeakReference>(pub(crate) T);
+
+impl<T: Sized + Copy + HeapSweepWeakReference> HeapSweepWeakReference for WeakReference<T> {
+    #[inline(always)]
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        self.0.sweep_weak_reference(compactions).map(Self)
     }
 }
 

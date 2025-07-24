@@ -90,8 +90,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject,
-            PropertyKey, String, StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
+            HeapNumber, HeapString, NumberHeapData, ObjectHeapData, PropertyKey, String,
+            StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -105,13 +105,14 @@ use crate::{
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
 use element_array::{
-    ElementArray2Pow4, ElementArray2Pow6, ElementDescriptor, PropertyKeyArray2Pow4,
+    ElementArray2Pow4, ElementArray2Pow6, ElementDescriptor, ElementsVector, PropertyKeyArray2Pow4,
     PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
-    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32, PropertyStorageVector,
+    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
 };
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{
-    CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, sweep_side_set,
+    CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
+    sweep_side_set,
 };
 use indexes::TypedArrayIndex;
 use wtf8::{Wtf8, Wtf8Buf};
@@ -156,7 +157,7 @@ pub struct Heap {
     pub numbers: Vec<Option<NumberHeapData>>,
     pub(crate) object_shapes: Vec<ObjectShapeRecord<'static>>,
     pub(crate) object_shape_transitions: Vec<ObjectShapeTransitionMap<'static>>,
-    pub(crate) prototype_shapes: PrototypeShapeTable<'static>,
+    pub(crate) prototype_shapes: PrototypeShapeTable,
     pub objects: Vec<Option<ObjectHeapData<'static>>>,
     pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
@@ -564,22 +565,6 @@ impl Heap {
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
-    pub(crate) fn create_elements_with_object_entries<'gc>(
-        &mut self,
-        entries: &[ObjectEntry<'gc>],
-    ) -> PropertyStorageVector<'gc> {
-        self.alloc_counter += entries.iter().fold(0, |acc, entry| {
-            acc + core::mem::size_of::<Option<Value>>() * 2
-                + if entry.is_trivial() {
-                    0
-                } else {
-                    core::mem::size_of::<(u32, ElementDescriptor)>()
-                }
-        });
-        self.elements
-            .allocate_object_property_storage_from_entries_slice(entries)
-    }
-
     pub(crate) fn create_elements_with_key_value_descriptor_entries<'gc>(
         &mut self,
         entries: Vec<(
@@ -587,7 +572,7 @@ impl Heap {
             Option<ElementDescriptor>,
             Option<Value<'gc>>,
         )>,
-    ) -> PropertyStorageVector<'gc> {
+    ) -> ElementsVector<'gc> {
         self.alloc_counter += entries.iter().fold(0, |acc, entry| {
             acc + core::mem::size_of::<Option<Value>>() * 2
                 + if entry.1.is_none() {
@@ -598,31 +583,6 @@ impl Heap {
         });
         self.elements
             .allocate_object_property_storage_from_entries_vec(entries)
-    }
-
-    pub(crate) fn create_null_object<'gc>(
-        &mut self,
-        entries: &[ObjectEntry<'gc>],
-    ) -> OrdinaryObject<'gc> {
-        let property_storage = self.create_elements_with_object_entries(entries);
-        let object_data = ObjectHeapData {
-            prototype: None,
-            property_storage,
-        };
-        self.create(object_data)
-    }
-
-    pub(crate) fn create_object_with_prototype<'gc>(
-        &mut self,
-        prototype: Object<'gc>,
-        entries: &[ObjectEntry<'gc>],
-    ) -> OrdinaryObject<'gc> {
-        let property_storage = self.create_elements_with_object_entries(entries);
-        let object_data = ObjectHeapData {
-            prototype: Some(prototype.unbind()),
-            property_storage,
-        };
-        self.create(object_data)
     }
 }
 

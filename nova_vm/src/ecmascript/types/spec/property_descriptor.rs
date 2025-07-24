@@ -229,12 +229,15 @@ impl<'a> PropertyDescriptor<'a> {
 
         // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
         // 3. Assert: obj is an extensible ordinary object with no own properties.
-        let obj = agent.heap.create_object_with_prototype(
-            agent
-                .current_realm_record()
-                .intrinsics()
-                .object_prototype()
-                .into_object(),
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+            ),
             &entries,
         );
 

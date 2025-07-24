@@ -37,11 +37,7 @@ where
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
-        let backing_object = if let Some(prototype) = prototype {
-            agent.heap.create_object_with_prototype(prototype, &[])
-        } else {
-            agent.heap.create_null_object(&[])
-        };
+        let backing_object = OrdinaryObject::create_object(agent, prototype, &[]);
         self.set_backing_object(agent, backing_object);
         backing_object
     }

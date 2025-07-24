@@ -137,8 +137,9 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent).unwrap();
         let last_index = agent[self].last_index;
-        let backing_object = agent.heap.create_object_with_prototype(
-            prototype,
+        let backing_object = OrdinaryObject::create_object(
+            agent,
+            Some(prototype),
             &[ObjectEntry {
                 key: BUILTIN_STRING_MEMORY.lastIndex.into(),
                 value: ObjectEntryPropertyDescriptor::Data {

@@ -4,6 +4,7 @@
 
 use crate::{
     ecmascript::{
+        builders::ordinary_object_builder::create_intrinsic_backing_object,
         builtins::{
             Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor, BuiltinSetter,
@@ -11,7 +12,7 @@ use crate::{
         execution::{Agent, Realm},
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue,
-            Object, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
+            Object, OrdinaryObject, PropertyKey, String, Value,
         },
     },
     engine::context::Bindable,
@@ -21,7 +22,10 @@ use crate::{
     },
 };
 
-use super::property_builder::{self, PropertyBuilder};
+use super::{
+    ordinary_object_builder::PropertyDefinition,
+    property_builder::{self, PropertyBuilder},
+};
 
 #[derive(Default, Clone, Copy)]
 pub struct NoPrototype;
@@ -51,18 +55,12 @@ pub struct CreatorBehaviour(Behaviour);
 pub struct NoProperties;
 
 #[derive(Clone)]
-pub struct CreatorProperties(
-    Vec<(
-        PropertyKey<'static>,
-        Option<ElementDescriptor<'static>>,
-        Option<Value<'static>>,
-    )>,
-);
+pub struct CreatorProperties(Vec<PropertyDefinition>);
 
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction<'static>,
-    object_index: Option<OrdinaryObject<'static>>,
+    backing_object: Option<OrdinaryObject<'static>>,
     realm: Realm<'static>,
     prototype: P,
     length: L,
@@ -91,7 +89,7 @@ impl<'agent>
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: None,
+            backing_object: None,
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
@@ -118,7 +116,7 @@ impl<'agent>
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: None,
+            backing_object: None,
             realm,
             prototype: Default::default(),
             length: CreatorLength(0),
@@ -145,7 +143,7 @@ impl<'agent>
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: None,
+            backing_object: None,
             realm,
             prototype: Default::default(),
             length: CreatorLength(1),
@@ -169,14 +167,14 @@ impl<'agent>
     > {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
-        let object_index = Some(OrdinaryObject(
+        let backing_object = Some(OrdinaryObject(
             intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX),
         ));
         let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index,
+            backing_object,
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
@@ -206,7 +204,7 @@ impl<'agent>
         BuiltinFunctionBuilder {
             agent,
             this,
-            object_index: None,
+            backing_object: None,
             realm,
             prototype: Default::default(),
             length: CreatorLength(T::LENGTH),
@@ -226,7 +224,7 @@ impl<'agent, P, L, N, Pr> BuiltinFunctionBuilder<'agent, P, L, N, NoBehaviour, P
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -243,24 +241,24 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
         self,
         prototype: Object<'static>,
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
-        let object_index = if prototype
+        let backing_object = if prototype
             != self
                 .agent
                 .get_realm_record_by_id(self.realm)
                 .intrinsics()
                 .function_prototype()
                 .into_object()
-            && self.object_index.is_none()
+            && self.backing_object.is_none()
         {
             self.agent.heap.objects.push(None);
             Some(ObjectIndex::last(&self.agent.heap.objects).into())
         } else {
-            self.object_index
+            self.backing_object
         };
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index,
+            backing_object,
             realm: self.realm,
             prototype: CreatorPrototype(Some(prototype)),
             length: self.length,
@@ -274,16 +272,16 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
     pub fn with_null_prototype(
         self,
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
-        let object_index = if self.object_index.is_none() {
+        let backing_object = if self.backing_object.is_none() {
             self.agent.heap.objects.push(None);
             Some(ObjectIndex::last(&self.agent.heap.objects).into())
         } else {
-            self.object_index
+            self.backing_object
         };
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index,
+            backing_object,
             realm: self.realm,
             prototype: CreatorPrototype(None),
             length: self.length,
@@ -303,7 +301,7 @@ impl<'agent, P, N, B, Pr> BuiltinFunctionBuilder<'agent, P, NoLength, N, B, Pr> 
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: CreatorLength(length),
@@ -323,7 +321,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -346,7 +344,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         self,
         cap: usize,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let object_index = Some(self.object_index.unwrap_or_else(|| {
+        let backing_object = Some(self.backing_object.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
             ObjectIndex::last(&self.agent.heap.objects).into()
         }));
@@ -364,7 +362,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index,
+            backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -380,7 +378,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         key: PropertyKey<'static>,
         value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let object_index = Some(self.object_index.unwrap_or_else(|| {
+        let backing_object = Some(self.backing_object.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
             ObjectIndex::last(&self.agent.heap.objects).into()
         }));
@@ -400,7 +398,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index,
+            backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -421,7 +419,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let object_index = Some(self.object_index.unwrap_or_else(|| {
+        let backing_object = Some(self.backing_object.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
             ObjectIndex::last(&self.agent.heap.objects).into()
         }));
@@ -445,7 +443,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index,
+            backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -467,7 +465,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -494,7 +492,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -516,7 +514,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -546,7 +544,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -571,7 +569,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
-            object_index: self.object_index,
+            backing_object: self.backing_object,
             realm: self.realm,
             prototype: self.prototype,
             length: self.length,
@@ -626,57 +624,33 @@ impl
     pub fn build(self) -> BuiltinFunction<'static> {
         let Self {
             agent,
-            length,
-            name,
+            length: CreatorLength(length),
+            name: CreatorName(name),
             realm,
-            behaviour,
-            properties,
-            object_index,
+            behaviour: CreatorBehaviour(behaviour),
+            properties: CreatorProperties(properties),
+            backing_object,
             ..
         } = self;
-        let properties = properties.0;
-        assert_eq!(properties.len(), properties.capacity());
-        {
-            let slice = properties.as_slice();
-            let duplicate = (1..slice.len()).find(|first_index| {
-                slice[*first_index..]
-                    .iter()
-                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
-            });
-            if let Some(index) = duplicate {
-                panic!("Duplicate key found: {:?}", slice[index].0);
-            }
-        }
 
-        let property_storage = agent
-            .heap
-            .elements
-            .allocate_object_property_storage_from_entries_vec(properties);
-
-        let prototype = Some(
-            agent
-                .get_realm_record_by_id(realm)
-                .intrinsics()
-                .function_prototype()
-                .into_object(),
+        let prototype = agent
+            .get_realm_record_by_id(realm)
+            .intrinsics()
+            .function_prototype()
+            .into_object();
+        create_function_intrinsic_backing_object(
+            agent,
+            backing_object,
+            Some(prototype),
+            properties,
         );
-        let slot = agent
-            .heap
-            .objects
-            .get_mut(object_index.unwrap().get_index())
-            .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ObjectHeapData {
-            prototype,
-            property_storage,
-        });
 
         let data = BuiltinFunctionHeapData {
-            object_index,
-            length: length.0,
+            object_index: backing_object,
+            length,
             realm,
-            initial_name: Some(name.0),
-            behaviour: behaviour.0,
+            initial_name: Some(name),
+            behaviour,
         };
 
         let slot = agent
@@ -703,51 +677,24 @@ impl
     pub fn build(self) -> BuiltinFunction<'static> {
         let Self {
             agent,
-            length,
-            name,
-            behaviour,
+            length: CreatorLength(length),
+            name: CreatorName(name),
             realm,
-            properties,
-            object_index,
-            prototype,
+            behaviour: CreatorBehaviour(behaviour),
+            properties: CreatorProperties(properties),
+            backing_object,
+            prototype: CreatorPrototype(prototype),
             ..
         } = self;
-        let properties = properties.0;
-        assert_eq!(properties.len(), properties.capacity());
-        {
-            let slice = properties.as_slice();
-            let duplicate = (1..slice.len()).find(|first_index| {
-                slice[*first_index..]
-                    .iter()
-                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
-            });
-            if let Some(index) = duplicate {
-                panic!("Duplicate key found: {:?}", slice[index].0);
-            }
-        }
 
-        let property_storage = agent
-            .heap
-            .elements
-            .allocate_object_property_storage_from_entries_vec(properties);
-
-        let slot = agent
-            .heap
-            .objects
-            .get_mut(object_index.unwrap().get_index())
-            .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ObjectHeapData {
-            prototype: prototype.0,
-            property_storage,
-        });
+        create_function_intrinsic_backing_object(agent, backing_object, prototype, properties);
 
         let data = BuiltinFunctionHeapData {
-            object_index,
-            length: length.0,
+            object_index: backing_object,
+            length,
             realm,
-            initial_name: Some(name.0),
-            behaviour: behaviour.0,
+            initial_name: Some(name),
+            behaviour,
         };
 
         let slot = agent
@@ -759,4 +706,19 @@ impl
         *slot = Some(data);
         self.this
     }
+}
+
+#[inline]
+fn create_function_intrinsic_backing_object(
+    agent: &mut Agent,
+    backing_object: Option<OrdinaryObject>,
+    prototype: Option<Object>,
+    properties: Vec<PropertyDefinition>,
+) {
+    debug_assert_eq!(properties[0].0, BUILTIN_STRING_MEMORY.length.into());
+    debug_assert_eq!(properties[1].0, BUILTIN_STRING_MEMORY.name.into());
+    let backing_object = backing_object
+        .expect("Cannot create a BuiltinFunction backing object if a slot has not been defined");
+
+    create_intrinsic_backing_object(agent, backing_object, prototype, properties, true);
 }

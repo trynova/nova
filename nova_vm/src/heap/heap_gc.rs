@@ -1089,10 +1089,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_4.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u8;
@@ -1107,10 +1105,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_6.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u8;
@@ -1125,10 +1121,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_8.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u8;
@@ -1143,10 +1137,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_10.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u16;
@@ -1161,10 +1153,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_12.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u16;
@@ -1179,10 +1169,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_16.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len as u16;
@@ -1197,10 +1185,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_24.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len;
@@ -1215,10 +1201,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let index = idx.into_index();
             if let Some((marked, length)) = bits.k_2_32.get_mut(index) {
                 if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
+                    // Already marked, ignore
+                    return;
                 }
                 *marked = true;
                 *length = len;
@@ -1828,11 +1812,10 @@ fn test_heap_gc() {
     let (mut gc, mut scope) = unsafe { GcScope::create_root() };
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
-    let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
-    println!("Object: {obj:#?}",);
+    let obj = HeapRootData::Object(OrdinaryObject::create_object(&mut agent, None, &[]));
     agent.heap.globals.borrow_mut().push(Some(obj));
     heap_gc(&mut agent, &mut [], gc.reborrow());
-    println!("Objects: {:#?}", agent.heap.objects);
+
     assert_eq!(agent.heap.objects.len(), 1);
     assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);
     assert!(agent.heap.globals.borrow().last().is_some());

@@ -43,7 +43,7 @@ use crate::{
         rootable::{Rootable, Scopable},
         unwrap_try,
     },
-    heap::{Heap, ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
+    heap::{ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
 use super::{
@@ -1838,20 +1838,19 @@ fn ordinary_enumerable_own_keys<'gc>(
     o: OrdinaryObject,
     gc: NoGcScope<'gc, '_>,
 ) -> Vec<PropertyKey<'gc>> {
-    let props = &agent[o].property_storage;
+    let props = o.get_property_storage(agent);
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];
     let mut result_keys = Vec::with_capacity(props.len() as usize);
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
-    for (index, key) in agent.heap.elements.get_keys(props).iter().enumerate() {
+    for (index, key) in props.keys.iter().enumerate() {
         match key {
             PropertyKey::Integer(integer_key) => {
-                let enumerable = agent
-                    .heap
-                    .elements
-                    .get_descriptor(props, index)
+                let enumerable = props
+                    .descriptors
+                    .and_then(|d| d.get(&(index as u32)))
                     .is_none_or(|desc| desc.is_enumerable());
                 if !enumerable {
                     continue;
@@ -1871,10 +1870,9 @@ fn ordinary_enumerable_own_keys<'gc>(
             }
             // a. Append P to keys.
             _ => {
-                let enumerable = agent
-                    .heap
-                    .elements
-                    .get_descriptor(props, index)
+                let enumerable = props
+                    .descriptors
+                    .and_then(|d| d.get(&(index as u32)))
                     .is_none_or(|desc| desc.is_enumerable());
                 if !enumerable {
                     continue;
@@ -2033,6 +2031,15 @@ pub(crate) fn copy_data_properties<'a>(
     let mut scoped_target = None;
     let mut scoped_from = None;
 
+    if let Object::Object(from) = from {
+        // Attempt a super-fast path: if we're just making a copy of an
+        // ordinary object that contains data properties, we can simply reuse
+        // the source object's Shape and make a copy of the data.
+        if from.try_copy_from_object(agent, from) {
+            return Ok(());
+        }
+    }
+
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
     let mut keys = if let TryResult::Continue(keys) = from.try_own_property_keys(agent, gc.nogc()) {
         keys
@@ -2048,17 +2055,15 @@ pub(crate) fn copy_data_properties<'a>(
         from = scoped_from.as_ref().unwrap().get(agent).bind(gc.nogc());
         keys
     };
-    // Reserve space in the target's vectors.
+    // Reserve space in the target object.
     {
-        let Heap {
-            elements, objects, ..
-        } = &mut agent.heap;
-        let props = &mut objects[target].property_storage;
-        let new_size = props
-            .len()
-            .checked_add(u32::try_from(keys.len()).unwrap())
-            .unwrap();
-        props.reserve(elements, new_size);
+        let new_size = u32::try_from(
+            (target.len(agent) as usize)
+                .checked_add(keys.len())
+                .unwrap(),
+        )
+        .unwrap();
+        target.reserve(agent, new_size);
     }
 
     // 4. For each element nextKey of keys, do
@@ -2066,14 +2071,14 @@ pub(crate) fn copy_data_properties<'a>(
     let mut i = 0;
     for &next_key in keys.iter() {
         // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
-        let TryResult::Continue(dest) = from.try_get_own_property(agent, next_key, gc.nogc())
+        let TryResult::Continue(desc) = from.try_get_own_property(agent, next_key, gc.nogc())
         else {
             broke = true;
             break;
         };
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
-        if let Some(dest) = dest {
-            if dest.enumerable.unwrap() {
+        if let Some(desc) = desc {
+            if desc.enumerable.unwrap() {
                 // 1. Let propValue be ? Get(from, nextKey).
                 let TryResult::Continue(prop_value) = try_get(agent, from, next_key, gc.nogc())
                 else {
@@ -2188,16 +2193,17 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
         }
     }
 
-    TryResult::Continue(
-        agent.heap.create_object_with_prototype(
+    TryResult::Continue(OrdinaryObject::create_object(
+        agent,
+        Some(
             agent
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
                 .into_object(),
-            &entries,
         ),
-    )
+        &entries,
+    ))
 }
 
 /// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
@@ -2264,17 +2270,18 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
         i += 1;
     }
 
-    let object = agent
-        .heap
-        .create_object_with_prototype(
+    let object = OrdinaryObject::create_object(
+        agent,
+        Some(
             agent
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
                 .into_object(),
-            &entries,
-        )
-        .bind(gc.nogc());
+        ),
+        &entries,
+    )
+    .bind(gc.nogc());
 
     if broke {
         let _ = keys.drain(..i);

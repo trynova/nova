@@ -863,11 +863,11 @@ pub fn create_builtin_function<'a>(
                     configurable: true,
                 },
             };
-            Some(
-                agent
-                    .heap
-                    .create_object_with_prototype(prototype, &[length_entry, name_entry]),
-            )
+            Some(OrdinaryObject::create_object(
+                agent,
+                Some(prototype),
+                &[length_entry, name_entry],
+            ))
         }
     } else {
         None

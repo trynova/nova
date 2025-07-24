@@ -411,10 +411,10 @@ impl ObjectConstructor {
         let nogc = gc.nogc();
         let o = arguments.get(0).bind(nogc);
         let properties = arguments.get(1).bind(nogc);
-        let obj: OrdinaryObject = if o == Value::Null {
-            agent.heap.create_null_object(&[]).bind(nogc)
+        let proto = if o == Value::Null {
+            None
         } else if let Ok(o) = Object::try_from(o) {
-            agent.heap.create_object_with_prototype(o, &[]).bind(nogc)
+            Some(o)
         } else {
             let error_message = format!(
                 "{} is not an object or null",
@@ -428,6 +428,7 @@ impl ObjectConstructor {
                 gc.into_nogc(),
             ));
         };
+        let obj = OrdinaryObject::create_object(agent, proto, &[]).bind(nogc);
         if properties != Value::Undefined {
             Ok(object_define_properties(
                 agent,
@@ -686,12 +687,15 @@ impl ObjectConstructor {
                     }
                 }
                 if valid {
-                    let object = agent.heap.create_object_with_prototype(
-                        agent
-                            .current_realm_record()
-                            .intrinsics()
-                            .object_prototype()
-                            .into_object(),
+                    let object = OrdinaryObject::create_object(
+                        agent,
+                        Some(
+                            agent
+                                .current_realm_record()
+                                .intrinsics()
+                                .object_prototype()
+                                .into_object(),
+                        ),
                         &object_entries,
                     );
                     return Ok(object.into_value().unbind());
@@ -797,17 +801,18 @@ impl ObjectConstructor {
             i += 1;
         }
         // 3. Let descriptors be OrdinaryObjectCreate(%Object.prototype%).
-        let descriptors = agent
-            .heap
-            .create_object_with_prototype(
+        let descriptors = OrdinaryObject::create_object(
+            agent,
+            Some(
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
                     .into_object(),
-                &descriptors,
-            )
-            .bind(gc.nogc());
+            ),
+            &descriptors,
+        )
+        .bind(gc.nogc());
         if i < own_keys.len() {
             let _ = own_keys.drain(..i);
             let obj = scoped_obj.unwrap_or_else(|| obj.scope(agent, gc.nogc()));
@@ -905,7 +910,7 @@ impl ObjectConstructor {
                 )
             })
             .collect::<Vec<_>>();
-        let object = agent.heap.create_null_object(&entries).bind(gc);
+        let object = OrdinaryObject::create_object(agent, None, &entries).bind(gc);
 
         // 4. Return obj.
         Ok(object.into_value())
