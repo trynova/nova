@@ -365,7 +365,7 @@ pub(crate) struct ObjectShapeTransitionMap<'a> {
     ///
     /// This is garbage collection wise the main way to access other shapes.
     parent: Option<ObjectShape<'a>>,
-    /// Hash table keyed by PropertKeys, pointing to an ObjectShape that is
+    /// Hash table keyed by PropertyKeys, pointing to an ObjectShape that is
     /// reached by adding said property key to the current Shape.
     ///
     /// > NOTE 1: The table is unordered.
