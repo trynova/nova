@@ -165,11 +165,14 @@ pub(crate) fn clone_array_buffer<'a>(
 ) -> JsResult<'a, ArrayBuffer<'a>> {
     // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
     debug_assert!(!src_buffer.is_detached(agent));
-    let array_buffer_constructor = agent.current_realm_record().intrinsics().array_buffer();
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
     let target_buffer = allocate_array_buffer(
         agent,
-        array_buffer_constructor.into_function(),
+        agent
+            .current_realm_record()
+            .intrinsics()
+            .array_buffer()
+            .into_function(),
         src_length as u64,
         None,
         gc,

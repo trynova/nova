@@ -315,7 +315,7 @@ impl<'e> PrivateEnvironment<'e> {
         agent.heap.environments.get_private_environment_mut(self)
     }
 
-    pub(crate) fn get_outer_env<'a>(self, agent: &Agent) -> Option<PrivateEnvironment<'e>> {
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<PrivateEnvironment<'e>> {
         self.get_data(agent).outer_private_environment
     }
 

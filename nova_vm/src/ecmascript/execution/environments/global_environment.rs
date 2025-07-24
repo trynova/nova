@@ -432,13 +432,13 @@ impl<'e> GlobalEnvironment<'e> {
     /// ReferenceError exception. A property named N normally already exists
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
-    pub(crate) fn try_get_binding_value<'a>(
+    pub(crate) fn try_get_binding_value(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, Value<'a>>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> TryResult<JsResult<'e, Value<'e>>> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].

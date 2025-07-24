@@ -701,7 +701,7 @@ fn try_handle_primitive_get_value<'a>(
 /// containing an ECMAScript language value or an abrupt completion.
 pub(crate) fn try_get_value<'gc>(
     agent: &mut Agent,
-    reference: &Reference,
+    reference: &Reference<'gc>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<JsResult<'gc, Value<'gc>>> {
     // 1. If V is not a Reference Record, return V.
@@ -869,8 +869,7 @@ pub(crate) fn put_value<'a>(
                 )
                 .unbind()?;
             // d. If succeeded is false and V.[[Strict]] is true,
-            if !succeeded && scoped_referenced_name.is_some() {
-                let scoped_referenced_name = scoped_referenced_name.unwrap();
+            if !succeeded && let Some(scoped_referenced_name) = scoped_referenced_name {
                 // throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
@@ -941,8 +940,9 @@ pub(crate) fn put_value<'a>(
                     gc.reborrow(),
                 )
                 .unbind()?;
-            if !succeeded && scoped_strict_error_data.is_some() {
-                let (scoped_referenced_name, scoped_base_obj) = scoped_strict_error_data.unwrap();
+            if !succeeded
+                && let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data
+            {
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {

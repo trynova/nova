@@ -226,7 +226,7 @@ impl<'e> FunctionEnvironment<'e> {
         agent[self].new_target
     }
 
-    pub(crate) fn get_outer_env<'a>(self, agent: &Agent) -> Option<Environment<'e>> {
+    pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
         agent[self].declarative_environment.get_outer_env(agent)
     }
 
@@ -367,13 +367,13 @@ impl<'e> FunctionEnvironment<'e> {
     }
 
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
-    pub(crate) fn get_binding_value<'a>(
+    pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> JsResult<'e, Value<'e>> {
         agent[self]
             .declarative_environment
             .get_binding_value(agent, name, is_strict, gc)

@@ -2902,33 +2902,30 @@ impl ArrayPrototype {
                     .unbind()?;
                     return Ok(a.get(agent).into_value());
                 }
-                if let Object::Array(a) = a.get(agent) {
-                    if a.len(agent) as usize == count
-                        && a.is_trivial(agent)
-                        && a.as_slice(agent).iter().all(|el| el.is_none())
-                    {
-                        // Array full of holes
-                        let source_data = array.get(agent).as_slice(agent)[start..end].as_ptr();
-                        let destination_data = a.as_mut_slice(agent).as_mut_ptr();
-                        // SAFETY: Source and destination are properly aligned
-                        // and valid for reads/writes. They do not overlap.
-                        // From JS point of view, setting data properties to
-                        // the destination would not call any JS code so this
-                        // is spec-wise correct.
-                        unsafe {
-                            core::ptr::copy_nonoverlapping(source_data, destination_data, count)
-                        };
-                        set(
-                            agent,
-                            a.into_object(),
-                            BUILTIN_STRING_MEMORY.length.into(),
-                            Number::try_from(count).unwrap().into_value(),
-                            true,
-                            gc.reborrow(),
-                        )
-                        .unbind()?;
-                        return Ok(a.into_value());
-                    }
+                if let Object::Array(a) = a.get(agent)
+                    && a.len(agent) as usize == count
+                    && a.is_trivial(agent)
+                    && a.as_slice(agent).iter().all(|el| el.is_none())
+                {
+                    // Array full of holes
+                    let source_data = array.get(agent).as_slice(agent)[start..end].as_ptr();
+                    let destination_data = a.as_mut_slice(agent).as_mut_ptr();
+                    // SAFETY: Source and destination are properly aligned
+                    // and valid for reads/writes. They do not overlap.
+                    // From JS point of view, setting data properties to
+                    // the destination would not call any JS code so this
+                    // is spec-wise correct.
+                    unsafe { core::ptr::copy_nonoverlapping(source_data, destination_data, count) };
+                    set(
+                        agent,
+                        a.into_object(),
+                        BUILTIN_STRING_MEMORY.length.into(),
+                        Number::try_from(count).unwrap().into_value(),
+                        true,
+                        gc.reborrow(),
+                    )
+                    .unbind()?;
+                    return Ok(a.into_value());
                 }
                 let mut k = start;
                 let mut n = 0u32;
@@ -3844,6 +3841,7 @@ impl ArrayPrototype {
                 .intrinsics()
                 .object_prototype_to_string()
                 .into_function()
+                .bind(gc.nogc())
         });
         // 4. Return ? Call(func, array).
         call_function(
@@ -3879,7 +3877,7 @@ impl ArrayPrototype {
             let len = array.len(agent);
             let arg_count = items.len();
             let final_len = u32::try_from(len as u64 + arg_count as u64);
-            if final_len.is_ok()
+            if let Ok(final_len) = final_len
                 && array.is_trivial(agent)
                 && array.is_dense(agent)
                 && array.length_writable(agent)
@@ -3888,7 +3886,7 @@ impl ArrayPrototype {
                 let Heap {
                     arrays, elements, ..
                 } = &mut agent.heap;
-                arrays[array].elements.reserve(elements, final_len.unwrap());
+                arrays[array].elements.reserve(elements, final_len);
                 agent[array].elements.len += arg_count as u32;
                 // Fast path: Copy old items to the end of array,
                 // copy new items to the front of the array.
@@ -3899,7 +3897,7 @@ impl ArrayPrototype {
                     // The transmute effectively turns Value into Some(Value).
                     core::mem::transmute::<&[Value], &[Option<Value>]>(items.as_slice())
                 });
-                return Ok(final_len.unwrap().into());
+                return Ok(final_len.into());
             }
         }
         let items = items
@@ -4022,27 +4020,28 @@ impl ArrayPrototype {
         let value = arguments.get(1).bind(nogc);
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by with.
-        if let (Value::Array(array), Value::Integer(index)) = (this_value, index) {
-            if array.is_trivial(agent) && array.is_dense(agent) {
-                let relative_index = index.into_i64();
-                let len = array.len(agent) as i64;
-                let actual_index = if relative_index >= 0 {
-                    relative_index
-                } else {
-                    len + relative_index
-                };
-                if actual_index >= len || actual_index < 0 {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "invalid or out-of-range index",
-                        gc.into_nogc(),
-                    ));
-                }
-                // Fast path: Set new value in cloned array.
-                let cloned_array = array.to_cloned(agent);
-                cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value.unbind());
-                return Ok(cloned_array.into_value().unbind().bind(gc.into_nogc()));
+        if let (Value::Array(array), Value::Integer(index)) = (this_value, index)
+            && array.is_trivial(agent)
+            && array.is_dense(agent)
+        {
+            let relative_index = index.into_i64();
+            let len = array.len(agent) as i64;
+            let actual_index = if relative_index >= 0 {
+                relative_index
+            } else {
+                len + relative_index
+            };
+            if actual_index >= len || actual_index < 0 {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "invalid or out-of-range index",
+                    gc.into_nogc(),
+                ));
             }
+            // Fast path: Set new value in cloned array.
+            let cloned_array = array.to_cloned(agent);
+            cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value.unbind());
+            return Ok(cloned_array.into_value().unbind().bind(gc.into_nogc()));
         }
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, nogc)

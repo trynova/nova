@@ -906,14 +906,13 @@ fn compile_arguments<'s>(
 impl<'s> CompileEvaluation<'s> for ast::CallExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // Direct eval
-        if !self.optional {
-            if let ast::Expression::Identifier(ident) = &self.callee {
-                if ident.name == "eval" {
-                    let num_arguments = compile_arguments(&self.arguments, ctx);
-                    ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
-                    return;
-                }
-            }
+        if !self.optional
+            && let ast::Expression::Identifier(ident) = &self.callee
+            && ident.name == "eval"
+        {
+            let num_arguments = compile_arguments(&self.arguments, ctx);
+            ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
+            return;
         }
 
         // 1. Let ref be ? Evaluation of CallExpression.

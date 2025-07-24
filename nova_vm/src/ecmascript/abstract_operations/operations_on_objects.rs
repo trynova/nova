@@ -2077,20 +2077,19 @@ pub(crate) fn copy_data_properties<'a>(
             break;
         };
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
-        if let Some(desc) = desc {
-            if desc.enumerable.unwrap() {
-                // 1. Let propValue be ? Get(from, nextKey).
-                let TryResult::Continue(prop_value) = try_get(agent, from, next_key, gc.nogc())
-                else {
-                    broke = true;
-                    break;
-                };
-                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
-                assert!(
-                    try_create_data_property(agent, target, next_key, prop_value, gc.nogc())
-                        .is_continue()
-                );
-            }
+        if let Some(desc) = desc
+            && desc.enumerable.unwrap()
+        {
+            // 1. Let propValue be ? Get(from, nextKey).
+            let TryResult::Continue(prop_value) = try_get(agent, from, next_key, gc.nogc()) else {
+                broke = true;
+                break;
+            };
+            // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+            assert!(
+                try_create_data_property(agent, target, next_key, prop_value, gc.nogc())
+                    .is_continue()
+            );
         }
         i += 1;
     }
@@ -2122,26 +2121,25 @@ fn copy_data_properties_slow<'a>(
             .internal_get_own_property(agent, next_key.get(gc.nogc()).unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
+            && dest.enumerable.unwrap()
         {
-            if dest.enumerable.unwrap() {
-                // 1. Let propValue be ? Get(from, nextKey).
-                let prop_value = get(
-                    agent,
-                    from.get(agent),
-                    next_key.get(gc.nogc()).unbind(),
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
-                unwrap_try(try_create_data_property(
-                    agent,
-                    target.get(agent),
-                    next_key.get(gc.nogc()).unbind(),
-                    prop_value,
-                    gc.nogc(),
-                ));
-            }
+            // 1. Let propValue be ? Get(from, nextKey).
+            let prop_value = get(
+                agent,
+                from.get(agent),
+                next_key.get(gc.nogc()).unbind(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+            unwrap_try(try_create_data_property(
+                agent,
+                target.get(agent),
+                next_key.get(gc.nogc()).unbind(),
+                prop_value,
+                gc.nogc(),
+            ));
         }
     }
 
@@ -2179,17 +2177,17 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
         // c. If excluded is false, then
         //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
         //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
-        if let Some(dest) = from.try_get_own_property(agent, next_key, gc)? {
-            if dest.enumerable.unwrap() {
-                // 1. Let propValue be ? Get(from, nextKey).
-                let prop_value = if let Some(prop_value) = dest.value {
-                    prop_value
-                } else {
-                    try_get(agent, from, next_key, gc)?
-                };
-                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
-                entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
-            }
+        if let Some(dest) = from.try_get_own_property(agent, next_key, gc)?
+            && dest.enumerable.unwrap()
+        {
+            // 1. Let propValue be ? Get(from, nextKey).
+            let prop_value = if let Some(prop_value) = dest.value {
+                prop_value
+            } else {
+                try_get(agent, from, next_key, gc)?
+            };
+            // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+            entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
         }
     }
 
@@ -2254,18 +2252,18 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
             break;
         };
         //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
-        if let Some(desc) = desc {
-            if desc.enumerable.unwrap() {
-                // 1. Let propValue be ? Get(from, nextKey).
-                let TryResult::Continue(prop_value) =
-                    try_get(agent, from.unbind(), next_key, gc.nogc())
-                else {
-                    broke = true;
-                    break;
-                };
-                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
-                entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
-            }
+        if let Some(desc) = desc
+            && desc.enumerable.unwrap()
+        {
+            // 1. Let propValue be ? Get(from, nextKey).
+            let TryResult::Continue(prop_value) =
+                try_get(agent, from.unbind(), next_key, gc.nogc())
+            else {
+                broke = true;
+                break;
+            };
+            // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+            entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
         }
         i += 1;
     }
@@ -2328,27 +2326,26 @@ fn copy_data_properties_into_object_slow<'a>(
             .internal_get_own_property(agent, local_next_key.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
+            && desc.enumerable.unwrap()
         {
-            if desc.enumerable.unwrap() {
-                // 1. Let propValue be ? Get(from, nextKey).
-                let prop_value = get(
-                    agent,
-                    from.get(agent),
-                    next_key.get(gc.nogc()).unbind(),
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
-                unwrap_try(try_create_data_property_or_throw(
-                    agent,
-                    object.get(agent),
-                    next_key.get(gc.nogc()),
-                    prop_value,
-                    gc.nogc(),
-                ))
-                .unwrap();
-            }
+            // 1. Let propValue be ? Get(from, nextKey).
+            let prop_value = get(
+                agent,
+                from.get(agent),
+                next_key.get(gc.nogc()).unbind(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                object.get(agent),
+                next_key.get(gc.nogc()),
+                prop_value,
+                gc.nogc(),
+            ))
+            .unwrap();
         }
     }
     // Drop the excluded items set.

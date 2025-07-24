@@ -545,13 +545,13 @@ impl<'e> Environment<'e> {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn try_get_binding_value<'a>(
+    pub(crate) fn try_get_binding_value(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, Value<'a>>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> TryResult<JsResult<'e, Value<'e>>> {
         match self {
             Environment::Declarative(e) => {
                 TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
@@ -588,13 +588,17 @@ impl<'e> Environment<'e> {
     ) -> JsResult<'a, Value<'a>> {
         match self {
             Environment::Declarative(e) => {
-                e.get_binding_value(agent, name, is_strict, gc.into_nogc())
+                let gc = gc.into_nogc();
+                e.bind(gc).get_binding_value(agent, name, is_strict, gc)
             }
-            Environment::Function(e) => e.get_binding_value(agent, name, is_strict, gc.into_nogc()),
+            Environment::Function(e) => {
+                let gc = gc.into_nogc();
+                e.bind(gc).get_binding_value(agent, name, is_strict, gc)
+            }
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 let gc = gc.into_nogc();
-                let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
+                let Some(value) = e.bind(gc).get_binding_value(agent, name, is_strict, gc) else {
                     return Err(throw_uninitialized_binding(agent, name, gc));
                 };
                 Ok(value)

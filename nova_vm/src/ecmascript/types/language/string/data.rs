@@ -20,10 +20,9 @@ impl PartialEq for StringHeapData {
         // If both strings are static, we can compare their pointers directly.
         if let (&StringBuffer::Static(self_str), &StringBuffer::Static(other_str)) =
             (&self.data, &other.data)
+            && core::ptr::eq(self_str, other_str)
         {
-            if core::ptr::eq(self_str, other_str) {
-                return true;
-            }
+            return true;
         }
         match (&self.data, &other.data) {
             (StringBuffer::Owned(a), StringBuffer::Owned(b)) => a == b,

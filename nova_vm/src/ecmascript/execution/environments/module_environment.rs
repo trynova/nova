@@ -223,13 +223,13 @@ impl<'e> ModuleEnvironment<'e> {
     ///
     /// > NOTE: S will always be true because a Module is always strict mode
     /// > code.
-    pub(crate) fn get_binding_value<'a>(
+    pub(crate) fn get_binding_value(
         self,
         agent: &Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Value<'a>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> Option<Value<'e>> {
         // 1. Assert: S is true.
         debug_assert!(is_strict);
         // 2. Assert: envRec has a binding for N.

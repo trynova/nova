@@ -1353,19 +1353,18 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
     // not agree. Hence, only "0" can start with "0", all other integer
     // keys must start with one of "1".."9".
     if str == "0" {
-        return Some(0.into());
+        Some(0.into())
     } else if str == "-0" {
-        return None;
+        None
     } else if !str.is_empty()
         && (str.starts_with('-') || (b'1'..=b'9').contains(&str.as_bytes()[0]))
+        && let Ok(result) = str.parse::<i64>()
+        && (SmallInteger::MIN..=SmallInteger::MAX).contains(&result)
     {
-        if let Ok(result) = str.parse::<i64>() {
-            if (SmallInteger::MIN..=SmallInteger::MAX).contains(&result) {
-                return Some(SmallInteger::try_from(result).unwrap().into());
-            }
-        }
+        Some(SmallInteger::try_from(result).unwrap().into())
+    } else {
+        None
     }
-    None
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)

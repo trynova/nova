@@ -581,43 +581,42 @@ pub(super) fn inner_module_loading<'a>(
     // 1. Assert: state.[[IsLoading]] is true.
     debug_assert!(state.is_loading);
     // 2. If module is a Cyclic Module Record, module.[[Status]] is new, and state.[[Visited]] does not contain module, then
-    if let Some(module) = module.as_source_text_module() {
-        if matches!(module.status(agent), CyclicModuleRecordStatus::New)
-            && !state.visited.contains(&module)
-        {
-            // a. Append module to state.[[Visited]].
-            state.visited.push(module);
-            // b. Let requestedModulesCount be the number of elements in module.[[RequestedModules]].
-            // SAFETY: No GC in this scope.
-            let requested_modules = unsafe { module.get_requested_modules(agent) };
-            let requested_module_count = requested_modules.len() as u32;
-            // c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
-            state.pending_modules_count += requested_module_count;
-            // d. For each ModuleRequest Record request of module.[[RequestedModules]], do
-            for request in requested_modules {
-                // i. If AllImportAttributesSupported(request.[[Attributes]]) is false, then
-                //         1. Let error be ThrowCompletion(a newly created SyntaxError object).
-                //         2. Perform ContinueModuleLoading(state, error).
-                // ii. Else if module.[[LoadedModules]] contains a LoadedModuleRequest Record
-                //     record such that ModuleRequestsEqual(record, request) is true, then
-                //         1. Perform InnerModuleLoading(state, record.[[Module]]).
-                // iii. Else,
-                // 1. Perform HostLoadImportedModule(module, request, state.[[HostDefined]], state).
-                agent.host_hooks.load_imported_module(
-                    agent,
-                    module.into(),
-                    *request,
-                    state.host_defined.clone(),
-                    state,
-                    gc,
-                );
-                // 2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule,
-                //    which re-enters the graph loading process through ContinueModuleLoading.
-                // iv. If state.[[IsLoading]] is false,
-                if !state.is_loading {
-                    // return unused.
-                    return;
-                }
+    if let Some(module) = module.as_source_text_module()
+        && matches!(module.status(agent), CyclicModuleRecordStatus::New)
+        && !state.visited.contains(&module)
+    {
+        // a. Append module to state.[[Visited]].
+        state.visited.push(module);
+        // b. Let requestedModulesCount be the number of elements in module.[[RequestedModules]].
+        // SAFETY: No GC in this scope.
+        let requested_modules = unsafe { module.get_requested_modules(agent) };
+        let requested_module_count = requested_modules.len() as u32;
+        // c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
+        state.pending_modules_count += requested_module_count;
+        // d. For each ModuleRequest Record request of module.[[RequestedModules]], do
+        for request in requested_modules {
+            // i. If AllImportAttributesSupported(request.[[Attributes]]) is false, then
+            //         1. Let error be ThrowCompletion(a newly created SyntaxError object).
+            //         2. Perform ContinueModuleLoading(state, error).
+            // ii. Else if module.[[LoadedModules]] contains a LoadedModuleRequest Record
+            //     record such that ModuleRequestsEqual(record, request) is true, then
+            //         1. Perform InnerModuleLoading(state, record.[[Module]]).
+            // iii. Else,
+            // 1. Perform HostLoadImportedModule(module, request, state.[[HostDefined]], state).
+            agent.host_hooks.load_imported_module(
+                agent,
+                module.into(),
+                *request,
+                state.host_defined.clone(),
+                state,
+                gc,
+            );
+            // 2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule,
+            //    which re-enters the graph loading process through ContinueModuleLoading.
+            // iv. If state.[[IsLoading]] is false,
+            if !state.is_loading {
+                // return unused.
+                return;
             }
         }
     }

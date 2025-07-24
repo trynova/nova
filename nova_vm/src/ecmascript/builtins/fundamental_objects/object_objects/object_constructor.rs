@@ -601,17 +601,14 @@ impl ObjectConstructor {
         let mut iterable = arguments.get(0).bind(gc.nogc());
         // Fast path: Simple, dense array of N simple, dense arrays.
         if matches!(iterable, Value::Array(_)) {
-            let array_prototype = agent.current_realm_record().intrinsics().array_prototype();
-            let intrinsic_array_iterator = agent
-                .current_realm_record()
-                .intrinsics()
-                .array_prototype_values()
-                .into_function()
-                .unbind();
             let scoped_iterable = iterable.scope(agent, gc.nogc());
             let array_iterator = get_method(
                 agent,
-                array_prototype.into_value(),
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .array_prototype()
+                    .into_value(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
             )
@@ -627,7 +624,14 @@ impl ObjectConstructor {
             // the behaviour of the iterator (access elements one by one) and
             // we know that accessing the elements will not trigger calls into
             // JavaScript. Hence, we can access the elements directly.
-            if array_iterator == Some(intrinsic_array_iterator)
+            if array_iterator
+                == Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .array_prototype_values()
+                        .into_function(),
+                )
                 && entries_array.is_simple(agent)
                 && entries_array.is_dense(agent)
             {

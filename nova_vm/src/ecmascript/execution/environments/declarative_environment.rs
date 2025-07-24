@@ -118,7 +118,11 @@ impl DeclarativeEnvironmentRecord {
     }
 
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
-    pub(super) fn get_binding_value(&self, name: String, _is_strict: bool) -> Option<Value> {
+    pub(super) fn get_binding_value(
+        &self,
+        name: String,
+        _is_strict: bool,
+    ) -> Option<Value<'static>> {
         // 1. Assert: envRec has a binding for N.
         let binding = self.bindings.get(&name).unwrap();
 
@@ -352,13 +356,13 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// throw completion. It returns the value of its bound identifier whose
     /// name is N. If the binding exists but is uninitialized a ReferenceError
     /// is thrown, regardless of the value of S.
-    pub(crate) fn get_binding_value<'a>(
+    pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+        gc: NoGcScope<'e, '_>,
+    ) -> JsResult<'e, Value<'e>> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {

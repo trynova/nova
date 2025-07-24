@@ -1085,10 +1085,10 @@ impl DatePrototype {
             .unbind()?
             .bind(gc.nogc());
         // 3. If tv is a Number and tv is not finite, return null.
-        if let Ok(tv) = Number::try_from(tv) {
-            if !tv.is_finite(agent) {
-                return Ok(Value::Null);
-            }
+        if let Ok(tv) = Number::try_from(tv)
+            && !tv.is_finite(agent)
+        {
+            return Ok(Value::Null);
         }
         // 4. Return ? Invoke(O, "toISOString").
         let k =

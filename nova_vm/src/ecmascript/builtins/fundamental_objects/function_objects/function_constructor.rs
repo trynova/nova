@@ -252,20 +252,17 @@ pub(crate) fn create_dynamic_function<'a>(
             if program.hashbang.is_none()
                 && program.directives.is_empty()
                 && program.body.len() == 1
+                && let oxc_ast::ast::Statement::FunctionDeclaration(funct) = &program.body[0]
+                && kind.function_matches_kind(funct)
             {
-                if let oxc_ast::ast::Statement::FunctionDeclaration(funct) = &program.body[0] {
-                    if kind.function_matches_kind(funct) {
-                        // SAFETY: the Function is inside a oxc_allocator::Box, which will remain
-                        // alive as long as `source_code` is kept alive. Similarly, the inner
-                        // lifetime of Function is also kept alive by `source_code`.`
-                        function = Some(unsafe {
-                            core::mem::transmute::<
-                                &oxc_ast::ast::Function,
-                                &'static oxc_ast::ast::Function,
-                            >(funct)
-                        });
-                    }
-                }
+                // SAFETY: the Function is inside a oxc_allocator::Box, which will remain
+                // alive as long as `source_code` is kept alive. Similarly, the inner
+                // lifetime of Function is also kept alive by `source_code`.`
+                function = Some(unsafe {
+                    core::mem::transmute::<&oxc_ast::ast::Function, &'static oxc_ast::ast::Function>(
+                        funct,
+                    )
+                });
             }
         }
 

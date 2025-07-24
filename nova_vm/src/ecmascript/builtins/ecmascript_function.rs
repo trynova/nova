@@ -955,20 +955,19 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         compiled_bytecode: None,
         name: None,
     };
-    if let Some(function_prototype) = params.function_prototype {
-        if function_prototype
+    if let Some(function_prototype) = params.function_prototype
+        && function_prototype
             != agent
                 .current_realm_record()
                 .intrinsics()
                 .function_prototype()
                 .into_object()
-        {
-            function.object_index = Some(OrdinaryObject::create_object(
-                agent,
-                Some(function_prototype),
-                &[],
-            ));
-        }
+    {
+        function.object_index = Some(OrdinaryObject::create_object(
+            agent,
+            Some(function_prototype),
+            &[],
+        ));
     }
 
     // 18. Set F.[[Fields]] to a new empty List.

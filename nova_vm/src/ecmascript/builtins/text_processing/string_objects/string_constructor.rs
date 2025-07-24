@@ -76,17 +76,18 @@ impl StringConstructor {
         let (s, new_target) = if arguments.is_empty() {
             // a. Let s be the empty String.
             (String::EMPTY_STRING, new_target)
+        } else
+        // 2. Else,
+        // a. If NewTarget is undefined and value is a Symbol,
+        if new_target.is_none()
+            && let Value::Symbol(value) = value
+        {
+            // return SymbolDescriptiveString(value).
+            return Ok(value
+                .unbind()
+                .descriptive_string(agent, gc.into_nogc())
+                .into_value());
         } else {
-            // 2. Else,
-            // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
-            if new_target.is_none() {
-                if let Value::Symbol(value) = value {
-                    return Ok(value
-                        .unbind()
-                        .descriptive_string(agent, gc.into_nogc())
-                        .into_value());
-                }
-            }
             // b. Let s be ? ToString(value).
             if let Ok(s) = String::try_from(value) {
                 (s, new_target)

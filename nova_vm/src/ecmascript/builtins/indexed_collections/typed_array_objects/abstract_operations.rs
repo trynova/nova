@@ -789,7 +789,11 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
     } else {
         // 12. Else,
         // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-        let array_buffer_constructor = agent.current_realm_record().intrinsics().array_buffer();
+        let array_buffer_constructor = agent
+            .current_realm_record()
+            .intrinsics()
+            .array_buffer()
+            .bind(gc);
         let data = allocate_array_buffer(
             agent,
             array_buffer_constructor.into_function(),
@@ -900,7 +904,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
     };
 
     // 3. If offset modulo elementSize ≠ 0, throw a RangeError exception.
-    if offset % element_size != 0 {
+    if !offset.is_multiple_of(element_size) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "offset is not a multiple of the element size",
@@ -982,28 +986,26 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             }
 
             new_byte_length
+        } else
+        // a. If length is undefined, then
+        // i. If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception.
+        if !buffer_byte_length.is_multiple_of(element_size) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "buffer length is not a multiple of the element size",
+                gc.into_nogc(),
+            ));
+        } else
+        // ii. Let newByteLength be bufferByteLength - offset.
+        if let Some(new_byte_length) = buffer_byte_length.checked_sub(offset) {
+            new_byte_length
         } else {
-            // a. If length is undefined, then
-            // i. If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception.
-            if buffer_byte_length % element_size != 0 {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "buffer length is not a multiple of the element size",
-                    gc.into_nogc(),
-                ));
-            }
-
-            // ii. Let newByteLength be bufferByteLength - offset.
-            if let Some(new_byte_length) = buffer_byte_length.checked_sub(offset) {
-                new_byte_length
-            } else {
-                // iii. If newByteLength < 0, throw a RangeError exception.
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "new byte length is negative",
-                    gc.into_nogc(),
-                ));
-            }
+            // iii. If newByteLength < 0, throw a RangeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "new byte length is negative",
+                gc.into_nogc(),
+            ));
         };
 
         let heap_byte_length = new_byte_length.into();
@@ -1146,7 +1148,11 @@ pub(crate) fn allocate_typed_array_buffer<'a, T: Viewable>(
     let byte_length = element_size * length;
 
     // 4. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-    let array_buffer_constructor = agent.current_realm_record().intrinsics().array_buffer();
+    let array_buffer_constructor = agent
+        .current_realm_record()
+        .intrinsics()
+        .array_buffer()
+        .bind(gc);
     let data = allocate_array_buffer(
         agent,
         array_buffer_constructor.into_function(),
@@ -1313,7 +1319,7 @@ pub(crate) fn typed_array_create_same_type<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let constructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let constructor_value = match exemplar {
+    let constructor = match exemplar {
         TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
         TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
         TypedArray::Uint8ClampedArray(_) => agent
@@ -1333,10 +1339,11 @@ pub(crate) fn typed_array_create_same_type<'a>(
         TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
         TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
     };
+    let constructor = constructor.bind(gc.nogc());
     // 2. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     let result = typed_array_create_from_constructor_with_length(
         agent,
-        constructor_value.into_function(),
+        constructor.into_function().unbind(),
         length,
         gc.reborrow(),
     )
@@ -1411,12 +1418,12 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = intrinsic_default_constructor::<T>(agent);
+    let default_constructor = intrinsic_default_constructor::<T>(agent).bind(gc.nogc());
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
         exemplar.into_object(),
-        default_constructor.into_function(),
+        default_constructor.into_function().unbind(),
         gc.reborrow(),
     )
     .unbind()?
@@ -1453,12 +1460,12 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = intrinsic_default_constructor::<T>(agent);
+    let default_constructor = intrinsic_default_constructor::<T>(agent).bind(gc.nogc());
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
         exemplar.into_object(),
-        default_constructor.into_function(),
+        default_constructor.into_function().unbind(),
         gc.reborrow(),
     )
     .unbind()?

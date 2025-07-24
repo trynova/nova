@@ -226,12 +226,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // For string exotic objects:
         // 1. Let desc be OrdinaryGetOwnProperty(S, P).
         // 2. If desc is not undefined, return desc.
-        if let Some(backing_object) = self.get_backing_object(agent) {
-            if let Some(property_descriptor) =
+        if let Some(backing_object) = self.get_backing_object(agent)
+            && let Some(property_descriptor) =
                 ordinary_get_own_property(agent, backing_object, property_key)
-            {
-                return TryResult::Continue(Some(property_descriptor));
-            }
+        {
+            return TryResult::Continue(Some(property_descriptor));
         }
 
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -285,10 +284,10 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if string.get_property_value(agent, property_key).is_some() {
-                return TryResult::Continue(true);
-            }
+        if let Ok(string) = String::try_from(agent[self].data)
+            && string.get_property_value(agent, property_key).is_some()
+        {
+            return TryResult::Continue(true);
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
@@ -302,10 +301,10 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if string.get_property_value(agent, property_key).is_some() {
-                return Ok(true);
-            }
+        if let Ok(string) = String::try_from(agent[self].data)
+            && string.get_property_value(agent, property_key).is_some()
+        {
+            return Ok(true);
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
@@ -339,10 +338,10 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if let Some(value) = string.get_property_value(agent, property_key) {
-                return TryResult::Continue(value.bind(gc));
-            }
+        if let Ok(string) = String::try_from(agent[self].data)
+            && let Some(value) = string.get_property_value(agent, property_key)
+        {
+            return TryResult::Continue(value.bind(gc));
         }
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
@@ -371,10 +370,10 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if let Some(value) = string.get_property_value(agent, property_key) {
-                return Ok(value.bind(gc.into_nogc()));
-            }
+        if let Ok(string) = String::try_from(agent[self].data)
+            && let Some(value) = string.get_property_value(agent, property_key)
+        {
+            return Ok(value.bind(gc.into_nogc()));
         }
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
@@ -405,10 +404,10 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         receiver: Value,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if string.get_property_value(agent, property_key).is_some() {
-                return TryResult::Continue(false);
-            }
+        if let Ok(string) = String::try_from(agent[self].data)
+            && string.get_property_value(agent, property_key).is_some()
+        {
+            return TryResult::Continue(false);
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
@@ -424,10 +423,10 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if string.get_property_value(agent, property_key).is_some() {
-                return Ok(false);
-            }
+        if let Ok(string) = String::try_from(agent[self].data)
+            && string.get_property_value(agent, property_key).is_some()
+        {
+            return Ok(false);
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).

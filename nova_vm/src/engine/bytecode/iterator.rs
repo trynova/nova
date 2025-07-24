@@ -260,7 +260,8 @@ impl<'a> VmIteratorRecord<'a> {
                 let array_iterator_prototype = agent
                     .current_realm_record()
                     .intrinsics()
-                    .array_iterator_prototype();
+                    .array_iterator_prototype()
+                    .bind(gc);
                 // IteratorClose calls GetMethod on the iterator: if a
                 // non-nullable value is found this way then things happen.
                 match array_iterator_prototype.try_get(
