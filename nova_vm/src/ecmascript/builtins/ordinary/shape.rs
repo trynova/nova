@@ -46,8 +46,7 @@ impl<'a> ObjectShape<'a> {
         elements: &'e ElementArrays,
     ) -> &'e [PropertyKey<'a>] {
         let data = &object_shapes[self.get_index()];
-        let cap = ElementArrayKey::from(data.len);
-        elements.get_keys_raw(cap, data.keys, data.len)
+        elements.get_keys_raw(data.cap, data.keys, data.len)
     }
 
     /// Get the PropertyKeyIndex of the Object Shape.
@@ -175,7 +174,7 @@ impl<'a> ObjectShape<'a> {
         );
     }
 
-    /// Get an Object Shape with the given key added to this shape.
+    /// Get or create an Object Shape with the given key added to this shape.
     ///
     /// > NOTE: This function will create a new Object Shape if an existing one
     /// > cannot be found.
@@ -204,12 +203,7 @@ impl<'a> ObjectShape<'a> {
             let (new_keys_cap, new_keys_index) = agent
                 .heap
                 .elements
-                .copy_keys_with_capacity(new_len, cap, keys_index, len as u32);
-            let new_keys_memory = agent
-                .heap
-                .elements
-                .get_keys_uninit_raw(new_keys_cap, new_keys_index);
-            new_keys_memory[len] = Some(key.unbind());
+                .copy_keys_with_addition(cap, keys_index, len as u32, key);
             ObjectShapeRecord::create(prototype, new_keys_index, new_keys_cap, new_len)
         };
         let child = agent
@@ -253,6 +247,54 @@ impl<'a> ObjectShape<'a> {
         None
     }
 
+    /// Create a new Object Shape with the given prototype and property
+    /// storage.
+    ///
+    /// The length of the Object Shape (number of keys) will be one more than
+    /// this Object Shape has, and the added key is determined by the next key
+    /// in the property storage.
+    fn create_child_with_storage(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex<'a>,
+    ) -> Self {
+        let new_len = self.get_length(agent).wrapping_add(1);
+        let key = *agent
+            .heap
+            .elements
+            .get_keys_raw(cap, index, new_len)
+            .last()
+            .unwrap();
+        let shape_record = ObjectShapeRecord::create(prototype, index, cap, new_len as usize);
+        let shape = agent
+            .heap
+            .create((shape_record, ObjectShapeTransitionMap::with_parent(self)));
+        self.add_transition(agent, key, shape);
+        shape
+    }
+
+    /// Create all needed Object Shapes to reach the end of the given property
+    /// storage.
+    ///
+    /// Each created Object Shape reuses the same property storage with a
+    /// different length.
+    fn create_shapes_for_property_storage(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex<'a>,
+        len: u32,
+    ) -> Self {
+        let mut shape = self;
+        for _ in self.get_length(agent)..len {
+            shape = shape.create_child_with_storage(agent, prototype, cap, index);
+        }
+        shape
+    }
+
     /// Get an Object Shape with the given key index removed.
     ///
     /// > NOTE: This function will create a new Object Shape, or possibly
@@ -268,14 +310,10 @@ impl<'a> ObjectShape<'a> {
         let cap = self.get_cap(agent);
         let keys_index = self.get_keys(agent);
         let ancestor_shape = self.get_ancestor_shape(agent, index);
-        if let Some(mut parent_shape) = ancestor_shape {
+        let (mut parent_shape, start_index) = if let Some(parent_shape) = ancestor_shape {
             // We found an ancestor shape; now we just need to add in the
             // post-removal keys.
-            for i in index.wrapping_add(1)..len {
-                let key = agent.heap.elements.get_keys_raw(cap, keys_index, len)[i as usize];
-                parent_shape = parent_shape.get_child_shape(agent, key);
-            }
-            parent_shape
+            (parent_shape, index)
         } else {
             // Couldn't find a matching ancestor shape. This means that our
             // source shape comes from eg. an intrinsic which doesn't have a
@@ -283,18 +321,35 @@ impl<'a> ObjectShape<'a> {
             // shebang!
             agent.heap.object_shapes.reserve(len as usize);
             agent.heap.object_shape_transitions.reserve(len as usize);
-            let mut parent_shape = Self::get_shape_for_prototype(agent, prototype);
-            for i in 0..len {
-                // Add old keys to parent shape.
-                if i == index {
-                    // Skip the removal key.
-                    continue;
-                }
-                let key = agent.heap.elements.get_keys_raw(cap, keys_index, len)[i as usize];
-                parent_shape = parent_shape.get_child_shape(agent, key);
+            let parent_shape = Self::get_shape_for_prototype(agent, prototype);
+            (parent_shape, 0)
+        };
+        for i in start_index..len {
+            // Add old keys to parent shape.
+            if i == index {
+                // Skip the removal key.
+                continue;
             }
-            parent_shape
+            let key = agent.heap.elements.get_keys_raw(cap, keys_index, len)[i as usize];
+            if let Some(s) = parent_shape.get_transition_to(agent, key) {
+                parent_shape = s;
+                continue;
+            }
+            // Couldn't find a path to an existing Object Shape.
+            let (new_cap, new_keys_index) =
+                agent
+                    .heap
+                    .elements
+                    .copy_keys_with_removal(cap, keys_index, len, index as usize);
+            return parent_shape.create_shapes_for_property_storage(
+                agent,
+                prototype,
+                new_cap,
+                new_keys_index,
+                len.wrapping_sub(1),
+            );
         }
+        parent_shape
     }
 
     /// Get an Object Shape with the given private field keys added.

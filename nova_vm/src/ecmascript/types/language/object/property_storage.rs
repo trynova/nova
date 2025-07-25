@@ -409,7 +409,7 @@ impl<'a> PropertyStorage<'a> {
         };
         let old_len = keys.len();
         let new_len = old_len.wrapping_sub(1);
-        let new_shape = if index == new_len {
+        if index == new_len {
             // Removing last property.
             values[index] = None;
             if let Entry::Occupied(mut e) = descriptors {
@@ -419,9 +419,6 @@ impl<'a> PropertyStorage<'a> {
                     e.remove();
                 }
             }
-            object
-                .get_shape(agent)
-                .get_shape_with_removal(agent, new_len as u32)
         } else {
             // Removing indexed property.
             // First overwrite the noted index with subsequent values.
@@ -442,10 +439,10 @@ impl<'a> PropertyStorage<'a> {
                     }
                 }
             }
-            object
-                .get_shape(agent)
-                .get_shape_with_removal(agent, index as u32)
-        };
+        }
+        let new_shape = object
+            .get_shape(agent)
+            .get_shape_with_removal(agent, index as u32);
         agent[object].set_shape(new_shape);
         agent[object].set_len(new_len as u32);
     }
