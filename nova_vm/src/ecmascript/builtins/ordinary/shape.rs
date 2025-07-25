@@ -2,14 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{marker::PhantomData, num::NonZeroU32};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ptr::NonNull};
 
 use ahash::AHashMap;
 use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, Realm},
+        execution::{Agent, PrivateField, Realm},
         types::{IntoObject, Object, OrdinaryObject, PropertyKey},
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -93,12 +93,11 @@ impl<'a> ObjectShape<'a> {
     /// Returns None if no transition exists.
     pub(crate) fn get_transition_to(
         self,
+        agent: &Agent,
         key: PropertyKey<'a>,
-        transitions: &impl AsRef<[ObjectShapeTransitionMap<'static>]>,
-        property_key_heap: &PropertyKeyHeap,
     ) -> Option<ObjectShape<'a>> {
-        let transitions = &transitions.as_ref()[self.get_index()];
-        let hash = key.heap_hash(property_key_heap);
+        let transitions = &agent.heap.object_shape_transitions[self.get_index()];
+        let hash = key.heap_hash(agent);
         transitions
             .table
             .find(hash, |(k, _)| *k == key)
@@ -145,7 +144,7 @@ impl<'a> ObjectShape<'a> {
             .set_shape_for_prototype(prototype, shape);
     }
 
-    pub(crate) fn get_or_create_shape_for_prototype<'gc>(
+    pub(crate) fn get_shape_for_prototype<'gc>(
         agent: &mut Agent,
         prototype: Option<Object<'gc>>,
     ) -> ObjectShape<'gc> {
@@ -166,61 +165,298 @@ impl<'a> ObjectShape<'a> {
         }
     }
 
-    pub(crate) fn get_or_create_child_shape(
+    /// Add a transition from self to child by key.
+    fn add_transition(self, agent: &mut Agent, key: PropertyKey<'a>, child: Self) {
+        let self_transitions = self.get_transitions_mut(&mut agent.heap.object_shape_transitions);
+        self_transitions.insert(
+            key,
+            child,
+            &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
+        );
+    }
+
+    /// Get an Object Shape with the given key added to this shape.
+    ///
+    /// > NOTE: This function will create a new Object Shape if an existing one
+    /// > cannot be found.
+    pub(crate) fn get_child_shape(self, agent: &mut Agent, key: PropertyKey<'a>) -> Self {
+        if let Some(next_shape) = self.get_transition_to(agent, key) {
+            return next_shape;
+        }
+        let prototype = self.get_prototype(agent);
+        let len = self.get_length(agent) as usize;
+        let cap = self.get_cap(agent);
+        let keys_index = self.get_keys(agent);
+        let keys_uninit = agent.heap.elements.get_keys_uninit_raw(cap, keys_index);
+        let shape_record = if let Some(slot) = keys_uninit.get_mut(len)
+            && slot.is_none()
+        {
+            // Our current shape keys is something like [a, b, None, None], and
+            // we want to add c as the third key. In this case we can just add
+            // it directly and create a new shape with the same keys.
+            slot.replace(key.unbind());
+            ObjectShapeRecord::create(prototype, keys_index, cap, len.wrapping_add(1))
+        } else {
+            // Our current shape keys is something like [a, b, x] and we want
+            // to add c as the third key. In this case we have to create a new
+            // keys storage.
+            let new_len = len.wrapping_add(1);
+            let (new_keys_cap, new_keys_index) = agent
+                .heap
+                .elements
+                .copy_keys_with_capacity(new_len, cap, keys_index, len as u32);
+            let new_keys_memory = agent
+                .heap
+                .elements
+                .get_keys_uninit_raw(new_keys_cap, new_keys_index);
+            new_keys_memory[len] = Some(key.unbind());
+            ObjectShapeRecord::create(prototype, new_keys_index, new_keys_cap, new_len)
+        };
+        let child = agent
+            .heap
+            .create((shape_record, ObjectShapeTransitionMap::with_parent(self)));
+        self.add_transition(agent, key, child);
+        child
+    }
+
+    /// Get an ancestor Object Shape with the given number of keys.
+    fn get_ancestor_shape(self, agent: &mut Agent, new_len: u32) -> Option<Self> {
+        let original_len = self.get_length(agent);
+        debug_assert!(new_len < original_len);
+        let prototype = self.get_prototype(agent);
+        if new_len == 0 {
+            // Asking for the prototype shape.
+            return Some(Self::get_shape_for_prototype(agent, prototype));
+        }
+        let cap = self.get_cap(agent);
+        let keys_index = self.get_keys(agent);
+        // Find the ancestor.
+        let mut ancestor_len = original_len.wrapping_sub(1);
+        let mut ancestor_shape = self.get_parent(agent);
+        while let Some(parent) = ancestor_shape {
+            debug_assert_eq!(parent.get_length(agent), ancestor_len);
+            debug_assert_eq!(parent.get_prototype(agent), prototype);
+            debug_assert_eq!(
+                parent.keys(&agent.heap.object_shapes, &agent.heap.elements),
+                agent
+                    .heap
+                    .elements
+                    .get_keys_raw(cap, keys_index, ancestor_len)
+            );
+            if parent.get_length(agent) == new_len {
+                // Found the ancestor.
+                return Some(parent);
+            }
+            ancestor_len = ancestor_len.wrapping_sub(1);
+            ancestor_shape = parent.get_parent(agent);
+        }
+        None
+    }
+
+    /// Get an Object Shape with the given key index removed.
+    ///
+    /// > NOTE: This function will create a new Object Shape, or possibly
+    /// > multiple ones, if an existing one cannot be found.
+    pub(crate) fn get_shape_with_removal(self, agent: &mut Agent, index: u32) -> Self {
+        let len = self.get_length(agent);
+        debug_assert!(index < len);
+        let prototype = self.get_prototype(agent);
+        if len == 1 {
+            // Removing the last property; just get the prototype shape.
+            return Self::get_shape_for_prototype(agent, prototype);
+        }
+        let cap = self.get_cap(agent);
+        let keys_index = self.get_keys(agent);
+        let ancestor_shape = self.get_ancestor_shape(agent, index);
+        if let Some(mut parent_shape) = ancestor_shape {
+            // We found an ancestor shape; now we just need to add in the
+            // post-removal keys.
+            for i in index.wrapping_add(1)..len {
+                let key = agent.heap.elements.get_keys_raw(cap, keys_index, len)[i as usize];
+                parent_shape = parent_shape.get_child_shape(agent, key);
+            }
+            parent_shape
+        } else {
+            // Couldn't find a matching ancestor shape. This means that our
+            // source shape comes from eg. an intrinsic which doesn't have a
+            // full parent shape tree. This means we need to create the whole
+            // shebang!
+            agent.heap.object_shapes.reserve(len as usize);
+            agent.heap.object_shape_transitions.reserve(len as usize);
+            let mut parent_shape = Self::get_shape_for_prototype(agent, prototype);
+            for i in 0..len {
+                // Add old keys to parent shape.
+                if i == index {
+                    // Skip the removal key.
+                    continue;
+                }
+                let key = agent.heap.elements.get_keys_raw(cap, keys_index, len)[i as usize];
+                parent_shape = parent_shape.get_child_shape(agent, key);
+            }
+            parent_shape
+        }
+    }
+
+    /// Get an Object Shape with the given private field keys added.
+    ///
+    /// > NOTE: This function will create a new Object Shape, or possibly
+    /// > multiple ones, if an existing one cannot be found.
+    ///
+    /// ## Safety
+    ///
+    /// The private_fields parameter must not be backed by memory in the Agent
+    /// heap's Elements or Object Shape related vectors.
+    ///
+    /// The method will read from the private_fields parameter but does not
+    /// mutate them. The method also does not touch the Agent's environments at
+    /// all. As a result, it is safe to pass in private fields backed by a
+    /// PrivateEnvironment held in the Agent.
+    pub(crate) unsafe fn add_private_fields(
         self,
         agent: &mut Agent,
-        prototype: Option<Object>,
-        len: usize,
-        get_key: impl Fn(&ElementArrays, usize) -> PropertyKey<'static>,
-        get_index: impl FnOnce(
-            &mut ElementArrays,
-            usize,
-        ) -> (ElementArrayKey, PropertyKeyIndex<'static>),
+        private_fields: NonNull<[PrivateField<'a>]>,
+    ) -> (Self, usize) {
+        // SAFETY: User guarantees that the fields are not backed by memory
+        // that we're going to be mutating.
+        let private_fields = unsafe { private_fields.as_ref() };
+        let original_len = self.get_length(agent);
+        let insertion_index = if original_len == 0 {
+            // Property storage is currently empty: We don't need to do any
+            // shifting of existing properties.
+            0
+        } else {
+            let keys = self.keys(&agent.heap.object_shapes, &agent.heap.elements);
+            if !keys[0].is_private_name() {
+                // First key is not a PrivateName: we should insert before it.
+                0
+            } else if keys.last().unwrap().is_private_name() {
+                // Inserting at the end.
+                original_len as usize
+            } else {
+                // We're inserting somewhere in the middle.
+                keys.binary_search_by(|k| {
+                    if k.is_private_name() {
+                        Ordering::Less
+                    } else {
+                        // Our PrivateName should be inserted before the first
+                        // normal property.
+                        Ordering::Greater
+                    }
+                })
+                .unwrap_err()
+            }
+        };
+        if insertion_index == original_len as usize {
+            // We're inserting the fields at the end; no need to do anything
+            // fancy, just iterate through the fields and get a child shape for
+            // each.
+            let mut shape = self;
+            for field in private_fields {
+                shape = shape.get_child_shape(agent, field.get_key().into());
+            }
+            return (shape, insertion_index);
+        }
+        // We're inserting fields into the start or middle of a shape. We need
+        // to first find our common ancestor shape.
+        let ancestor_shape = self.get_ancestor_shape(agent, insertion_index as u32);
+        let prototype = self.get_prototype(agent);
+        let cap = self.get_cap(agent);
+        let keys_index = self.get_keys(agent);
+        if let Some(mut parent_shape) = ancestor_shape {
+            for field in private_fields {
+                let key = field.get_key();
+                parent_shape = parent_shape.get_child_shape(agent, key.into());
+            }
+            for i in insertion_index..original_len as usize {
+                // Add old keys to parent shape.
+                let key = agent
+                    .heap
+                    .elements
+                    .get_keys_raw(cap, keys_index, original_len)[i];
+                parent_shape = parent_shape.get_child_shape(agent, key);
+            }
+            (parent_shape, insertion_index)
+        } else {
+            // Couldn't find a matching ancestor shape. This means that our
+            // source shape comes from eg. an intrinsic which doesn't have a
+            // full parent shape tree. This means we need to create the whole
+            // shebang!
+            debug_assert_eq!(
+                insertion_index, 0,
+                "Object Shape had Private Fields without having an ancestor with them"
+            );
+            let final_len = (original_len as usize)
+                .checked_add(private_fields.len())
+                .expect("Ridiculous number of fields");
+            agent.heap.object_shapes.reserve(final_len);
+            agent.heap.object_shape_transitions.reserve(final_len);
+            let mut parent_shape = Self::get_shape_for_prototype(agent, prototype);
+            for field in private_fields {
+                let key = field.get_key();
+                parent_shape = parent_shape.get_child_shape(agent, key.into());
+            }
+            for i in 0..original_len as usize {
+                // Add old keys to parent shape.
+                let key = agent
+                    .heap
+                    .elements
+                    .get_keys_raw(cap, keys_index, original_len)[i];
+                parent_shape = parent_shape.get_child_shape(agent, key);
+            }
+            (parent_shape, 0)
+        }
+    }
+
+    /// Get an Object Shape with the same keys as this one but with a different
+    /// prototype.
+    ///
+    /// > NOTE: This function will create a new Object Shape, or possibly
+    /// > multiple ones, if an existing one cannot be found.
+    pub(crate) fn get_shape_with_prototype(
+        self,
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
     ) -> Self {
-        let mut shape = self;
-        let start_len = shape.get_length(agent) as usize;
-        for i in start_len..len {
-            let key = get_key(&agent.heap.elements, i);
-            if let Some(next_shape) = shape.get_transition_to(
-                key,
-                agent,
-                &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
-            ) {
-                shape = next_shape.unbind();
+        let original_len = self.get_length(agent);
+        let original_cap = self.get_cap(agent);
+        let original_keys_index = self.get_keys(agent);
+        let mut shape = Self::get_shape_for_prototype(agent, prototype);
+        let keys = self.keys(&agent.heap.object_shapes, &agent.heap.elements);
+        for i in 0..original_len as usize {
+            let key = keys[i];
+            if let Some(next_shape) = shape.get_transition_to(agent, key) {
+                shape = next_shape;
                 continue;
             };
             // Couldn't find the next shape: we need to create all the rest.
-            // First let's create the keys storage for the rest of the shapes.
-            let (cap, index) = get_index(&mut agent.heap.elements, len);
-            // We now have an initialised keys storage for our shapes.
-            // Now to just create the remaining shapes.
-            let count = len.wrapping_sub(i);
+            // We can reuse the original keys storage.
+            let count = (original_len as usize).wrapping_sub(i);
             agent.heap.object_shapes.reserve(count);
             agent.heap.object_shape_transitions.reserve(count);
-            agent.heap.alloc_counter += (core::mem::size_of::<ObjectShapeRecord>()
-                + core::mem::size_of::<ObjectShapeTransitionMap>())
-                * count;
-            let keys = agent.heap.elements.get_keys_raw(cap, index, len as u32)
-                as *const [PropertyKey<'static>];
+            let keys =
+                agent
+                    .heap
+                    .elements
+                    .get_keys_raw(original_cap, original_keys_index, original_len)
+                    as *const [PropertyKey<'a>];
             // SAFETY: Creating shapes below cannot invalidate the keys pointer.
             let keys = unsafe { &*keys };
-            for (i, key) in keys.iter().enumerate().take(len).skip(i) {
+            for (i, key) in keys.iter().enumerate().take(original_len as usize).skip(i) {
                 let next_shape = agent.heap.create((
-                    ObjectShapeRecord::create(prototype, index, cap, i.wrapping_add(1)),
+                    ObjectShapeRecord::create(
+                        prototype,
+                        original_keys_index,
+                        original_cap,
+                        i.wrapping_add(1),
+                    ),
                     ObjectShapeTransitionMap::with_parent(shape),
                 ));
-                let previous_transitions =
-                    shape.get_transitions_mut(&mut agent.heap.object_shape_transitions);
-                previous_transitions.insert(
-                    *key,
-                    next_shape,
-                    &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
-                );
+                shape.add_transition(agent, *key, next_shape);
                 shape = next_shape.unbind();
             }
             break;
         }
-        shape.unbind()
+        shape
     }
 }
 
@@ -317,6 +553,7 @@ impl<'a> ObjectShapeRecord<'a> {
     };
 
     /// Create an Object Shape for the given prototype.
+    #[inline]
     pub(crate) fn create_root(prototype: Object<'a>) -> Self {
         Self {
             prototype: Some(prototype),
@@ -326,6 +563,7 @@ impl<'a> ObjectShapeRecord<'a> {
         }
     }
 
+    #[inline]
     pub(crate) fn create(
         prototype: Option<Object<'a>>,
         keys: PropertyKeyIndex<'a>,
@@ -491,13 +729,25 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
         let is_root = record.len == 0;
         let prototype = record.prototype;
         if is_root {
-            assert_eq!(
+            debug_assert_eq!(
                 transitions.parent, None,
                 "Object Shape has zero properties but has a parent"
+            );
+            debug_assert_eq!(
+                record.cap,
+                ElementArrayKey::Empty,
+                "Object Shape has zero properties but non-zero capacity"
+            );
+            debug_assert_eq!(
+                record.keys.into_index(),
+                0,
+                "Object Shape has zero properties but non-zero keys index"
             );
         }
         self.object_shapes.push(record.unbind());
         self.object_shape_transitions.push(transitions.unbind());
+        self.alloc_counter += core::mem::size_of::<ObjectShapeRecord>()
+            + core::mem::size_of::<ObjectShapeTransitionMap>();
         let shape = ObjectShape::last(&self.object_shapes);
         if let Some(prototype) = prototype
             && is_root

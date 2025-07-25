@@ -348,7 +348,7 @@ pub(super) fn create_intrinsic_backing_object(
     extensible: bool,
 ) {
     let shape = if properties.is_empty() {
-        ObjectShape::get_or_create_shape_for_prototype(agent, prototype)
+        ObjectShape::get_shape_for_prototype(agent, prototype)
     } else {
         assert_eq!(properties.len(), properties.capacity());
         {

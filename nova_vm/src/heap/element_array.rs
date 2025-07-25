@@ -1402,11 +1402,22 @@ impl<const N: usize> PropertyKeyArray<N> {
         PropertyKeyIndex::last_property_key_index(&self.keys)
     }
 
-    fn remove(&mut self, keys_index: PropertyKeyIndex, len: u32, index: usize) {
-        let len = len as usize;
-        let keys = &mut self.keys[keys_index.into_index()][..];
-        keys.copy_within((index + 1)..len, index);
-        keys[len - 1] = None;
+    /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
+    /// the first len keys.
+    fn push_within<'a>(
+        &mut self,
+        key_index: PropertyKeyIndex<'a>,
+        len: u32,
+    ) -> PropertyKeyIndex<'a> {
+        self.keys.reserve(1);
+        let start = key_index.into_index();
+        let end = start.wrapping_add(1);
+        // TODO: We'd want to use split_at_spare_mut here to only copy len keys
+        // instead of copying N keys and writing None into N - len.
+        self.keys.extend_from_within(start..end);
+        let last = &mut self.keys.last_mut().unwrap()[len as usize..];
+        last.fill(None);
+        PropertyKeyIndex::last_property_key_index(&self.keys)
     }
 }
 
@@ -1753,6 +1764,71 @@ impl ElementArrays {
             ElementArrayKey::E32 => self.k2pow32.push(&[]),
         };
         (key, index)
+    }
+
+    /// Allocate a new PropertyKey backing store with the given capacity,
+    /// copying the first len values into the new allocation from the source
+    /// backing store.
+    pub(crate) fn copy_keys_with_capacity<'a>(
+        &mut self,
+        capacity: usize,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex<'a>,
+        len: u32,
+    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+        if capacity == 0 {
+            return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
+        }
+        let new_cap = ElementArrayKey::from(capacity);
+        let new_index = if new_cap == cap {
+            // No change in capacity.
+            match new_cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => self.k2pow4.push_within(index, len),
+                ElementArrayKey::E6 => self.k2pow6.push_within(index, len),
+                ElementArrayKey::E8 => self.k2pow8.push_within(index, len),
+                ElementArrayKey::E10 => self.k2pow10.push_within(index, len),
+                ElementArrayKey::E12 => self.k2pow12.push_within(index, len),
+                ElementArrayKey::E16 => self.k2pow16.push_within(index, len),
+                ElementArrayKey::E24 => self.k2pow24.push_within(index, len),
+                ElementArrayKey::E32 => self.k2pow32.push_within(index, len),
+            }
+        } else {
+            // Change in capacity.
+            match new_cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => self.k2pow4.push(&[]),
+                ElementArrayKey::E6 => {
+                    let source = self.k2pow4.get_raw(index, len);
+                    self.k2pow6.push(source)
+                }
+                ElementArrayKey::E8 => {
+                    let source = self.k2pow6.get_raw(index, len);
+                    self.k2pow8.push(source)
+                }
+                ElementArrayKey::E10 => {
+                    let source = self.k2pow8.get_raw(index, len);
+                    self.k2pow10.push(source)
+                }
+                ElementArrayKey::E12 => {
+                    let source = self.k2pow10.get_raw(index, len);
+                    self.k2pow12.push(source)
+                }
+                ElementArrayKey::E16 => {
+                    let source = self.k2pow12.get_raw(index, len);
+                    self.k2pow16.push(source)
+                }
+                ElementArrayKey::E24 => {
+                    let source = self.k2pow16.get_raw(index, len);
+                    self.k2pow24.push(source)
+                }
+                ElementArrayKey::E32 => {
+                    let source = self.k2pow24.get_raw(index, len);
+                    self.k2pow32.push(source)
+                }
+            }
+        };
+        (new_cap, new_index)
     }
 
     pub(crate) fn allocate_object_property_storage_from_entries_vec<'a>(

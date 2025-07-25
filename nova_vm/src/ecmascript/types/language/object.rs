@@ -103,8 +103,8 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, WorkQueues,
         element_array::{
-            ElementArrayKey, ElementDescriptor, ElementStorageUninit, ElementsVector,
-            PropertyStorageMut, PropertyStorageRef,
+            ElementDescriptor, ElementStorageUninit, ElementsVector, PropertyStorageMut,
+            PropertyStorageRef,
         },
         indexes::ObjectIndex,
     },
@@ -259,7 +259,7 @@ impl<'a> OrdinaryObject<'a> {
         let shape = data.get_shape();
         let keys = shape.keys(object_shapes, elements);
         let elements = data.get_storage(elements);
-        assert_eq!(keys.len(), elements.values.len());
+        debug_assert_eq!(keys.len(), elements.values.len());
         PropertyStorageRef::from_keys_and_elements(keys, elements)
     }
 
@@ -300,46 +300,29 @@ impl<'a> OrdinaryObject<'a> {
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],
     ) -> Self {
-        let base_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
-        let (
-            shape,
-            ElementsVector {
-                elements_index: values,
-                cap,
-                len,
-                len_writable: extensible,
-            },
-        ) = {
-            let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
-            let len = entries.len();
-            let shape = base_shape.get_or_create_child_shape(
-                agent,
-                prototype,
-                len,
-                |_, i| entries[i].key.unbind(),
-                |elements, len| {
-                    let (key, index) = elements.allocate_keys_with_capacity(len);
-                    let keys_memory = elements.get_keys_uninit_raw(key, index);
-                    for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
-                        *slot = Some(key.unbind());
-                    }
-                    (ElementArrayKey::from(len), index)
-                },
-            );
-            agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
-                + if nontrivial_entry_count > 0 {
-                    core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
-                        + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
-                            * nontrivial_entry_count
-                } else {
-                    0
-                };
-            let elements = agent
-                .heap
-                .elements
-                .allocate_object_property_storage_from_entries_slice(entries);
-            (shape, elements)
-        };
+        let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
+        let base_shape = ObjectShape::get_shape_for_prototype(agent, prototype);
+        let mut shape = base_shape;
+        for e in entries {
+            shape = shape.get_child_shape(agent, e.key);
+        }
+        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
+            + if nontrivial_entry_count > 0 {
+                core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
+                    + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
+                        * nontrivial_entry_count
+            } else {
+                0
+            };
+        let ElementsVector {
+            elements_index: values,
+            cap,
+            len,
+            len_writable: extensible,
+        } = agent
+            .heap
+            .elements
+            .allocate_object_property_storage_from_entries_slice(entries);
         agent
             .heap
             .create(ObjectHeapData::new(shape, values, cap, len, extensible))
@@ -514,19 +497,8 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
         if original_shape.get_prototype(agent) == prototype {
             return;
         }
-        let original_cap = original_shape.get_cap(agent);
-        let original_keys = original_shape.get_keys(agent);
-        let len = original_shape.get_length(agent);
-        let cap = ElementArrayKey::from(len);
-        let root_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
-        let shape = root_shape.get_or_create_child_shape(
-            agent,
-            prototype,
-            len as usize,
-            |elements, i| elements.get_keys_raw(cap, original_keys, len)[i],
-            |_, _| (original_cap, original_keys),
-        );
-        agent[self].set_shape(shape);
+        let new_shape = original_shape.get_shape_with_prototype(agent, prototype);
+        agent[self].set_shape(new_shape);
     }
 }
 

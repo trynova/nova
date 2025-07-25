@@ -3,28 +3,26 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::cell::Ref;
-use std::{cmp::Ordering, collections::hash_map::Entry};
+use std::{collections::hash_map::Entry, ptr::NonNull};
 
 use ahash::AHashMap;
 
 use crate::{
     Heap,
     ecmascript::{
-        builtins::ordinary::shape::ObjectShape,
         execution::{Agent, JsResult, PrivateField, RealmRecord, agent::ExceptionType},
         types::{IntoValue, PrivateName, PropertyDescriptor, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
         element_array::{
-            ElementArrayKey, ElementDescriptor, ElementStorageUninit, PropertyStorageMut,
-            PropertyStorageRef,
+            ElementDescriptor, ElementStorageUninit, PropertyStorageMut, PropertyStorageRef,
         },
         indexes::ElementIndex,
     },
 };
 
-use super::{InternalSlots, IntoObject, Object, OrdinaryObject, PropertyKey};
+use super::{IntoObject, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
@@ -61,7 +59,15 @@ impl<'a> PropertyStorage<'a> {
 
     /// Adds an uninitialized PrivateName field to the object.
     pub(crate) fn add_private_field_slot(self, agent: &mut Agent, private_name: PrivateName) {
-        Self::insert_private_fields(agent, self.0, &[PrivateField::Field { key: private_name }]);
+        // SAFETY: Private fields are backed by on-stack data; mutating Agent
+        // is totally okay.
+        unsafe {
+            Self::insert_private_fields(
+                agent,
+                self.0,
+                NonNull::from(&[PrivateField::Field { key: private_name }]),
+            )
+        };
     }
 
     /// Copy all PrivateMethods and reserve PrivateName fields from the current
@@ -95,101 +101,32 @@ impl<'a> PropertyStorage<'a> {
                 gc,
             ));
         }
-        let private_fields = private_fields as *const _;
+        let private_fields = NonNull::from(private_fields);
         // SAFETY: insert_private_fields does not touch environments, and it
         // cannot push into the private_fields list. Hence the pointer here is
         // always valid.
-        let private_fields = unsafe { &*private_fields };
-        Self::insert_private_fields(agent, self.0, private_fields);
+        unsafe { Self::insert_private_fields(agent, self.0, private_fields) };
         Ok(())
     }
 
-    fn insert_private_fields(
+    /// ## Safety
+    ///
+    /// TODO
+    unsafe fn insert_private_fields(
         agent: &mut Agent,
         object: OrdinaryObject,
-        private_fields: &[PrivateField],
+        private_fields: NonNull<[PrivateField]>,
     ) {
         let original_len = object.len(agent);
         let original_shape = object.get_shape(agent);
-        let insertion_index = if original_len == 0 {
-            // Property storage is currently empty: We don't need to do any
-            // shifting of existing properties.
-            0
-        } else {
-            original_shape.keys(&agent.heap.object_shapes, &agent.heap.elements)
-                [..original_len as usize]
-                .binary_search_by(|k| {
-                    if k.is_private_name() {
-                        Ordering::Less
-                    } else {
-                        // Our PrivateName should be inserted before the first
-                        // normal property.
-                        Ordering::Greater
-                    }
-                })
-                .unwrap_err()
-        };
+        // SAFETY: User says so.
+        let (new_shape, insertion_index) =
+            unsafe { original_shape.add_private_fields(agent, private_fields) };
         let insertion_end_index = insertion_index.wrapping_add(private_fields.len());
-        let prototype = original_shape.get_prototype(agent);
-        let root_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
         // Note: use saturating_mul to avoid a panic site.
         agent.heap.alloc_counter +=
             core::mem::size_of::<Option<Value>>().saturating_mul(private_fields.len());
-        let cap = ElementArrayKey::from(original_len);
-        let keys_index = original_shape.get_keys(agent);
-        let new_shape = root_shape.get_or_create_child_shape(
-            agent,
-            prototype,
-            original_len
-                .checked_add(private_fields.len() as u32)
-                .expect("Unreasonable amount of fields") as usize,
-            |elements, i| {
-                if i < insertion_index {
-                    elements.get_keys_raw(cap, keys_index, original_len)[i].unbind()
-                } else if i < insertion_index + private_fields.len() {
-                    private_fields[i.wrapping_sub(insertion_index)]
-                        .get_key()
-                        .into()
-                } else {
-                    elements.get_keys_raw(cap, keys_index, original_len)[i - private_fields.len()]
-                        .unbind()
-                }
-            },
-            |elements, new_len| {
-                let (cap, index) = elements.allocate_keys_with_capacity(new_len);
-                let keys_memory =
-                    elements.get_keys_uninit_raw(cap, index) as *mut [Option<PropertyKey>];
-                let original_keys = elements.get_keys_raw(cap, keys_index, original_len);
-                // SAFETY: original_keys and keys_memory cannot overlap as
-                // keys_memory was just allocated; accessing original_keys
-                // cannot invalidate the keys_memory pointer.
-                let keys_memory = unsafe { &mut *keys_memory };
-                // Previous existing private keys in original_keys
-                for (slot, key) in keys_memory[0..insertion_index]
-                    .iter_mut()
-                    .zip(&original_keys[0..insertion_index])
-                {
-                    *slot = Some(key.unbind())
-                }
-                // Added private keys
-                for (slot, key) in keys_memory[insertion_index..insertion_end_index]
-                    .iter_mut()
-                    .zip(private_fields.iter().map(|e| e.get_key()))
-                {
-                    *slot = Some(key.into())
-                }
-                // Previous existing normal keys in original_keys
-                for (slot, key) in keys_memory[insertion_end_index..]
-                    .iter_mut()
-                    .zip(&original_keys[insertion_index..])
-                {
-                    *slot = Some(key.unbind())
-                }
-                (cap, index)
-            },
-        );
         agent[object].set_shape(new_shape);
-        // SAFETY: We do set the shape after this.
         object.reserve(agent, original_len + private_fields.len() as u32);
         let ElementStorageUninit {
             values,
@@ -212,6 +149,10 @@ impl<'a> PropertyStorage<'a> {
                 }
             }
         }
+
+        // SAFETY: User guarantees that the fields are not backed by memory
+        // that we're going to be mutating.
+        let private_fields = unsafe { private_fields.as_ref() };
 
         // Fill the keys and values with our PrivateNames starting at our found
         // index and ending at found index + number of private elements.
@@ -408,48 +349,13 @@ impl<'a> PropertyStorage<'a> {
             } else {
                 let cur_len = keys.len() as u32;
                 let new_len = cur_len.checked_add(1).expect("Absurd number of properties");
-                object.reserve(agent, new_len);
-                let prototype = object.internal_prototype(agent);
-                let shape = object.get_shape(agent);
-                let shape_cap = shape.get_cap(agent);
-                let shape_keys = shape.get_keys(agent);
-                let shape = shape.get_or_create_child_shape(
-                    agent,
-                    prototype,
-                    new_len as usize,
-                    |_, _| key.unbind(),
-                    |elements, len| {
-                        let last_index = len.wrapping_sub(1);
-                        let keys_memory = elements.get_keys_uninit_raw(shape_cap, shape_keys);
-                        if keys_memory.get(last_index) == Some(&None) {
-                            // We can just extend the current keys memory with a
-                            // new key.
-                            keys_memory[last_index] = Some(key.unbind());
-                            return (shape_cap, shape_keys.unbind());
-                        }
-                        let (new_keys_cap, new_keys_index) =
-                            elements.allocate_keys_with_capacity(len);
-                        let new_keys_memory =
-                            elements.get_keys_uninit_raw(new_keys_cap, new_keys_index);
-                        new_keys_memory[last_index] = Some(key.unbind());
-                        let new_keys_memory =
-                            new_keys_memory as *mut [Option<PropertyKey<'static>>];
-                        let keys_memory =
-                            elements.get_keys_raw(shape_cap, shape_keys, last_index as u32);
-                        // SAFETY: keys_memory and new_keys_memory necessarily
-                        // point to different slices; getting keys_memory cannot
-                        // invalidate new_keys_memory.
-                        let new_keys_memory = unsafe { &mut *new_keys_memory };
-                        for (slot, key) in new_keys_memory[..last_index].iter_mut().zip(keys_memory)
-                        {
-                            *slot = Some(key.unbind());
-                        }
-                        (new_keys_cap, new_keys_index)
-                    },
-                );
+
+                let new_shape = object.get_shape(agent).get_child_shape(agent, key);
+
                 agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>();
+                object.reserve(agent, new_len);
                 agent[object].set_len(new_len);
-                agent[object].set_shape(shape);
+                agent[object].set_shape(new_shape);
                 let PropertyStorageMut {
                     keys: _,
                     values,
@@ -463,26 +369,12 @@ impl<'a> PropertyStorage<'a> {
                 }
             };
         } else {
-            let prototype = object.internal_prototype(agent);
-            let shape = object.get_shape(agent);
-            let shape = shape.get_or_create_child_shape(
-                agent,
-                prototype,
-                1,
-                |_, _| key.unbind(),
-                |elements, _| {
-                    let (new_keys_cap, new_keys_index) = elements.allocate_keys_with_capacity(1);
-                    let new_keys_memory =
-                        elements.get_keys_uninit_raw(new_keys_cap, new_keys_index);
-                    new_keys_memory[0] = Some(key.unbind());
-                    (new_keys_cap, new_keys_index)
-                },
-            );
+            let new_shape = object.get_shape(agent).get_child_shape(agent, key);
             let value = descriptor.value;
             let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
 
             object.reserve(agent, 1);
-            agent[object].set_shape(shape);
+            agent[object].set_shape(new_shape);
             agent[object].set_len(1);
             let PropertyStorageMut {
                 keys: _,
@@ -517,7 +409,7 @@ impl<'a> PropertyStorage<'a> {
         };
         let old_len = keys.len();
         let new_len = old_len.wrapping_sub(1);
-        if index == new_len {
+        let new_shape = if index == new_len {
             // Removing last property.
             values[index] = None;
             if let Entry::Occupied(mut e) = descriptors {
@@ -527,17 +419,9 @@ impl<'a> PropertyStorage<'a> {
                     e.remove();
                 }
             }
-            // Fix the shape: if we have a parent shape then that's what we go
-            // to. Otherwise, we need to create a new shape like that.
-            let parent_shape = object.get_shape(agent).get_parent(agent);
-            if let Some(parent_shape) = parent_shape {
-                agent[object].set_shape(parent_shape);
-                agent[object].set_len(index as u32);
-                return;
-            } else {
-                // No direct parent shape; need to create one. We'll let this
-                // fall into the general case.
-            }
+            object
+                .get_shape(agent)
+                .get_shape_with_removal(agent, new_len as u32)
         } else {
             // Removing indexed property.
             // First overwrite the noted index with subsequent values.
@@ -558,43 +442,10 @@ impl<'a> PropertyStorage<'a> {
                     }
                 }
             }
-        }
-        let prototype = object.internal_prototype(agent);
-        let base_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
-        let shape = object.get_shape(agent);
-        let shape_cap = shape.get_cap(agent);
-        let shape_keys = shape.get_keys(agent);
-        let old_len = shape.get_length(agent);
-        let new_shape = base_shape.get_or_create_child_shape(
-            agent,
-            prototype,
-            new_len,
-            |elements, i| {
-                // When we reach our removal index, we start
-                // indexing off-by-one.
-                let i = if i < index { i } else { i.wrapping_add(1) };
-                elements.get_keys_raw(shape_cap, shape_keys, old_len)[i].unbind()
-            },
-            |elements, len| {
-                let (new_keys_cap, new_keys_index) = elements.allocate_keys_with_capacity(len);
-                let keys_memory =
-                    elements.get_keys_raw(shape_cap, shape_keys, old_len) as *const [PropertyKey];
-                let new_keys_memory = elements.get_keys_uninit_raw(new_keys_cap, new_keys_index);
-                // SAFETY: keys_memory and new_keys_memory necessarily
-                // point to different slices; getting new_keys_memory cannot
-                // invalidate keys_memory.
-                let keys_memory = unsafe { &*keys_memory };
-                assert_eq!(keys_memory.len(), len.wrapping_add(1));
-                assert!(new_keys_memory.len() >= len);
-                for i in 0..index {
-                    new_keys_memory[i] = Some(keys_memory[i].unbind());
-                }
-                for i in index..len {
-                    new_keys_memory[i] = Some(keys_memory[i.wrapping_add(1)].unbind());
-                }
-                (new_keys_cap, new_keys_index)
-            },
-        );
+            object
+                .get_shape(agent)
+                .get_shape_with_removal(agent, index as u32)
+        };
         agent[object].set_shape(new_shape);
         agent[object].set_len(new_len as u32);
     }
