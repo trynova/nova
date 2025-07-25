@@ -317,12 +317,22 @@ impl<'a> ObjectShape<'a> {
         } else {
             // Couldn't find a matching ancestor shape. This means that our
             // source shape comes from eg. an intrinsic which doesn't have a
-            // full parent shape tree. This means we need to create the whole
-            // shebang!
-            agent.heap.object_shapes.reserve(len as usize);
-            agent.heap.object_shape_transitions.reserve(len as usize);
-            let parent_shape = Self::get_shape_for_prototype(agent, prototype);
-            (parent_shape, 0)
+            // full parent shape tree. Just create a new property key storage
+            // for it.
+            let (new_cap, new_keys_index) =
+                agent
+                    .heap
+                    .elements
+                    .copy_keys_with_removal(cap, keys_index, len, index as usize);
+            let shape_record = ObjectShapeRecord::create(
+                prototype,
+                new_keys_index,
+                new_cap,
+                len.wrapping_sub(1) as usize,
+            );
+            return agent
+                .heap
+                .create((shape_record, ObjectShapeTransitionMap::ROOT));
         };
         for i in start_index..len {
             // Add old keys to parent shape.
