@@ -1438,6 +1438,18 @@ impl<const N: usize> PropertyKeyArray<N> {
         PropertyKeyIndex::last_property_key_index(&self.keys)
     }
 
+    unsafe fn push_key(&mut self, index: PropertyKeyIndex, len: u32, key: PropertyKey) {
+        let keys = self.keys[index.into_index()].as_mut_slice();
+        let previous = keys[len as usize].replace(key.unbind());
+        debug_assert!(previous.is_none());
+    }
+
+    unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: usize) {
+        let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len as usize];
+        keys.copy_within(removal_index.wrapping_add(1).., removal_index as usize);
+        *keys.last_mut().unwrap() = None;
+    }
+
     /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
     /// the first len keys.
     fn push_within<'a>(
@@ -1862,6 +1874,79 @@ impl ElementArrays {
             }
         }
         (new_cap, new_key)
+    }
+
+    /// Mutate a property key storage by removing a key at index.
+    ///
+    /// ## Safety
+    ///
+    /// This method can only be safely used for mutating the property key
+    /// storage of intrinsic objects' Object Shapes. Using this on normal
+    /// objects will cause other objects using the same Shape to perform
+    /// JavaScript-wise undefined behaviour.
+    ///
+    /// Effectively, those objects would find that their object key-value pairs
+    /// no longer match the expected values.
+    pub(crate) unsafe fn remove_key(
+        &mut self,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex,
+        len: &mut u32,
+        removal_index: usize,
+    ) {
+        match cap {
+            ElementArrayKey::Empty => {}
+            ElementArrayKey::E4 => unsafe { self.k2pow4.remove(index, *len, removal_index) },
+            ElementArrayKey::E6 => unsafe { self.k2pow6.remove(index, *len, removal_index) },
+            ElementArrayKey::E8 => unsafe { self.k2pow8.remove(index, *len, removal_index) },
+            ElementArrayKey::E10 => unsafe { self.k2pow10.remove(index, *len, removal_index) },
+            ElementArrayKey::E12 => unsafe { self.k2pow12.remove(index, *len, removal_index) },
+            ElementArrayKey::E16 => unsafe { self.k2pow16.remove(index, *len, removal_index) },
+            ElementArrayKey::E24 => unsafe { self.k2pow24.remove(index, *len, removal_index) },
+            ElementArrayKey::E32 => unsafe { self.k2pow32.remove(index, *len, removal_index) },
+        }
+        *len -= 1;
+    }
+
+    /// Mutate a property key storage by push a key at the end.
+    ///
+    /// ## Safety
+    ///
+    /// This method can only be safely used for mutating the property key
+    /// storage of intrinsic objects' Object Shapes. Using this on normal
+    /// objects will cause other objects using the same Shape to perform
+    /// JavaScript-wise undefined behaviour.
+    ///
+    /// Effectively, those objects would find that their object key-value pairs
+    /// no longer match the expected values.
+    pub(crate) unsafe fn push_key(
+        &mut self,
+        cap: &mut ElementArrayKey,
+        index: &mut PropertyKeyIndex,
+        len: &mut u32,
+        key: PropertyKey,
+    ) {
+        let new_cap = ElementArrayKey::from(len.checked_add(1).expect("Ridiculous amount of keys"));
+        if new_cap == *cap {
+            // We're within our capacity, mutate directly.
+            match cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => unsafe { self.k2pow4.push_key(*index, *len, key) },
+                ElementArrayKey::E6 => unsafe { self.k2pow6.push_key(*index, *len, key) },
+                ElementArrayKey::E8 => unsafe { self.k2pow8.push_key(*index, *len, key) },
+                ElementArrayKey::E10 => unsafe { self.k2pow10.push_key(*index, *len, key) },
+                ElementArrayKey::E12 => unsafe { self.k2pow12.push_key(*index, *len, key) },
+                ElementArrayKey::E16 => unsafe { self.k2pow16.push_key(*index, *len, key) },
+                ElementArrayKey::E24 => unsafe { self.k2pow24.push_key(*index, *len, key) },
+                ElementArrayKey::E32 => unsafe { self.k2pow32.push_key(*index, *len, key) },
+            }
+        } else {
+            // We need to grow our backing store.
+            let (new_cap, new_index) = self.copy_keys_with_addition(*cap, *index, *len, key);
+            *cap = new_cap;
+            *index = new_index.unbind();
+        }
+        *len += 1;
     }
 
     pub(crate) fn copy_keys_with_removal<'a>(

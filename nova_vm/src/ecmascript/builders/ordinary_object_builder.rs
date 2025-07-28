@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builtins::{
             Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter,
-            ordinary::shape::{ObjectShape, ObjectShapeRecord, ObjectShapeTransitionMap},
+            ordinary::shape::{ObjectShape, ObjectShapeRecord},
         },
         execution::{Agent, Realm},
         types::{
@@ -371,9 +371,11 @@ pub(super) fn create_intrinsic_backing_object(
         for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
             *slot = Some(key.unbind());
         }
-        agent.heap.create((
-            ObjectShapeRecord::create(prototype, index, cap, properties_count),
-            ObjectShapeTransitionMap::ROOT,
+        agent.heap.create(ObjectShapeRecord::create(
+            prototype,
+            index,
+            cap,
+            properties_count,
         ))
     };
 

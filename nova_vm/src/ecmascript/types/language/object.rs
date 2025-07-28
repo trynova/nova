@@ -343,9 +343,13 @@ impl<'a> OrdinaryObject<'a> {
         }
         if !self.is_empty(agent)
             || source.internal_prototype(agent) != self.internal_prototype(agent)
+            || source.get_shape(agent).is_intrinsic(agent)
         {
-            // Our own object is not empty or our prototypes don't match; can't
-            // perform the copy.
+            // Our own object is not empty, our prototypes don't match, or the
+            // source object is an intrinsic object; can't perform the copy.
+            // Note: for intrinsic objects the problem is that their Object
+            // Shape is considered uniquely owned by the intrinsic object
+            // itself.
             return false;
         }
         // Copying properties from one ordinary object to another and they
@@ -363,23 +367,13 @@ impl<'a> OrdinaryObject<'a> {
         // All properties in the source object are enumerable, none are
         // getters, and no key is a symbol or private name: the shape of the
         // source and the self objects will be identical after this operation.
-        // Note: we need to copy the descriptors anyway, so we'll just do it
-        // here.
-        let source_descriptors = descriptors.cloned();
         let len = keys.len() as u32;
         let source_shape = agent[source].get_shape();
-        agent.heap.objects[self].reserve(&mut agent.heap.elements, len);
-        agent[self].set_len(len);
-        agent[self].set_shape(source_shape);
-        // Note: this call can reallocate descriptors.
-        let PropertyStorageMut {
-            descriptors: target_descriptors,
+        self.reserve(agent, len);
+        let ElementStorageUninit {
             values: target_values,
             ..
-        } = self.get_property_storage_mut(agent).unwrap();
-        if let Some(source_descriptors) = source_descriptors {
-            target_descriptors.insert_entry(source_descriptors);
-        }
+        } = self.get_elements_storage_uninit(agent);
         // Descriptors are now set, then just copy the values over.
         let target_values = target_values as *mut [Option<Value<'static>>];
         let PropertyStorageRef {
@@ -391,6 +385,8 @@ impl<'a> OrdinaryObject<'a> {
         // empty). Thus, the values slices here are distinct from one another.
         let target_values = unsafe { &mut *target_values };
         target_values.copy_from_slice(source_values);
+        agent[self].set_len(len);
+        agent[self].set_shape(source_shape);
         true
     }
 }
