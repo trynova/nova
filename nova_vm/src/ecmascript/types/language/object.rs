@@ -298,17 +298,12 @@ impl<'a> OrdinaryObject<'a> {
         elements.get_element_storage_uninit_raw(data.get_values(), data.get_cap())
     }
 
-    pub fn create_object(
+    fn create_object_internal(
         agent: &mut Agent,
-        prototype: Option<Object<'a>>,
+        shape: ObjectShape<'a>,
         entries: &[ObjectEntry<'a>],
     ) -> Self {
         let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
-        let base_shape = ObjectShape::get_shape_for_prototype(agent, prototype);
-        let mut shape = base_shape;
-        for e in entries {
-            shape = shape.get_child_shape(agent, e.key);
-        }
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
             + if nontrivial_entry_count > 0 {
                 core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
@@ -331,15 +326,27 @@ impl<'a> OrdinaryObject<'a> {
             .create(ObjectHeapData::new(shape, values, cap, len, extensible))
     }
 
-    /// Creates a new "intrinsic" object. An intrinsic object owns its Object
-    /// Shape uniquely and thus any changes to the object properties mutate the
-    /// Shape directly.
-    pub fn create_intrinsic_object(
+    pub fn create_object(
         agent: &mut Agent,
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],
     ) -> Self {
-        let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
+        let base_shape = ObjectShape::get_shape_for_prototype(agent, prototype);
+        let mut shape = base_shape;
+        for e in entries {
+            shape = shape.get_child_shape(agent, e.key);
+        }
+        Self::create_object_internal(agent, shape, entries)
+    }
+
+    /// Creates a new "intrinsic" object. An intrinsic object owns its Object
+    /// Shape uniquely and thus any changes to the object properties mutate the
+    /// Shape directly.
+    pub(crate) fn create_intrinsic_object(
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
+        entries: &[ObjectEntry<'a>],
+    ) -> Self {
         let properties_count = entries.len();
         let (cap, index) = agent
             .heap
@@ -356,26 +363,7 @@ impl<'a> OrdinaryObject<'a> {
             cap,
             properties_count,
         ));
-        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
-            + if nontrivial_entry_count > 0 {
-                core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
-                    + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
-                        * nontrivial_entry_count
-            } else {
-                0
-            };
-        let ElementsVector {
-            elements_index: values,
-            cap,
-            len,
-            len_writable: extensible,
-        } = agent
-            .heap
-            .elements
-            .allocate_object_property_storage_from_entries_slice(entries);
-        agent
-            .heap
-            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+        Self::create_object_internal(agent, shape, entries)
     }
 
     /// Attempts to make this ordinary Object a copy of some source ordinary
