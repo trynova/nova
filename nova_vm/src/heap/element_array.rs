@@ -1800,151 +1800,7 @@ impl ElementArrays {
         if new_cap == *cap {
             return;
         }
-        let ElementArrays {
-            k2pow4,
-            k2pow6,
-            k2pow8,
-            k2pow10,
-            k2pow12,
-            k2pow16,
-            k2pow24,
-            k2pow32,
-            ..
-        } = self;
-        let new_index = match new_cap {
-            ElementArrayKey::Empty => {
-                // 0 <= elements_vector.cap for all possible values.
-                unreachable!();
-            }
-            ElementArrayKey::E4 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow4.push(keys)
-            }
-            ElementArrayKey::E6 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow6.push(keys)
-            }
-            ElementArrayKey::E8 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow8.push(keys)
-            }
-            ElementArrayKey::E10 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow10.push(keys)
-            }
-            ElementArrayKey::E12 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow12.push(keys)
-            }
-            ElementArrayKey::E16 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow16.push(keys)
-            }
-            ElementArrayKey::E24 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => {
-                        unreachable!()
-                    }
-                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
-                };
-                k2pow24.push(keys)
-            }
-            ElementArrayKey::E32 => {
-                let keys = match cap {
-                    ElementArrayKey::Empty => &[],
-                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
-                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
-                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
-                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
-                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
-                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
-                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
-                    ElementArrayKey::E32 => {
-                        unreachable!()
-                    }
-                };
-                k2pow32.push(keys)
-            }
-        };
+        let new_index = self.grow_keys_internal(*cap, *index, new_cap, old_len);
         *cap = new_cap;
         *index = new_index;
     }
@@ -2270,79 +2126,90 @@ impl ElementArrays {
             }
         } else {
             // Change in capacity.
-            match new_cap {
-                ElementArrayKey::Empty => unreachable!(),
-                ElementArrayKey::E4 => self.k2pow4.push(&[]),
-                ElementArrayKey::E6 => {
-                    let source = self.k2pow4.get_raw(index, len);
-                    self.k2pow6.push(source)
-                }
-                ElementArrayKey::E8 => {
-                    let source = match cap {
-                        ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        _ => unreachable!(),
-                    };
-                    self.k2pow8.push(source)
-                }
-                ElementArrayKey::E10 => {
-                    let source = match cap {
-                        ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        _ => unreachable!(),
-                    };
-                    self.k2pow10.push(source)
-                }
-                ElementArrayKey::E12 => {
-                    let source = match cap {
-                        ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        _ => unreachable!(),
-                    };
-                    self.k2pow12.push(source)
-                }
-                ElementArrayKey::E16 => {
-                    let source = match cap {
-                        ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        _ => unreachable!(),
-                    };
-                    self.k2pow16.push(source)
-                }
-                ElementArrayKey::E24 => {
-                    let source = match cap {
-                        ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        _ => unreachable!(),
-                    };
-                    self.k2pow24.push(source)
-                }
-                ElementArrayKey::E32 => {
-                    let source = match cap {
-                        ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        _ => unreachable!(),
-                    };
-                    self.k2pow32.push(source)
-                }
-            }
+            self.grow_keys_internal(cap, index, new_cap, len)
         };
         (new_cap, new_index)
+    }
+
+    /// Grow a keys storage to new capacity.
+    fn grow_keys_internal<'a>(
+        &mut self,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex,
+        new_cap: ElementArrayKey,
+        len: u32,
+    ) -> PropertyKeyIndex<'a> {
+        match new_cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => self.k2pow4.push(&[]),
+            ElementArrayKey::E6 => {
+                let source = self.k2pow4.get_raw(index, len);
+                self.k2pow6.push(source)
+            }
+            ElementArrayKey::E8 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow8.push(source)
+            }
+            ElementArrayKey::E10 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow10.push(source)
+            }
+            ElementArrayKey::E12 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow12.push(source)
+            }
+            ElementArrayKey::E16 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow16.push(source)
+            }
+            ElementArrayKey::E24 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow24.push(source)
+            }
+            ElementArrayKey::E32 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                    ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow32.push(source)
+            }
+        }
     }
 
     pub(crate) fn allocate_object_property_storage_from_entries_vec<'a>(
