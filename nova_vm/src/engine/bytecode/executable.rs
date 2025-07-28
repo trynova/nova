@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 
 use crate::{
     ecmascript::{
+        builtins::ordinary::shape::ObjectShape,
         execution::Agent,
         scripts_and_modules::{
             module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
@@ -136,6 +137,7 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 pub struct ExecutableHeapData<'a> {
     pub(crate) instructions: Box<[u8]>,
     pub(crate) constants: Box<[Value<'a>]>,
+    pub(crate) shapes: Box<[ObjectShape<'a>]>,
     pub(crate) function_expressions: Box<[FunctionExpression<'a>]>,
     pub(crate) arrow_function_expressions: Box<[ArrowFunctionExpression]>,
     pub(crate) class_initializer_bytecodes: Box<[(Option<Executable<'a>>, bool)]>,
@@ -326,6 +328,15 @@ impl<'gc> Executable<'gc> {
     ) -> (Option<Executable<'gc>>, bool) {
         agent[self].class_initializer_bytecodes[index]
     }
+
+    fn fetch_object_shape(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ObjectShape<'gc> {
+        agent[self].shapes[index].bind(gc)
+    }
 }
 
 impl Scoped<'_, Executable<'static>> {
@@ -399,6 +410,16 @@ impl Scoped<'_, Executable<'static>> {
     ) -> (Option<Executable<'gc>>, bool) {
         self.get(agent)
             .fetch_class_initializer_bytecode(agent, index, gc)
+    }
+
+    #[inline]
+    pub(super) fn fetch_object_shape<'gc>(
+        &self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ObjectShape<'gc> {
+        self.get(agent).fetch_object_shape(agent, index, gc)
     }
 }
 
@@ -506,11 +527,13 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
         let Self {
             instructions: _,
             constants,
+            shapes,
             function_expressions: _,
             arrow_function_expressions: _,
             class_initializer_bytecodes,
         } = self;
         constants.mark_values(queues);
+        shapes.mark_values(queues);
         for ele in class_initializer_bytecodes {
             ele.0.mark_values(queues);
         }
@@ -520,11 +543,13 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
         let Self {
             instructions: _,
             constants,
+            shapes,
             function_expressions: _,
             arrow_function_expressions: _,
             class_initializer_bytecodes,
         } = self;
         constants.sweep_values(compactions);
+        shapes.sweep_values(compactions);
         for ele in class_initializer_bytecodes {
             ele.0.sweep_values(compactions);
         }

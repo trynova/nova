@@ -7,7 +7,7 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        builtins::regexp::RegExp,
+        builtins::{ordinary::shape::ObjectShape, regexp::RegExp},
         execution::Agent,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{BigInt, Number, PropertyKey, String, Value},
@@ -1008,6 +1008,15 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 function_expression,
                 immediate,
             )
+    }
+
+    pub(super) fn add_instruction_with_shape(
+        &mut self,
+        instruction: Instruction,
+        shape: ObjectShape<'gc>,
+    ) {
+        self.executable
+            .add_instruction_with_shape(instruction, shape);
     }
 
     pub(super) fn add_arrow_function_expression(
