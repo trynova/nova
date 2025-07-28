@@ -329,7 +329,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_shape_index());
         self.push_instruction(instruction);
-        let shape = self.add_shape(shape.into());
+        let shape = self.add_shape(shape);
         self.add_index(shape);
     }
 

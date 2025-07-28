@@ -511,9 +511,11 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                     prop.kind == ast::PropertyKind::Init
                         && !prop.method
                         && prop.key.is_identifier()
-                        && (prop.key.is_specific_static_name("__proto__") && !prop.shorthand)
-                            .then(|| prop.value.is_null_or_undefined())
-                            .unwrap_or(true)
+                        && if prop.key.is_specific_static_name("__proto__") && !prop.shorthand {
+                            prop.value.is_null_or_undefined()
+                        } else {
+                            true
+                        }
                 }
             })
         {
