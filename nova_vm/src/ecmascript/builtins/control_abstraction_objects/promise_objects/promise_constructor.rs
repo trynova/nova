@@ -2,14 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::create_list_from_array_like;
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
 use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
 use crate::ecmascript::builtins::Array;
-use crate::ecmascript::execution::agent::JsError;
-use crate::ecmascript::types::HeapNumber;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
