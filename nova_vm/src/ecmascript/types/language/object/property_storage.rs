@@ -319,7 +319,7 @@ impl<'a> PropertyStorage<'a> {
         let value = descriptor.value;
         let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
 
-        let new_len = if let Some(PropertyStorageMut {
+        let cur_len = if let Some(PropertyStorageMut {
             keys,
             values,
             descriptors,
@@ -350,11 +350,11 @@ impl<'a> PropertyStorage<'a> {
                 }
                 return;
             }
-            let cur_len = keys.len() as u32;
-            cur_len.checked_add(1).expect("Absurd number of properties")
+            keys.len() as u32
         } else {
-            1
+            0
         };
+        let new_len = cur_len.checked_add(1).unwrap();
         let new_shape = object.get_shape(agent).get_child_shape(agent, key);
         object.reserve(agent, new_len);
         agent[object].set_shape(new_shape);
@@ -364,10 +364,19 @@ impl<'a> PropertyStorage<'a> {
             values,
             descriptors,
         } = object.get_property_storage_mut(agent).unwrap();
-        values[0] = value.unbind();
+        debug_assert!(
+            values[cur_len as usize].is_none()
+                && match &descriptors {
+                    Entry::Occupied(e) => {
+                        !e.get().contains_key(&cur_len)
+                    }
+                    Entry::Vacant(_) => true,
+                }
+        );
+        values[cur_len as usize] = value.unbind();
         if let Some(element_descriptor) = element_descriptor {
             let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
-            descriptors.insert(0, element_descriptor.unbind());
+            descriptors.insert(cur_len, element_descriptor.unbind());
         }
     }
 
