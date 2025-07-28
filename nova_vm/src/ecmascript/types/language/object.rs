@@ -334,7 +334,7 @@ impl<'a> OrdinaryObject<'a> {
     /// Creates a new "intrinsic" object. An intrinsic object owns its Object
     /// Shape uniquely and thus any changes to the object properties mutate the
     /// Shape directly.
-    pub fn create_intrinsc_object(
+    pub fn create_intrinsic_object(
         agent: &mut Agent,
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],

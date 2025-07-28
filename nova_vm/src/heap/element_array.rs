@@ -1446,7 +1446,7 @@ impl<const N: usize> PropertyKeyArray<N> {
 
     unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: usize) {
         let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len as usize];
-        keys.copy_within(removal_index.wrapping_add(1).., removal_index as usize);
+        keys.copy_within(removal_index.wrapping_add(1).., removal_index);
         *keys.last_mut().unwrap() = None;
     }
 

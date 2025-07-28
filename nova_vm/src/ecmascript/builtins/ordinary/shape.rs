@@ -38,7 +38,7 @@ impl<'a> ObjectShape<'a> {
     ///
     /// Intrinsic Object Shapes are uniquely owned by their intrinsic object
     /// and will thus be mutated upon intrinsic object mutation. It is thus not
-    /// safe to inhert an intrinsic Object Shape.
+    /// safe to inherit an intrinsic Object Shape.
     pub(crate) fn is_intrinsic(self, agent: &Agent) -> bool {
         self.get(agent).cap != ElementArrayKey::Empty
             && self.get_transitions(agent).parent.is_none()
