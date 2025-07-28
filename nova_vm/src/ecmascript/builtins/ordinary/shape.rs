@@ -40,7 +40,8 @@ impl<'a> ObjectShape<'a> {
     /// and will thus be mutated upon intrinsic object mutation. It is thus not
     /// safe to inhert an intrinsic Object Shape.
     pub(crate) fn is_intrinsic(self, agent: &Agent) -> bool {
-        self.get(agent).len != 0 && self.get_transitions(agent).parent.is_none()
+        self.get(agent).cap != ElementArrayKey::Empty
+            && self.get_transitions(agent).parent.is_none()
     }
 
     /// Get the Object Shape record.
@@ -321,11 +322,6 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn get_shape_with_removal(self, agent: &mut Agent, index: u32) -> Self {
         let len = self.get_length(agent);
         debug_assert!(index < len);
-        let prototype = self.get_prototype(agent);
-        if len == 1 {
-            // Removing the last property; just get the prototype shape.
-            return Self::get_shape_for_prototype(agent, prototype);
-        }
         let cap = self.get_cap(agent);
         let keys_index = self.get_keys(agent);
         if self.is_intrinsic(agent) {
@@ -339,6 +335,11 @@ impl<'a> ObjectShape<'a> {
                 )
             };
             return self;
+        }
+        let prototype = self.get_prototype(agent);
+        if len == 1 {
+            // Removing the last property; just get the prototype shape.
+            return Self::get_shape_for_prototype(agent, prototype);
         }
         let ancestor_shape = self.get_ancestor_shape(agent, index);
         if let Some(mut parent_shape) = ancestor_shape {
@@ -374,7 +375,45 @@ impl<'a> ObjectShape<'a> {
         }
     }
 
-    /// Get an Object Shape with the given private field keys added.
+    /// Insert private fields into an intrinsic Object Shape.
+    ///
+    /// ## Safety
+    ///
+    /// This Object Shape must be an intrinsic Object Shape.
+    unsafe fn insert_intrinsic_private_fields(
+        self,
+        agent: &mut Agent,
+        private_fields: &[PrivateField<'a>],
+        insertion_index: usize,
+    ) -> (Self, usize) {
+        let ObjectShapeRecord {
+            prototype: _,
+            keys,
+            cap,
+            len,
+        } = &mut agent.heap.object_shapes[self.get_index()];
+        let private_fields_count = u32::try_from(private_fields.len()).unwrap();
+        agent
+            .heap
+            .elements
+            .reserve_properties_raw(keys, cap, *len, private_fields_count);
+        let keys = agent.heap.elements.get_keys_uninit_raw(*cap, *keys);
+        keys.copy_within(
+            insertion_index..*len as usize,
+            insertion_index + private_fields.len(),
+        );
+        for (slot, key) in keys[insertion_index..]
+            .iter_mut()
+            .zip(private_fields.iter().map(|f| f.get_key()))
+        {
+            *slot = Some(key.into());
+        }
+        *len += private_fields_count;
+        (self, insertion_index)
+    }
+
+    /// Get an Object Shape with the given private field keys added. Returns
+    /// the Object Shape and the index at which they were added in.
     ///
     /// > NOTE: This function will create a new Object Shape, or possibly
     /// > multiple ones, if an existing one cannot be found.
@@ -432,7 +471,10 @@ impl<'a> ObjectShape<'a> {
                 }
                 return (self, insertion_index);
             }
-            todo!();
+            // SAFETY: self is intrinsic.
+            return unsafe {
+                self.insert_intrinsic_private_fields(agent, private_fields, insertion_index)
+            };
         }
         if insertion_index == original_len as usize {
             // We're inserting the fields at the end; no need to do anything
@@ -836,7 +878,7 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
         data: (ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>),
     ) -> ObjectShape<'a> {
         let (record, transitions) = data;
-        let is_root = record.len == 0;
+        let is_root = record.cap == ElementArrayKey::Empty;
         let prototype = record.prototype;
         if is_root {
             debug_assert_eq!(
@@ -844,14 +886,13 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
                 "Object Shape has zero properties but has a parent"
             );
             debug_assert_eq!(
-                record.cap,
-                ElementArrayKey::Empty,
-                "Object Shape has zero properties but non-zero capacity"
+                record.len, 0,
+                "Object Shape has zero capacity but non-zero length"
             );
             debug_assert_eq!(
                 record.keys.into_index(),
                 0,
-                "Object Shape has zero properties but non-zero keys index"
+                "Object Shape has zero capacity but non-zero keys index"
             );
         }
         self.object_shapes.push(record.unbind());

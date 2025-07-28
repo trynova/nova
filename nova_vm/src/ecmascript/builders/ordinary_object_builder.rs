@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builtins::{
             Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter,
-            ordinary::shape::{ObjectShape, ObjectShapeRecord},
+            ordinary::shape::ObjectShapeRecord,
         },
         execution::{Agent, Realm},
         types::{
@@ -347,37 +347,34 @@ pub(super) fn create_intrinsic_backing_object(
     properties: Vec<PropertyDefinition>,
     extensible: bool,
 ) {
-    let shape = if properties.is_empty() {
-        ObjectShape::get_shape_for_prototype(agent, prototype)
-    } else {
-        assert_eq!(properties.len(), properties.capacity());
-        {
-            let slice = properties.as_slice();
-            let duplicate = (1..slice.len()).find(|first_index| {
-                slice[*first_index..]
-                    .iter()
-                    .any(|(key, _, _)| *key == slice[first_index - 1].0)
-            });
-            if let Some(index) = duplicate {
-                panic!("Duplicate key found: {:?}", slice[index].0);
-            }
+    assert_eq!(properties.len(), properties.capacity());
+    {
+        let slice = properties.as_slice();
+        let duplicate = (1..slice.len()).find(|first_index| {
+            slice[*first_index..]
+                .iter()
+                .any(|(key, _, _)| *key == slice[first_index - 1].0)
+        });
+        if let Some(index) = duplicate {
+            panic!("Duplicate key found: {:?}", slice[index].0);
         }
-        let properties_count = properties.len();
-        let (cap, index) = agent
-            .heap
-            .elements
-            .allocate_keys_with_capacity(properties_count);
-        let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
-        for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
-            *slot = Some(key.unbind());
-        }
-        agent.heap.create(ObjectShapeRecord::create(
-            prototype,
-            index,
-            cap,
-            properties_count,
-        ))
-    };
+    }
+    let properties_count = properties.len();
+    let (cap, index) = agent
+        .heap
+        .elements
+        // Note: intrinsics should always allocate a keys storage.
+        .allocate_keys_with_capacity(properties_count.max(1));
+    let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
+    for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
+        *slot = Some(key.unbind());
+    }
+    let shape = agent.heap.create(ObjectShapeRecord::create(
+        prototype,
+        index,
+        cap,
+        properties_count,
+    ));
 
     let ElementsVector {
         elements_index: values,

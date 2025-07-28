@@ -1786,6 +1786,169 @@ impl ElementArrays {
         *index = new_index;
     }
 
+    pub(crate) fn reserve_properties_raw(
+        &mut self,
+        index: &mut PropertyKeyIndex,
+        cap: &mut ElementArrayKey,
+        old_len: u32,
+        additional: u32,
+    ) {
+        let new_len = old_len
+            .checked_add(additional)
+            .expect("Ridiculous amount of keys");
+        let new_cap = ElementArrayKey::from(new_len);
+        if new_cap == *cap {
+            return;
+        }
+        let ElementArrays {
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
+        let new_index = match new_cap {
+            ElementArrayKey::Empty => {
+                // 0 <= elements_vector.cap for all possible values.
+                unreachable!();
+            }
+            ElementArrayKey::E4 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow4.push(keys)
+            }
+            ElementArrayKey::E6 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow6.push(keys)
+            }
+            ElementArrayKey::E8 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow8.push(keys)
+            }
+            ElementArrayKey::E10 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow10.push(keys)
+            }
+            ElementArrayKey::E12 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow12.push(keys)
+            }
+            ElementArrayKey::E16 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow16.push(keys)
+            }
+            ElementArrayKey::E24 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E32 => k2pow32.get_raw(*index, old_len),
+                };
+                k2pow24.push(keys)
+            }
+            ElementArrayKey::E32 => {
+                let keys = match cap {
+                    ElementArrayKey::Empty => &[],
+                    ElementArrayKey::E4 => k2pow4.get_raw(*index, old_len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(*index, old_len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(*index, old_len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(*index, old_len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(*index, old_len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(*index, old_len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(*index, old_len),
+                    ElementArrayKey::E32 => {
+                        unreachable!()
+                    }
+                };
+                k2pow32.push(keys)
+            }
+        };
+        *cap = new_cap;
+        *index = new_index;
+    }
+
     pub(crate) fn allocate_elements_with_capacity(
         &mut self,
         capacity: usize,
@@ -2413,7 +2576,7 @@ impl ElementArrays {
             ElementArrayKey::E32 => self.k2pow32.get_raw(keys_index, len),
         };
         let elements = match values_cap {
-            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::Empty => return None,
             ElementArrayKey::E4 => self
                 .e2pow4
                 .get_descriptors_and_values_mut_raw(values_index.unbind(), len),

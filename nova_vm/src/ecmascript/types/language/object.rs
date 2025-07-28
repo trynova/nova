@@ -85,7 +85,10 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
-            ordinary::{ordinary_object_create_with_intrinsics, shape::ObjectShape},
+            ordinary::{
+                ordinary_object_create_with_intrinsics,
+                shape::{ObjectShape, ObjectShapeRecord},
+            },
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -306,6 +309,53 @@ impl<'a> OrdinaryObject<'a> {
         for e in entries {
             shape = shape.get_child_shape(agent, e.key);
         }
+        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
+            + if nontrivial_entry_count > 0 {
+                core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
+                    + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
+                        * nontrivial_entry_count
+            } else {
+                0
+            };
+        let ElementsVector {
+            elements_index: values,
+            cap,
+            len,
+            len_writable: extensible,
+        } = agent
+            .heap
+            .elements
+            .allocate_object_property_storage_from_entries_slice(entries);
+        agent
+            .heap
+            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+    }
+
+    /// Creates a new "intrinsic" object. An intrinsic object owns its Object
+    /// Shape uniquely and thus any changes to the object properties mutate the
+    /// Shape directly.
+    pub fn create_intrinsc_object(
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
+        entries: &[ObjectEntry<'a>],
+    ) -> Self {
+        let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
+        let properties_count = entries.len();
+        let (cap, index) = agent
+            .heap
+            .elements
+            // Note: intrinsics should always allocate a keys storage.
+            .allocate_keys_with_capacity(properties_count.max(1));
+        let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
+        for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
+            *slot = Some(key.unbind());
+        }
+        let shape = agent.heap.create(ObjectShapeRecord::create(
+            prototype,
+            index,
+            cap,
+            properties_count,
+        ));
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
             + if nontrivial_entry_count > 0 {
                 core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
