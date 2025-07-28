@@ -8,7 +8,10 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        builtins::regexp::{RegExp, reg_exp_create_literal},
+        builtins::{
+            ordinary::shape::ObjectShape,
+            regexp::{RegExp, reg_exp_create_literal},
+        },
         execution::Agent,
         types::{BigInt, IntoValue, Number, PropertyKey, String, Value},
     },
@@ -35,6 +38,8 @@ pub(super) struct ExecutableContext<'agent, 'gc, 'scope> {
     instructions: Vec<u8>,
     /// Constants being built
     constants: Vec<Value<'gc>>,
+    /// Object Shapes being built
+    shapes: Vec<ObjectShape<'gc>>,
     /// Function expressions being built
     function_expressions: Vec<FunctionExpression<'gc>>,
     /// Arrow function expressions being built
@@ -50,6 +55,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
             current_instruction_pointer_is_unreachable: false,
             instructions: Vec::new(),
             constants: Vec::new(),
+            shapes: Vec::new(),
             function_expressions: Vec::new(),
             arrow_function_expressions: Vec::new(),
             class_initializer_bytecodes: Vec::new(),
@@ -114,6 +120,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
             constants: self.constants.unbind().into_boxed_slice(),
+            shapes: self.shapes.unbind().into_boxed_slice(),
             function_expressions: self.function_expressions.unbind().into_boxed_slice(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
             class_initializer_bytecodes: self
@@ -185,6 +192,21 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         duplicate.unwrap_or_else(|| {
             let index = self.constants.len();
             self.constants.push(identifier.into_value());
+            index
+        })
+    }
+
+    pub(super) fn add_shape(&mut self, shape: ObjectShape<'gc>) -> usize {
+        let duplicate = self
+            .shapes
+            .iter()
+            .enumerate()
+            .find(|item| item.1.eq(&shape))
+            .map(|(idx, _)| idx);
+
+        duplicate.unwrap_or_else(|| {
+            let index = self.shapes.len();
+            self.shapes.push(shape);
             index
         })
     }
@@ -297,6 +319,18 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         // Note: add_index would have panicked if this was not a lossless
         // conversion.
         index as IndexType
+    }
+
+    pub(super) fn add_instruction_with_shape(
+        &mut self,
+        instruction: Instruction,
+        shape: ObjectShape<'gc>,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_shape_index());
+        self.push_instruction(instruction);
+        let shape = self.add_shape(shape);
+        self.add_index(shape);
     }
 
     pub(super) fn add_arrow_function_expression(

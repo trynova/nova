@@ -16,7 +16,9 @@ mod template_literals;
 mod with_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
-use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::{
+    builtins::ordinary::shape::ObjectShape, execution::agent::ExceptionType, types::IntoObject,
+};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     syntax_directed_operations::{
@@ -436,8 +438,109 @@ impl<'s> CompileEvaluation<'s> for ast::Function<'s> {
     }
 }
 
+fn create_object_with_shape<'s>(
+    expr: &'s ast::ObjectExpression<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    let proto_prop = expr.properties.iter().find(|prop| {
+        let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
+            unreachable!()
+        };
+        prop.key.is_specific_static_name("__proto__")
+            && prop.kind == ast::PropertyKind::Init
+            && !prop.shorthand
+    });
+    let prototype = if let Some(proto_prop) = proto_prop {
+        let ast::ObjectPropertyKind::ObjectProperty(proto_prop) = proto_prop else {
+            unreachable!()
+        };
+        if proto_prop.value.is_null() {
+            None
+        } else {
+            Some(
+                ctx.get_agent()
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+            )
+        }
+    } else {
+        Some(
+            ctx.get_agent()
+                .current_realm_record()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+        )
+    };
+    let mut shape = ObjectShape::get_shape_for_prototype(ctx.get_agent_mut(), prototype);
+    for prop in expr.properties.iter() {
+        let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
+            unreachable!()
+        };
+        if !prop.shorthand && prop.key.is_specific_static_name("__proto__") {
+            continue;
+        }
+        let ast::PropertyKey::StaticIdentifier(id) = &prop.key else {
+            unreachable!()
+        };
+        let identifier = ctx.create_property_key(&id.name);
+        shape = shape.get_child_shape(ctx.get_agent_mut(), identifier);
+        if is_anonymous_function_definition(&prop.value) {
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
+            ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+        }
+        prop.value.compile(ctx);
+        if is_reference(&prop.value) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+        ctx.add_instruction(Instruction::Load);
+    }
+    ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
+}
+
 impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+        if !self.properties.is_empty()
+            && self.properties.iter().all(|prop| {
+                !prop.is_spread() && {
+                    let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
+                        unreachable!()
+                    };
+                    prop.kind == ast::PropertyKind::Init
+                        && !prop.method
+                        && prop.key.is_identifier()
+                        && if prop.key.is_specific_static_name("__proto__") && !prop.shorthand {
+                            prop.value.is_null_or_undefined()
+                        } else {
+                            true
+                        }
+                }
+            })
+        {
+            let mut dedup_keys = self
+                .properties
+                .iter()
+                .map(|prop| {
+                    let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
+                        unreachable!()
+                    };
+                    let ast::PropertyKey::StaticIdentifier(key) = &prop.key else {
+                        unreachable!()
+                    };
+                    key.name.as_str()
+                })
+                .collect::<Vec<_>>();
+            dedup_keys.sort();
+            dedup_keys.dedup();
+            // Check that there are no duplicates.
+            if dedup_keys.len() == self.properties.len() {
+                // Can create Object Shape beforehand and calculate
+                create_object_with_shape(self, ctx);
+                return;
+            }
+        }
         // TODO: Consider preparing the properties onto the stack and creating
         // the object with a known size.
         ctx.add_instruction(Instruction::ObjectCreate);

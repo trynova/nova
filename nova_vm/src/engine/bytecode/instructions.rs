@@ -219,6 +219,9 @@ pub enum Instruction {
     LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
+    /// Store a new as the result Object created with the given shape, with its
+    /// properties coming from the stack.
+    ObjectCreateWithShape,
     /// Call CreateDataPropertyOrThrow(object, key, value) with value being the
     /// result value, key being the top stack value and object being the second
     /// stack value. The object is not popped from the stack.
@@ -527,6 +530,7 @@ impl Instruction {
             | Self::LoadConstant
             | Self::MakePrivateReference
             | Self::MakeSuperPropertyReferenceWithIdentifierKey
+            | Self::ObjectCreateWithShape
             | Self::ClassInitializePrivateValue
             | Self::ResolveBinding
             | Self::StoreConstant
@@ -557,6 +561,10 @@ impl Instruction {
                 | Self::LoadConstant
                 | Self::StoreConstant
         )
+    }
+
+    pub fn has_shape_index(self) -> bool {
+        matches!(self, Self::ObjectCreateWithShape)
     }
 
     pub fn has_identifier_index(self) -> bool {
@@ -1177,6 +1185,7 @@ impl TryFrom<u8> for Instruction {
         const EMPTY: u8 = Instruction::Empty.as_u8();
         const LOGICALNOT: u8 = Instruction::LogicalNot.as_u8();
         const OBJECTCREATE: u8 = Instruction::ObjectCreate.as_u8();
+        const OBJECTCREATEWITHSHAPE: u8 = Instruction::ObjectCreateWithShape.as_u8();
         const OBJECTDEFINEPROPERTY: u8 = Instruction::ObjectDefineProperty.as_u8();
         const OBJECTDEFINEMETHOD: u8 = Instruction::ObjectDefineMethod.as_u8();
         const OBJECTDEFINEGETTER: u8 = Instruction::ObjectDefineGetter.as_u8();
@@ -1383,6 +1392,7 @@ impl TryFrom<u8> for Instruction {
             EMPTY => Ok(Instruction::Empty),
             LOGICALNOT => Ok(Instruction::LogicalNot),
             OBJECTCREATE => Ok(Instruction::ObjectCreate),
+            OBJECTCREATEWITHSHAPE => Ok(Instruction::ObjectCreateWithShape),
             OBJECTDEFINEPROPERTY => Ok(Instruction::ObjectDefineProperty),
             OBJECTDEFINEMETHOD => Ok(Instruction::ObjectDefineMethod),
             OBJECTDEFINEGETTER => Ok(Instruction::ObjectDefineGetter),

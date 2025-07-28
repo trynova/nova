@@ -339,6 +339,24 @@ impl<'a> OrdinaryObject<'a> {
         Self::create_object_internal(agent, shape, entries)
     }
 
+    pub(crate) fn create_object_with_shape_and_data_properties(
+        agent: &mut Agent,
+        shape: ObjectShape<'a>,
+        values: &[Value<'a>],
+    ) -> Self {
+        // SAFETY: Option<Value> uses a niche in Value enum at discriminant 0.
+        let values = unsafe { core::mem::transmute::<&[Value<'a>], &[Option<Value<'a>>]>(values) };
+        let ElementsVector {
+            elements_index: values,
+            cap,
+            len,
+            len_writable: extensible,
+        } = agent.heap.elements.allocate_property_storage(values, None);
+        agent
+            .heap
+            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+    }
+
     /// Creates a new "intrinsic" object. An intrinsic object owns its Object
     /// Shape uniquely and thus any changes to the object properties mutate the
     /// Shape directly.

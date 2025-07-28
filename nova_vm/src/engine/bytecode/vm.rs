@@ -1131,6 +1131,19 @@ impl Vm {
                 );
                 vm.stack.push(object.into_value().unbind())
             }
+            Instruction::ObjectCreateWithShape => {
+                let shape =
+                    executable.fetch_object_shape(agent, instr.get_first_index(), gc.into_nogc());
+                let len = shape.get_length(agent);
+                let first_property_index = vm.stack.len() - len as usize;
+                let obj = OrdinaryObject::create_object_with_shape_and_data_properties(
+                    agent,
+                    shape,
+                    &vm.stack[first_property_index..],
+                );
+                vm.stack.truncate(first_property_index);
+                vm.result = Some(obj.unbind().into_value());
+            }
             Instruction::CopyDataProperties => {
                 let source = vm.result.take().unwrap();
                 let Value::Object(target) = *vm.stack.last().unwrap() else {
