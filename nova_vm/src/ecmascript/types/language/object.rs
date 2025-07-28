@@ -85,7 +85,10 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
-            ordinary::{ordinary_object_create_with_intrinsics, shape::ObjectShape},
+            ordinary::{
+                ordinary_object_create_with_intrinsics,
+                shape::{ObjectShape, ObjectShapeRecord},
+            },
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -103,8 +106,8 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, WorkQueues,
         element_array::{
-            ElementArrayKey, ElementDescriptor, ElementStorageUninit, ElementsVector,
-            PropertyStorageMut, PropertyStorageRef,
+            ElementDescriptor, ElementStorageUninit, ElementsVector, PropertyStorageMut,
+            PropertyStorageRef,
         },
         indexes::ObjectIndex,
     },
@@ -259,7 +262,7 @@ impl<'a> OrdinaryObject<'a> {
         let shape = data.get_shape();
         let keys = shape.keys(object_shapes, elements);
         let elements = data.get_storage(elements);
-        assert_eq!(keys.len(), elements.values.len());
+        debug_assert_eq!(keys.len(), elements.values.len());
         PropertyStorageRef::from_keys_and_elements(keys, elements)
     }
 
@@ -295,54 +298,72 @@ impl<'a> OrdinaryObject<'a> {
         elements.get_element_storage_uninit_raw(data.get_values(), data.get_cap())
     }
 
+    fn create_object_internal(
+        agent: &mut Agent,
+        shape: ObjectShape<'a>,
+        entries: &[ObjectEntry<'a>],
+    ) -> Self {
+        let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
+        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
+            + if nontrivial_entry_count > 0 {
+                core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
+                    + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
+                        * nontrivial_entry_count
+            } else {
+                0
+            };
+        let ElementsVector {
+            elements_index: values,
+            cap,
+            len,
+            len_writable: extensible,
+        } = agent
+            .heap
+            .elements
+            .allocate_object_property_storage_from_entries_slice(entries);
+        agent
+            .heap
+            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+    }
+
     pub fn create_object(
         agent: &mut Agent,
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],
     ) -> Self {
-        let base_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
-        let (
-            shape,
-            ElementsVector {
-                elements_index: values,
-                cap,
-                len,
-                len_writable: extensible,
-            },
-        ) = {
-            let nontrivial_entry_count = entries.iter().filter(|p| !p.is_trivial()).count();
-            let len = entries.len();
-            let shape = base_shape.get_or_create_child_shape(
-                agent,
-                prototype,
-                len,
-                |_, i| entries[i].key.unbind(),
-                |elements, len| {
-                    let (key, index) = elements.allocate_keys_with_capacity(len);
-                    let keys_memory = elements.get_keys_uninit_raw(key, index);
-                    for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
-                        *slot = Some(key.unbind());
-                    }
-                    (ElementArrayKey::from(len), index)
-                },
-            );
-            agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>() * entries.len()
-                + if nontrivial_entry_count > 0 {
-                    core::mem::size_of::<Option<AHashMap<u32, ElementDescriptor<'static>>>>()
-                        + core::mem::size_of::<(u32, ElementDescriptor<'static>)>()
-                            * nontrivial_entry_count
-                } else {
-                    0
-                };
-            let elements = agent
-                .heap
-                .elements
-                .allocate_object_property_storage_from_entries_slice(entries);
-            (shape, elements)
-        };
-        agent
+        let base_shape = ObjectShape::get_shape_for_prototype(agent, prototype);
+        let mut shape = base_shape;
+        for e in entries {
+            shape = shape.get_child_shape(agent, e.key);
+        }
+        Self::create_object_internal(agent, shape, entries)
+    }
+
+    /// Creates a new "intrinsic" object. An intrinsic object owns its Object
+    /// Shape uniquely and thus any changes to the object properties mutate the
+    /// Shape directly.
+    pub(crate) fn create_intrinsic_object(
+        agent: &mut Agent,
+        prototype: Option<Object<'a>>,
+        entries: &[ObjectEntry<'a>],
+    ) -> Self {
+        let properties_count = entries.len();
+        let (cap, index) = agent
             .heap
-            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+            .elements
+            // Note: intrinsics should always allocate a keys storage.
+            .allocate_keys_with_capacity(properties_count.max(1));
+        let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
+        for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
+            *slot = Some(key.unbind());
+        }
+        let shape = agent.heap.create(ObjectShapeRecord::create(
+            prototype,
+            index,
+            cap,
+            properties_count,
+        ));
+        Self::create_object_internal(agent, shape, entries)
     }
 
     /// Attempts to make this ordinary Object a copy of some source ordinary
@@ -360,9 +381,13 @@ impl<'a> OrdinaryObject<'a> {
         }
         if !self.is_empty(agent)
             || source.internal_prototype(agent) != self.internal_prototype(agent)
+            || source.get_shape(agent).is_intrinsic(agent)
         {
-            // Our own object is not empty or our prototypes don't match; can't
-            // perform the copy.
+            // Our own object is not empty, our prototypes don't match, or the
+            // source object is an intrinsic object; can't perform the copy.
+            // Note: for intrinsic objects the problem is that their Object
+            // Shape is considered uniquely owned by the intrinsic object
+            // itself.
             return false;
         }
         // Copying properties from one ordinary object to another and they
@@ -380,23 +405,13 @@ impl<'a> OrdinaryObject<'a> {
         // All properties in the source object are enumerable, none are
         // getters, and no key is a symbol or private name: the shape of the
         // source and the self objects will be identical after this operation.
-        // Note: we need to copy the descriptors anyway, so we'll just do it
-        // here.
-        let source_descriptors = descriptors.cloned();
         let len = keys.len() as u32;
         let source_shape = agent[source].get_shape();
-        agent.heap.objects[self].reserve(&mut agent.heap.elements, len);
-        agent[self].set_len(len);
-        agent[self].set_shape(source_shape);
-        // Note: this call can reallocate descriptors.
-        let PropertyStorageMut {
-            descriptors: target_descriptors,
+        self.reserve(agent, len);
+        let ElementStorageUninit {
             values: target_values,
             ..
-        } = self.get_property_storage_mut(agent).unwrap();
-        if let Some(source_descriptors) = source_descriptors {
-            target_descriptors.insert_entry(source_descriptors);
-        }
+        } = self.get_elements_storage_uninit(agent);
         // Descriptors are now set, then just copy the values over.
         let target_values = target_values as *mut [Option<Value<'static>>];
         let PropertyStorageRef {
@@ -408,6 +423,8 @@ impl<'a> OrdinaryObject<'a> {
         // empty). Thus, the values slices here are distinct from one another.
         let target_values = unsafe { &mut *target_values };
         target_values.copy_from_slice(source_values);
+        agent[self].set_len(len);
+        agent[self].set_shape(source_shape);
         true
     }
 }
@@ -514,19 +531,8 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
         if original_shape.get_prototype(agent) == prototype {
             return;
         }
-        let original_cap = original_shape.get_cap(agent);
-        let original_keys = original_shape.get_keys(agent);
-        let len = original_shape.get_length(agent);
-        let cap = ElementArrayKey::from(len);
-        let root_shape = ObjectShape::get_or_create_shape_for_prototype(agent, prototype);
-        let shape = root_shape.get_or_create_child_shape(
-            agent,
-            prototype,
-            len as usize,
-            |elements, i| elements.get_keys_raw(cap, original_keys, len)[i],
-            |_, _| (original_cap, original_keys),
-        );
-        agent[self].set_shape(shape);
+        let new_shape = original_shape.get_shape_with_prototype(agent, prototype);
+        agent[self].set_shape(new_shape);
     }
 }
 

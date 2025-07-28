@@ -1402,11 +1402,92 @@ impl<const N: usize> PropertyKeyArray<N> {
         PropertyKeyIndex::last_property_key_index(&self.keys)
     }
 
-    fn remove(&mut self, keys_index: PropertyKeyIndex, len: u32, index: usize) {
+    fn push_with_removal(
+        &mut self,
+        source: &[PropertyKey],
+        removal_index: usize,
+    ) -> PropertyKeyIndex<'static> {
+        let source_length = source.len();
+        let target_length = source_length.wrapping_sub(1);
+        self.keys.reserve(1);
+        let remaining = self.keys.spare_capacity_mut();
+        assert!(removal_index < source_length);
+        assert!(source_length > N);
+        let target = remaining.get_mut(0).unwrap();
+        // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
+        let target = unsafe {
+            core::mem::transmute::<
+                &mut MaybeUninit<[Option<PropertyKey>; N]>,
+                &mut [MaybeUninit<Option<PropertyKey>>; N],
+            >(target)
+        };
+        // SAFETY: Interpreting any T as MaybeUninit<T> is always safe
+        // and we checked above in const that PropertyKey can be
+        // reinterpreted as Option<PropertyKey>.
+        let source = unsafe {
+            core::mem::transmute::<&[PropertyKey], &[MaybeUninit<Option<PropertyKey>>]>(source)
+        };
+        target[..removal_index].copy_from_slice(&source[..removal_index]);
+        target[removal_index..target_length]
+            .copy_from_slice(&source[removal_index.wrapping_add(1)..]);
+        target[target_length..].fill(MaybeUninit::new(None));
+        // SAFETY: We have fully initialized the next item.
+        unsafe {
+            self.keys.set_len(self.keys.len() + 1);
+        }
+        PropertyKeyIndex::last_property_key_index(&self.keys)
+    }
+
+    unsafe fn push_key(&mut self, index: PropertyKeyIndex, len: u32, key: PropertyKey) {
+        let keys = self.keys[index.into_index()].as_mut_slice();
+        let previous = keys[len as usize].replace(key.unbind());
+        debug_assert!(previous.is_none());
+    }
+
+    unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: usize) {
+        let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len as usize];
+        keys.copy_within(removal_index.wrapping_add(1).., removal_index);
+        *keys.last_mut().unwrap() = None;
+    }
+
+    /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
+    /// the first len keys.
+    fn push_within<'a>(
+        &mut self,
+        key_index: PropertyKeyIndex<'a>,
+        len: u32,
+    ) -> PropertyKeyIndex<'a> {
+        let start = key_index.into_index();
+        let end = start.wrapping_add(1);
+        // TODO: We'd want to use split_at_spare_mut here to only copy len keys
+        // instead of copying N keys and writing None into N - len.
+        self.keys.extend_from_within(start..end);
+        let last = &mut self.keys.last_mut().unwrap()[len as usize..];
+        last.fill(None);
+        PropertyKeyIndex::last_property_key_index(&self.keys)
+    }
+
+    /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
+    /// the first len keys.
+    fn push_within_with_removal<'a>(
+        &mut self,
+        key_index: PropertyKeyIndex<'a>,
+        len: u32,
+        removal_index: usize,
+    ) -> PropertyKeyIndex<'a> {
         let len = len as usize;
-        let keys = &mut self.keys[keys_index.into_index()][..];
-        keys.copy_within((index + 1)..len, index);
-        keys[len - 1] = None;
+        let start = key_index.into_index();
+        let end = start.wrapping_add(1);
+        // TODO: We'd want to use split_at_spare_mut here to only copy len keys
+        // instead of copying N keys and writing None into N - len.
+        self.keys.extend_from_within(start..end);
+        let last = self.keys.last_mut().unwrap();
+        debug_assert!(removal_index < last.len());
+        debug_assert!(last[removal_index].is_some());
+        debug_assert!(removal_index < len);
+        last.copy_within(removal_index.wrapping_add(1)..len, removal_index);
+        last[len.wrapping_sub(1)] = None;
+        PropertyKeyIndex::last_property_key_index(&self.keys)
     }
 }
 
@@ -1705,6 +1786,25 @@ impl ElementArrays {
         *index = new_index;
     }
 
+    pub(crate) fn reserve_properties_raw(
+        &mut self,
+        index: &mut PropertyKeyIndex,
+        cap: &mut ElementArrayKey,
+        old_len: u32,
+        additional: u32,
+    ) {
+        let new_len = old_len
+            .checked_add(additional)
+            .expect("Ridiculous amount of keys");
+        let new_cap = ElementArrayKey::from(new_len);
+        if new_cap == *cap {
+            return;
+        }
+        let new_index = self.grow_keys_internal(*cap, *index, new_cap, old_len);
+        *cap = new_cap;
+        *index = new_index;
+    }
+
     pub(crate) fn allocate_elements_with_capacity(
         &mut self,
         capacity: usize,
@@ -1753,6 +1853,363 @@ impl ElementArrays {
             ElementArrayKey::E32 => self.k2pow32.push(&[]),
         };
         (key, index)
+    }
+
+    /// Allocate a new PropertyKey backing store with an added key.
+    pub(crate) fn copy_keys_with_addition<'a>(
+        &mut self,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex<'a>,
+        len: u32,
+        key: PropertyKey<'a>,
+    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+        let new_len = len.checked_add(1).expect("Ridiculous amount of keys");
+        let (new_cap, new_key) = self.copy_keys_with_capacity(new_len as usize, cap, index, len);
+        match new_cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => {
+                self.k2pow4.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E6 => {
+                self.k2pow6.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E8 => {
+                self.k2pow8.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E10 => {
+                self.k2pow10.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E12 => {
+                self.k2pow12.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E16 => {
+                self.k2pow16.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E24 => {
+                self.k2pow24.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E32 => {
+                self.k2pow32.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+        }
+        (new_cap, new_key)
+    }
+
+    /// Mutate a property key storage by removing a key at index.
+    ///
+    /// ## Safety
+    ///
+    /// This method can only be safely used for mutating the property key
+    /// storage of intrinsic objects' Object Shapes. Using this on normal
+    /// objects will cause other objects using the same Shape to perform
+    /// JavaScript-wise undefined behaviour.
+    ///
+    /// Effectively, those objects would find that their object key-value pairs
+    /// no longer match the expected values.
+    pub(crate) unsafe fn remove_key(
+        &mut self,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex,
+        len: &mut u32,
+        removal_index: usize,
+    ) {
+        match cap {
+            ElementArrayKey::Empty => {}
+            ElementArrayKey::E4 => unsafe { self.k2pow4.remove(index, *len, removal_index) },
+            ElementArrayKey::E6 => unsafe { self.k2pow6.remove(index, *len, removal_index) },
+            ElementArrayKey::E8 => unsafe { self.k2pow8.remove(index, *len, removal_index) },
+            ElementArrayKey::E10 => unsafe { self.k2pow10.remove(index, *len, removal_index) },
+            ElementArrayKey::E12 => unsafe { self.k2pow12.remove(index, *len, removal_index) },
+            ElementArrayKey::E16 => unsafe { self.k2pow16.remove(index, *len, removal_index) },
+            ElementArrayKey::E24 => unsafe { self.k2pow24.remove(index, *len, removal_index) },
+            ElementArrayKey::E32 => unsafe { self.k2pow32.remove(index, *len, removal_index) },
+        }
+        *len -= 1;
+    }
+
+    /// Mutate a property key storage by push a key at the end.
+    ///
+    /// ## Safety
+    ///
+    /// This method can only be safely used for mutating the property key
+    /// storage of intrinsic objects' Object Shapes. Using this on normal
+    /// objects will cause other objects using the same Shape to perform
+    /// JavaScript-wise undefined behaviour.
+    ///
+    /// Effectively, those objects would find that their object key-value pairs
+    /// no longer match the expected values.
+    pub(crate) unsafe fn push_key(
+        &mut self,
+        cap: &mut ElementArrayKey,
+        index: &mut PropertyKeyIndex,
+        len: &mut u32,
+        key: PropertyKey,
+    ) {
+        let new_cap = ElementArrayKey::from(len.checked_add(1).expect("Ridiculous amount of keys"));
+        if new_cap == *cap {
+            // We're within our capacity, mutate directly.
+            match cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => unsafe { self.k2pow4.push_key(*index, *len, key) },
+                ElementArrayKey::E6 => unsafe { self.k2pow6.push_key(*index, *len, key) },
+                ElementArrayKey::E8 => unsafe { self.k2pow8.push_key(*index, *len, key) },
+                ElementArrayKey::E10 => unsafe { self.k2pow10.push_key(*index, *len, key) },
+                ElementArrayKey::E12 => unsafe { self.k2pow12.push_key(*index, *len, key) },
+                ElementArrayKey::E16 => unsafe { self.k2pow16.push_key(*index, *len, key) },
+                ElementArrayKey::E24 => unsafe { self.k2pow24.push_key(*index, *len, key) },
+                ElementArrayKey::E32 => unsafe { self.k2pow32.push_key(*index, *len, key) },
+            }
+        } else {
+            // We need to grow our backing store.
+            let (new_cap, new_index) = self.copy_keys_with_addition(*cap, *index, *len, key);
+            *cap = new_cap;
+            *index = new_index.unbind();
+        }
+        *len += 1;
+    }
+
+    pub(crate) fn copy_keys_with_removal<'a>(
+        &mut self,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex<'a>,
+        len: u32,
+        removal_index: usize,
+    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+        if len <= 1 {
+            // Removing the last key.
+            return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
+        }
+        let new_cap = ElementArrayKey::from(len.wrapping_sub(1));
+        let new_index = if new_cap == cap {
+            // No change in capacity.
+            match new_cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => {
+                    self.k2pow4
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E6 => {
+                    self.k2pow6
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E8 => {
+                    self.k2pow8
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E10 => {
+                    self.k2pow10
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E12 => {
+                    self.k2pow12
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E16 => {
+                    self.k2pow16
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E24 => {
+                    self.k2pow24
+                        .push_within_with_removal(index, len, removal_index)
+                }
+                ElementArrayKey::E32 => {
+                    self.k2pow32
+                        .push_within_with_removal(index, len, removal_index)
+                }
+            }
+        } else {
+            // Change in capacity.
+            match new_cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => {
+                    let source = match cap {
+                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow4.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E6 => {
+                    let source = match cap {
+                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow6.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E8 => {
+                    let source = match cap {
+                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow8.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E10 => {
+                    let source = match cap {
+                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow10.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E12 => {
+                    let source = match cap {
+                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow12.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E16 => {
+                    let source = match cap {
+                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow16.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E24 => {
+                    let source = match cap {
+                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    self.k2pow24.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E32 => unreachable!(),
+            }
+        };
+        (new_cap, new_index)
+    }
+
+    /// Allocate a new PropertyKey backing store with the given capacity,
+    /// copying the first len values into the new allocation from the source
+    /// backing store.
+    pub(crate) fn copy_keys_with_capacity<'a>(
+        &mut self,
+        capacity: usize,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex<'a>,
+        len: u32,
+    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+        if capacity == 0 {
+            return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
+        }
+        let new_cap = ElementArrayKey::from(capacity);
+        let new_index = if new_cap == cap {
+            // No change in capacity.
+            match new_cap {
+                ElementArrayKey::Empty => unreachable!(),
+                ElementArrayKey::E4 => self.k2pow4.push_within(index, len),
+                ElementArrayKey::E6 => self.k2pow6.push_within(index, len),
+                ElementArrayKey::E8 => self.k2pow8.push_within(index, len),
+                ElementArrayKey::E10 => self.k2pow10.push_within(index, len),
+                ElementArrayKey::E12 => self.k2pow12.push_within(index, len),
+                ElementArrayKey::E16 => self.k2pow16.push_within(index, len),
+                ElementArrayKey::E24 => self.k2pow24.push_within(index, len),
+                ElementArrayKey::E32 => self.k2pow32.push_within(index, len),
+            }
+        } else {
+            // Change in capacity.
+            self.grow_keys_internal(cap, index, new_cap, len)
+        };
+        (new_cap, new_index)
+    }
+
+    /// Grow a keys storage to new capacity.
+    fn grow_keys_internal<'a>(
+        &mut self,
+        cap: ElementArrayKey,
+        index: PropertyKeyIndex,
+        new_cap: ElementArrayKey,
+        len: u32,
+    ) -> PropertyKeyIndex<'a> {
+        match new_cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => self.k2pow4.push(&[]),
+            ElementArrayKey::E6 => {
+                let source = self.k2pow4.get_raw(index, len);
+                self.k2pow6.push(source)
+            }
+            ElementArrayKey::E8 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow8.push(source)
+            }
+            ElementArrayKey::E10 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow10.push(source)
+            }
+            ElementArrayKey::E12 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow12.push(source)
+            }
+            ElementArrayKey::E16 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow16.push(source)
+            }
+            ElementArrayKey::E24 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow24.push(source)
+            }
+            ElementArrayKey::E32 => {
+                let source = match cap {
+                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                    ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                self.k2pow32.push(source)
+            }
+        }
     }
 
     pub(crate) fn allocate_object_property_storage_from_entries_vec<'a>(
@@ -1986,7 +2443,7 @@ impl ElementArrays {
             ElementArrayKey::E32 => self.k2pow32.get_raw(keys_index, len),
         };
         let elements = match values_cap {
-            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::Empty => return None,
             ElementArrayKey::E4 => self
                 .e2pow4
                 .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
