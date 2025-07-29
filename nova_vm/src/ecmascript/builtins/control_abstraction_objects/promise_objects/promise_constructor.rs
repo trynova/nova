@@ -4,7 +4,8 @@
 
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
 use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
-use crate::ecmascript::builtins::Array;
+use crate::ecmascript::builtins::{create_builtin_function, Array, BuiltinFunctionArgs};
+use crate::ecmascript::fundamental_objects::function_objects::function_constructor::create_dynamic_function;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -277,10 +278,30 @@ impl PromiseConstructor {
         let result_capability = PromiseCapability::new(agent, gc.nogc());
         let result_promise = result_capability.promise().scope(agent, gc.nogc());
 
-        let fulfill_handler = PromiseReactionHandler::Empty;
+        let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
+            &'a mut Agent,
+            Value<'b>,
+            ArgumentsList<'c, 'd>,
+            GcScope<'_gc, 'e>,
+        ) -> Result<
+            Value<'_gc>,
+            JsError<'_gc>,
+        > = |_agent, _this_value, arguments, _gc| {
+            let result_value = arguments.get(0);
+            eprintln!("Promise fulfilled with result: {:?}", result_value);
+            Ok(result_value.unbind())
+        };
+
+        let result_callback = create_builtin_function(
+            agent,
+            Behaviour::Regular(result_callback_closure),
+            BuiltinFunctionArgs::new(0, "Promise.all callback"),
+            gc.nogc(),
+        );
+
+        let fulfill_handler = PromiseReactionHandler::JobCallback(result_callback.into());
         let reject_handler = PromiseReactionHandler::Empty;
 
-        // For now, let's use a simpler approach that demonstrates the concept
         inner_promise_then(
             agent,
             promise_to_await,
@@ -290,7 +311,6 @@ impl PromiseConstructor {
             gc.nogc(),
         );
 
-        // Return the result promise
         Ok(result_promise.get(agent).into_value())
     }
 
