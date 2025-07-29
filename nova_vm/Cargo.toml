@@ -30,7 +30,7 @@ oxc_syntax = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 ryu-js = { workspace = true }
-small_string = { path = "../small_string", version = "0.1.0" }
+small_string = { path = "../small_string", version = "0.2.0" }
 sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
@@ -92,4 +92,4 @@ proposal-is-error = []
 proposal-atomics-microwait = ["atomics"]
 
 [build-dependencies]
-small_string = { path = "../small_string", version = "0.1.0" }
+small_string = { path = "../small_string", version = "0.2.0" }
