@@ -356,9 +356,6 @@ impl<'a> PropertyStorage<'a> {
         };
         let new_len = cur_len.checked_add(1).unwrap();
         let new_shape = object.get_shape(agent).get_child_shape(agent, key);
-        // TODO: removing this alloc counter addition made
-        // staging/sm/RegExp/unicode-ignoreCase.js fail; this points to a GC
-        // bug.
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
             + if element_descriptor.is_some() {
                 core::mem::size_of::<(u32, ElementDescriptor)>()

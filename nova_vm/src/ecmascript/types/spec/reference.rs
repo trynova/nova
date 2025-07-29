@@ -2,27 +2,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    private_get, private_set, throw_no_private_name_error, try_private_get, try_private_set,
-    try_set,
-};
-use crate::ecmascript::abstract_operations::type_conversion::{
-    to_property_key, to_property_key_simple,
-};
-use crate::ecmascript::execution::agent::JsError;
-use crate::ecmascript::types::IntoValue;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::set, type_conversion::to_object},
+        abstract_operations::{
+            operations_on_objects::{
+                private_get, private_set, set, throw_no_private_name_error, try_private_get,
+                try_private_set, try_set,
+            },
+            type_conversion::{to_object, to_property_key, to_property_key_simple},
+        },
         execution::{
             Environment,
-            agent::{self, ExceptionType},
+            agent::{self, ExceptionType, JsError},
             get_global_object,
         },
-        types::{InternalMethods, Object, PropertyKey, String, Value},
+        types::{InternalMethods, IntoValue, Object, PropertyKey, String, Value},
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

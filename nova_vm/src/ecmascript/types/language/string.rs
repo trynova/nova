@@ -806,7 +806,10 @@ impl<'a> CreateHeapData<(StringHeapData, u64), String<'a>> for Heap {
         let heap_string = HeapString(index);
         self.alloc_counter += core::mem::size_of::<HeapString>();
         self.string_lookup_table
-            .insert_unique(hash, heap_string, |_| hash);
+            .insert_unique(hash, heap_string, |s| {
+                let s = self.strings[s.get_index()].as_ref().unwrap();
+                self.string_hasher.hash_one(s.as_wtf8())
+            });
         String::String(heap_string)
     }
 }
