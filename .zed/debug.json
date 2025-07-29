@@ -1,0 +1,27 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "adapter": "CodeLLDB",
+    "label": "eval-test",
+    "build": {
+      "command": "cargo",
+      "args": ["build"]
+    },
+    "program": "$ZED_WORKTREE_ROOT/target/debug/nova_cli",
+    "args": [
+      "eval",
+      "--expose-internals",
+      "--no-strict",
+      "--nogc",
+      "/home/aapoalas/build/nova/tests/nova-harness.js",
+      "/home/aapoalas/build/nova/tests/test262/harness/assert.js",
+      "/home/aapoalas/build/nova/tests/test262/harness/sta.js",
+      "/home/aapoalas/build/nova/tests/test262/test/built-ins/JSON/stringify/property-order.js"
+    ],
+    "sourceLanguages": ["rust"],
+    "request": "launch"
+  }
+]

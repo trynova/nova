@@ -1,6 +1,6 @@
 [package]
 name = "small_string"
-version = "0.1.0"
+version = "0.2.0"
 repository = "https://github.com/trynova/nova/tree/main/small_string"
 description = "7-byte small string optimisation for use in Nova JavaScript engine"
 authors.workspace = true
