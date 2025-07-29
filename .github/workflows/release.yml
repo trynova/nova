@@ -20,6 +20,11 @@ jobs:
             rust-target: x86_64-unknown-linux-gnu
             asset-name: nova-linux-amd64
 
+          # Linux (ARM)
+          - os: ubuntu-24.04-arm
+            rust-target: aarch64-unknown-linux-gnu
+            asset-name: nova-linux-arm64
+
           # macOS (Intel)
           - os: macos-13
             rust-target: x86_64-apple-darwin
