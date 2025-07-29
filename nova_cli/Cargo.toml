@@ -17,7 +17,7 @@ clap = { workspace = true}
 cliclack = { workspace = true }
 ctrlc = { workspace = true }
 console = { workspace = true }
-nova_vm = { path = "../nova_vm", version = "0.1.0" }
+nova_vm = { path = "../nova_vm", version = "0.2.0" }
 oxc_ast = { workspace = true }
 oxc-miette = { workspace = true }
 oxc_parser = { workspace = true }
