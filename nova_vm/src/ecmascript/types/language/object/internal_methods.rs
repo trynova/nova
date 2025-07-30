@@ -170,11 +170,16 @@ where
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope<'gc, '_>,
+        gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get_own_property(agent, backing_object, property_key),
+            Some(backing_object) => ordinary_get_own_property(
+                agent,
+                backing_object,
+                property_key,
+                self.into_object().bind(gc),
+            ),
             None => None,
         })
     }

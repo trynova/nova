@@ -89,7 +89,12 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> Option<PropertyDescriptor<'gc>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        ordinary_get_own_property(agent, backing_object, property_key)
+        ordinary_get_own_property(
+            agent,
+            backing_object,
+            property_key,
+            func.into_object().bind(gc),
+        )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Some(PropertyDescriptor {
             value: Some(func.get_length(agent).into()),

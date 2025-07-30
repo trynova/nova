@@ -28,26 +28,32 @@ pub(crate) struct Caches<'a> {
         HashTable<(PropertyKey<'a>, WeakReference<PropertyLookupCache<'a>>)>,
     property_lookup_caches: Vec<PropertyLookupCacheRecord<'a>>,
     property_lookup_cache_prototypes: Vec<PropertyLookupCacheRecordPrototypes<'a>>,
-    property_lookup_cache_stack: Vec<PropertyLookupCache<'a>>,
-    current_property_lookup_cache: Option<PropertyLookupCache<'a>>,
+    // property_lookup_cache_stack: Vec<PropertyLookupCache<'a>>,
+    current_cache_to_populate: Option<(Object<'a>, PropertyLookupCache<'a>)>,
 }
 
-impl Caches<'_> {
+impl<'a> Caches<'a> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             property_lookup_cache_lookup_table: HashTable::with_capacity(capacity),
             property_lookup_caches: Vec::with_capacity(capacity),
             property_lookup_cache_prototypes: Vec::with_capacity(capacity),
-            property_lookup_cache_stack: Vec::with_capacity(64),
-            current_property_lookup_cache: None,
+            // property_lookup_cache_stack: Vec::with_capacity(64),
+            current_cache_to_populate: None,
         }
     }
 
-    pub(crate) fn get_current_cache<'a>(
-        &self,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<PropertyLookupCache<'a>> {
-        self.current_property_lookup_cache.bind(gc)
+    pub(crate) fn take_current_cache_to_populate(
+        &mut self,
+    ) -> Option<(Object<'a>, PropertyLookupCache<'a>)> {
+        self.current_cache_to_populate.take()
+    }
+
+    pub(crate) fn set_current_cache(&mut self, object: Object, cache: PropertyLookupCache) {
+        let previous = self
+            .current_cache_to_populate
+            .replace((object.unbind(), cache.unbind()));
+        debug_assert!(previous.is_none());
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -107,6 +113,101 @@ impl<'a> PropertyLookupCache<'a> {
         }
     }
 
+    pub(crate) fn find(
+        self,
+        agent: &Agent,
+        shape: ObjectShape<'a>,
+    ) -> Option<(Option<u16>, Option<Object<'a>>)> {
+        let caches = &agent.heap.caches;
+        let record = &caches.property_lookup_caches[self.get_index()];
+        if let Some((i, offset)) = record.find(shape) {
+            return Some(if offset.is_not_found() {
+                (None, None)
+            } else if offset.is_prototype_property() {
+                let prototype = caches.property_lookup_cache_prototypes[self.get_index()]
+                    .prototypes[i as usize]
+                    .unwrap();
+                (Some(offset.get_property_offset()), Some(prototype))
+            } else {
+                (Some(offset.get_property_offset()), None)
+            });
+        }
+        if let Some(next) = record.next {
+            next.find(agent, shape)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn insert_lookup_offset(
+        self,
+        agent: &mut Agent,
+        shape: ObjectShape<'a>,
+        index: u32,
+    ) {
+        debug_assert!(self.find(agent, shape).is_none());
+        let Some(offset) = PropertyOffset::new(index) else {
+            return;
+        };
+        let caches = &mut agent.heap.caches;
+        let mut cache = self;
+        let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
+        loop {
+            let (record, _) = cache.get_mut(caches);
+            if record.insert(shape, offset).is_some() {
+                return;
+            }
+            if let Some(next) = record.next {
+                cache = next;
+            }
+            record.next = Some(next_to_create);
+            caches
+                .property_lookup_caches
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+            caches
+                .property_lookup_cache_prototypes
+                .push(PropertyLookupCacheRecordPrototypes::new());
+            let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
+            debug_assert_eq!(cache, next_to_create);
+        }
+    }
+
+    pub(crate) fn insert_prototype_lookup_offset(
+        self,
+        agent: &mut Agent,
+        shape: ObjectShape<'a>,
+        index: u32,
+        prototype: Object<'a>,
+    ) {
+        debug_assert!(self.find(agent, shape).is_none());
+        let Some(offset) = PropertyOffset::new(index) else {
+            return;
+        };
+        let caches = &mut agent.heap.caches;
+        let mut cache = self;
+        let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
+        loop {
+            let (record, prototypes) = cache.get_mut(caches);
+            if let Some(i) = record.insert(shape, offset) {
+                let previous = prototypes.prototypes[i as usize].replace(prototype.unbind());
+                debug_assert!(previous.is_none());
+                return;
+            }
+            if let Some(next) = record.next {
+                cache = next;
+            }
+            record.next = Some(next_to_create);
+            caches
+                .property_lookup_caches
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+            caches
+                .property_lookup_cache_prototypes
+                .push(PropertyLookupCacheRecordPrototypes::with_prototype(prototype).unbind());
+            let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
+            debug_assert_eq!(cache, next_to_create);
+        }
+    }
+
     #[inline(always)]
     fn from_index(index: usize) -> Self {
         Self(
@@ -125,7 +226,7 @@ impl<'a> PropertyLookupCache<'a> {
 
     #[inline(always)]
     pub(crate) fn get_index(self) -> usize {
-        self.0.get() as usize
+        (self.0.get() - 1) as usize
     }
 
     #[inline(always)]
@@ -177,44 +278,44 @@ const N: usize = 4;
 #[derive(Debug)]
 pub(crate) struct PropertyLookupCacheRecord<'a> {
     shapes: [Option<ObjectShape<'a>>; N],
-    indexes: [PropertyLookupCacheIndex; N],
-    next_cache: Option<PropertyLookupCache<'a>>,
+    offsets: [PropertyOffset; N],
+    next: Option<PropertyLookupCache<'a>>,
 }
 
 impl<'a> PropertyLookupCacheRecord<'a> {
     const fn new() -> Self {
         Self {
             shapes: [None; N],
-            indexes: [PropertyLookupCacheIndex(0); N],
-            next_cache: None,
+            offsets: [PropertyOffset(0); N],
+            next: None,
         }
     }
 
-    fn from_shape_and_index(shape: ObjectShape<'a>, index: PropertyLookupCacheIndex) -> Self {
+    fn with_shape_and_offset(shape: ObjectShape<'a>, offset: PropertyOffset) -> Self {
         Self {
             shapes: [Some(shape), None, None, None],
-            indexes: [
-                index,
-                PropertyLookupCacheIndex(0),
-                PropertyLookupCacheIndex(0),
-                PropertyLookupCacheIndex(0),
+            offsets: [
+                offset,
+                PropertyOffset(0),
+                PropertyOffset(0),
+                PropertyOffset(0),
             ],
-            next_cache: None,
+            next: None,
         }
     }
 
     /// Find the property lookup cache for the given Object Shape.
-    fn find(&self, shape: ObjectShape<'a>) -> Option<(u8, PropertyLookupCacheIndex)> {
+    fn find(&self, shape: ObjectShape<'a>) -> Option<(u8, PropertyOffset)> {
         self.shapes
             .iter()
             .enumerate()
             .find(|(_, s)| **s == Some(shape))
-            .map(|(i, _)| (i as u8, self.indexes[i]))
+            .map(|(i, _)| (i as u8, self.offsets[i]))
     }
 
     /// Insert the given Object Shape and lookup cache index into the property
     /// lookup cache record. Returns false if the record is full.
-    fn insert(&mut self, shape: ObjectShape, index: PropertyLookupCacheIndex) -> bool {
+    fn insert(&mut self, shape: ObjectShape, offset: PropertyOffset) -> Option<u8> {
         if let Some((i, slot)) = self
             .shapes
             .iter_mut()
@@ -222,10 +323,10 @@ impl<'a> PropertyLookupCacheRecord<'a> {
             .find(|(_, s)| s.is_none())
         {
             *slot = Some(shape.unbind());
-            self.indexes[i] = index;
-            true
+            self.offsets[i] = offset;
+            Some(i as u8)
         } else {
-            false
+            None
         }
     }
 }
@@ -245,25 +346,27 @@ unsafe impl Bindable for PropertyLookupCacheRecord<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub(crate) struct PropertyLookupCacheIndex(i16);
+pub(crate) struct PropertyOffset(i16);
 
-impl PropertyLookupCacheIndex {
+impl PropertyOffset {
     /// Property lookup index indicating that the property was not found in the
     /// Object Shape or its prototype chain.
     pub(crate) const NOT_FOUND: Self = Self(i16::MIN);
 
-    /// Create a new property lookup cache index from an offset.
+    /// Create a new property lookup offset.
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new(offset: usize) -> Option<Self> {
+    pub(crate) fn new(offset: u32) -> Option<Self> {
         Some(Self(i16::try_from(offset).ok()?))
     }
 
-    /// Convert a property lookup into a prototype property lookup.
-    pub(crate) fn make_prototype_property(&mut self) {
-        debug_assert!(!self.is_prototype_property());
-        self.0 = self.0.neg()
+    /// Create a new prototype property lookup offset.
+    ///
+    /// Returns None if the offset is beyond supported limits.
+    #[inline(always)]
+    pub(crate) fn new_prototype(offset: u32) -> Option<Self> {
+        Some(Self(i16::try_from(offset).ok()?.neg()))
     }
 
     /// Returns true if the property was not found on the Object with this
@@ -281,8 +384,9 @@ impl PropertyLookupCacheIndex {
 
     /// Returns the offset that the property was found at.
     #[inline(always)]
-    pub(crate) fn get_property_offset(self) -> usize {
-        self.0.abs() as usize
+    pub(crate) fn get_property_offset(self) -> u16 {
+        debug_assert!(!self.is_not_found());
+        self.0.abs() as u16
     }
 }
 
@@ -299,17 +403,10 @@ impl<'a> PropertyLookupCacheRecordPrototypes<'a> {
         }
     }
 
-    /// Insert the given prototype into the property lookup cache record
-    /// prototypes.
-    ///
-    /// ## Panics
-    ///
-    /// If the index is over the bounds, or if the prototype at the given
-    /// index is already set.
-    pub(crate) fn insert(&mut self, index: usize, prototype: Object) {
-        let slot = &mut self.prototypes[index];
-        let previous = slot.replace(prototype.unbind());
-        debug_assert!(previous.is_none());
+    pub(crate) const fn with_prototype(prototype: Object<'a>) -> Self {
+        Self {
+            prototypes: [Some(prototype), None, None, None],
+        }
     }
 }
 
@@ -334,16 +431,19 @@ impl HeapMarkAndSweep for Caches<'static> {
             // will call mark_cache as needed.
             property_lookup_caches: _,
             property_lookup_cache_prototypes: _,
-            property_lookup_cache_stack,
-            current_property_lookup_cache,
+            // property_lookup_cache_stack,
+            current_cache_to_populate: current_property_lookup_cache,
         } = self;
         // Note: we do not mark the caches in the lookup table; they're weakly
         // held.
         for (key, _) in property_lookup_cache_lookup_table.iter() {
             key.mark_values(queues);
         }
-        property_lookup_cache_stack.mark_values(queues);
-        current_property_lookup_cache.mark_values(queues);
+        // property_lookup_cache_stack.mark_values(queues);
+        if let Some((object, cache)) = current_property_lookup_cache {
+            object.mark_values(queues);
+            cache.mark_values(queues);
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -353,8 +453,8 @@ impl HeapMarkAndSweep for Caches<'static> {
             // will call sweep_cache.
             property_lookup_caches: _,
             property_lookup_cache_prototypes: _,
-            property_lookup_cache_stack,
-            current_property_lookup_cache,
+            // property_lookup_cache_stack,
+            current_cache_to_populate: current_property_lookup_cache,
         } = self;
         property_lookup_cache_lookup_table.retain(|(key, cache)| {
             let Some(new_cache) = cache.sweep_weak_reference(compactions) else {
@@ -364,8 +464,11 @@ impl HeapMarkAndSweep for Caches<'static> {
             *cache = new_cache;
             true
         });
-        property_lookup_cache_stack.sweep_values(compactions);
-        current_property_lookup_cache.sweep_values(compactions);
+        // property_lookup_cache_stack.sweep_values(compactions);
+        if let Some((object, cache)) = current_property_lookup_cache {
+            object.sweep_values(compactions);
+            cache.sweep_values(compactions);
+        }
     }
 }
 
@@ -392,8 +495,8 @@ impl HeapMarkAndSweep for PropertyLookupCacheRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             shapes,
-            indexes: _,
-            next_cache,
+            offsets: _,
+            next: next_cache,
         } = self;
         shapes.as_slice().mark_values(queues);
         next_cache.mark_values(queues);
@@ -402,8 +505,8 @@ impl HeapMarkAndSweep for PropertyLookupCacheRecord<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             shapes,
-            indexes: _,
-            next_cache,
+            offsets: _,
+            next: next_cache,
         } = self;
         shapes.as_mut_slice().sweep_values(compactions);
         next_cache.sweep_values(compactions);

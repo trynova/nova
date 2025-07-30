@@ -294,7 +294,7 @@ impl<'a> PropertyStorage<'a> {
         Some((value, descriptor))
     }
 
-    pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<PropertyDescriptor<'a>> {
+    pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<(PropertyDescriptor<'a>, u32)> {
         let object = self.0;
         let PropertyStorageRef {
             keys,
@@ -307,9 +307,11 @@ impl<'a> PropertyStorage<'a> {
             .find(|(_, k)| **k == key)
             .map(|res| res.0);
         result.map(|index| {
-            let value = values.get(index).unwrap().unbind();
-            let descriptor = descriptors.and_then(|d| d.get(&(index as u32))).cloned();
-            ElementDescriptor::to_property_descriptor(descriptor, value)
+            let value = values[index].unbind();
+            let index = index as u32;
+            let descriptor = descriptors.and_then(|d| d.get(&index)).cloned();
+            let result = ElementDescriptor::to_property_descriptor(descriptor, value);
+            (result, index)
         })
     }
 

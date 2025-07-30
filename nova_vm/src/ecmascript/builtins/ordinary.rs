@@ -197,13 +197,24 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property<'a>(
-    agent: &Agent,
-    object: OrdinaryObject<'a>,
+    agent: &mut Agent,
+    backing_object: OrdinaryObject<'a>,
     property_key: PropertyKey,
+    object: Object<'a>,
 ) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let x = object.property_storage().get(agent, property_key)?;
+    let (x, index) = backing_object.property_storage().get(agent, property_key)?;
+
+    if let Some((target_object, cache)) = agent.heap.caches.take_current_cache_to_populate() {
+        let is_target = object == target_object;
+        let shape = backing_object.get_shape(agent);
+        if is_target {
+            cache.insert_lookup_offset(agent, shape, index);
+        } else {
+            cache.insert_prototype_lookup_offset(agent, shape, index, object);
+        }
+    }
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();

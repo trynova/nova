@@ -400,13 +400,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+        let o = self.bind(gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. Let value be TypedArrayGetElement(O, numericIndex).
-            let value = typed_array_get_element_generic(agent, self, numeric_index.into_i64(), gc);
+            let value = typed_array_get_element_generic(agent, o, numeric_index.into_i64(), gc);
             if let Some(value) = value {
                 // iii. Return the PropertyDescriptor {
                 //          [[Value]]: value,
@@ -427,10 +428,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             }
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
-            TryResult::Continue(
-                self.get_backing_object(agent)
-                    .and_then(|object| ordinary_get_own_property(agent, object, property_key)),
-            )
+            TryResult::Continue(o.get_backing_object(agent).and_then(|object| {
+                ordinary_get_own_property(agent, object, property_key, o.into_object())
+            }))
         }
     }
 
