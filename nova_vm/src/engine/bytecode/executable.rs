@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 
 use crate::{
     ecmascript::{
-        builtins::ordinary::shape::ObjectShape,
+        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         execution::Agent,
         scripts_and_modules::{
             module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
@@ -136,7 +136,7 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 #[derive(Debug, Clone)]
 pub struct ExecutableHeapData<'a> {
     pub(crate) instructions: Box<[u8]>,
-    pub(crate) caches: Box<[()]>,
+    pub(crate) caches: Box<[PropertyLookupCache<'a>]>,
     pub(crate) constants: Box<[Value<'a>]>,
     pub(crate) shapes: Box<[ObjectShape<'a>]>,
     pub(crate) function_expressions: Box<[FunctionExpression<'a>]>,
@@ -283,7 +283,12 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn fetch_cache(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> () {
+    fn fetch_cache(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> PropertyLookupCache<'gc> {
         agent[self].caches[index].bind(gc)
     }
 
@@ -365,7 +370,7 @@ impl Scoped<'_, Executable<'static>> {
         agent: &'a Agent,
         index: usize,
         gc: NoGcScope<'gc, '_>,
-    ) -> () {
+    ) -> PropertyLookupCache<'gc> {
         self.get(agent).fetch_cache(agent, index, gc)
     }
 
@@ -534,7 +539,7 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             instructions: _,
-            caches: _,
+            caches,
             constants,
             shapes,
             function_expressions: _,
@@ -542,6 +547,7 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
             class_initializer_bytecodes,
         } = self;
         constants.mark_values(queues);
+        caches.mark_values(queues);
         shapes.mark_values(queues);
         for ele in class_initializer_bytecodes {
             ele.0.mark_values(queues);
@@ -551,7 +557,7 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             instructions: _,
-            caches: _,
+            caches,
             constants,
             shapes,
             function_expressions: _,
@@ -559,6 +565,7 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
             class_initializer_bytecodes,
         } = self;
         constants.sweep_values(compactions);
+        caches.sweep_values(compactions);
         shapes.sweep_values(compactions);
         for ele in class_initializer_bytecodes {
             ele.0.sweep_values(compactions);

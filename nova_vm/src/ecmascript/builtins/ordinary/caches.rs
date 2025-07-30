@@ -43,6 +43,13 @@ impl Caches<'_> {
         }
     }
 
+    pub(crate) fn get_current_cache<'a>(
+        &self,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<PropertyLookupCache<'a>> {
+        self.current_property_lookup_cache.bind(gc)
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.property_lookup_caches.len()
     }
@@ -68,14 +75,14 @@ impl Caches<'static> {
 #[repr(transparent)]
 pub(crate) struct PropertyLookupCache<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
+pub(crate) struct PropertyLookupCacheResult<'a> {
+    cache: PropertyLookupCache<'a>,
+    index: Option<Option<u16>>,
+    prototype: Option<Object<'a>>,
+}
+
 impl<'a> PropertyLookupCache<'a> {
-    pub(crate) fn new(
-        agent: &mut Agent,
-        shape: ObjectShape<'a>,
-        key: PropertyKey<'a>,
-        offset: usize,
-    ) -> Option<Self> {
-        let index = PropertyLookupCacheIndex::new(offset)?;
+    pub(crate) fn new(agent: &mut Agent, key: PropertyKey<'a>) -> PropertyLookupCache<'a> {
         let hash = key.heap_hash(agent);
         let caches = &mut agent.heap.caches;
         let property_key_heap = PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols);
@@ -84,41 +91,19 @@ impl<'a> PropertyLookupCache<'a> {
             |(k, _)| *k == key,
             |(k, _)| k.heap_hash(&property_key_heap),
         );
-        let WeakReference(cache_key) = match entry {
-            Entry::Occupied(e) => e.get().1,
+        match entry {
+            Entry::Occupied(e) => e.get().1.0,
             Entry::Vacant(e) => {
                 caches
                     .property_lookup_caches
-                    .push(PropertyLookupCacheRecord::from_shape_and_index(shape, index).unbind());
+                    .push(PropertyLookupCacheRecord::new());
                 caches
                     .property_lookup_cache_prototypes
-                    .push(PropertyLookupCacheRecordPrototypes::new().unbind());
+                    .push(PropertyLookupCacheRecordPrototypes::new());
                 let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
                 e.insert((key.unbind(), WeakReference(cache.unbind())));
-                return Some(cache);
+                cache
             }
-        };
-        // Note: iterate the lookup cache record linked list, but always return
-        // the first link in the chain.
-        let mut cache_chain = cache_key;
-        loop {
-            let len = caches.property_lookup_caches.len();
-            let (cache_record, _) = cache_chain.get_mut(caches);
-            if cache_record.find(shape).is_some() || cache_record.insert(shape, index) {
-                return Some(cache_key);
-            }
-            let Some(next_cache) = cache_record.next_cache else {
-                let cache = PropertyLookupCache::from_index(len);
-                cache_record.next_cache = Some(cache);
-                caches
-                    .property_lookup_caches
-                    .push(PropertyLookupCacheRecord::from_shape_and_index(shape, index).unbind());
-                caches
-                    .property_lookup_cache_prototypes
-                    .push(PropertyLookupCacheRecordPrototypes::new().unbind());
-                return Some(cache_key);
-            };
-            cache_chain = next_cache;
         }
     }
 
@@ -197,7 +182,7 @@ pub(crate) struct PropertyLookupCacheRecord<'a> {
 }
 
 impl<'a> PropertyLookupCacheRecord<'a> {
-    pub(crate) const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             shapes: [None; N],
             indexes: [PropertyLookupCacheIndex(0); N],
@@ -205,10 +190,7 @@ impl<'a> PropertyLookupCacheRecord<'a> {
         }
     }
 
-    pub(crate) fn from_shape_and_index(
-        shape: ObjectShape<'a>,
-        index: PropertyLookupCacheIndex,
-    ) -> Self {
+    fn from_shape_and_index(shape: ObjectShape<'a>, index: PropertyLookupCacheIndex) -> Self {
         Self {
             shapes: [Some(shape), None, None, None],
             indexes: [
@@ -222,17 +204,17 @@ impl<'a> PropertyLookupCacheRecord<'a> {
     }
 
     /// Find the property lookup cache for the given Object Shape.
-    pub(crate) fn find(&self, shape: ObjectShape<'a>) -> Option<PropertyLookupCacheIndex> {
+    fn find(&self, shape: ObjectShape<'a>) -> Option<(u8, PropertyLookupCacheIndex)> {
         self.shapes
             .iter()
             .enumerate()
             .find(|(_, s)| **s == Some(shape))
-            .map(|(i, _)| self.indexes[i])
+            .map(|(i, _)| (i as u8, self.indexes[i]))
     }
 
     /// Insert the given Object Shape and lookup cache index into the property
     /// lookup cache record. Returns false if the record is full.
-    pub(crate) fn insert(&mut self, shape: ObjectShape, index: PropertyLookupCacheIndex) -> bool {
+    fn insert(&mut self, shape: ObjectShape, index: PropertyLookupCacheIndex) -> bool {
         if let Some((i, slot)) = self
             .shapes
             .iter_mut()
@@ -261,11 +243,15 @@ unsafe impl Bindable for PropertyLookupCacheRecord<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub(crate) struct PropertyLookupCacheIndex(i16);
 
 impl PropertyLookupCacheIndex {
+    /// Property lookup index indicating that the property was not found in the
+    /// Object Shape or its prototype chain.
+    pub(crate) const NOT_FOUND: Self = Self(i16::MIN);
+
     /// Create a new property lookup cache index from an offset.
     ///
     /// Returns None if the offset is beyond supported limits.
@@ -275,14 +261,21 @@ impl PropertyLookupCacheIndex {
     }
 
     /// Convert a property lookup into a prototype property lookup.
-    pub(crate) fn into_prototype_lookup(self) -> Self {
-        debug_assert!(!self.is_prototype_lookup());
-        Self(self.0.neg())
+    pub(crate) fn make_prototype_property(&mut self) {
+        debug_assert!(!self.is_prototype_property());
+        self.0 = self.0.neg()
+    }
+
+    /// Returns true if the property was not found on the Object with this
+    /// Object Shape.
+    #[inline(always)]
+    pub(crate) fn is_not_found(self) -> bool {
+        self == Self::NOT_FOUND
     }
 
     /// Returns true if the property was found on the Object Shape's prototype.
     #[inline(always)]
-    pub(crate) fn is_prototype_lookup(self) -> bool {
+    pub(crate) fn is_prototype_property(self) -> bool {
         self.0.is_negative()
     }
 

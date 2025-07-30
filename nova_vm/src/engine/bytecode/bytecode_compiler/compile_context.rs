@@ -7,7 +7,10 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        builtins::{ordinary::shape::ObjectShape, regexp::RegExp},
+        builtins::{
+            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
+            regexp::RegExp,
+        },
         execution::Agent,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{BigInt, Number, PropertyKey, String, Value},
@@ -165,7 +168,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Create a property lookup cache for a JavaScript String.
-    pub(crate) fn create_property_lookup_cache(&mut self, identifier: String<'gc>) -> () {
+    pub(crate) fn create_property_lookup_cache(
+        &mut self,
+        identifier: String<'gc>,
+    ) -> PropertyLookupCache<'gc> {
         self.executable.create_property_lookup_cache(identifier)
     }
 
@@ -958,7 +964,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .add_instruction_with_identifier(instruction, identifier);
     }
 
-    pub(super) fn add_instruction_with_cache(&mut self, instruction: Instruction, cache: ()) {
+    pub(super) fn add_instruction_with_cache(
+        &mut self,
+        instruction: Instruction,
+        cache: PropertyLookupCache<'gc>,
+    ) {
         self.executable
             .add_instruction_with_cache(instruction, cache);
     }

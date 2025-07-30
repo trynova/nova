@@ -9,7 +9,7 @@ use wtf8::Wtf8Buf;
 use crate::{
     ecmascript::{
         builtins::{
-            ordinary::shape::ObjectShape,
+            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
             regexp::{RegExp, reg_exp_create_literal},
         },
         execution::Agent,
@@ -37,7 +37,7 @@ pub(super) struct ExecutableContext<'agent, 'gc, 'scope> {
     /// Instructions being built
     instructions: Vec<u8>,
     /// Caches being built
-    caches: Vec<()>,
+    caches: Vec<PropertyLookupCache<'gc>>,
     /// Constants being built
     constants: Vec<Value<'gc>>,
     /// Object Shapes being built
@@ -77,10 +77,11 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.agent
     }
 
-    pub(super) fn create_property_lookup_cache(&mut self, _identifier: String<'gc>) -> () {
-        // TODO: find exiting property lookup cache for this identifier, return
-        // if found; otherwise create new and return.
-        ()
+    pub(super) fn create_property_lookup_cache(
+        &mut self,
+        identifier: String<'gc>,
+    ) -> PropertyLookupCache<'gc> {
+        PropertyLookupCache::new(self.agent, identifier.to_property_key())
     }
 
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
@@ -176,7 +177,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         }
     }
 
-    pub(super) fn add_cache(&mut self, cache: ()) -> usize {
+    pub(super) fn add_cache(&mut self, cache: PropertyLookupCache<'gc>) -> usize {
         let duplicate = self
             .caches
             .iter()
@@ -270,7 +271,11 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.add_index(identifier);
     }
 
-    pub(super) fn add_instruction_with_cache(&mut self, instruction: Instruction, cache: ()) {
+    pub(super) fn add_instruction_with_cache(
+        &mut self,
+        instruction: Instruction,
+        cache: PropertyLookupCache<'gc>,
+    ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_cache_index());
         self.push_instruction(instruction);
