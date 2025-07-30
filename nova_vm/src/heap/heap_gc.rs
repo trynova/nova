@@ -54,7 +54,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
-            ordinary::shape::ObjectShape,
+            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -127,6 +127,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             bound_functions,
             builtin_constructors,
             builtin_functions,
+            caches,
             #[cfg(feature = "array-buffer")]
             data_views,
             #[cfg(feature = "array-buffer")]
@@ -219,6 +220,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         } = elements;
 
         prototype_shapes.mark_values(&mut queues);
+        caches.mark_values(&mut queues);
 
         let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
         module_marks.sort();
@@ -509,6 +511,19 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 builtin_functions.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut caches_marks: Box<[PropertyLookupCache]> = queues.caches.drain(..).collect();
+        caches_marks.sort();
+        caches_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.caches.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                caches.mark_cache(index, &mut queues);
             }
         });
         #[cfg(feature = "array-buffer")]
@@ -1243,6 +1258,7 @@ fn sweep(
         bound_functions,
         builtin_constructors,
         builtin_functions,
+        caches,
         #[cfg(feature = "array-buffer")]
         data_views,
         #[cfg(feature = "array-buffer")]
@@ -1336,11 +1352,18 @@ fn sweep(
         k2pow32,
     } = elements;
 
-    prototype_shapes.sweep_values(&compactions);
-
     let mut globals = globals.borrow_mut();
     let globals_iter = globals.iter_mut();
     thread::scope(|s| {
+        s.spawn(|| {
+            prototype_shapes.sweep_values(&compactions);
+        });
+
+        s.spawn(|| {
+            caches.sweep_cache(&compactions, &bits.caches);
+            caches.sweep_values(&compactions);
+        });
+
         s.spawn(|| {
             for value in globals_iter {
                 value.sweep_values(&compactions);

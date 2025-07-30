@@ -73,7 +73,10 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData,
             module::{Module, data::ModuleHeapData},
-            ordinary::shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
+            ordinary::{
+                caches::Caches,
+                shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
+            },
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
@@ -112,7 +115,7 @@ use element_array::{
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{
     CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
-    sweep_side_set,
+    sweep_heap_vector_values, sweep_side_set,
 };
 use indexes::TypedArrayIndex;
 use wtf8::{Wtf8, Wtf8Buf};
@@ -131,6 +134,7 @@ pub struct Heap {
     pub bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
     pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
+    pub(crate) caches: Caches<'static>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
@@ -259,6 +263,7 @@ impl Heap {
             bound_functions: Vec::with_capacity(256),
             builtin_constructors: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),
+            caches: Caches::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(0),
             #[cfg(feature = "array-buffer")]
