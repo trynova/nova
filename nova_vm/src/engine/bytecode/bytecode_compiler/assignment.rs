@@ -9,8 +9,8 @@ use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 use crate::engine::Instruction;
 
 use super::{
-    CompileContext, CompileEvaluation, NamedEvaluationParameter, is_anonymous_function_definition,
-    is_reference,
+    CompileContext, CompileEvaluation, NamedEvaluationParameter, compile_expression_get_value,
+    is_anonymous_function_definition, is_reference,
 };
 
 impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
@@ -46,11 +46,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 );
                 // 2. Let assignmentPattern be the AssignmentPattern that is covered by LeftHandSideExpression.
                 // 3. Let rRef be ? Evaluation of AssignmentExpression.
-                self.right.compile(ctx);
-                if is_reference(&self.right) {
-                    // 4. Let rVal be ? GetValue(rRef).
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                // 4. Let rVal be ? GetValue(rRef).
+                compile_expression_get_value(&self.right, ctx);
                 // 5. Perform ? DestructuringAssignmentEvaluation of assignmentPattern with argument rVal.
                 ctx.add_instruction(Instruction::LoadCopy);
                 self.left.to_assignment_target_pattern().compile(ctx);
@@ -97,11 +94,7 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
 
-            self.right.compile(ctx);
-
-            if is_reference(&self.right) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(&self.right, ctx);
 
             ctx.add_instruction(Instruction::LoadCopy);
 
@@ -158,11 +151,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
             // a. Let rref be ? Evaluation of AssignmentExpression.
-            self.right.compile(ctx);
             // b. Let rval be ? GetValue(rref).
-            if is_reference(&self.right) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(&self.right, ctx);
 
             // 7. Perform ? PutValue(lref, rval).
             ctx.add_instruction(Instruction::LoadCopy);
@@ -195,12 +185,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
                 ctx.add_instruction(Instruction::PushReference);
             }
             // 3. Let rref be ? Evaluation of AssignmentExpression.
-            self.right.compile(ctx);
-
             // 4. Let rval be ? GetValue(rref).
-            if is_reference(&self.right) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(&self.right, ctx);
 
             // 5. Let assignmentOpText be the source text matched by AssignmentOperator.
             // 6. Let opText be the sequence of Unicode code points associated with assignmentOpText in the following table:
@@ -708,10 +694,8 @@ impl<'s> CompileEvaluation<'s> for ast::PropertyKey<'s> {
                 // result: None
                 // stack: [source]
                 let expr = self.to_expression();
-                expr.compile(ctx);
-                if is_reference(expr) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                compile_expression_get_value(expr, ctx);
+
                 // result: expr
                 // stack: [source]
                 ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
@@ -746,11 +730,8 @@ fn compile_initializer<'s>(
         ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
         ctx.name_identifier = Some(NamedEvaluationParameter::Result);
     }
-    target.init.compile(ctx);
+    compile_expression_get_value(&target.init, ctx);
     ctx.name_identifier = None;
-    if is_reference(&target.init) {
-        ctx.add_instruction(Instruction::GetValue);
-    }
     // result: init
     // stack: []
     ctx.add_instruction(Instruction::Load);

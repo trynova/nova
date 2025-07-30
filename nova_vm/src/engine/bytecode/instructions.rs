@@ -1163,6 +1163,7 @@ impl TryFrom<u8> for Instruction {
         const MAKESUPERPROPERTYREFERENCEWITHIDENTIFIERKEY: u8 =
             Instruction::MakeSuperPropertyReferenceWithIdentifierKey.as_u8();
         const GETVALUE: u8 = Instruction::GetValue.as_u8();
+        const GETVALUEWITHCACHE: u8 = Instruction::GetValueWithCache.as_u8();
         const GETVALUEKEEPREFERENCE: u8 = Instruction::GetValueKeepReference.as_u8();
         const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
         const GREATERTHANEQUALS: u8 = Instruction::GreaterThanEquals.as_u8();
@@ -1370,6 +1371,7 @@ impl TryFrom<u8> for Instruction {
                 Ok(Instruction::MakeSuperPropertyReferenceWithIdentifierKey)
             }
             GETVALUE => Ok(Instruction::GetValue),
+            GETVALUEWITHCACHE => Ok(Instruction::GetValueWithCache),
             GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
             GREATERTHAN => Ok(Instruction::GreaterThan),
             GREATERTHANEQUALS => Ok(Instruction::GreaterThanEquals),

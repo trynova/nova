@@ -197,12 +197,8 @@ impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
             // UnaryExpression : - UnaryExpression
             UnaryOperator::UnaryNegation => {
                 // 1. Let expr be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx);
-
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
-                if is_reference(&self.argument) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                compile_expression_get_value(&self.argument, ctx);
                 ctx.add_instruction(Instruction::ToNumeric);
 
                 // 3. If oldValue is a Number, then
@@ -217,12 +213,8 @@ impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
             // UnaryExpression : + UnaryExpression
             UnaryOperator::UnaryPlus => {
                 // 1. Let expr be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx);
-
                 // 2. Return ? ToNumber(? GetValue(expr)).
-                if is_reference(&self.argument) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                compile_expression_get_value(&self.argument, ctx);
                 ctx.add_instruction(Instruction::ToNumber);
             }
             // 13.5.6 Unary ! Operator
@@ -230,14 +222,10 @@ impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
             // UnaryExpression : ! UnaryExpression
             UnaryOperator::LogicalNot => {
                 // 1. Let expr be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx);
-
                 // 2. Let oldValue be ToBoolean(? GetValue(expr)).
+                compile_expression_get_value(&self.argument, ctx);
                 // 3. If oldValue is true, return false.
                 // 4. Return true.
-                if is_reference(&self.argument) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
                 ctx.add_instruction(Instruction::LogicalNot);
             }
             // 13.5.7 Unary ~ Operator
@@ -245,18 +233,15 @@ impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
             // UnaryExpression : ~ UnaryExpression
             UnaryOperator::BitwiseNot => {
                 // 1. Let expr be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx);
-
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
+                compile_expression_get_value(&self.argument, ctx);
+                ctx.add_instruction(Instruction::ToNumeric);
+
                 // 3. If oldValue is a Number, then
                 //    a. Return Number::bitwiseNOT(oldValue).
                 // 4. Else,
                 //    a. Assert: oldValue is a BigInt.
                 //    b. Return BigInt::bitwiseNOT(oldValue).
-                if is_reference(&self.argument) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
-                ctx.add_instruction(Instruction::ToNumeric);
                 ctx.add_instruction(Instruction::BitwiseNot);
             }
             // 13.5.3 The typeof Operator
@@ -271,12 +256,9 @@ impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
             // UnaryExpression : void UnaryExpression
             UnaryOperator::Void => {
                 // 1. Let expr be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx);
                 // NOTE: GetValue must be called even though its value is not used because it may have observable side-effects.
                 // 2. Perform ? GetValue(expr).
-                if is_reference(&self.argument) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                compile_expression_get_value(&self.argument, ctx);
                 // 3. Return undefined.
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             }
@@ -300,21 +282,13 @@ impl<'s> CompileEvaluation<'s> for ast::UnaryExpression<'s> {
 impl<'s> CompileEvaluation<'s> for ast::BinaryExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let lref be ? Evaluation of leftOperand.
-        self.left.compile(ctx);
-
         // 2. Let lval be ? GetValue(lref).
-        if is_reference(&self.left) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.left, ctx);
         ctx.add_instruction(Instruction::Load);
 
         // 3. Let rref be ? Evaluation of rightOperand.
-        self.right.compile(ctx);
-
         // 4. Let rval be ? GetValue(rref).
-        if is_reference(&self.right) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.right, ctx);
 
         match self.operator {
             BinaryOperator::LessThan => {
@@ -361,10 +335,8 @@ impl<'s> CompileEvaluation<'s> for ast::BinaryExpression<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::LogicalExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        self.left.compile(ctx);
-        if is_reference(&self.left) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.left, ctx);
+
         // We store the left value on the stack, because we'll need to restore
         // it later.
         ctx.add_instruction(Instruction::LoadCopy);
@@ -384,10 +356,8 @@ impl<'s> CompileEvaluation<'s> for ast::LogicalExpression<'s> {
         // at the top of the stack.
         ctx.add_instruction(Instruction::Store);
 
-        self.right.compile(ctx);
-        if is_reference(&self.right) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.right, ctx);
+
         let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
         ctx.set_jump_target_here(jump_to_return_left);
@@ -491,10 +461,8 @@ fn create_object_with_shape<'s>(
             ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
             ctx.name_identifier = Some(NamedEvaluationParameter::Result);
         }
-        prop.value.compile(ctx);
-        if is_reference(&prop.value) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&prop.value, ctx);
+
         ctx.add_instruction(Instruction::Load);
     }
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
@@ -574,10 +542,9 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                         }
                         _ => {
                             let prop_key = prop.key.as_expression().unwrap();
-                            prop_key.compile(ctx);
+                            compile_expression_get_value(prop_key, ctx);
                             if is_reference(prop_key) {
                                 assert!(!is_proto_setter);
-                                ctx.add_instruction(Instruction::GetValue);
                             }
                         }
                     }
@@ -588,10 +555,7 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                     match prop.kind {
                         ast::PropertyKind::Init => {
                             if is_proto_setter {
-                                prop.value.compile(ctx);
-                                if is_reference(&prop.value) {
-                                    ctx.add_instruction(Instruction::GetValue);
-                                }
+                                compile_expression_get_value(&prop.value, ctx);
                                 // 7. If isProtoSetter is true, then
                                 // a. If propValue is an Object or propValue is null, then
                                 //     i. Perform ! object.[[SetPrototypeOf]](propValue).
@@ -625,10 +589,7 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                                 if is_anonymous_function_definition(&prop.value) {
                                     ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                                 }
-                                prop.value.compile(ctx);
-                                if is_reference(&prop.value) {
-                                    ctx.add_instruction(Instruction::GetValue);
-                                }
+                                compile_expression_get_value(&prop.value, ctx);
                                 ctx.add_instruction(Instruction::ObjectDefineProperty);
                             }
                         }
@@ -664,10 +625,7 @@ impl<'s> CompileEvaluation<'s> for ast::ObjectExpression<'s> {
                     }
                 }
                 ast::ObjectPropertyKind::SpreadProperty(spread) => {
-                    spread.argument.compile(ctx);
-                    if is_reference(&spread.argument) {
-                        ctx.add_instruction(Instruction::GetValue);
-                    }
+                    compile_expression_get_value(&spread.argument, ctx);
                     ctx.add_instruction(Instruction::CopyDataProperties);
                 }
             }
@@ -700,10 +658,7 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
         for ele in &self.elements {
             match ele {
                 ast::ArrayExpressionElement::SpreadElement(spread) => {
-                    spread.argument.compile(ctx);
-                    if is_reference(&spread.argument) {
-                        ctx.add_instruction(Instruction::GetValue);
-                    }
+                    compile_expression_get_value(&spread.argument, ctx);
                     jumps_to_pop_iterator.push(ctx.push_sync_iterator());
 
                     let iteration_start = ctx.get_jump_index_to_here();
@@ -719,10 +674,7 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayExpression<'s> {
                 }
                 _ => {
                     let expression = ele.to_expression();
-                    expression.compile(ctx);
-                    if is_reference(expression) {
-                        ctx.add_instruction(Instruction::GetValue);
-                    }
+                    compile_expression_get_value(expression, ctx);
                     ctx.add_instruction(Instruction::ArrayPush);
                 }
             }
@@ -799,10 +751,7 @@ fn compile_arguments<'s>(
                 jump_to_dynamic_unwind = Some(ctx.enter_try_catch_block());
             }
 
-            spread.argument.compile(ctx);
-            if is_reference(&spread.argument) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(&spread.argument, ctx);
             jump_to_iterator_pop = Some(ctx.push_sync_iterator());
 
             let iteration_start = ctx.get_jump_index_to_here();
@@ -820,10 +769,7 @@ fn compile_arguments<'s>(
         } else {
             let expression = argument.to_expression();
 
-            expression.compile(ctx);
-            if is_reference(expression) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(expression, ctx);
             if let Some(num_arguments) = known_num_arguments.as_mut() {
                 ctx.add_instruction(Instruction::Load);
                 // stack: [value, ...args]
@@ -1096,10 +1042,7 @@ impl<'s> CompileEvaluation<'s> for ast::CallExpression<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::NewExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        self.callee.compile(ctx);
-        if is_reference(&self.callee) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.callee, ctx);
         ctx.add_instruction(Instruction::Load);
 
         let num_arguments = compile_arguments(&self.arguments, ctx);
@@ -1127,12 +1070,9 @@ fn compile_optional_base_reference<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
 ) {
     // 1. Let baseReference be ? Evaluation of MemberExpression.
-    object.compile(ctx);
+    compile_expression_get_value(object, ctx);
 
     // 2. Let baseValue be ? GetValue(baseReference).
-    if is_reference(object) {
-        ctx.add_instruction(Instruction::GetValue);
-    }
 
     if is_optional {
         // Optional Chains
@@ -1169,11 +1109,8 @@ impl<'s> CompileEvaluation<'s> for ast::ComputedMemberExpression<'s> {
         // compiling the member expression: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
         // 1. Let baseReference be ? Evaluation of expression.
-        self.expression.compile(ctx);
         // 2. Let baseValue be ? GetValue(baseReference).
-        if is_reference(&self.expression) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.expression, ctx);
         // After we're done with compiling the member expression we go back
         // into the chain.
         if let Some(optional_chain) = optional_chain {
@@ -1233,11 +1170,8 @@ impl<'s> CompileEvaluation<'s> for ast::PrivateFieldExpression<'s> {
 impl<'s> CompileEvaluation<'s> for ast::AwaitExpression<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let exprRef be ? Evaluation of UnaryExpression.
-        self.argument.compile(ctx);
         // 2. Let value be ? GetValue(exprRef).
-        if is_reference(&self.argument) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.argument, ctx);
         // 3. Return ? Await(value).
         ctx.add_instruction(Instruction::Await);
     }
@@ -1317,11 +1251,8 @@ impl<'s> CompileEvaluation<'s> for ast::ConditionalExpression<'s> {
     /// ### [13.14.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-conditional-operator-runtime-semantics-evaluation)
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let lref be ? Evaluation of ShortCircuitExpression.
-        self.test.compile(ctx);
         // 2. Let lval be ToBoolean(? GetValue(lref)).
-        if is_reference(&self.test) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.test, ctx);
         // Jump over first AssignmentExpression (consequent) if test fails.
         // Note: JumpIfNot performs ToBoolean from above step.
         let jump_to_second = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
@@ -1464,11 +1395,8 @@ impl<'s> CompileEvaluation<'s> for ast::SequenceExpression<'s> {
                 // we can skip these when they're not the last expression.
                 continue;
             }
-            expr.compile(ctx);
-            if is_reference(expr) {
-                // Note: GetValue must be called as mentioned above.
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            // Note: GetValue must be called as mentioned above.
+            compile_expression_get_value(expr, ctx);
         }
         last.compile(ctx);
         if is_reference(last) {
@@ -1581,11 +1509,8 @@ impl<'s> CompileEvaluation<'s> for ast::TemplateLiteral<'s> {
                 if let Some((expression, rest)) = expressions.split_first() {
                     expressions = rest;
                     // 2. Let subRef be ? Evaluation of Expression.
-                    expression.compile(ctx);
-                    if is_reference(expression) {
-                        // 3. Let sub be ? GetValue(subRef).
-                        ctx.add_instruction(Instruction::GetValue);
-                    }
+                    // 3. Let sub be ? GetValue(subRef).
+                    compile_expression_get_value(expression, ctx);
                     // 4. Let middle be ? ToString(sub).
                     // Note: This is done by StringConcat.
                     ctx.add_instruction(Instruction::Load);
@@ -1867,7 +1792,7 @@ impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
     }
 }
 
-pub(super) fn compile_right_hand_side_expression<'s>(
+pub(super) fn compile_expression_get_value<'s>(
     expr: &'s ast::Expression<'s>,
     ctx: &mut CompileContext<'_, 's, '_, '_>,
 ) {
@@ -2018,10 +1943,7 @@ impl<'s> CompileEvaluation<'s> for ast::ExpressionStatement<'s> {
 impl<'s> CompileEvaluation<'s> for ast::ReturnStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if let Some(expr) = &self.argument {
-            expr.compile(ctx);
-            if is_reference(expr) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(expr, ctx);
         } else {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
@@ -2032,11 +1954,8 @@ impl<'s> CompileEvaluation<'s> for ast::ReturnStatement<'s> {
 impl<'s> CompileEvaluation<'s> for ast::IfStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let exprRef be ? Evaluation of Expression.
-        self.test.compile(ctx);
         // 2. Let exprValue be ToBoolean(? GetValue(exprRef)).
-        if is_reference(&self.test) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.test, ctx);
         // 3. If exprValue is true, then
         let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         ctx.enter_if_statement();
@@ -2418,10 +2337,7 @@ fn complex_object_pattern<'s>(
                 ctx.add_instruction(Instruction::StoreCopy);
                 ctx.add_instruction(Instruction::Load);
                 let expr = property.key.to_expression();
-                expr.compile(ctx);
-                if is_reference(expr) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                compile_expression_get_value(expr, ctx);
                 ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
             }
         }
@@ -2536,11 +2452,8 @@ impl<'s> CompileEvaluation<'s> for ast::BindingPattern<'s> {
                         }
                         // b. Else,
                         // i. Let defaultValue be ? Evaluation of Initializer.
-                        pattern.right.compile(ctx);
                         // ii. Set v to ? GetValue(defaultValue).
-                        if is_reference(&pattern.right) {
-                            ctx.add_instruction(Instruction::GetValue);
-                        }
+                        compile_expression_get_value(&pattern.right, ctx);
                         if !right_is_literal {
                             ctx.add_instruction(Instruction::PopReference);
                         }
@@ -2574,11 +2487,8 @@ impl<'s> CompileEvaluation<'s> for ast::BindingPattern<'s> {
                         // 3. If Initializer is present and v is undefined, then
                         let jump_over_initializer = check_result_is_undefined(ctx);
                         // a. Let defaultValue be ? Evaluation of Initializer.
-                        pattern.right.compile(ctx);
                         // b. Set v to ? GetValue(defaultValue).
-                        if is_reference(&pattern.right) {
-                            ctx.add_instruction(Instruction::GetValue);
-                        }
+                        compile_expression_get_value(&pattern.right, ctx);
                         ctx.add_instruction(Instruction::Load);
                         ctx.set_jump_target_here(jump_over_initializer);
                         ctx.add_instruction(Instruction::Store);
@@ -2609,11 +2519,8 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     else {
                         //  VariableDeclaration : BindingPattern Initializer
                         // 1. Let rhs be ? Evaluation of Initializer.
-                        init.compile(ctx);
                         // 2. Let rval be ? GetValue(rhs).
-                        if is_reference(init) {
-                            ctx.add_instruction(Instruction::GetValue);
-                        }
+                        compile_expression_get_value(init, ctx);
                         // 3. Return ? BindingInitialization of BidingPattern with arguments rval and undefined.
                         let lexical_binding_state = ctx.lexical_binding_state;
                         ctx.lexical_binding_state = false;
@@ -2641,11 +2548,10 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     } else {
                         // 4. Else,
                         // a. Let rhs be ? Evaluation of Initializer.
-                        init.compile(ctx);
                         // b. Let value be ? GetValue(rhs).
+                        compile_expression_get_value(init, ctx);
                         if is_reference(init) {
                             debug_assert!(!is_literal);
-                            ctx.add_instruction(Instruction::GetValue);
                         }
                     }
                     // 5. Perform ? PutValue(lhs, value).
@@ -2665,11 +2571,8 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
 
                         //  LexicalBinding : BindingPattern Initializer
                         // 1. Let rhs be ? Evaluation of Initializer.
-                        init.compile(ctx);
                         // 2. Let value be ? GetValue(rhs).
-                        if is_reference(init) {
-                            ctx.add_instruction(Instruction::GetValue);
-                        }
+                        compile_expression_get_value(init, ctx);
                         // 3. Let env be the running execution context's LexicalEnvironment.
                         // 4. Return ? BindingInitialization of BindingPattern with arguments value and env.
                         let lexical_binding_state = ctx.lexical_binding_state;
@@ -2710,11 +2613,8 @@ impl<'s> CompileEvaluation<'s> for ast::VariableDeclaration<'s> {
                     } else {
                         // 4. Else,
                         // a. Let rhs be ? Evaluation of Initializer.
-                        init.compile(ctx);
                         // b. Let value be ? GetValue(rhs).
-                        if is_reference(init) {
-                            ctx.add_instruction(Instruction::GetValue);
-                        }
+                        compile_expression_get_value(init, ctx);
                     }
 
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
@@ -2828,11 +2728,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
         // f. If increment is not empty, then
         if let Some(update) = &self.update {
             // i. Let incRef be ? Evaluation of increment.
-            update.compile(ctx);
             // ii. Perform ? GetValue(incRef).
-            if is_reference(update) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(update, ctx);
         }
 
         ctx.set_jump_target_here(jump_over_continue);
@@ -2840,11 +2737,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForStatement<'s> {
         // a. If test is not empty, then
         let end_jump = if let Some(test) = &self.test {
             // i. Let testRef be ? Evaluation of test.
-            test.compile(ctx);
             // ii. Let testValue be ? GetValue(testRef).
-            if is_reference(test) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(test, ctx);
             // iii. If ToBoolean(testValue) is false, return V.
             // jump over consequent if test fails
             Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
@@ -2942,11 +2836,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
         // 1. Let exprRef be ? Evaluation of Expression.
-        self.discriminant.compile(ctx);
-        if is_reference(&self.discriminant) {
-            // 2. Let switchValue be ? GetValue(exprRef).
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        // 2. Let switchValue be ? GetValue(exprRef).
+        compile_expression_get_value(&self.discriminant, ctx);
         ctx.add_instruction(Instruction::Load);
         if self.cases.is_empty() {
             // CaseBlock : { }
@@ -2979,11 +2870,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
             ctx.add_instruction(Instruction::StoreCopy);
             ctx.add_instruction(Instruction::Load);
             // 2. Let exprRef be ? Evaluation of the Expression of C.
-            test.compile(ctx);
             // 3. Let clauseSelector be ? GetValue(exprRef).
-            if is_reference(test) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(test, ctx);
             // 4. Return IsStrictlyEqual(input, clauseSelector).
             ctx.add_instruction(Instruction::IsStrictlyEqual);
             // b. If found is true then [evaluate case]
@@ -3061,10 +2949,7 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::SwitchStatement<'s> {
 
 impl<'s> CompileEvaluation<'s> for ast::ThrowStatement<'s> {
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        self.argument.compile(ctx);
-        if is_reference(&self.argument) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.argument, ctx);
         ctx.add_instruction(Instruction::Throw)
     }
 }
@@ -3178,11 +3063,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::WhileStatement<'s> {
         // a. Let exprRef be ? Evaluation of Expression.
         // OPTIMISATION: while(true) loops are pretty common, skip the test.
         let end_jump = if !is_boolean_literal_true(&self.test) {
-            self.test.compile(ctx);
-            if is_reference(&self.test) {
-                // b. Let exprValue be ? GetValue(exprRef).
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            // b. Let exprValue be ? GetValue(exprRef).
+            compile_expression_get_value(&self.test, ctx);
 
             // c. If ToBoolean(exprValue) is false, return V.
             // jump over loop jump if test fails
@@ -3250,11 +3132,8 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::DoWhileStatement<'s> {
             Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
         } else {
             // d. Let exprRef be ? Evaluation of Expression.
-            self.test.compile(ctx);
             // e. Let exprValue be ? GetValue(exprRef).
-            if is_reference(&self.test) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
+            compile_expression_get_value(&self.test, ctx);
 
             // f. If ToBoolean(exprValue) is false, return V.
             Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))

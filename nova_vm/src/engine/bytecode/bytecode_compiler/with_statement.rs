@@ -6,7 +6,7 @@ use oxc_ast::ast;
 
 use crate::engine::Instruction;
 
-use super::{CompileContext, CompileEvaluation, is_reference};
+use super::{CompileContext, CompileEvaluation, compile_expression_get_value};
 
 impl<'s> CompileEvaluation<'s> for ast::WithStatement<'s> {
     /// ### [14.11.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-with-statement-runtime-semantics-evaluation)
@@ -16,11 +16,8 @@ impl<'s> CompileEvaluation<'s> for ast::WithStatement<'s> {
     /// ```
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         // 1. Let val be ? Evaluation of Expression.
-        self.object.compile(ctx);
         // 2. Let obj be ? ToObject(? GetValue(val)).
-        if is_reference(&self.object) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(&self.object, ctx);
         ctx.add_instruction(Instruction::ToObject);
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let newEnv be NewObjectEnvironment(obj, true, oldEnv).
