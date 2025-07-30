@@ -1026,6 +1026,29 @@ impl Vm {
                     gc,
                 )?;
             }
+            Instruction::GetValueWithCache => {
+                let _cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+                // 1. If V is not a Reference Record, return V.
+                let reference = vm.reference.take().unwrap();
+
+                assert!(
+                    reference.is_static_property_reference() && !is_super_reference(&reference)
+                );
+
+                // TODO: if cache is populated and object shape is found there,
+                // read from the object directly. Otherwise, call the below
+                // code and populate the cache!
+
+                let result = if let TryResult::Continue(result) =
+                    try_get_value(agent, &reference, gc.nogc())
+                {
+                    result.unbind()?.bind(gc.into_nogc())
+                } else {
+                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
+                };
+
+                vm.result = Some(result.unbind());
+            }
             Instruction::GetValue => {
                 // 1. If V is not a Reference Record, return V.
                 let reference = vm.reference.take().unwrap();

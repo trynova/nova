@@ -164,6 +164,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.executable.get_agent_mut()
     }
 
+    /// Create a property lookup cache for a JavaScript String.
+    pub(crate) fn create_property_lookup_cache(&mut self, identifier: String<'gc>) -> () {
+        self.executable.create_property_lookup_cache(identifier)
+    }
+
     /// Create a new JavaScript BigInt from a bigint literal and radix.
     pub(crate) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
         self.executable.create_bigint(literal, radix)
@@ -951,6 +956,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     ) {
         self.executable
             .add_instruction_with_identifier(instruction, identifier);
+    }
+
+    pub(super) fn add_instruction_with_cache(&mut self, instruction: Instruction, cache: ()) {
+        self.executable
+            .add_instruction_with_cache(instruction, cache);
     }
 
     pub(super) fn add_instruction_with_identifier_and_constant(

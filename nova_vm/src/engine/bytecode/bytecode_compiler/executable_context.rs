@@ -36,6 +36,8 @@ pub(super) struct ExecutableContext<'agent, 'gc, 'scope> {
     current_instruction_pointer_is_unreachable: bool,
     /// Instructions being built
     instructions: Vec<u8>,
+    /// Caches being built
+    caches: Vec<()>,
     /// Constants being built
     constants: Vec<Value<'gc>>,
     /// Object Shapes being built
@@ -54,6 +56,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
             gc,
             current_instruction_pointer_is_unreachable: false,
             instructions: Vec::new(),
+            caches: Vec::new(),
             constants: Vec::new(),
             shapes: Vec::new(),
             function_expressions: Vec::new(),
@@ -72,6 +75,12 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
 
     pub(crate) fn get_agent_mut(&mut self) -> &mut Agent {
         self.agent
+    }
+
+    pub(super) fn create_property_lookup_cache(&mut self, _identifier: String<'gc>) -> () {
+        // TODO: find exiting property lookup cache for this identifier, return
+        // if found; otherwise create new and return.
+        ()
     }
 
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
@@ -119,6 +128,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     pub(super) fn finish(self) -> Executable<'gc> {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
+            caches: self.caches.unbind().into_boxed_slice(),
             constants: self.constants.unbind().into_boxed_slice(),
             shapes: self.shapes.unbind().into_boxed_slice(),
             function_expressions: self.function_expressions.unbind().into_boxed_slice(),
@@ -164,6 +174,21 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         JumpIndex {
             index: self.instructions.len(),
         }
+    }
+
+    pub(super) fn add_cache(&mut self, cache: ()) -> usize {
+        let duplicate = self
+            .caches
+            .iter()
+            .enumerate()
+            .find(|item| item.1.eq(&cache))
+            .map(|(idx, _)| idx);
+
+        duplicate.unwrap_or_else(|| {
+            let index = self.caches.len();
+            self.caches.push(cache);
+            index
+        })
     }
 
     pub(super) fn add_constant(&mut self, constant: Value<'gc>) -> usize {
@@ -243,6 +268,14 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.push_instruction(instruction);
         let identifier = self.add_identifier(identifier);
         self.add_index(identifier);
+    }
+
+    pub(super) fn add_instruction_with_cache(&mut self, instruction: Instruction, cache: ()) {
+        debug_assert_eq!(instruction.argument_count(), 1);
+        debug_assert!(instruction.has_cache_index());
+        self.push_instruction(instruction);
+        let cache = self.add_cache(cache);
+        self.add_index(cache);
     }
 
     pub(super) fn add_instruction_with_identifier_and_constant(

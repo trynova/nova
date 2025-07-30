@@ -136,6 +136,7 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 #[derive(Debug, Clone)]
 pub struct ExecutableHeapData<'a> {
     pub(crate) instructions: Box<[u8]>,
+    pub(crate) caches: Box<[()]>,
     pub(crate) constants: Box<[Value<'a>]>,
     pub(crate) shapes: Box<[ObjectShape<'a>]>,
     pub(crate) function_expressions: Box<[FunctionExpression<'a>]>,
@@ -282,25 +283,22 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
+    fn fetch_cache(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> () {
+        agent[self].caches[index].bind(gc)
+    }
+
+    #[inline]
+    fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        agent[self].constants[index].bind(gc)
+    }
+
+    #[inline]
     fn fetch_identifier(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> String<'gc> {
-        // SAFETY: As long as we're alive the constants Box lives. It is
-        // accessed mutably only during GC, during which this function is never
-        // called. As we do not hand out a reference here, the mutable
-        // reference during GC and fetching references here never overlap.
         let value = agent[self].constants[index];
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
         };
         value.bind(gc)
-    }
-
-    #[inline]
-    fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        // SAFETY: As long as we're alive the constants Box lives. It is
-        // accessed mutably only during GC, during which this function is never
-        // called. As we do not hand out a reference here, the mutable
-        // reference during GC and fetching references here never overlap.
-        agent[self].constants[index].bind(gc)
     }
 
     fn fetch_function_expression<'a>(
@@ -359,6 +357,16 @@ impl Scoped<'_, Executable<'static>> {
         gc: NoGcScope<'gc, '_>,
     ) -> &'a [Value<'gc>] {
         self.get(agent).get_constants(agent, gc)
+    }
+
+    #[inline]
+    pub(super) fn fetch_cache<'a, 'gc>(
+        &self,
+        agent: &'a Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> () {
+        self.get(agent).fetch_cache(agent, index, gc)
     }
 
     #[inline]
@@ -526,6 +534,7 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             instructions: _,
+            caches: _,
             constants,
             shapes,
             function_expressions: _,
@@ -542,6 +551,7 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             instructions: _,
+            caches: _,
             constants,
             shapes,
             function_expressions: _,

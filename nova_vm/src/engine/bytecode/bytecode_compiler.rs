@@ -1107,17 +1107,6 @@ impl<'s> CompileEvaluation<'s> for ast::NewExpression<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::MemberExpression<'s> {
-    /// ### ['a 13.3.2 Property Accessors](https://tc39.es/ecma262/#sec-property-accessors)
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
-        match self {
-            ast::MemberExpression::ComputedMemberExpression(x) => x.compile(ctx),
-            ast::MemberExpression::StaticMemberExpression(x) => x.compile(ctx),
-            ast::MemberExpression::PrivateFieldExpression(x) => x.compile(ctx),
-        }
-    }
-}
-
 /// Compile the baseReference part of a member expression with possible
 /// optional chaining.
 ///
@@ -1875,6 +1864,36 @@ impl<'s> CompileEvaluation<'s> for ast::YieldExpression<'s> {
         let jump_over_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         ctx.compile_return(true);
         ctx.set_jump_target_here(jump_over_return);
+    }
+}
+
+pub(super) fn compile_right_hand_side_expression<'s>(
+    expr: &'s ast::Expression<'s>,
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+) {
+    if let ast::Expression::StaticMemberExpression(expr) = expr
+        && !expr.object.is_super()
+    {
+        compile_optional_base_reference(&expr.object, expr.optional, ctx);
+        // If we are in an optional chain then result will be on the top of the
+        // stack. We need to pop it into the register slot in that case.
+        if expr.optional {
+            ctx.add_instruction(Instruction::Store);
+        }
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        let identifier = ctx.create_string(expr.property.name.as_str());
+        ctx.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            identifier,
+        );
+        let cache = ctx.create_property_lookup_cache(identifier);
+        ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
+    } else {
+        expr.compile(ctx);
+        if is_reference(expr) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
     }
 }
 

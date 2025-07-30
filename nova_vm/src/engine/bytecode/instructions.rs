@@ -104,6 +104,14 @@ pub enum Instruction {
     /// analysed from the AST. Non-reference values are already in the result
     /// value so a `GetValue` call would be a no-op.
     GetValue,
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value. This variant caches the property lookup.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
+    GetValueWithCache,
     /// Same as GetValue without taking the reference slot. Used for reference
     /// property updates and function calls (where `this` comes from the
     /// reference).
@@ -516,6 +524,7 @@ impl Instruction {
             | Self::BindingPatternBindRest
             | Self::BindingPatternGetValueNamed
             | Self::ClassDefineDefaultConstructor
+            | Self::ClassInitializePrivateValue
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
@@ -525,13 +534,16 @@ impl Instruction {
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::EvaluateSuper
+            // | Self::GetValue
+            | Self::GetValueWithCache
+            // | Self::GetValueKeepReference
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::LoadConstant
             | Self::MakePrivateReference
             | Self::MakeSuperPropertyReferenceWithIdentifierKey
             | Self::ObjectCreateWithShape
-            | Self::ClassInitializePrivateValue
+            // | Self::PutValue
             | Self::ResolveBinding
             | Self::StoreConstant
             | Self::StringConcat
@@ -550,6 +562,14 @@ impl Instruction {
                 | Self::JumpIfNot
                 | Self::JumpIfTrue
                 | Self::PushExceptionJumpTarget
+        )
+    }
+
+    pub fn has_cache_index(self) -> bool {
+        matches!(
+            self,
+            // Self::GetValueKeepReference | Self::GetValue | Self::PutValue
+            Self::GetValueWithCache
         )
     }
 
