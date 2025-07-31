@@ -146,6 +146,41 @@ impl PromiseReactionJob {
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
         // The following are substeps of point 1 in NewPromiseReactionJob.
+        // Handle PromiseAll case separately to avoid borrowing conflicts
+        if matches!(
+            agent[reaction].handler,
+            PromiseReactionHandler::PromiseAll { .. }
+        ) {
+            let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+            let reaction_type = agent[reaction].reaction_type;
+
+            if let PromiseReactionHandler::PromiseAll {
+                remaining_unresolved_promise_count,
+                ..
+            } = &mut agent[reaction].handler
+            {
+                let (handler_result, promise_capability) = match reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        *remaining_unresolved_promise_count -= 1;
+                        // TODO: handler promise finish
+                        (Ok(argument), capability)
+                    }
+                    PromiseReactionType::Reject => {
+                        // TODO: handle rejections
+                        (Err(JsError::new(argument)), capability)
+                    }
+                };
+
+                match handler_result {
+                    Err(err) => promise_capability.reject(agent, err.value(), gc.nogc()),
+                    Ok(value) => promise_capability
+                        .unbind()
+                        .resolve(agent, value.unbind(), gc),
+                };
+                return Ok(());
+            }
+        }
+
         let (handler_result, promise_capability) = match agent[reaction].handler {
             PromiseReactionHandler::Empty => {
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
@@ -288,22 +323,8 @@ impl PromiseReactionJob {
                     }
                 }
             }
-            PromiseReactionHandler::PromiseAll {
-                result_promise: _,
-                remaining_unresolved_promise_count: _,
-                result_array: _,
-            } => {
-                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
-                match agent[reaction].reaction_type {
-                    PromiseReactionType::Fulfill => {
-                        // d.i.1. Let handlerResult be NormalCompletion(argument).
-                        (Ok(argument), capability)
-                    }
-                    PromiseReactionType::Reject => {
-                        // d.ii.1. Let handlerResult be ThrowCompletion(argument).
-                        (Err(JsError::new(argument)), capability)
-                    }
-                }
+            PromiseReactionHandler::PromiseAll { .. } => {
+                unreachable!("PromiseAll case is handled separately above")
             }
         };
 
