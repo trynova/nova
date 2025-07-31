@@ -288,6 +288,23 @@ impl PromiseReactionJob {
                     }
                 }
             }
+            PromiseReactionHandler::PromiseAll {
+                result_promise: _,
+                remaining_unresolved_promise_count: _,
+                result_array: _,
+            } => {
+                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        // d.i.1. Let handlerResult be NormalCompletion(argument).
+                        (Ok(argument), capability)
+                    }
+                    PromiseReactionType::Reject => {
+                        // d.ii.1. Let handlerResult be ThrowCompletion(argument).
+                        (Err(JsError::new(argument)), capability)
+                    }
+                }
+            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -348,7 +365,8 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::AsyncFromSyncIteratorClose(_)
         | PromiseReactionHandler::AsyncModule(_)
         | PromiseReactionHandler::DynamicImport { .. }
-        | PromiseReactionHandler::DynamicImportEvaluate { .. } => None,
+        | PromiseReactionHandler::DynamicImportEvaluate { .. }
+        | PromiseReactionHandler::PromiseAll { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
