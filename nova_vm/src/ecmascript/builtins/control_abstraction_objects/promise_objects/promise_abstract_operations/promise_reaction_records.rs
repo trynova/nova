@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::{
-            async_generator_objects::AsyncGenerator,
+            Array, async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
         },
@@ -68,6 +68,11 @@ pub(crate) enum PromiseReactionHandler<'a> {
         promise: Promise<'a>,
         module: AbstractModule<'a>,
     },
+    PromiseAll {
+        result_promise: Promise<'a>,
+        remaining_unresolved_promise_count: usize,
+        result_array: Array<'a>,
+    },
     Empty,
 }
 
@@ -84,6 +89,14 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             | Self::DynamicImportEvaluate { promise, module } => {
                 promise.mark_values(queues);
                 module.mark_values(queues);
+            }
+            Self::PromiseAll {
+                result_promise: promise,
+                remaining_unresolved_promise_count: _,
+                result_array,
+            } => {
+                promise.mark_values(queues);
+                result_array.mark_values(queues);
             }
             Self::Empty => {}
         }
@@ -103,6 +116,14 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             | Self::DynamicImportEvaluate { promise, module } => {
                 promise.sweep_values(compactions);
                 module.sweep_values(compactions);
+            }
+            Self::PromiseAll {
+                result_promise: promise,
+                remaining_unresolved_promise_count: _,
+                result_array,
+            } => {
+                promise.sweep_values(compactions);
+                result_array.sweep_values(compactions);
             }
             Self::Empty => {}
         }
