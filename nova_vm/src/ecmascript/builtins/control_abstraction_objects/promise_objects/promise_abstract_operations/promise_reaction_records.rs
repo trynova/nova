@@ -70,7 +70,7 @@ pub(crate) enum PromiseReactionHandler<'a> {
     },
     PromiseAll {
         result_promise: Promise<'a>,
-        remaining_unresolved_promise_count: usize,
+        remaining_unresolved_promise_count: u32,
         result_array: Array<'a>,
     },
     Empty,
