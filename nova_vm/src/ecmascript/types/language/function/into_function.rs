@@ -6,7 +6,8 @@ use super::Function;
 use crate::{
     ecmascript::{
         builtins::ordinary::{
-            ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_set,
+            ordinary_delete, ordinary_get_own_property, ordinary_own_property_keys, ordinary_set,
+            ordinary_try_get, ordinary_try_set,
         },
         execution::{Agent, JsResult},
         types::{
@@ -91,9 +92,9 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
     if let Some(backing_object) = func.get_backing_object(agent) {
         ordinary_get_own_property(
             agent,
+            func.into_object().bind(gc),
             backing_object,
             property_key,
-            func.into_object().bind(gc),
         )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Some(PropertyDescriptor {
@@ -182,7 +183,14 @@ pub(crate) fn function_try_get<'gc, 'a>(
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<Value<'gc>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.try_get(agent, property_key, receiver, gc)
+        ordinary_try_get(
+            agent,
+            func.into_object(),
+            backing_object,
+            property_key,
+            receiver,
+            gc,
+        )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         TryResult::Continue(func.get_length(agent).into())
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
@@ -277,12 +285,12 @@ pub(crate) fn function_internal_delete<'a>(
     gc: NoGcScope,
 ) -> bool {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        unwrap_try(backing_object.try_delete(agent, property_key, gc))
+        ordinary_delete(agent, func.into_object(), backing_object, property_key, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         let backing_object = func.create_backing_object(agent);
-        unwrap_try(backing_object.try_delete(agent, property_key, gc))
+        ordinary_delete(agent, func.into_object(), backing_object, property_key, gc)
     } else {
         // Non-existing property
         true

@@ -388,7 +388,7 @@ impl<'a> PropertyStorage<'a> {
         }
     }
 
-    pub fn remove(self, agent: &mut Agent, key: PropertyKey<'a>) {
+    pub fn remove(self, agent: &mut Agent, o: Object, key: PropertyKey<'a>) {
         let object = self.0;
 
         let PropertyStorageMut {
@@ -406,14 +406,16 @@ impl<'a> PropertyStorage<'a> {
             // No match; nothing to delete.
             return;
         };
-        let old_len = keys.len();
-        let new_len = old_len.wrapping_sub(1);
+        // Note: keys can only go up to 2^32.
+        let index = index as u32;
+        let old_len = keys.len() as u32;
+        let new_len = old_len - 1;
         if index == new_len {
             // Removing last property.
-            values[index] = None;
+            values[index as usize] = None;
             if let Entry::Occupied(mut e) = descriptors {
                 let descs = e.get_mut();
-                descs.remove(&(index as u32));
+                descs.remove(&index);
                 if descs.is_empty() {
                     e.remove();
                 }
@@ -421,7 +423,7 @@ impl<'a> PropertyStorage<'a> {
         } else {
             // Removing indexed property.
             // First overwrite the noted index with subsequent values.
-            values.copy_within(index.wrapping_add(1).., index);
+            values.copy_within((index as usize) + 1.., index as usize);
             *values.last_mut().unwrap() = None;
             // Then move our descriptors if found.
             if let Entry::Occupied(mut e) = descriptors {
@@ -439,11 +441,20 @@ impl<'a> PropertyStorage<'a> {
                 }
             }
         }
-        let new_shape = object
-            .get_shape(agent)
-            .get_shape_with_removal(agent, index as u32);
-        agent[object].set_shape(new_shape);
-        agent[object].set_len(new_len as u32);
+        let old_shape = object.get_shape(agent);
+        let new_shape = old_shape.get_shape_with_removal(agent, index);
+        agent[object].set_len(new_len);
+        if old_shape == new_shape {
+            // Shape did not change with removal: this is an intrinsic shape!
+            // We must invalidate any property lookup cahces associated with
+            // the removed and subsequent property indexes.
+            agent
+                .heap
+                .caches
+                .invalidate_caches_on_intrinsic_shape_property_removal(o, old_shape, index);
+        } else {
+            agent[object].set_shape(new_shape);
+        }
     }
 }
 

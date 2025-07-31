@@ -8,6 +8,8 @@ pub mod shape;
 use core::ops::{Index, IndexMut};
 use std::{collections::hash_map::Entry, vec};
 
+use caches::CacheToPopulate;
+
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::{
         try_create_data_property, try_get, try_get_function_realm,
@@ -198,21 +200,29 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property<'a>(
     agent: &mut Agent,
+    object: Object<'a>,
     backing_object: OrdinaryObject<'a>,
     property_key: PropertyKey,
-    object: Object<'a>,
 ) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let (x, index) = backing_object.property_storage().get(agent, property_key)?;
+    let (x, offset) = backing_object.property_storage().get(agent, property_key)?;
 
-    if let Some((target_object, cache)) = agent.heap.caches.take_current_cache_to_populate() {
-        let is_target = object == target_object;
-        let shape = backing_object.get_shape(agent);
-        if is_target {
-            cache.insert_lookup_offset(agent, shape, index);
+    if let Some(CacheToPopulate {
+        receiver,
+        cache,
+        key: _,
+        shape,
+    }) = agent
+        .heap
+        .caches
+        .take_current_cache_to_populate(property_key)
+    {
+        let is_receiver = object == receiver;
+        if is_receiver {
+            cache.insert_lookup_offset(agent, shape, offset);
         } else {
-            cache.insert_prototype_lookup_offset(agent, shape, index, object);
+            // cache.insert_prototype_lookup_offset(agent, shape, offset, object);
         }
     }
 
@@ -670,17 +680,24 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
 pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    object: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<Value<'gc>> {
+    let object = object.bind(gc);
+    let backing_object = backing_object.bind(gc);
+    let property_key = property_key.bind(gc);
+    let receiver = receiver.bind(gc);
+
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
+    let Some(descriptor) = ordinary_get_own_property(agent, object, backing_object, property_key)
+    else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.try_get_prototype_of(agent, gc)?;
+        let parent = backing_object.try_get_prototype_of(agent, gc)?;
 
         // b. If parent is null, return undefined.
         let Some(parent) = parent else {
@@ -1113,13 +1130,13 @@ fn ordinary_set_with_own_descriptor<'a>(
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    o: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     gc: NoGcScope,
 ) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    // We're guaranteed to always get a result here.
-    let descriptor = unwrap_try(object.try_get_own_property(agent, property_key, gc));
+    let descriptor = ordinary_get_own_property(agent, o, backing_object, property_key).bind(gc);
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {
@@ -1129,7 +1146,9 @@ pub(crate) fn ordinary_delete(
     // 3. If desc.[[Configurable]] is true, then
     if let Some(true) = descriptor.configurable {
         // a. Remove the own property with name P from O.
-        object.property_storage().remove(agent, property_key);
+        backing_object
+            .property_storage()
+            .remove(agent, o, property_key);
 
         // b. Return true.
         return true;

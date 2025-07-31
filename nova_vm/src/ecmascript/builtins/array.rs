@@ -47,6 +47,8 @@ use crate::{
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
+use super::ordinary::{ordinary_delete, ordinary_get_own_property, ordinary_try_get};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array<'a>(ArrayIndex<'a>);
 
@@ -183,9 +185,16 @@ impl<'a> Array<'a> {
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
-        if let Some(object_index) = self.get_backing_object(agent) {
+        if let Some(backing_object) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
-            object_index.try_get(agent, property_key, receiver, gc)
+            ordinary_try_get(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                receiver,
+                gc,
+            )
         } else {
             // If backing object doesn't exist, then we might still have
             // properties in the prototype.
@@ -352,11 +361,15 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
                 if let Some(backing_object) = self.get_backing_object(agent) {
-                    return TryResult::Continue(unwrap_try(backing_object.try_get_own_property(
-                        agent,
-                        property_key,
-                        gc,
-                    )));
+                    return TryResult::Continue(
+                        ordinary_get_own_property(
+                            agent,
+                            self.into_object(),
+                            backing_object,
+                            property_key,
+                        )
+                        .bind(gc),
+                    );
                 } else {
                     return TryResult::Continue(None);
                 }
@@ -396,11 +409,10 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 ..Default::default()
             }))
         } else if let Some(backing_object) = array_data.object_index {
-            TryResult::Continue(unwrap_try(backing_object.try_get_own_property(
-                agent,
-                property_key,
-                gc,
-            )))
+            TryResult::Continue(
+                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
+                    .bind(gc),
+            )
         } else {
             TryResult::Continue(None)
         }
@@ -691,8 +703,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if !ARRAY_INDEX_RANGE.contains(&index) {
                 return TryResult::Continue(
                     self.get_backing_object(agent)
-                        .map(|object_index| {
-                            unwrap_try(object_index.try_delete(agent, property_key, gc))
+                        .map(|backing_object| {
+                            ordinary_delete(
+                                agent,
+                                self.into_object(),
+                                backing_object,
+                                property_key,
+                                gc,
+                            )
                         })
                         .unwrap_or(true),
                 );
@@ -722,8 +740,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         } else {
             TryResult::Continue(
                 self.get_backing_object(agent)
-                    .map(|object_index| {
-                        unwrap_try(object_index.try_delete(agent, property_key, gc))
+                    .map(|backing_object| {
+                        ordinary_delete(agent, self.into_object(), backing_object, property_key, gc)
                     })
                     .unwrap_or(true),
             )

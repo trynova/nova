@@ -133,7 +133,7 @@ unsafe impl Bindable for Module<'_> {
 impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        unreachable!()
+        None
     }
 
     #[inline(always)]

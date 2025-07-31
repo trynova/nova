@@ -176,9 +176,9 @@ where
         TryResult::Continue(match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_get_own_property(
                 agent,
+                self.into_object().bind(gc),
                 backing_object,
                 property_key,
-                self.into_object().bind(gc),
             ),
             None => None,
         })
@@ -327,9 +327,14 @@ where
     ) -> TryResult<Value<'gc>> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_try_get(agent, backing_object, property_key, receiver, gc)
-            }
+            Some(backing_object) => ordinary_try_get(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                receiver,
+                gc,
+            ),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
@@ -426,7 +431,9 @@ where
     ) -> TryResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_delete(agent, backing_object, property_key, gc),
+            Some(backing_object) => {
+                ordinary_delete(agent, self.into_object(), backing_object, property_key, gc)
+            }
             None => true,
         })
     }

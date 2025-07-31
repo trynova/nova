@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{ Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{TryResult};
+use crate::engine::TryResult;
 use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
 use crate::{
     ecmascript::{

@@ -1035,7 +1035,8 @@ impl Vm {
                     reference.is_static_property_reference() && !is_super_reference(&reference)
                 );
 
-                if let Ok(object) = Object::try_from(reference.base_value())
+                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
+                    && !object.is_proxy()
                     && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
                 {
                     let shape = backing_object.get_shape(agent);
@@ -1100,11 +1101,13 @@ impl Vm {
                         }
                         return Ok(());
                     }
-                }
 
-                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
-                {
-                    agent.heap.caches.set_current_cache(object, cache);
+                    agent.heap.caches.set_current_cache(
+                        object,
+                        cache,
+                        reference.referenced_name_property_key(),
+                        shape,
+                    );
                     true
                 } else {
                     false
@@ -1114,10 +1117,13 @@ impl Vm {
                     try_get_value(agent, &reference, gc.nogc())
                 {
                     if set_current_cache {
-                        let _ = agent.heap.caches.take_current_cache_to_populate();
+                        agent.heap.caches.clear_current_cache_to_populate();
                     }
                     result.unbind()
                 } else {
+                    if set_current_cache {
+                        agent.heap.caches.clear_current_cache_to_populate();
+                    }
                     let reference = reference.unbind();
                     with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc).unbind()
                 };

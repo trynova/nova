@@ -428,8 +428,8 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             }
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
-            TryResult::Continue(o.get_backing_object(agent).and_then(|object| {
-                ordinary_get_own_property(agent, object, property_key, o.into_object())
+            TryResult::Continue(o.get_backing_object(agent).and_then(|backing_o| {
+                ordinary_get_own_property(agent, o.into_object(), backing_o, property_key)
             }))
         }
     }
@@ -624,9 +624,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
-                Some(backing_object) => {
-                    ordinary_try_get(agent, backing_object, property_key, receiver, gc)
-                }
+                Some(backing_object) => ordinary_try_get(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    receiver,
+                    gc,
+                ),
                 None => {
                     // a. Let parent be ? O.[[GetPrototypeOf]]().
                     let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
@@ -779,10 +784,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             TryResult::Continue(numeric_index.is_none())
         } else {
             // 2. Return ! OrdinaryDelete(O, P).
-            TryResult::Continue(
-                self.get_backing_object(agent)
-                    .is_none_or(|object| ordinary_delete(agent, object, property_key, gc)),
-            )
+            TryResult::Continue(self.get_backing_object(agent).is_none_or(|object| {
+                ordinary_delete(agent, self.into_object(), object, property_key, gc)
+            }))
         }
     }
 
