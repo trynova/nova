@@ -261,7 +261,8 @@ pub(crate) fn ordinary_get_own_property<'a>(
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    o: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
     gc: NoGcScope,
@@ -269,19 +270,20 @@ pub(crate) fn ordinary_define_own_property(
     // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
     // meaning that we know that this method cannot call into JavaScript.
     // 1. Let current be ! O.[[GetOwnProperty]](P).
-    let current = unwrap_try(object.try_get_own_property(agent, property_key, gc));
+    let current = ordinary_get_own_property(agent, o, backing_object, property_key);
 
     // 2. Let extensible be ! IsExtensible(O).
-    let extensible = object.internal_extensible(agent);
+    let extensible = backing_object.internal_extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
     validate_and_apply_property_descriptor(
         agent,
-        Some(object),
+        Some((o, backing_object)),
         property_key,
         extensible,
         descriptor,
         current,
+        gc,
     )
 }
 
@@ -301,17 +303,19 @@ pub(crate) fn is_compatible_property_descriptor(
         extensible,
         descriptor,
         current,
+        gc,
     )
 }
 
 /// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
-    object: Option<OrdinaryObject>,
+    o: Option<(Object, OrdinaryObject)>,
     property_key: PropertyKey,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Assert: IsPropertyKey(P) is true.
 
@@ -323,7 +327,7 @@ fn validate_and_apply_property_descriptor(
         }
 
         // b. If O is undefined, return true.
-        let Some(object) = object else {
+        let Some((o, backing_object)) = o else {
             return true;
         };
 
@@ -333,8 +337,9 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     get: descriptor.get,
@@ -343,6 +348,7 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
                 },
+                gc,
             )
         }
         // d. Else,
@@ -351,8 +357,9 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
@@ -361,6 +368,7 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
                 },
+                gc,
             )
         }
 
@@ -445,7 +453,7 @@ fn validate_and_apply_property_descriptor(
     }
 
     // 6. If O is not undefined, then
-    if let Some(object) = object {
+    if let Some((o, backing_object)) = o {
         // a. If IsDataDescriptor(current) is true and IsAccessorDescriptor(Desc) is true, then
         if current.is_data_descriptor() && descriptor.is_accessor_descriptor() {
             // i. If Desc has a [[Configurable]] field, let configurable be Desc.[[Configurable]];
@@ -465,8 +473,9 @@ fn validate_and_apply_property_descriptor(
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     get: descriptor.get,
@@ -475,6 +484,7 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(configurable),
                     ..Default::default()
                 },
+                gc,
             );
         }
         // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
@@ -502,8 +512,9 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
@@ -512,14 +523,16 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(configurable),
                     ..Default::default()
                 },
+                gc,
             );
         }
         // c. Else,
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     value: descriptor.value.or(current.value),
@@ -529,6 +542,7 @@ fn validate_and_apply_property_descriptor(
                     enumerable: descriptor.enumerable.or(current.enumerable),
                     configurable: descriptor.configurable.or(current.configurable),
                 },
+                gc,
             );
         }
     }

@@ -10,6 +10,7 @@ use ahash::AHashMap;
 use crate::{
     Heap,
     ecmascript::{
+        builtins::ordinary::caches::Caches,
         execution::{Agent, JsResult, PrivateField, RealmRecord, agent::ExceptionType},
         types::{IntoValue, PrivateName, PropertyDescriptor, Value},
     },
@@ -315,7 +316,14 @@ impl<'a> PropertyStorage<'a> {
         })
     }
 
-    pub fn set(self, agent: &mut Agent, key: PropertyKey<'a>, descriptor: PropertyDescriptor<'a>) {
+    pub fn set(
+        self,
+        agent: &mut Agent,
+        o: Object<'a>,
+        key: PropertyKey<'a>,
+        descriptor: PropertyDescriptor<'a>,
+        gc: NoGcScope,
+    ) {
         let object = self.0;
 
         let value = descriptor.value;
@@ -331,19 +339,19 @@ impl<'a> PropertyStorage<'a> {
                 .iter()
                 .enumerate()
                 .find(|(_, k)| **k == key)
-                .map(|res| res.0);
+                .map(|res| res.0 as u32);
             if let Some(index) = result {
                 // Mutating existing property.
-                let value_entry = values.get_mut(index).unwrap();
+                let value_entry = values.get_mut(index as usize).unwrap();
                 *value_entry = value.unbind();
                 match (descriptors, element_descriptor) {
                     (e, Some(element_descriptor)) => {
                         let e = e.or_insert_with(|| AHashMap::with_capacity(1));
-                        e.insert(index as u32, element_descriptor.unbind());
+                        e.insert(index, element_descriptor.unbind());
                     }
                     (Entry::Occupied(mut e), None) => {
                         let descs = e.get_mut();
-                        descs.remove(&(index as u32));
+                        descs.remove(&index);
                         if descs.is_empty() {
                             e.remove();
                         }
@@ -357,15 +365,18 @@ impl<'a> PropertyStorage<'a> {
             0
         };
         let new_len = cur_len.checked_add(1).unwrap();
-        let new_shape = object.get_shape(agent).get_child_shape(agent, key);
+        let old_shape = object.get_shape(agent);
+        let new_shape = old_shape.get_child_shape(agent, key);
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
             + if element_descriptor.is_some() {
                 core::mem::size_of::<(u32, ElementDescriptor)>()
             } else {
                 0
             };
+        if new_shape != old_shape {
+            agent[object].set_shape(new_shape);
+        }
         object.reserve(agent, new_len);
-        agent[object].set_shape(new_shape);
         agent[object].set_len(new_len);
         let PropertyStorageMut {
             keys: _,
@@ -385,6 +396,13 @@ impl<'a> PropertyStorage<'a> {
         if let Some(element_descriptor) = element_descriptor {
             let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
             descriptors.insert(cur_len, element_descriptor.unbind());
+        }
+        if old_shape == new_shape {
+            // Intrinsic shape! Adding a new property to an intrinsic needs to
+            // invalidate any NOT_FOUND caches for the added key.
+            Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+                agent, o, old_shape, key, cur_len, gc,
+            );
         }
     }
 

@@ -158,7 +158,7 @@ impl<'a> InternalSlots<'a> for Module<'a> {
 
     #[inline(always)]
     fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
-        unreachable!()
+        None
     }
 
     #[inline(always)]

@@ -272,6 +272,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             .unwrap_or_else(|| self.create_backing_object(agent));
         TryResult::Continue(ordinary_define_own_property(
             agent,
+            self.into_object(),
             backing_object,
             property_key,
             property_descriptor,

@@ -9,9 +9,12 @@ use hashbrown::{HashTable, hash_table::Entry};
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{Object, PropertyKey},
+        types::{InternalMethods, Object, PropertyKey},
     },
-    engine::context::{Bindable, GcToken, NoGcScope},
+    engine::{
+        TryResult,
+        context::{Bindable, GcToken, NoGcScope},
+    },
     heap::{
         CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, PropertyKeyHeap, WeakReference,
         WorkQueues, sweep_heap_vector_values,
@@ -48,6 +51,151 @@ impl<'a> Caches<'a> {
             property_lookup_cache_prototypes: Vec::with_capacity(capacity),
             // property_lookup_cache_stack: Vec::with_capacity(64),
             current_cache_to_populate: None,
+        }
+    }
+
+    /// Invalidate property lookup caches on intrinsic shape property addition.
+    ///
+    /// When such a additions happens, it means that:
+    /// * Caches which have failed to find such the key on the intrinsic object
+    ///   itself or on any shape that uses the intrinsic object as a prototype
+    ///   must be invalidated.
+    /// * Caches which have found a found such the key in the intrinsic
+    ///   object's prototype chain and pass through the intrinsic object must
+    ///   change to point to the intrinsic object.
+    pub(crate) fn invalidate_caches_on_intrinsic_shape_property_addition(
+        agent: &mut Agent,
+        o: Object,
+        shape: ObjectShape,
+        key: PropertyKey,
+        addition_index: u32,
+        gc: NoGcScope,
+    ) {
+        let o = o.unbind();
+        let shape = shape.unbind();
+        let key = key.unbind();
+        let addition_index = PropertyOffset::new(addition_index);
+        let hash = key.heap_hash(agent);
+        let Some((_, WeakReference(cache))) = agent
+            .heap
+            .caches
+            .property_lookup_cache_lookup_table
+            .find(hash, |(k, _)| k == &key)
+        else {
+            // Couldn't find caches for this key; nothing to invalidate.
+            return;
+        };
+        let cache = *cache;
+        // Find our invalidated Object's prototypes. Any caches targeting these
+        // must be checked along with the NOT_FOUND caches.
+        let mut prototype_chain = if let Some(proto) = shape.get_prototype(agent) {
+            let mut protos = vec![proto];
+            let mut proto = proto.try_get_prototype_of(agent, gc);
+            while let TryResult::Continue(Some(p)) = proto {
+                protos.push(p);
+                proto = p.try_get_prototype_of(agent, gc);
+            }
+            protos
+        } else {
+            vec![]
+        };
+        prototype_chain.sort();
+        // Find the possible invalidated cache shapes.
+        let affected_shapes = {
+            let mut cache = cache;
+            let mut shapes = vec![];
+            let caches = &agent.heap.caches.property_lookup_caches;
+            loop {
+                let caches = &caches[cache.get_index()];
+                for s in caches.shapes.iter() {
+                    if let Some(s) = s {
+                        shapes.push(*s);
+                    }
+                }
+                if let Some(next) = caches.next {
+                    cache = next;
+                    continue;
+                }
+                break;
+            }
+            shapes.sort();
+
+            fn prototype_chain_includes_object(
+                agent: &mut Agent,
+                prototype: Option<Object>,
+                object: Object,
+                gc: NoGcScope,
+            ) -> bool {
+                let Some(prototype) = prototype else {
+                    return false;
+                };
+                if prototype == object {
+                    true
+                } else if let TryResult::Continue(prototype) =
+                    prototype.try_get_prototype_of(agent, gc)
+                {
+                    prototype_chain_includes_object(agent, prototype, object, gc)
+                } else {
+                    false
+                }
+            }
+
+            // Then filter the shapes to only those that have our intrinsic
+            // object in their prototype chain.
+            shapes
+                .retain(|s| prototype_chain_includes_object(agent, s.get_prototype(agent), o, gc));
+            shapes
+        };
+        let mut cache = cache;
+        let caches = &mut agent.heap.caches.property_lookup_caches;
+        let prototypes = &mut agent.heap.caches.property_lookup_cache_prototypes;
+        loop {
+            let caches = &mut caches[cache.get_index()];
+            let prototypes = &mut prototypes[cache.get_index()];
+            for ((s, offset), proto) in caches
+                .shapes
+                .iter_mut()
+                .zip(caches.offsets.iter_mut())
+                .zip(prototypes.prototypes.iter_mut())
+                .filter(|((s, offset), proto)| {
+                    // If the cache is for an affected shape, and...
+                    s.as_ref()
+                        .is_some_and(|s| affected_shapes.binary_search(s).is_ok())
+                        && (
+                            // It is cached as unfound, or
+                            offset.is_not_found()
+                            // It is cached as matching a property in our
+                            // prototype chain...
+                            || proto
+                                .as_ref()
+                                .is_some_and(|p| prototype_chain.binary_search(p).is_ok())
+                        )
+                })
+            {
+                // ...then the cache is invalid: our addition means that the
+                // cache should now point to our object!
+
+                let Some(addition_index) = addition_index else {
+                    // We cannot add this index; we have to remove the cache.
+                    *s = None;
+                    *offset = PropertyOffset(0);
+                    *proto = None;
+                    continue;
+                };
+
+                *offset = addition_index;
+                if s.as_mut().unwrap() == &shape {
+                    // We remember this property lookup on our object itself.
+                    *proto = None;
+                } else {
+                    *proto = Some(o);
+                }
+            }
+            if let Some(next) = caches.next {
+                cache = next;
+                continue;
+            }
+            break;
         }
     }
 

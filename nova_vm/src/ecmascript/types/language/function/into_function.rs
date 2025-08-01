@@ -6,8 +6,8 @@ use super::Function;
 use crate::{
     ecmascript::{
         builtins::ordinary::{
-            ordinary_delete, ordinary_get_own_property, ordinary_own_property_keys, ordinary_set,
-            ordinary_try_get, ordinary_try_set,
+            ordinary_define_own_property, ordinary_delete, ordinary_get_own_property,
+            ordinary_own_property_keys, ordinary_set, ordinary_try_get, ordinary_try_set,
         },
         execution::{Agent, JsResult},
         types::{
@@ -127,7 +127,14 @@ pub(crate) fn function_internal_define_own_property<'a>(
     let backing_object = func
         .get_backing_object(agent)
         .unwrap_or_else(|| func.create_backing_object(agent));
-    unwrap_try(backing_object.try_define_own_property(agent, property_key, property_descriptor, gc))
+    ordinary_define_own_property(
+        agent,
+        func.into_object(),
+        backing_object,
+        property_key,
+        property_descriptor,
+        gc,
+    )
 }
 
 pub(crate) fn function_try_has_property<'a>(
