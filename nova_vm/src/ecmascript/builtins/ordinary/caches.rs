@@ -469,6 +469,11 @@ impl<'a> PropertyLookupCache<'a> {
                     .unwrap();
                 (Some(offset.get_property_offset()), Some(prototype))
             } else {
+                debug_assert!(
+                    caches.property_lookup_cache_prototypes[self.get_index()].prototypes
+                        [i as usize]
+                        .is_none()
+                );
                 (Some(offset.get_property_offset()), None)
             });
         }
@@ -531,6 +536,7 @@ impl<'a> PropertyLookupCache<'a> {
         loop {
             let (record, prototypes) = cache.get_mut(caches);
             if let Some(i) = record.insert(shape, offset) {
+                debug_assert!(offset.is_prototype_property());
                 let previous = prototypes.prototypes[i as usize].replace(prototype.unbind());
                 debug_assert!(previous.is_none());
                 return;
@@ -710,7 +716,13 @@ impl PropertyOffset {
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
     pub(crate) fn new_prototype(offset: u32) -> Option<Self> {
-        Some(Self(i16::try_from(offset).ok()?.neg()))
+        let offset = i16::try_from(offset).ok()?.neg().checked_sub(1)?;
+        if offset == i16::MIN {
+            // This would mean NOT_FOUND, we cannot use it as a prototype
+            // offset.
+            return None;
+        }
+        Some(Self(offset))
     }
 
     /// Returns true if the property was not found on the Object with this
@@ -730,7 +742,11 @@ impl PropertyOffset {
     #[inline(always)]
     pub(crate) fn get_property_offset(self) -> u16 {
         debug_assert!(!self.is_not_found());
-        self.0.abs() as u16
+        if self.0.is_negative() {
+            (self.0 + 1).abs() as u16
+        } else {
+            self.0 as u16
+        }
     }
 }
 

@@ -224,11 +224,11 @@ pub(crate) fn ordinary_get_own_property<'a>(
         .caches
         .take_current_cache_to_populate(property_key)
     {
-        let is_receiver = object == receiver;
+        let is_receiver = Some(backing_object) == receiver.get_backing_object(agent);
         if is_receiver {
             cache.insert_lookup_offset(agent, shape, offset);
         } else {
-            // cache.insert_prototype_lookup_offset(agent, shape, offset, object);
+            cache.insert_prototype_lookup_offset(agent, shape, offset, object);
         }
     }
 
