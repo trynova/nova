@@ -170,6 +170,16 @@ pub(crate) fn ordinary_set_prototype_of(
     }
     // i. Set done to true.
 
+    // For caching reasons, prototype objects must always have "intrinsic"
+    // shapes. We have to ensure the to-be prototype object has one now.
+    if let Some(prototype) = prototype {
+        if !prototype.is_proxy() && !prototype.is_module() {
+            prototype
+                .get_or_create_backing_object(agent)
+                .make_intrinsic(agent);
+        }
+    }
+
     // 8. Set O.[[Prototype]] to V.
     let old_shape = object.get_backing_object(agent).map(|o| o.get_shape(agent));
     object.internal_set_prototype(agent, prototype);
@@ -1470,6 +1480,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     };
 
     if let Some(prototype) = prototype {
+        if !prototype.is_proxy() && !prototype.is_module() {
+            prototype
+                .get_or_create_backing_object(agent)
+                .make_intrinsic(agent);
+        }
         object.internal_set_prototype(agent, Some(prototype));
     }
 

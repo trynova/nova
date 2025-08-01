@@ -204,6 +204,11 @@ pub enum Object<'a> {
 }
 
 impl Object<'_> {
+    /// Returns true if this Object is a Module.
+    pub fn is_module(self) -> bool {
+        matches!(self, Object::Module(_))
+    }
+
     /// Returns true if this Object is a Proxy.
     pub fn is_proxy(self) -> bool {
         matches!(self, Object::Proxy(_))
@@ -250,6 +255,19 @@ impl<'a> OrdinaryObject<'a> {
 
     pub(crate) fn get_shape(self, agent: &Agent) -> ObjectShape<'a> {
         agent[self].get_shape()
+    }
+
+    /// Turn an OrdinaryObject's Object Shape into an intrinsic.
+    ///
+    /// For objects with an intrinsic shape, this is a no-op.
+    pub(crate) fn make_intrinsic(self, agent: &mut Agent) {
+        let shape = self.get_shape(agent);
+        if shape.is_intrinsic(agent) {
+            // Already an intrinsic shape, nothing to do.
+            return;
+        }
+        let new_shape = shape.make_intrinsic(agent);
+        agent[self].set_shape(new_shape);
     }
 
     pub(crate) unsafe fn try_get_property_by_offset(

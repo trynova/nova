@@ -601,6 +601,34 @@ impl<'a> ObjectShape<'a> {
         shape
     }
 
+    /// Create an intrinsic copy of the given Object Shape.
+    pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Self {
+        let properties_count = self.get_length(agent);
+        let prototype = self.get_prototype(agent);
+        // Note: intrinsics should always allocate a keys storage.
+        let (cap, index) = if properties_count == 0 {
+            agent
+                .heap
+                .elements
+                .allocate_keys_with_capacity(properties_count.max(1) as usize)
+        } else {
+            let cap = self.get_cap(agent);
+            let keys = self.get_keys(agent);
+            agent.heap.elements.copy_keys_with_capacity(
+                properties_count as usize,
+                cap,
+                keys,
+                properties_count,
+            )
+        };
+        agent.heap.create(ObjectShapeRecord::create(
+            prototype,
+            index,
+            cap,
+            properties_count as usize,
+        ))
+    }
+
     /// Create basic shapes for a new Realm's intrinsics.
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let prototype = agent

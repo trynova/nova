@@ -74,7 +74,8 @@ impl<'a> Caches<'a> {
         let o = o.unbind();
         let shape = shape.unbind();
         let key = key.unbind();
-        let addition_index = PropertyOffset::new(addition_index);
+        let self_index = PropertyOffset::new(addition_index);
+        let prototype_index = PropertyOffset::new_prototype(addition_index);
         let hash = key.heap_hash(agent);
         let Some((_, WeakReference(cache))) = agent
             .heap
@@ -152,6 +153,12 @@ impl<'a> Caches<'a> {
                     }
                 })
             {
+                let self_cache = s.as_mut().unwrap() == &shape;
+                let addition_index = if self_cache {
+                    self_index
+                } else {
+                    prototype_index
+                };
                 let Some(addition_index) = addition_index else {
                     // We cannot add this index; we have to remove the cache.
                     *s = None;
@@ -742,7 +749,7 @@ impl PropertyOffset {
     #[inline(always)]
     pub(crate) fn get_property_offset(self) -> u16 {
         debug_assert!(!self.is_not_found());
-        if self.0.is_negative() {
+        if self.is_prototype_property() {
             (self.0 + 1).abs() as u16
         } else {
             self.0 as u16
