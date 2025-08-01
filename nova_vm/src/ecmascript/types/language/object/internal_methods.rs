@@ -74,12 +74,13 @@ where
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        _gc: NoGcScope,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(ordinary_set_prototype_of(
             agent,
             self.into_object(),
             prototype,
+            gc,
         ))
     }
 

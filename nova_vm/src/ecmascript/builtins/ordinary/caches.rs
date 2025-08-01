@@ -103,15 +103,11 @@ impl<'a> Caches<'a> {
         // Find the possible invalidated cache shapes.
         let affected_shapes = {
             let mut cache = cache;
-            let mut shapes = vec![];
+            let mut shapes: Vec<ObjectShape> = vec![];
             let caches = &agent.heap.caches.property_lookup_caches;
             loop {
                 let caches = &caches[cache.get_index()];
-                for s in caches.shapes.iter() {
-                    if let Some(s) = s {
-                        shapes.push(*s);
-                    }
-                }
+                shapes.extend(caches.shapes.iter().filter_map(|s| s.as_ref()));
                 if let Some(next) = caches.next {
                     cache = next;
                     continue;
@@ -120,30 +116,11 @@ impl<'a> Caches<'a> {
             }
             shapes.sort();
 
-            fn prototype_chain_includes_object(
-                agent: &mut Agent,
-                prototype: Option<Object>,
-                object: Object,
-                gc: NoGcScope,
-            ) -> bool {
-                let Some(prototype) = prototype else {
-                    return false;
-                };
-                if prototype == object {
-                    true
-                } else if let TryResult::Continue(prototype) =
-                    prototype.try_get_prototype_of(agent, gc)
-                {
-                    prototype_chain_includes_object(agent, prototype, object, gc)
-                } else {
-                    false
-                }
-            }
-
             // Then filter the shapes to only those that have our intrinsic
             // object in their prototype chain.
-            shapes
-                .retain(|s| prototype_chain_includes_object(agent, s.get_prototype(agent), o, gc));
+            shapes.retain(|s| {
+                s == &shape || prototype_chain_includes_object(agent, s.get_prototype(agent), o, gc)
+            });
             shapes
         };
         let mut cache = cache;
@@ -152,29 +129,29 @@ impl<'a> Caches<'a> {
         loop {
             let caches = &mut caches[cache.get_index()];
             let prototypes = &mut prototypes[cache.get_index()];
-            for ((s, offset), proto) in caches
+            for (s, offset, proto) in caches
                 .shapes
                 .iter_mut()
                 .zip(caches.offsets.iter_mut())
                 .zip(prototypes.prototypes.iter_mut())
-                .filter(|((s, offset), proto)| {
+                .filter_map(|((s, offset), proto)| {
                     // If the cache is for an affected shape, and...
-                    s.as_ref()
-                        .is_some_and(|s| affected_shapes.binary_search(s).is_ok())
-                        && (
-                            // It is cached as unfound, or
-                            offset.is_not_found()
-                            // It is cached as matching a property in our
-                            // prototype chain...
-                            || proto
-                                .as_ref()
-                                .is_some_and(|p| prototype_chain.binary_search(p).is_ok())
-                        )
+                    affected_shapes.binary_search(s.as_ref()?).ok()?;
+                    if
+                    // ...it is cached as unfound, or
+                    offset.is_not_found() ||
+                    // ...it is cached as matching a property in our
+                    // prototype chain...
+                    prototype_chain.binary_search(proto.as_ref()?).is_ok()
+                    {
+                        // ...then the cache is invalid: our addition means
+                        // that the cache should now point to our object!
+                        Some((s, offset, proto))
+                    } else {
+                        None
+                    }
                 })
             {
-                // ...then the cache is invalid: our addition means that the
-                // cache should now point to our object!
-
                 let Some(addition_index) = addition_index else {
                     // We cannot add this index; we have to remove the cache.
                     *s = None;
@@ -207,11 +184,12 @@ impl<'a> Caches<'a> {
     /// * Caches which read properties at a later index from the intrinsic object
     ///   must be shifted down by one.
     pub(crate) fn invalidate_caches_on_intrinsic_shape_property_removal(
-        &mut self,
+        agent: &mut Agent,
         o: Object,
         shape: ObjectShape,
         removal_index: u32,
     ) {
+        let caches = &mut agent.heap.caches;
         let o = o.unbind();
         let shape = shape.unbind();
         let Some(removal_index) = PropertyOffset::new(removal_index) else {
@@ -219,10 +197,10 @@ impl<'a> Caches<'a> {
             return;
         };
         let removal_index = removal_index.get_property_offset();
-        for ((s, offset), proto) in self
+        for ((s, offset), proto) in caches
             .property_lookup_caches
             .iter_mut()
-            .zip(self.property_lookup_cache_prototypes.iter_mut())
+            .zip(caches.property_lookup_cache_prototypes.iter_mut())
             .flat_map(|(cache, prototypes)| {
                 cache
                     .shapes
@@ -250,6 +228,117 @@ impl<'a> Caches<'a> {
                 // absolute value down by one.
                 assert_ne!(property_offset, 0);
                 offset.0 += if offset.0.is_negative() { 1 } else { -1 };
+            }
+        }
+    }
+
+    /// Invalidate property lookup caches on intrinsic shape prototype change.
+    ///
+    /// When such a change happens, it means that:
+    /// * If the new prototype is non-null, then all caches which have failed
+    ///   to find any key in the intrinsic object itself or on any shape that
+    ///   uses the intrinsic object as a prototype must be invalidated (if the
+    ///   new prototype is non-null).
+    /// * If the new prototype is non-null, then all caches with a shape that
+    ///   uses the intrinsic object as a prototype and have found any key in
+    ///   the intrinsic object's old prototype chain must be invalidated.
+    /// * If the new prototype is null, then all caches with a shape that uses
+    ///   the intrinsic object as a prototype and have found any key in the
+    ///   intrinsic object's old prototype chain must change to NOT_FOUND.
+    pub(crate) fn invalidate_caches_on_intrinsic_shape_prototype_change(
+        agent: &mut Agent,
+        o: Object,
+        shape: ObjectShape,
+        old_prototype: Option<Object>,
+        new_prototype: Option<Object>,
+        gc: NoGcScope,
+    ) {
+        // Find our invalidated Object's old prototypes.
+        let mut prototype_chain = if let Some(proto) = old_prototype {
+            let mut protos = vec![proto];
+            let mut proto = proto.try_get_prototype_of(agent, gc);
+            while let TryResult::Continue(Some(p)) = proto {
+                protos.push(p);
+                proto = p.try_get_prototype_of(agent, gc);
+            }
+            protos
+        } else {
+            vec![]
+        };
+        prototype_chain.sort();
+        // Find the possible invalidated cache shapes.
+        let affected_shapes = {
+            let mut shapes = agent
+                .heap
+                .caches
+                .property_lookup_caches
+                .iter()
+                .flat_map(|c| c.shapes.iter())
+                .filter_map(|s| s.as_ref())
+                .cloned()
+                .collect::<Vec<_>>();
+            shapes.sort();
+            shapes.dedup();
+
+            // Then filter the shapes to only those that have our intrinsic
+            // object in their prototype chain.
+            shapes.retain(|s| {
+                s == &shape || prototype_chain_includes_object(agent, s.get_prototype(agent), o, gc)
+            });
+            shapes
+        };
+        for (s, offset, proto) in agent
+            .heap
+            .caches
+            .property_lookup_caches
+            .iter_mut()
+            .zip(
+                agent
+                    .heap
+                    .caches
+                    .property_lookup_cache_prototypes
+                    .iter_mut(),
+            )
+            .flat_map(|(caches, prototypes)| {
+                caches
+                    .shapes
+                    .iter_mut()
+                    .zip(caches.offsets.iter_mut())
+                    .zip(prototypes.prototypes.iter_mut())
+                    .filter_map(|((s, offset), proto)| {
+                        // If the cache is for an affected shape, and...
+                        affected_shapes.binary_search(s.as_ref()?).ok()?;
+                        if
+                        // ...it is cached as unfound and our new prototype is
+                        // non-null, or...
+                        offset.is_not_found() && new_prototype.is_some() ||
+                        // ...it is cached as matching a property in our
+                        // prototype chain...
+                        prototype_chain.binary_search(proto.as_ref()?).is_ok()
+                        {
+                            // ...then the cache is invalid: our prototype
+                            // change means that the cache should invalidate!
+                            Some((s, offset, proto))
+                        } else {
+                            None
+                        }
+                    })
+            })
+        {
+            // ...then the cache is invalid: our prototype change means that
+            // the cache should invalidate!
+
+            if new_prototype.is_some() {
+                // If we assigned a non-null prototype, then all matched caches
+                // invalidate.
+                *s = None;
+                *offset = PropertyOffset(0);
+                *proto = None;
+            } else {
+                // If we assigned a null prototype then all matched caches
+                // should turn to NOT_FOUND.
+                *offset = PropertyOffset::NOT_FOUND;
+                *proto = None;
             }
         }
     }
@@ -291,6 +380,24 @@ impl<'a> Caches<'a> {
 
     pub(crate) fn len(&self) -> usize {
         self.property_lookup_caches.len()
+    }
+}
+
+fn prototype_chain_includes_object(
+    agent: &mut Agent,
+    prototype: Option<Object>,
+    object: Object,
+    gc: NoGcScope,
+) -> bool {
+    let Some(prototype) = prototype else {
+        return false;
+    };
+    if prototype == object {
+        true
+    } else if let TryResult::Continue(prototype) = prototype.try_get_prototype_of(agent, gc) {
+        prototype_chain_includes_object(agent, prototype, object, gc)
+    } else {
+        false
     }
 }
 

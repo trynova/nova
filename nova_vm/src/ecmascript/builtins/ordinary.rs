@@ -8,7 +8,7 @@ pub mod shape;
 use core::ops::{Index, IndexMut};
 use std::{collections::hash_map::Entry, vec};
 
-use caches::CacheToPopulate;
+use caches::{CacheToPopulate, Caches};
 
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::{
@@ -125,6 +125,7 @@ pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
     object: Object,
     prototype: Option<Object>,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
     let current = object.internal_prototype(agent);
@@ -146,37 +147,42 @@ pub(crate) fn ordinary_set_prototype_of(
     // 5. Let p be V.
     let mut p = prototype;
     // 6. Let done be false.
-    let mut done = false;
-
     // 7. Repeat, while done is false,
-    while !done {
-        if let Some(p_inner) = p {
-            // b. Else if SameValue(p, O) is true, then
-            if p_inner == object {
-                // i. Return false.
-                return false;
-            } else {
-                // c. Else,
-                // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
-                //    set done to true.
-                // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
-                // methods. Those are Proxy and Module.
-                if matches!(p_inner, Object::Module(_) | Object::Proxy(_)) {
-                    done = true;
-                } else {
-                    // ii. Else, set p to p.[[Prototype]].
-                    p = p_inner.internal_prototype(agent);
-                }
-            }
+    // a. If p is null, then
+    while let Some(p_inner) = p {
+        // b. Else if SameValue(p, O) is true, then
+        if p_inner == object {
+            // i. Return false.
+            return false;
         } else {
-            // a. If p is null, then
-            // i. Set done to true.
-            done = true;
+            // c. Else,
+            // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
+            //    set done to true.
+            // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
+            // methods. Those are Proxy and Module.
+            if matches!(p_inner, Object::Module(_) | Object::Proxy(_)) {
+                break;
+            } else {
+                // ii. Else, set p to p.[[Prototype]].
+                p = p_inner.internal_prototype(agent);
+            }
         }
     }
+    // i. Set done to true.
 
     // 8. Set O.[[Prototype]] to V.
+    let old_shape = object.get_backing_object(agent).map(|o| o.get_shape(agent));
     object.internal_set_prototype(agent, prototype);
+
+    if let Some(shape) = old_shape
+        && shape.is_intrinsic(agent)
+    {
+        // We changed prototype of an intrinsic object and must invalidate
+        // associated caches.
+        Caches::invalidate_caches_on_intrinsic_shape_prototype_change(
+            agent, object, shape, current, prototype, gc,
+        );
+    }
 
     // 9. Return true.
     true

@@ -107,8 +107,8 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, WorkQueues,
         element_array::{
-            ElementDescriptor, ElementStorageRef, ElementStorageUninit, ElementsVector,
-            PropertyStorageMut, PropertyStorageRef,
+            ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
+            ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
         indexes::ObjectIndex,
     },
@@ -332,6 +332,17 @@ impl<'a> OrdinaryObject<'a> {
         } = &agent.heap;
         let data = &objects[self];
         elements.get_element_storage_raw(data.get_values(), data.get_cap(), data.len())
+    }
+
+    pub(crate) fn get_elements_storage_mut<'b>(
+        self,
+        agent: &'b mut Agent,
+    ) -> ElementStorageMut<'b> {
+        let Heap {
+            elements, objects, ..
+        } = &mut agent.heap;
+        let data = &objects[self];
+        elements.get_element_storage_mut_raw(data.get_values(), data.get_cap(), data.len())
     }
 
     pub(crate) fn get_elements_storage_uninit<'b>(

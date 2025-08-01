@@ -17,7 +17,8 @@ use crate::{
     engine::context::{Bindable, NoGcScope},
     heap::{
         element_array::{
-            ElementDescriptor, ElementStorageUninit, PropertyStorageMut, PropertyStorageRef,
+            ElementDescriptor, ElementStorageMut, ElementStorageUninit, PropertyStorageMut,
+            PropertyStorageRef,
         },
         indexes::ElementIndex,
     },
@@ -373,16 +374,12 @@ impl<'a> PropertyStorage<'a> {
             } else {
                 0
             };
-        if new_shape != old_shape {
-            agent[object].set_shape(new_shape);
-        }
         object.reserve(agent, new_len);
         agent[object].set_len(new_len);
-        let PropertyStorageMut {
-            keys: _,
+        let ElementStorageMut {
             values,
             descriptors,
-        } = object.get_property_storage_mut(agent).unwrap();
+        } = object.get_elements_storage_mut(agent);
         debug_assert!(
             values[cur_len as usize].is_none()
                 && match &descriptors {
@@ -403,6 +400,8 @@ impl<'a> PropertyStorage<'a> {
             Caches::invalidate_caches_on_intrinsic_shape_property_addition(
                 agent, o, old_shape, key, cur_len, gc,
             );
+        } else {
+            agent[object].set_shape(new_shape);
         }
     }
 
@@ -466,10 +465,9 @@ impl<'a> PropertyStorage<'a> {
             // Shape did not change with removal: this is an intrinsic shape!
             // We must invalidate any property lookup cahces associated with
             // the removed and subsequent property indexes.
-            agent
-                .heap
-                .caches
-                .invalidate_caches_on_intrinsic_shape_property_removal(o, old_shape, index);
+            Caches::invalidate_caches_on_intrinsic_shape_property_removal(
+                agent, o, old_shape, index,
+            );
         } else {
             agent[object].set_shape(new_shape);
         }

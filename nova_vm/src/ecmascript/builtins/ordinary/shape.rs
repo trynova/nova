@@ -542,6 +542,13 @@ impl<'a> ObjectShape<'a> {
     ///
     /// > NOTE: This function will create a new Object Shape, or possibly
     /// > multiple ones, if an existing one cannot be found.
+    ///
+    /// ## Cache invalidation
+    ///
+    /// Prototype lookup caches rely on the prototype chain being unchanged.
+    /// When calling this method, the caller should check that they receive a
+    /// new shape and if not (ie. if this shape is intrinsic), they should
+    /// invalidate all property lookup caches related to this shape.
     pub(crate) fn get_shape_with_prototype(
         self,
         agent: &mut Agent,
@@ -550,7 +557,6 @@ impl<'a> ObjectShape<'a> {
         if self.is_intrinsic(agent) {
             // Intrinsic shape; set the prototype field directly.
             self.get_mut(agent).prototype = prototype.unbind();
-            // TODO: must perform invalidation of property lookup caches.
             return self;
         }
         let original_len = self.get_length(agent);
