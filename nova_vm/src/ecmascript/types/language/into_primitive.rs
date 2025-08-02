@@ -20,3 +20,9 @@ where
         self.into()
     }
 }
+
+impl IntoPrimitive<'static> for bool {
+    fn into_primitive(self) -> Primitive<'static> {
+        Primitive::Boolean(self)
+    }
+}

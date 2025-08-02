@@ -19,7 +19,8 @@ use crate::{
     },
     engine::{
         CompileContext, CompileEvaluation, FunctionExpression, Instruction,
-        NamedEvaluationParameter, SendableRef, is_reference,
+        NamedEvaluationParameter, SendableRef,
+        bytecode::bytecode_compiler::compile_expression_get_value,
     },
 };
 use ahash::{AHashMap, AHashSet};
@@ -28,9 +29,10 @@ use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
 use super::{IndexType, is_anonymous_function_definition};
 
-impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<'s> {
+    type Output = ();
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let anonymous_class_name = ctx.name_identifier.take();
 
         // 1. Let env be the LexicalEnvironment of the running execution context.
@@ -102,16 +104,13 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                 // b. NOTE: The running execution context's PrivateEnvironment
                 //    is outerPrivateEnvironment when evaluating ClassHeritage.
                 // c. Let superclassRef be Completion(Evaluation of ClassHeritage).
-                super_class.compile(ctx);
                 // d. Set the running execution context's LexicalEnvironment to env.
                 // Note: We are not following specification properly here:
                 // The GetValue here and EvaluatePropertyAccessWithIdentifierKey
                 // below should be performed in the parent environment. We do
                 // them in classEnv. Whether there's a difference I don't know.
-                if is_reference(super_class) {
-                    // e. Let superclass be ? GetValue(? superclassRef).
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                // e. Let superclass be ? GetValue(? superclassRef).
+                compile_expression_get_value(super_class, ctx);
                 // f. If superclass is null, then
                 ctx.add_instruction(Instruction::LoadCopy);
                 ctx.add_instruction(Instruction::IsNull);
@@ -163,7 +162,10 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     BUILTIN_STRING_MEMORY.prototype,
                 );
-                ctx.add_instruction(Instruction::GetValue);
+                let cache = ctx.create_property_lookup_cache(
+                    BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+                );
+                ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
 
                 // Note: superclass is now at the top of the stack, and protoParent
                 // in the result register.
@@ -698,11 +700,9 @@ fn compile_computed_field_name<'s, 'gc>(
     // 1. Let name be ? Evaluation of ClassElementName.
     // ### ComputedPropertyName : [ AssignmentExpression ]
     // 1. Let exprValue be ? Evaluation of AssignmentExpression.
-    key.compile(ctx);
-    if is_reference(key) {
-        // 2. Let propName be ? GetValue(exprValue).
-        ctx.add_instruction(Instruction::GetValue);
-    }
+    // 2. Let propName be ? GetValue(exprValue).
+    compile_expression_get_value(key, ctx);
+
     // TODO: To be fully compliant, we need to perform ToPropertyKey here as
     // otherwise we change the order of errors thrown.
     // 3. Return ? ToPropertyKey(propName).
@@ -779,10 +779,8 @@ fn define_method<'s>(
     } else {
         // Computed method name.
         let key = class_element.key.as_expression().unwrap();
-        key.compile(ctx);
-        if is_reference(key) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(key, ctx);
+
         ctx.add_instruction(Instruction::Load);
     };
     // stack: [key, object]
@@ -907,8 +905,9 @@ fn define_private_method<'s>(
     );
 }
 
-impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::StaticBlock<'s> {
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // 12. Let functionNames be a new empty List.
         // 13. Let functionsToInitialize be a new empty List.
         // NOTE: the keys of `functions` will be `functionNames`, its values will be
@@ -1026,10 +1025,7 @@ fn compile_class_static_id_field<'s>(
         if is_anonymous_function_definition(value) {
             ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
         }
-        value.compile(ctx);
-        if is_reference(value) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(value, ctx);
     } else {
         // Same optimisation is unconditionally valid here.
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -1057,10 +1053,7 @@ fn compile_class_computed_field<'s, 'gc>(
         if is_anonymous_function_definition(value) {
             ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
         }
-        value.compile(ctx);
-        if is_reference(value) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(value, ctx);
     } else {
         // Otherwise, put `undefined` into the result register.
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -1087,10 +1080,7 @@ fn compile_class_private_field<'s>(
             // stack: [target]
             // result: `#{description}`
         }
-        value.compile(ctx);
-        if is_reference(value) {
-            ctx.add_instruction(Instruction::GetValue);
-        }
+        compile_expression_get_value(value, ctx);
     } else {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
     }

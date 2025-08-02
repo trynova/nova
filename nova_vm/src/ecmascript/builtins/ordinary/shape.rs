@@ -542,6 +542,13 @@ impl<'a> ObjectShape<'a> {
     ///
     /// > NOTE: This function will create a new Object Shape, or possibly
     /// > multiple ones, if an existing one cannot be found.
+    ///
+    /// ## Cache invalidation
+    ///
+    /// Prototype lookup caches rely on the prototype chain being unchanged.
+    /// When calling this method, the caller should check that they receive a
+    /// new shape and if not (ie. if this shape is intrinsic), they should
+    /// invalidate all property lookup caches related to this shape.
     pub(crate) fn get_shape_with_prototype(
         self,
         agent: &mut Agent,
@@ -550,7 +557,6 @@ impl<'a> ObjectShape<'a> {
         if self.is_intrinsic(agent) {
             // Intrinsic shape; set the prototype field directly.
             self.get_mut(agent).prototype = prototype.unbind();
-            // TODO: must perform invalidation of property lookup caches.
             return self;
         }
         let original_len = self.get_length(agent);
@@ -593,6 +599,34 @@ impl<'a> ObjectShape<'a> {
             break;
         }
         shape
+    }
+
+    /// Create an intrinsic copy of the given Object Shape.
+    pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Self {
+        let properties_count = self.get_length(agent);
+        let prototype = self.get_prototype(agent);
+        // Note: intrinsics should always allocate a keys storage.
+        let (cap, index) = if properties_count == 0 {
+            agent
+                .heap
+                .elements
+                .allocate_keys_with_capacity(properties_count.max(1) as usize)
+        } else {
+            let cap = self.get_cap(agent);
+            let keys = self.get_keys(agent);
+            agent.heap.elements.copy_keys_with_capacity(
+                properties_count as usize,
+                cap,
+                keys,
+                properties_count,
+            )
+        };
+        agent.heap.create(ObjectShapeRecord::create(
+            prototype,
+            index,
+            cap,
+            properties_count as usize,
+        ))
     }
 
     /// Create basic shapes for a new Realm's intrinsics.

@@ -1051,6 +1051,7 @@ pub(crate) fn make_constructor<'a>(
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
         prototype.property_storage().set(
             agent,
+            prototype.into_object(),
             key,
             PropertyDescriptor {
                 value: Some(function.into_value().unbind()),
@@ -1059,6 +1060,7 @@ pub(crate) fn make_constructor<'a>(
                 configurable: Some(true),
                 ..Default::default()
             },
+            gc,
         );
         prototype
     });
@@ -1069,6 +1071,7 @@ pub(crate) fn make_constructor<'a>(
         .unwrap_or_else(|| function.create_backing_object(agent));
     backing_object.property_storage().set(
         agent,
+        function.into_object(),
         key,
         PropertyDescriptor {
             value: Some(prototype.into_value().unbind()),
@@ -1077,6 +1080,7 @@ pub(crate) fn make_constructor<'a>(
             configurable: Some(false),
             ..Default::default()
         },
+        gc,
     );
     // 7. Return UNUSED.
 }

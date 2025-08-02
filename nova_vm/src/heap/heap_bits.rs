@@ -47,7 +47,7 @@ use crate::ecmascript::{
         keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
         map::Map,
         module::Module,
-        ordinary::shape::ObjectShape,
+        ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
@@ -81,6 +81,7 @@ pub struct HeapBits {
     pub bound_functions: Box<[bool]>,
     pub builtin_constructors: Box<[bool]>,
     pub builtin_functions: Box<[bool]>,
+    pub caches: Box<[bool]>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Box<[bool]>,
     #[cfg(feature = "date")]
@@ -162,6 +163,7 @@ pub(crate) struct WorkQueues {
     pub bound_functions: Vec<BoundFunction<'static>>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction<'static>>,
     pub builtin_functions: Vec<BuiltinFunction<'static>>,
+    pub caches: Vec<PropertyLookupCache<'static>>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
@@ -243,6 +245,7 @@ impl HeapBits {
         let bound_functions = vec![false; heap.bound_functions.len()];
         let builtin_constructors = vec![false; heap.builtin_constructors.len()];
         let builtin_functions = vec![false; heap.builtin_functions.len()];
+        let caches = vec![false; heap.caches.len()];
         #[cfg(feature = "array-buffer")]
         let data_views = vec![false; heap.data_views.len()];
         #[cfg(feature = "date")]
@@ -321,6 +324,7 @@ impl HeapBits {
             bound_functions: bound_functions.into_boxed_slice(),
             builtin_constructors: builtin_constructors.into_boxed_slice(),
             builtin_functions: builtin_functions.into_boxed_slice(),
+            caches: caches.into_boxed_slice(),
             #[cfg(feature = "array-buffer")]
             data_views: data_views.into_boxed_slice(),
             #[cfg(feature = "date")]
@@ -405,6 +409,7 @@ impl WorkQueues {
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
             builtin_constructors: Vec::with_capacity(heap.builtin_constructors.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            caches: Vec::with_capacity(heap.caches.len() / 4),
             #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             #[cfg(feature = "date")]
@@ -491,6 +496,7 @@ impl WorkQueues {
             bound_functions,
             builtin_constructors,
             builtin_functions,
+            caches,
             #[cfg(feature = "array-buffer")]
             data_views,
             #[cfg(feature = "date")]
@@ -591,6 +597,7 @@ impl WorkQueues {
             && bound_functions.is_empty()
             && builtin_constructors.is_empty()
             && builtin_functions.is_empty()
+            && caches.is_empty()
             && data_views.is_empty()
             && dates.is_empty()
             && declarative_environments.is_empty()
@@ -932,6 +939,7 @@ pub(crate) struct CompactionLists {
     pub bound_functions: CompactionList,
     pub builtin_constructors: CompactionList,
     pub builtin_functions: CompactionList,
+    pub caches: CompactionList,
     #[cfg(feature = "array-buffer")]
     pub data_views: CompactionList,
     #[cfg(feature = "date")]
@@ -1048,6 +1056,7 @@ impl CompactionLists {
             bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
             builtin_constructors: CompactionList::from_mark_bits(&bits.builtin_constructors),
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
+            caches: CompactionList::from_mark_bits(&bits.caches),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
             embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
             generators: CompactionList::from_mark_bits(&bits.generators),
@@ -1365,7 +1374,7 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         });
 }
 
-pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + core::fmt::Debug>(
+pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
     bits: &[bool],

@@ -2382,6 +2382,30 @@ impl ElementArrays {
         }
     }
 
+    /// Get exclusive access to the elements storage of an object.
+    ///
+    /// Value slots with None are either array holes, or accessor properties.
+    /// For accessor properties a descriptor for the same index exists.
+    pub(crate) fn get_element_storage_mut_raw(
+        &mut self,
+        index: ElementIndex,
+        cap: ElementArrayKey,
+        len: u32,
+    ) -> ElementStorageMut<'_> {
+        let index = index.unbind();
+        match cap {
+            ElementArrayKey::Empty => unreachable!(),
+            ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E10 => self.e2pow10.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E12 => self.e2pow12.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_mut_raw(index, len),
+        }
+    }
+
     /// Get exclusive access to the elements storage of an object or an array.
     ///
     /// Value slots with None are either array holes, or accessor properties.

@@ -7,7 +7,10 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        builtins::{ordinary::shape::ObjectShape, regexp::RegExp},
+        builtins::{
+            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
+            regexp::RegExp,
+        },
         execution::Agent,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{BigInt, Number, PropertyKey, String, Value},
@@ -162,6 +165,14 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Get exclusive access to the Agent through the context as mutable.
     pub(crate) fn get_agent_mut(&mut self) -> &mut Agent {
         self.executable.get_agent_mut()
+    }
+
+    /// Create a property lookup cache for a JavaScript String.
+    pub(crate) fn create_property_lookup_cache(
+        &mut self,
+        identifier: PropertyKey<'gc>,
+    ) -> PropertyLookupCache<'gc> {
+        self.executable.create_property_lookup_cache(identifier)
     }
 
     /// Create a new JavaScript BigInt from a bigint literal and radix.
@@ -953,6 +964,15 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .add_instruction_with_identifier(instruction, identifier);
     }
 
+    pub(super) fn add_instruction_with_cache(
+        &mut self,
+        instruction: Instruction,
+        cache: PropertyLookupCache<'gc>,
+    ) {
+        self.executable
+            .add_instruction_with_cache(instruction, cache);
+    }
+
     pub(super) fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,
@@ -1063,14 +1083,18 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 }
 
-pub(crate) trait CompileEvaluation<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>);
+pub(crate) trait CompileEvaluation<'a, 's, 'gc, 'scope> {
+    type Output;
+
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output;
 }
 
-pub(crate) trait CompileLabelledEvaluation<'s> {
+pub(crate) trait CompileLabelledEvaluation<'a, 's, 'gc, 'scope> {
+    type Output;
+
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
-    );
+        ctx: &mut CompileContext<'a, 's, 'gc, 'scope>,
+    ) -> Self::Output;
 }

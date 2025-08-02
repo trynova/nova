@@ -2,10 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+pub(crate) mod caches;
 pub mod shape;
 
 use core::ops::{Index, IndexMut};
 use std::{collections::hash_map::Entry, vec};
+
+use caches::{CacheToPopulate, Caches};
 
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::{
@@ -122,6 +125,7 @@ pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
     object: Object,
     prototype: Option<Object>,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
     let current = object.internal_prototype(agent);
@@ -143,37 +147,53 @@ pub(crate) fn ordinary_set_prototype_of(
     // 5. Let p be V.
     let mut p = prototype;
     // 6. Let done be false.
-    let mut done = false;
-
     // 7. Repeat, while done is false,
-    while !done {
-        if let Some(p_inner) = p {
-            // b. Else if SameValue(p, O) is true, then
-            if p_inner == object {
-                // i. Return false.
-                return false;
-            } else {
-                // c. Else,
-                // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
-                //    set done to true.
-                // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
-                // methods. Those are Proxy and Module.
-                if matches!(p_inner, Object::Module(_) | Object::Proxy(_)) {
-                    done = true;
-                } else {
-                    // ii. Else, set p to p.[[Prototype]].
-                    p = p_inner.internal_prototype(agent);
-                }
-            }
+    // a. If p is null, then
+    while let Some(p_inner) = p {
+        // b. Else if SameValue(p, O) is true, then
+        if p_inner == object {
+            // i. Return false.
+            return false;
         } else {
-            // a. If p is null, then
-            // i. Set done to true.
-            done = true;
+            // c. Else,
+            // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
+            //    set done to true.
+            // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
+            // methods. Those are Proxy and Module.
+            if matches!(p_inner, Object::Module(_) | Object::Proxy(_)) {
+                break;
+            } else {
+                // ii. Else, set p to p.[[Prototype]].
+                p = p_inner.internal_prototype(agent);
+            }
         }
+    }
+    // i. Set done to true.
+
+    // For caching reasons, prototype objects must always have "intrinsic"
+    // shapes. We have to ensure the to-be prototype object has one now.
+    if let Some(prototype) = prototype
+        && !prototype.is_proxy()
+        && !prototype.is_module()
+    {
+        prototype
+            .get_or_create_backing_object(agent)
+            .make_intrinsic(agent);
     }
 
     // 8. Set O.[[Prototype]] to V.
+    let old_shape = object.get_backing_object(agent).map(|o| o.get_shape(agent));
     object.internal_set_prototype(agent, prototype);
+
+    if let Some(shape) = old_shape
+        && shape.is_intrinsic(agent)
+    {
+        // We changed prototype of an intrinsic object and must invalidate
+        // associated caches.
+        Caches::invalidate_caches_on_intrinsic_shape_prototype_change(
+            agent, object, shape, current, prototype, gc,
+        );
+    }
 
     // 9. Return true.
     true
@@ -196,13 +216,32 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property<'a>(
-    agent: &Agent,
-    object: OrdinaryObject<'a>,
+    agent: &mut Agent,
+    object: Object<'a>,
+    backing_object: OrdinaryObject<'a>,
     property_key: PropertyKey,
 ) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let x = object.property_storage().get(agent, property_key)?;
+    let (x, offset) = backing_object.property_storage().get(agent, property_key)?;
+
+    if let Some(CacheToPopulate {
+        receiver,
+        cache,
+        key: _,
+        shape,
+    }) = agent
+        .heap
+        .caches
+        .take_current_cache_to_populate(property_key)
+    {
+        let is_receiver = Some(backing_object) == receiver.get_backing_object(agent);
+        if is_receiver {
+            cache.insert_lookup_offset(agent, shape, offset);
+        } else {
+            cache.insert_prototype_lookup_offset(agent, shape, offset, object);
+        }
+    }
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();
@@ -239,7 +278,8 @@ pub(crate) fn ordinary_get_own_property<'a>(
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    o: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
     gc: NoGcScope,
@@ -247,19 +287,20 @@ pub(crate) fn ordinary_define_own_property(
     // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
     // meaning that we know that this method cannot call into JavaScript.
     // 1. Let current be ! O.[[GetOwnProperty]](P).
-    let current = unwrap_try(object.try_get_own_property(agent, property_key, gc));
+    let current = ordinary_get_own_property(agent, o, backing_object, property_key);
 
     // 2. Let extensible be ! IsExtensible(O).
-    let extensible = object.internal_extensible(agent);
+    let extensible = backing_object.internal_extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
     validate_and_apply_property_descriptor(
         agent,
-        Some(object),
+        Some((o, backing_object)),
         property_key,
         extensible,
         descriptor,
         current,
+        gc,
     )
 }
 
@@ -279,17 +320,19 @@ pub(crate) fn is_compatible_property_descriptor(
         extensible,
         descriptor,
         current,
+        gc,
     )
 }
 
 /// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
-    object: Option<OrdinaryObject>,
+    o: Option<(Object, OrdinaryObject)>,
     property_key: PropertyKey,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Assert: IsPropertyKey(P) is true.
 
@@ -301,7 +344,7 @@ fn validate_and_apply_property_descriptor(
         }
 
         // b. If O is undefined, return true.
-        let Some(object) = object else {
+        let Some((o, backing_object)) = o else {
             return true;
         };
 
@@ -311,8 +354,9 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     get: descriptor.get,
@@ -321,6 +365,7 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
                 },
+                gc,
             )
         }
         // d. Else,
@@ -329,8 +374,9 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
@@ -339,6 +385,7 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
                 },
+                gc,
             )
         }
 
@@ -423,7 +470,7 @@ fn validate_and_apply_property_descriptor(
     }
 
     // 6. If O is not undefined, then
-    if let Some(object) = object {
+    if let Some((o, backing_object)) = o {
         // a. If IsDataDescriptor(current) is true and IsAccessorDescriptor(Desc) is true, then
         if current.is_data_descriptor() && descriptor.is_accessor_descriptor() {
             // i. If Desc has a [[Configurable]] field, let configurable be Desc.[[Configurable]];
@@ -443,8 +490,9 @@ fn validate_and_apply_property_descriptor(
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     get: descriptor.get,
@@ -453,6 +501,7 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(configurable),
                     ..Default::default()
                 },
+                gc,
             );
         }
         // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
@@ -480,8 +529,9 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
@@ -490,14 +540,16 @@ fn validate_and_apply_property_descriptor(
                     configurable: Some(configurable),
                     ..Default::default()
                 },
+                gc,
             );
         }
         // c. Else,
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.property_storage().set(
+            backing_object.property_storage().set(
                 agent,
+                o,
                 property_key,
                 PropertyDescriptor {
                     value: descriptor.value.or(current.value),
@@ -507,6 +559,7 @@ fn validate_and_apply_property_descriptor(
                     enumerable: descriptor.enumerable.or(current.enumerable),
                     configurable: descriptor.configurable.or(current.configurable),
                 },
+                gc,
             );
         }
     }
@@ -658,17 +711,24 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
 pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    object: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<Value<'gc>> {
+    let object = object.bind(gc);
+    let backing_object = backing_object.bind(gc);
+    let property_key = property_key.bind(gc);
+    let receiver = receiver.bind(gc);
+
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
+    let Some(descriptor) = ordinary_get_own_property(agent, object, backing_object, property_key)
+    else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.try_get_prototype_of(agent, gc)?;
+        let parent = backing_object.try_get_prototype_of(agent, gc)?;
 
         // b. If parent is null, return undefined.
         let Some(parent) = parent else {
@@ -1101,13 +1161,13 @@ fn ordinary_set_with_own_descriptor<'a>(
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    o: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     gc: NoGcScope,
 ) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    // We're guaranteed to always get a result here.
-    let descriptor = unwrap_try(object.try_get_own_property(agent, property_key, gc));
+    let descriptor = ordinary_get_own_property(agent, o, backing_object, property_key).bind(gc);
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {
@@ -1117,7 +1177,9 @@ pub(crate) fn ordinary_delete(
     // 3. If desc.[[Configurable]] is true, then
     if let Some(true) = descriptor.configurable {
         // a. Remove the own property with name P from O.
-        object.property_storage().remove(agent, property_key);
+        backing_object
+            .property_storage()
+            .remove(agent, o, property_key);
 
         // b. Return true.
         return true;
@@ -1419,6 +1481,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     };
 
     if let Some(prototype) = prototype {
+        if !prototype.is_proxy() && !prototype.is_module() {
+            prototype
+                .get_or_create_backing_object(agent)
+                .make_intrinsic(agent);
+        }
         object.internal_set_prototype(agent, Some(prototype));
     }
 

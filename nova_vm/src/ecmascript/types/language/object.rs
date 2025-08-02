@@ -70,6 +70,7 @@ use crate::{
 };
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::call_function,
         builtins::{
             ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
@@ -95,7 +96,7 @@ use crate::{
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
-        types::PropertyDescriptor,
+        types::{IntoValue, PropertyDescriptor},
     },
     engine::{
         TryResult,
@@ -106,8 +107,8 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, WorkQueues,
         element_array::{
-            ElementDescriptor, ElementStorageUninit, ElementsVector, PropertyStorageMut,
-            PropertyStorageRef,
+            ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
+            ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
         indexes::ObjectIndex,
     },
@@ -203,6 +204,11 @@ pub enum Object<'a> {
 }
 
 impl Object<'_> {
+    /// Returns true if this Object is a Module.
+    pub fn is_module(self) -> bool {
+        matches!(self, Object::Module(_))
+    }
+
     /// Returns true if this Object is a Proxy.
     pub fn is_proxy(self) -> bool {
         matches!(self, Object::Proxy(_))
@@ -251,6 +257,57 @@ impl<'a> OrdinaryObject<'a> {
         agent[self].get_shape()
     }
 
+    /// Turn an OrdinaryObject's Object Shape into an intrinsic.
+    ///
+    /// For objects with an intrinsic shape, this is a no-op.
+    pub(crate) fn make_intrinsic(self, agent: &mut Agent) {
+        let shape = self.get_shape(agent);
+        if shape.is_intrinsic(agent) {
+            // Already an intrinsic shape, nothing to do.
+            return;
+        }
+        let new_shape = shape.make_intrinsic(agent);
+        agent[self].set_shape(new_shape);
+    }
+
+    pub(crate) unsafe fn try_get_property_by_offset(
+        self,
+        agent: &Agent,
+        offset: u16,
+    ) -> TryResult<Value<'a>> {
+        let data = self.get_elements_storage(agent);
+        if let Some(value) = data.values[offset as usize] {
+            TryResult::Continue(value)
+        } else if data
+            .descriptors
+            .is_some_and(|d| d.get(&(offset as u32)).unwrap().has_getter())
+        {
+            TryResult::Break(())
+        } else {
+            debug_assert!(
+                data.descriptors
+                    .is_some_and(|d| d.get(&(offset as u32)).unwrap().has_setter())
+            );
+            TryResult::Continue(Value::Undefined)
+        }
+    }
+
+    pub(crate) unsafe fn call_property_getter_by_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        offset: u16,
+        this_value: Object,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let data = self.get_elements_storage(agent);
+        debug_assert!(data.values[offset as usize].is_none());
+        let getter = data
+            .descriptors
+            .and_then(|d| d.get(&(offset as u32)).unwrap().getter_function(gc.nogc()))
+            .unwrap();
+        call_function(agent, getter.unbind(), this_value.into_value(), None, gc)
+    }
+
     pub(crate) fn get_property_storage<'b>(self, agent: &'b Agent) -> PropertyStorageRef<'b, 'a> {
         let Heap {
             object_shapes,
@@ -285,6 +342,25 @@ impl<'a> OrdinaryObject<'a> {
             data.get_cap(),
             data.len(),
         )
+    }
+
+    pub(crate) fn get_elements_storage<'b>(self, agent: &'b Agent) -> ElementStorageRef<'b, 'a> {
+        let Heap {
+            elements, objects, ..
+        } = &agent.heap;
+        let data = &objects[self];
+        elements.get_element_storage_raw(data.get_values(), data.get_cap(), data.len())
+    }
+
+    pub(crate) fn get_elements_storage_mut<'b>(
+        self,
+        agent: &'b mut Agent,
+    ) -> ElementStorageMut<'b> {
+        let Heap {
+            elements, objects, ..
+        } = &mut agent.heap;
+        let data = &objects[self];
+        elements.get_element_storage_mut_raw(data.get_values(), data.get_cap(), data.len())
     }
 
     pub(crate) fn get_elements_storage_uninit<'b>(

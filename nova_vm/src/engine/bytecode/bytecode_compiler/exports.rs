@@ -10,13 +10,14 @@ use crate::{
     ecmascript::types::BUILTIN_STRING_MEMORY,
     engine::{
         Instruction, NamedEvaluationParameter,
-        bytecode::bytecode_compiler::is_anonymous_function_definition, is_reference,
+        bytecode::bytecode_compiler::is_anonymous_function_definition,
     },
 };
 
-use super::CompileEvaluation;
+use super::{CompileEvaluation, compile_expression_get_value};
 
-impl<'s> CompileEvaluation<'s> for ast::ExportAllDeclaration<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ExportAllDeclaration<'s> {
+    type Output = ();
     /// ### ExportDeclaration :
     /// ```text
     /// export ExportFromClause FromClause WithClause_opt ;
@@ -26,7 +27,10 @@ impl<'s> CompileEvaluation<'s> for ast::ExportAllDeclaration<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::ExportDefaultDeclaration<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ExportDefaultDeclaration<'s>
+{
+    type Output = ();
     /// ### ExportDeclaration :
     /// ```text
     /// export default HoistableDeclaration
@@ -75,11 +79,9 @@ impl<'s> CompileEvaluation<'s> for ast::ExportDefaultDeclaration<'s> {
                 }
                 // 2. Else,
                 // a. Let rhs be ? Evaluation of AssignmentExpression.
-                expr.compile(ctx);
                 // b. Let value be ? GetValue(rhs).
-                if is_reference(expr) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
+                compile_expression_get_value(expr, ctx);
+
                 // 3. Let env be the running execution context's LexicalEnvironment.
                 // 4. Perform ? InitializeBoundName("*default*", value, env).
                 ctx.add_instruction_with_identifier(
@@ -93,7 +95,10 @@ impl<'s> CompileEvaluation<'s> for ast::ExportDefaultDeclaration<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::ExportNamedDeclaration<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ExportNamedDeclaration<'s>
+{
+    type Output = ();
     /// ### ExportDeclaration :
     /// ```text
     /// export NamedExports ;

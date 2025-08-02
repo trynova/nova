@@ -104,10 +104,19 @@ pub enum Instruction {
     /// analysed from the AST. Non-reference values are already in the result
     /// value so a `GetValue` call would be a no-op.
     GetValue,
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value. This variant caches the property lookup.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
+    GetValueWithCache,
     /// Same as GetValue without taking the reference slot. Used for reference
     /// property updates and function calls (where `this` comes from the
     /// reference).
     GetValueKeepReference,
+    GetValueWithCacheKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
     /// Compare the last two values on the stack using the '>=' operator rules.
@@ -516,6 +525,7 @@ impl Instruction {
             | Self::BindingPatternBindRest
             | Self::BindingPatternGetValueNamed
             | Self::ClassDefineDefaultConstructor
+            | Self::ClassInitializePrivateValue
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateImmutableBinding
             | Self::CreateMutableBinding
@@ -525,13 +535,17 @@ impl Instruction {
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::EvaluateSuper
+            // | Self::GetValue
+            | Self::GetValueWithCache
+            // | Self::GetValueKeepReference
+            | Self::GetValueWithCacheKeepReference
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::LoadConstant
             | Self::MakePrivateReference
             | Self::MakeSuperPropertyReferenceWithIdentifierKey
             | Self::ObjectCreateWithShape
-            | Self::ClassInitializePrivateValue
+            // | Self::PutValue
             | Self::ResolveBinding
             | Self::StoreConstant
             | Self::StringConcat
@@ -550,6 +564,14 @@ impl Instruction {
                 | Self::JumpIfNot
                 | Self::JumpIfTrue
                 | Self::PushExceptionJumpTarget
+        )
+    }
+
+    pub fn has_cache_index(self) -> bool {
+        matches!(
+            self,
+            // Self::GetValueKeepReference | Self::GetValue | Self::PutValue
+            Self::GetValueWithCache | Self::GetValueWithCacheKeepReference
         )
     }
 
@@ -1143,7 +1165,10 @@ impl TryFrom<u8> for Instruction {
         const MAKESUPERPROPERTYREFERENCEWITHIDENTIFIERKEY: u8 =
             Instruction::MakeSuperPropertyReferenceWithIdentifierKey.as_u8();
         const GETVALUE: u8 = Instruction::GetValue.as_u8();
+        const GETVALUEWITHCACHE: u8 = Instruction::GetValueWithCache.as_u8();
         const GETVALUEKEEPREFERENCE: u8 = Instruction::GetValueKeepReference.as_u8();
+        const GETVALUEWITHCACHEKEEPREFERENCE: u8 =
+            Instruction::GetValueWithCacheKeepReference.as_u8();
         const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
         const GREATERTHANEQUALS: u8 = Instruction::GreaterThanEquals.as_u8();
         const HASPROPERTY: u8 = Instruction::HasProperty.as_u8();
@@ -1350,7 +1375,9 @@ impl TryFrom<u8> for Instruction {
                 Ok(Instruction::MakeSuperPropertyReferenceWithIdentifierKey)
             }
             GETVALUE => Ok(Instruction::GetValue),
+            GETVALUEWITHCACHE => Ok(Instruction::GetValueWithCache),
             GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
+            GETVALUEWITHCACHEKEEPREFERENCE => Ok(Instruction::GetValueWithCacheKeepReference),
             GREATERTHAN => Ok(Instruction::GreaterThan),
             GREATERTHANEQUALS => Ok(Instruction::GreaterThanEquals),
             HASPROPERTY => Ok(Instruction::HasProperty),

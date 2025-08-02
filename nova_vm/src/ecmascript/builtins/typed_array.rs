@@ -400,13 +400,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+        let o = self.bind(gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. Let value be TypedArrayGetElement(O, numericIndex).
-            let value = typed_array_get_element_generic(agent, self, numeric_index.into_i64(), gc);
+            let value = typed_array_get_element_generic(agent, o, numeric_index.into_i64(), gc);
             if let Some(value) = value {
                 // iii. Return the PropertyDescriptor {
                 //          [[Value]]: value,
@@ -427,10 +428,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             }
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
-            TryResult::Continue(
-                self.get_backing_object(agent)
-                    .and_then(|object| ordinary_get_own_property(agent, object, property_key)),
-            )
+            TryResult::Continue(o.get_backing_object(agent).and_then(|backing_o| {
+                ordinary_get_own_property(agent, o.into_object(), backing_o, property_key)
+            }))
         }
     }
 
@@ -527,6 +527,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 .unwrap_or_else(|| self.create_backing_object(agent));
             TryResult::Continue(ordinary_define_own_property(
                 agent,
+                self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor,
@@ -596,10 +597,11 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 .unwrap_or_else(|| o.create_backing_object(agent));
             Ok(ordinary_define_own_property(
                 agent,
+                self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor.unbind(),
-                gc.into_nogc(),
+                gc.nogc(),
             ))
         }
     }
@@ -624,9 +626,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
-                Some(backing_object) => {
-                    ordinary_try_get(agent, backing_object, property_key, receiver, gc)
-                }
+                Some(backing_object) => ordinary_try_get(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    receiver,
+                    gc,
+                ),
                 None => {
                     // a. Let parent be ? O.[[GetPrototypeOf]]().
                     let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
@@ -779,10 +786,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             TryResult::Continue(numeric_index.is_none())
         } else {
             // 2. Return ! OrdinaryDelete(O, P).
-            TryResult::Continue(
-                self.get_backing_object(agent)
-                    .is_none_or(|object| ordinary_delete(agent, object, property_key, gc)),
-            )
+            TryResult::Continue(self.get_backing_object(agent).is_none_or(|object| {
+                ordinary_delete(agent, self.into_object(), object, property_key, gc)
+            }))
         }
     }
 

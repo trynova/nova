@@ -405,8 +405,10 @@ impl JSONObject {
         // 11. Perform ! CreateDataPropertyOrThrow(wrapper, the empty String, value).
         wrapper.property_storage().set(
             agent,
+            wrapper.into_object(),
             String::EMPTY_STRING.to_property_key(),
             PropertyDescriptor::new_data_descriptor(value),
+            gc.nogc(),
         );
         // 12. Let state be the JSON Serialization Record { [[ReplacerFunction]]: ReplacerFunction, [[Stack]]: stack, [[Indent]]: indent, [[Gap]]: gap, [[PropertyList]]: PropertyList }.
         let mut state = JSONSerializationRecord {

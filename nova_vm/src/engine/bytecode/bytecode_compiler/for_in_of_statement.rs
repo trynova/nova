@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{
-    CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex,
-    is_reference,
+use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
+use crate::{
+    ecmascript::types::{String, Value},
+    engine::bytecode::bytecode_compiler::compile_expression_output_get_value,
 };
-use crate::ecmascript::types::{String, Value};
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 
@@ -51,15 +51,13 @@ fn for_in_of_head_evaluation<'s, 'gc>(
         // d. Set the running execution context's LexicalEnvironment to newEnv.
     }
     // 3. Let exprRef be Completion(Evaluation of expr).
-    expr.compile(ctx);
+    let output = expr.compile(ctx);
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
     if !uninitialized_bound_names.is_empty() {
         ctx.exit_lexical_scope();
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
-    if is_reference(expr) {
-        ctx.add_instruction(Instruction::GetValue);
-    }
+    compile_expression_output_get_value(expr, ctx, output);
     // 6. If iterationKind is ENUMERATE, then
     match iteration_kind {
         IterationKind::Enumerate => {
@@ -426,7 +424,11 @@ fn get_for_statement_left_hand_side_kind<'gc>(
     }
 }
 
-impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
+impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ForInStatement<'s>
+{
+    type Output = ();
+
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
@@ -460,7 +462,11 @@ impl<'s> CompileLabelledEvaluation<'s> for ast::ForInStatement<'s> {
     }
 }
 
-impl<'s> CompileLabelledEvaluation<'s> for ast::ForOfStatement<'s> {
+impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ForOfStatement<'s>
+{
+    type Output = ();
+
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,

@@ -8,6 +8,7 @@ use core::ops::{Index, IndexMut};
 
 pub(crate) use data::ErrorHeapData;
 
+use crate::ecmascript::types::IntoObject;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{TryResult, unwrap_try};
@@ -25,6 +26,8 @@ use crate::{
         ObjectEntryPropertyDescriptor, WorkQueues, indexes::ErrorIndex,
     },
 };
+
+use super::ordinary::{ordinary_delete, ordinary_get_own_property, ordinary_try_get};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -172,7 +175,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.try_get_own_property(agent, property_key, gc),
+            Some(backing_object) => TryResult::Continue(
+                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
+                    .bind(gc),
+            ),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -245,7 +251,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.try_get(agent, property_key, receiver, gc),
+            Some(backing_object) => ordinary_try_get(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                receiver,
+                gc,
+            ),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -371,11 +384,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => TryResult::Continue(unwrap_try(backing_object.try_delete(
+            Some(backing_object) => TryResult::Continue(ordinary_delete(
                 agent,
+                self.into_object(),
+                backing_object,
                 property_key,
                 gc,
-            ))),
+            )),
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
                     agent[self].message = None;

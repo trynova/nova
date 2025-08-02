@@ -219,16 +219,17 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _: NoGcScope<'gc, '_>,
+        gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+        let o = self.bind(gc);
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
         // For string exotic objects:
         // 1. Let desc be OrdinaryGetOwnProperty(S, P).
         // 2. If desc is not undefined, return desc.
-        if let Some(backing_object) = self.get_backing_object(agent)
+        if let Some(backing_object) = o.get_backing_object(agent)
             && let Some(property_descriptor) =
-                ordinary_get_own_property(agent, backing_object, property_key)
+                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key)
         {
             return TryResult::Continue(Some(property_descriptor));
         }
@@ -271,6 +272,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             .unwrap_or_else(|| self.create_backing_object(agent));
         TryResult::Continue(ordinary_define_own_property(
             agent,
+            self.into_object(),
             backing_object,
             property_key,
             property_descriptor,
@@ -346,9 +348,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_try_get(agent, backing_object, property_key, receiver, gc)
-            }
+            Some(backing_object) => ordinary_try_get(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                receiver,
+                gc,
+            ),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc)) else {
@@ -461,9 +468,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
 
         // 1. Return ! OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                TryResult::Continue(ordinary_delete(agent, backing_object, property_key, gc))
-            }
+            Some(backing_object) => TryResult::Continue(ordinary_delete(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                gc,
+            )),
             None => TryResult::Continue(true),
         }
     }

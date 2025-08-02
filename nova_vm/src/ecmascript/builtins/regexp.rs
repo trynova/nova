@@ -33,7 +33,9 @@ use data::RegExpLastIndex;
 use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
-use super::ordinary::{ordinary_set, ordinary_try_set};
+use super::ordinary::{
+    ordinary_get_own_property, ordinary_set, ordinary_try_get, ordinary_try_set,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -181,7 +183,10 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             // If a backing object exists, it's the only one with correct
             // knowledge of all our properties, including lastIndex.
-            backing_object.try_get_own_property(agent, property_key, gc)
+            TryResult::Continue(
+                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
+                    .bind(gc),
+            )
         } else if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If no backing object exists, we can turn lastIndex into a
             // PropertyDescriptor statically.
@@ -254,7 +259,14 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             }
         }
         if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.try_get(agent, property_key, receiver, gc)
+            ordinary_try_get(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                receiver,
+                gc,
+            )
         } else {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
