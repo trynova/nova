@@ -4,7 +4,11 @@
 
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation};
 
-impl<'s> CompileLabelledEvaluation<'s> for oxc_ast::ast::LabeledStatement<'s> {
+impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
+    for oxc_ast::ast::LabeledStatement<'s>
+{
+    type Output = ();
+
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s oxc_ast::ast::LabelIdentifier<'s>>>,

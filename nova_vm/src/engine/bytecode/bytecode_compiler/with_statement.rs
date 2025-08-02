@@ -8,13 +8,14 @@ use crate::engine::Instruction;
 
 use super::{CompileContext, CompileEvaluation, compile_expression_get_value};
 
-impl<'s> CompileEvaluation<'s> for ast::WithStatement<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::WithStatement<'s> {
+    type Output = ();
     /// ### [14.11.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-with-statement-runtime-semantics-evaluation)
     ///
     /// ```text
     /// WithStatement : with ( Expression ) Statement
     /// ```
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // 1. Let val be ? Evaluation of Expression.
         // 2. Let obj be ? ToObject(? GetValue(val)).
         compile_expression_get_value(&self.object, ctx);

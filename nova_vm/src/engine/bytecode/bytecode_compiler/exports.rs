@@ -16,7 +16,8 @@ use crate::{
 
 use super::{CompileEvaluation, compile_expression_get_value};
 
-impl<'s> CompileEvaluation<'s> for ast::ExportAllDeclaration<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ExportAllDeclaration<'s> {
+    type Output = ();
     /// ### ExportDeclaration :
     /// ```text
     /// export ExportFromClause FromClause WithClause_opt ;
@@ -26,7 +27,10 @@ impl<'s> CompileEvaluation<'s> for ast::ExportAllDeclaration<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::ExportDefaultDeclaration<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ExportDefaultDeclaration<'s>
+{
+    type Output = ();
     /// ### ExportDeclaration :
     /// ```text
     /// export default HoistableDeclaration
@@ -91,7 +95,10 @@ impl<'s> CompileEvaluation<'s> for ast::ExportDefaultDeclaration<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::ExportNamedDeclaration<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ExportNamedDeclaration<'s>
+{
+    type Output = ();
     /// ### ExportDeclaration :
     /// ```text
     /// export NamedExports ;

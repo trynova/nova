@@ -29,9 +29,10 @@ use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
 use super::{IndexType, is_anonymous_function_definition};
 
-impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<'s> {
+    type Output = ();
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let anonymous_class_name = ctx.name_identifier.take();
 
         // 1. Let env be the LexicalEnvironment of the running execution context.
@@ -161,7 +162,10 @@ impl<'s> CompileEvaluation<'s> for ast::Class<'s> {
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     BUILTIN_STRING_MEMORY.prototype,
                 );
-                ctx.add_instruction(Instruction::GetValue);
+                let cache = ctx.create_property_lookup_cache(
+                    BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+                );
+                ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
 
                 // Note: superclass is now at the top of the stack, and protoParent
                 // in the result register.
@@ -901,8 +905,9 @@ fn define_private_method<'s>(
     );
 }
 
-impl<'s> CompileEvaluation<'s> for ast::StaticBlock<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::StaticBlock<'s> {
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // 12. Let functionNames be a new empty List.
         // 13. Let functionsToInitialize be a new empty List.
         // NOTE: the keys of `functions` will be `functionNames`, its values will be

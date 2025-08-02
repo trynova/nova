@@ -199,11 +199,13 @@ impl<'a> Caches<'a> {
         let caches = &mut agent.heap.caches;
         let o = o.unbind();
         let shape = shape.unbind();
-        let Some(removal_index) = PropertyOffset::new(removal_index) else {
+        let self_index = PropertyOffset::new(removal_index);
+        let proto_index = PropertyOffset::new_prototype(removal_index);
+        if self_index.is_none() && proto_index.is_none() {
             // Too big an offset to cache; we don't need to look for this.
             return;
-        };
-        let removal_index = removal_index.get_property_offset();
+        }
+        let removal_index = removal_index as u16;
         for ((s, offset), proto) in caches
             .property_lookup_caches
             .iter_mut()
@@ -216,15 +218,26 @@ impl<'a> Caches<'a> {
                     .zip(prototypes.prototypes.iter_mut())
             })
             .filter(|((s, offset), proto)| {
-                (*s == &Some(shape) || *proto == &Some(o))
-                    && !offset.is_not_found()
-                    && offset.get_property_offset() >= removal_index
+                !offset.is_not_found()
+                    && (*s == &Some(shape)
+                        && self_index.as_ref().is_some_and(|i| {
+                            offset.get_property_offset() >= i.get_property_offset()
+                        })
+                        || *proto == &Some(o)
+                            && proto_index.as_ref().is_some_and(|i| {
+                                offset.get_property_offset() >= i.get_property_offset()
+                            }))
             })
         {
+            let index = if s == &Some(shape) {
+                self_index.unwrap()
+            } else {
+                proto_index.unwrap()
+            };
             // Cache references our shape directly or uses the object as a
             // prototype, and caches a property lookup that is affected by
             // the removal. Time to invalidate!
-            let property_offset = offset.get_property_offset();
+            let property_offset = index.get_property_offset();
             if property_offset == removal_index {
                 // Money shot! This is a cache on the removed property itself.
                 *s = None;

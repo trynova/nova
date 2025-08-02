@@ -278,7 +278,7 @@ impl<'a> Reference<'a> {
             Reference::Property(v) | Reference::PropertyStrict(v) => v.base,
             Reference::SuperExpression(v) | Reference::SuperExpressionStrict(v) => v.base,
             Reference::Super(v) | Reference::SuperStrict(v) => v.base,
-            _ => unreachable!(),
+            _ => unreachable!("{:?}", self),
         }
     }
 

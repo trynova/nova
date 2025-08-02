@@ -79,9 +79,9 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
 
     pub(super) fn create_property_lookup_cache(
         &mut self,
-        identifier: String<'gc>,
+        identifier: PropertyKey<'gc>,
     ) -> PropertyLookupCache<'gc> {
-        PropertyLookupCache::new(self.agent, identifier.to_property_key())
+        PropertyLookupCache::new(self.agent, identifier)
     }
 
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {

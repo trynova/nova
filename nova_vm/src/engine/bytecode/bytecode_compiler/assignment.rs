@@ -6,15 +6,19 @@ mod destructuring_assignment;
 
 use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
-use crate::engine::Instruction;
+use crate::{
+    ecmascript::types::PropertyKey,
+    engine::{Instruction, bytecode::bytecode_compiler::compile_get_value_maybe_keep_reference},
+};
 
 use super::{
     CompileContext, CompileEvaluation, NamedEvaluationParameter, compile_expression_get_value,
-    is_anonymous_function_definition, is_reference,
+    is_anonymous_function_definition,
 };
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentExpression<'s> {
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let mut named_evaluation_identifier = None;
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         match &self.left {
@@ -205,7 +209,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentExpression<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentTarget<'s> {
+    type Output = ();
     /// ## Register states
     ///
     /// ### Entry condition
@@ -253,8 +258,11 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTarget<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPattern<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::AssignmentTargetPattern<'s>
+{
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         match self {
             ast::AssignmentTargetPattern::ArrayAssignmentTarget(t) => t.compile(ctx),
             ast::AssignmentTargetPattern::ObjectAssignmentTarget(t) => {
@@ -264,19 +272,41 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPattern<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::SimpleAssignmentTarget<'s>
+{
+    type Output = Option<PropertyKey<'gc>>;
+
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         match self {
-            ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(t) => t.compile(ctx),
-            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => t.compile(ctx),
-            ast::SimpleAssignmentTarget::StaticMemberExpression(t) => t.compile(ctx),
-            ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => t.compile(ctx),
+            ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(t) => {
+                t.compile(ctx);
+                None
+            }
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => {
+                t.compile(ctx);
+                None
+            }
+            ast::SimpleAssignmentTarget::StaticMemberExpression(t) => Some(t.compile(ctx)),
+            ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => {
+                t.compile(ctx);
+                None
+            }
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSNonNullExpression(t) => t.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSNonNullExpression(t) => {
+                t.expression.compile(ctx);
+                None
+            }
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSAsExpression(t) => t.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSAsExpression(t) => {
+                t.expression.compile(ctx);
+                None
+            }
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSSatisfiesExpression(t) => t.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSSatisfiesExpression(t) => {
+                t.expression.compile(ctx);
+                None
+            }
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSAsExpression(_)
             | ast::SimpleAssignmentTarget::TSNonNullExpression(_)
@@ -286,8 +316,11 @@ impl<'s> CompileEvaluation<'s> for ast::SimpleAssignmentTarget<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ArrayAssignmentTarget<'s>
+{
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let jump_to_iterator_pop = ctx.push_sync_iterator();
         let jump_to_iterator_close_handler = ctx.enter_array_destructuring();
         for element in &self.elements {
@@ -418,8 +451,11 @@ impl<'s> CompileEvaluation<'s> for ast::ArrayAssignmentTarget<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::ObjectAssignmentTarget<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::ObjectAssignmentTarget<'s>
+{
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // result: source
         // stack: []
 
@@ -528,20 +564,14 @@ fn compile_assignment_target_property<'s>(
             // result: None
             // stack: [source?]
             // reference: &source.identifier
+            compile_get_value_maybe_keep_reference(ctx, Some(key.to_property_key()), has_rest);
             if has_rest {
-                ctx.add_instruction(Instruction::GetValueKeepReference);
                 ctx.add_instruction(Instruction::PushReference);
-                // result: source.identifier
-                // stack: [source?]
-                // reference: None
-                // reference stack: [&source.identifier]
-            } else {
-                ctx.add_instruction(Instruction::GetValue);
-                // result: source.identifier
-                // stack: [source?]
-                // reference: None
-                // reference stack: []
             }
+            // result: source.identifier
+            // stack: [source?]
+            // reference: None
+            // reference stack: [&source.identifier?]
             identifier.compile(ctx);
             // result: None
             // stack: [source?]
@@ -551,24 +581,18 @@ fn compile_assignment_target_property<'s>(
         ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(property) => {
             // result: source
             // stack: [source?]
-            property.name.compile(ctx);
+            let identifier = property.name.compile(ctx);
             // result: None
             // stack: [source?]
             // reference: &source.property
+            compile_get_value_maybe_keep_reference(ctx, identifier, has_rest);
             if has_rest {
-                ctx.add_instruction(Instruction::GetValueKeepReference);
                 ctx.add_instruction(Instruction::PushReference);
-                // result: source.property
-                // stack: [source?]
-                // reference: None
-                // reference stack: [&source.property]
-            } else {
-                ctx.add_instruction(Instruction::GetValue);
-                // result: source.property
-                // stack: [source?]
-                // reference: None
-                // reference stack: []
             }
+            // result: source.property
+            // stack: [source?]
+            // reference: None
+            // reference stack: [&source.property?]
             property.binding.compile(ctx);
             // result: None
             // stack: [source?]
@@ -603,8 +627,11 @@ fn compile_assignment_target_rest<'s>(
     // reference stack: []
 }
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::AssignmentTargetPropertyIdentifier<'s>
+{
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // result: binding
         // stack: []
 
@@ -627,11 +654,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
-            init.compile(ctx);
+            compile_expression_get_value(init, ctx);
             ctx.name_identifier = None;
-            if is_reference(init) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
             // result: init
             // stack: []
             ctx.add_instruction(Instruction::Load);
@@ -655,7 +679,8 @@ impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetPropertyIdentifier<'s> {
     }
 }
 
-impl<'s> CompileEvaluation<'s> for ast::PropertyKey<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::PropertyKey<'s> {
+    type Output = Option<PropertyKey<'gc>>;
     /// ## Register states
     ///
     /// ### Entry condition
@@ -673,16 +698,12 @@ impl<'s> CompileEvaluation<'s> for ast::PropertyKey<'s> {
     /// reference: &source.property
     /// reference stack: []
     /// ```
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // result: source
         // stack: []
         match self {
             ast::PropertyKey::StaticIdentifier(identifier) => {
-                let key = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(
-                    Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                    key,
-                );
+                Some(identifier.compile(ctx))
                 // result: None
                 // stack: []
                 // reference: &source.identifier
@@ -702,6 +723,7 @@ impl<'s> CompileEvaluation<'s> for ast::PropertyKey<'s> {
                 // result: None
                 // stack: []
                 // reference: &source[expr]
+                None
             }
         }
     }
@@ -745,7 +767,10 @@ fn compile_initializer<'s>(
     // stack: []
 }
 
-impl<'s> CompileEvaluation<'s> for ast::AssignmentTargetMaybeDefault<'s> {
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
+    for ast::AssignmentTargetMaybeDefault<'s>
+{
+    type Output = ();
     /// ## Register states
     ///
     /// ### Entry condition

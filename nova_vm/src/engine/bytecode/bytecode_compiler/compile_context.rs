@@ -170,7 +170,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Create a property lookup cache for a JavaScript String.
     pub(crate) fn create_property_lookup_cache(
         &mut self,
-        identifier: String<'gc>,
+        identifier: PropertyKey<'gc>,
     ) -> PropertyLookupCache<'gc> {
         self.executable.create_property_lookup_cache(identifier)
     }
@@ -1083,14 +1083,18 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 }
 
-pub(crate) trait CompileEvaluation<'s> {
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>);
+pub(crate) trait CompileEvaluation<'a, 's, 'gc, 'scope> {
+    type Output;
+
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output;
 }
 
-pub(crate) trait CompileLabelledEvaluation<'s> {
+pub(crate) trait CompileLabelledEvaluation<'a, 's, 'gc, 'scope> {
+    type Output;
+
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
-    );
+        ctx: &mut CompileContext<'a, 's, 'gc, 'scope>,
+    ) -> Self::Output;
 }

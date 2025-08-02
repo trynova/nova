@@ -116,6 +116,7 @@ pub enum Instruction {
     /// property updates and function calls (where `this` comes from the
     /// reference).
     GetValueKeepReference,
+    GetValueWithCacheKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
     /// Compare the last two values on the stack using the '>=' operator rules.
@@ -537,6 +538,7 @@ impl Instruction {
             // | Self::GetValue
             | Self::GetValueWithCache
             // | Self::GetValueKeepReference
+            | Self::GetValueWithCacheKeepReference
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::LoadConstant
@@ -569,7 +571,7 @@ impl Instruction {
         matches!(
             self,
             // Self::GetValueKeepReference | Self::GetValue | Self::PutValue
-            Self::GetValueWithCache
+            Self::GetValueWithCache | Self::GetValueWithCacheKeepReference
         )
     }
 
@@ -1165,6 +1167,8 @@ impl TryFrom<u8> for Instruction {
         const GETVALUE: u8 = Instruction::GetValue.as_u8();
         const GETVALUEWITHCACHE: u8 = Instruction::GetValueWithCache.as_u8();
         const GETVALUEKEEPREFERENCE: u8 = Instruction::GetValueKeepReference.as_u8();
+        const GETVALUEWITHCACHEKEEPREFERENCE: u8 =
+            Instruction::GetValueWithCacheKeepReference.as_u8();
         const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
         const GREATERTHANEQUALS: u8 = Instruction::GreaterThanEquals.as_u8();
         const HASPROPERTY: u8 = Instruction::HasProperty.as_u8();
@@ -1373,6 +1377,7 @@ impl TryFrom<u8> for Instruction {
             GETVALUE => Ok(Instruction::GetValue),
             GETVALUEWITHCACHE => Ok(Instruction::GetValueWithCache),
             GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
+            GETVALUEWITHCACHEKEEPREFERENCE => Ok(Instruction::GetValueWithCacheKeepReference),
             GREATERTHAN => Ok(Instruction::GreaterThan),
             GREATERTHANEQUALS => Ok(Instruction::GreaterThanEquals),
             HASPROPERTY => Ok(Instruction::HasProperty),
