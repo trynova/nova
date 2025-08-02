@@ -763,7 +763,7 @@ impl PropertyOffset {
     pub(crate) fn get_property_offset(self) -> u16 {
         debug_assert!(!self.is_not_found());
         if self.is_prototype_property() {
-            (self.0 + 1).abs() as u16
+            (self.0 + 1).unsigned_abs()
         } else {
             self.0 as u16
         }

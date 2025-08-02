@@ -365,9 +365,9 @@ impl Scoped<'_, Executable<'static>> {
     }
 
     #[inline]
-    pub(super) fn fetch_cache<'a, 'gc>(
+    pub(super) fn fetch_cache<'gc>(
         &self,
-        agent: &'a Agent,
+        agent: &Agent,
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> PropertyLookupCache<'gc> {

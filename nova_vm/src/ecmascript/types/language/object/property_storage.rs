@@ -445,13 +445,11 @@ impl<'a> PropertyStorage<'a> {
             // Then move our descriptors if found.
             if let Entry::Occupied(mut e) = descriptors {
                 let descs = e.get_mut();
-                descs.remove(&(index as u32));
+                descs.remove(&index);
                 if descs.is_empty() {
                     e.remove();
                 } else {
-                    let extracted = descs
-                        .extract_if(|k, _| *k > index as u32)
-                        .collect::<Vec<_>>();
+                    let extracted = descs.extract_if(|k, _| *k > index).collect::<Vec<_>>();
                     for (k, v) in extracted {
                         descs.insert(k.wrapping_sub(1), v);
                     }

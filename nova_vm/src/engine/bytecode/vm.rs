@@ -3971,5 +3971,5 @@ fn get_value_by_offset<'a>(
         .unbind()?;
         vm.result = Some(result);
     }
-    return Ok(());
+    Ok(())
 }
