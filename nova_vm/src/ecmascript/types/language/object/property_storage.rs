@@ -461,7 +461,7 @@ impl<'a> PropertyStorage<'a> {
         agent[object].set_len(new_len);
         if old_shape == new_shape {
             // Shape did not change with removal: this is an intrinsic shape!
-            // We must invalidate any property lookup cahces associated with
+            // We must invalidate any property lookup caches associated with
             // the removed and subsequent property indexes.
             Caches::invalidate_caches_on_intrinsic_shape_property_removal(
                 agent, o, old_shape, index,
