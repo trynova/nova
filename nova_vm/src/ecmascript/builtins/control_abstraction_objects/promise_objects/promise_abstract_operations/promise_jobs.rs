@@ -142,6 +142,41 @@ impl PromiseReactionJob {
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
         // The following are substeps of point 1 in NewPromiseReactionJob.
+        // Handle PromiseAll case separately to avoid borrowing conflicts
+        if matches!(
+            agent[reaction].handler,
+            PromiseReactionHandler::PromiseAll { .. }
+        ) {
+            let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+            let reaction_type = agent[reaction].reaction_type;
+
+            if let PromiseReactionHandler::PromiseAll {
+                remaining_unresolved_promise_count,
+                ..
+            } = &mut agent[reaction].handler
+            {
+                let (handler_result, promise_capability) = match reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        *remaining_unresolved_promise_count -= 1;
+                        // TODO: handler promise finish
+                        (Ok(argument), capability)
+                    }
+                    PromiseReactionType::Reject => {
+                        // TODO: handle rejections
+                        (Err(JsError::new(argument)), capability)
+                    }
+                };
+
+                match handler_result {
+                    Err(err) => promise_capability.reject(agent, err.value(), gc.nogc()),
+                    Ok(value) => promise_capability
+                        .unbind()
+                        .resolve(agent, value.unbind(), gc),
+                };
+                return Ok(());
+            }
+        }
+
         let (handler_result, promise_capability) = match agent[reaction].handler {
             PromiseReactionHandler::Empty => {
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
@@ -284,6 +319,9 @@ impl PromiseReactionJob {
                     }
                 }
             }
+            PromiseReactionHandler::PromiseAll { .. } => {
+                unreachable!("PromiseAll case is handled separately above")
+            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -344,7 +382,8 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::AsyncFromSyncIteratorClose(_)
         | PromiseReactionHandler::AsyncModule(_)
         | PromiseReactionHandler::DynamicImport { .. }
-        | PromiseReactionHandler::DynamicImportEvaluate { .. } => None,
+        | PromiseReactionHandler::DynamicImportEvaluate { .. }
+        | PromiseReactionHandler::PromiseAll { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
