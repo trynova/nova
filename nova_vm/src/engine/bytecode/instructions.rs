@@ -487,6 +487,11 @@ pub enum Instruction {
     ///
     /// The error message is provided as an identifier.
     VerifyIsObject,
+
+    // TypeScript Enum Support
+    #[cfg(feature = "typescript")]
+    /// Create a TypeScript enum object. The enum name is provided as an identifier.
+    CreateTSEnum,
 }
 
 impl Instruction {
@@ -551,6 +556,8 @@ impl Instruction {
             | Self::StringConcat
             | Self::ThrowError
             | Self::VerifyIsObject => 1,
+            #[cfg(feature = "typescript")]
+            Self::CreateTSEnum => 0,
             _ => 0,
         }
     }
@@ -590,7 +597,7 @@ impl Instruction {
     }
 
     pub fn has_identifier_index(self) -> bool {
-        matches!(
+        let base_matches = matches!(
             self,
             Self::BindingPatternBind
                 | Self::BindingPatternBindNamed
@@ -604,7 +611,14 @@ impl Instruction {
                 | Self::MakeSuperPropertyReferenceWithIdentifierKey
                 | Self::ResolveBinding
                 | Self::VerifyIsObject
-        )
+        );
+
+        #[cfg(feature = "typescript")]
+        let typescript_matches = false;
+        #[cfg(not(feature = "typescript"))]
+        let typescript_matches = false;
+
+        base_matches || typescript_matches
     }
 
     pub fn has_function_expression_index(self) -> bool {
@@ -916,7 +930,8 @@ impl Instr {
     ) -> std::string::String {
         match kind {
             Instruction::BeginSimpleArrayBindingPattern => {
-                format!("{{ length: {}, env: {} }}", arg0, arg1 == 1)
+                let arg1_equals = arg1 == 1;
+                format!("{{ length: {arg0}, env: {arg1_equals} }}")
             }
             Instruction::BindingPatternBindNamed => {
                 format!(
@@ -953,7 +968,8 @@ impl Instr {
                 format!("{static_prefix}#{key}")
             }
             Instruction::InitializeVariableEnvironment => {
-                format!("{{ var count: {}, strict: {} }}", arg0, arg1 == 1)
+                let arg1_equals = arg1 == 1;
+                format!("{{ var count: {arg0}, strict: {arg1_equals} }}")
             }
             Instruction::ObjectDefineGetter => "get function() {}".to_string(),
             Instruction::ObjectDefineMethod => "function() {}".to_string(),
@@ -1280,6 +1296,8 @@ impl TryFrom<u8> for Instruction {
         const IMPORTCALL: u8 = Instruction::ImportCall.as_u8();
         const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
+        #[cfg(feature = "typescript")]
+        const CREATETSENUM: u8 = Instruction::CreateTSEnum.as_u8();
         match value {
             ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
                 BinaryOperator::Addition,
@@ -1487,6 +1505,8 @@ impl TryFrom<u8> for Instruction {
             IMPORTCALL => Ok(Instruction::ImportCall),
             IMPORTMETA => Ok(Instruction::ImportMeta),
             VERIFYISOBJECT => Ok(Instruction::VerifyIsObject),
+            #[cfg(feature = "typescript")]
+            CREATETSENUM => Ok(Instruction::CreateTSEnum),
             _ => Err(()),
         }
     }

@@ -362,6 +362,11 @@ pub(crate) fn instantiation<'s>(
                 let dn = BUILTIN_STRING_MEMORY._default_;
                 ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
+            #[cfg(feature = "typescript")]
+            LexicallyScopedDeclaration::TSEnum(decl) => {
+                let dn = ctx.create_string(&decl.id.name);
+                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+            }
         }
     }
 

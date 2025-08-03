@@ -4,12 +4,11 @@
 
 mod binding_methods;
 
-use std::{ptr::NonNull, sync::OnceLock};
-
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
+use std::{ptr::NonNull, sync::OnceLock};
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -3184,6 +3183,22 @@ impl Vm {
                         gc.into_nogc(),
                     ));
                 }
+            }
+            #[cfg(feature = "typescript")]
+            Instruction::CreateTSEnum => {
+                // Create a new ordinary object to serve as the enum
+                let enum_object = OrdinaryObject::create_object(
+                    agent,
+                    Some(
+                        agent
+                            .current_realm_record()
+                            .intrinsics()
+                            .object_prototype()
+                            .into_object(),
+                    ),
+                    &[],
+                );
+                vm.stack.push(enum_object.into_value().unbind());
             }
         }
 

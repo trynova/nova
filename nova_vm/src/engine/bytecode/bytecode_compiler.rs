@@ -3449,7 +3449,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             | Self::TSExportAssignment(_)
             | Self::TSImportEqualsDeclaration(_)
             | Self::TSModuleDeclaration(_)
-            | Self::TSNamespaceExportDeclaration(_) => unreachable!(),
+            | Self::TSNamespaceExportDeclaration(_) => {
+                #[cfg(feature = "typescript")]
+                match self {
+                    Self::TSEnumDeclaration(enum_decl) => enum_decl.compile(ctx),
+                    _ => unreachable!(),
+                }
+                #[cfg(not(feature = "typescript"))]
+                unreachable!()
+            }
         }
     }
 }
@@ -3463,5 +3471,136 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
             is_anonymous_function_definition(&x.expression)
         }
         _ => false,
+    }
+}
+
+#[cfg(feature = "typescript")]
+impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnumDeclaration<'s> {
+    type Output = ();
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
+        // TODO: Check if this is a const enum when the field is available
+        // For now, treat all enums as regular enums
+
+        // 1. Create the enum name binding
+        let enum_name = self.id.name.as_str();
+        let enum_name_string = ctx.create_string(enum_name);
+        let enum_identifier = ctx.add_identifier(enum_name_string);
+        ctx.add_instruction_with_immediate(Instruction::ResolveBinding, enum_identifier);
+
+        // 2. Create the enum object and put it on the stack
+        ctx.add_instruction(Instruction::CreateTSEnum);
+
+        // 3. Process each enum member with proper value tracking
+        let mut current_numeric_value = 0f64;
+        let mut is_numeric_enum = true; // Track if this is a pure numeric enum for reverse mapping
+
+        for member in self.body.members.iter() {
+            let member_name = match &member.id {
+                ast::TSEnumMemberName::Identifier(ident) => ident.name.as_str(),
+                _ => "unknown",
+            };
+
+            // Push member name as property key onto stack
+            let member_string = ctx.create_string(member_name);
+            ctx.add_instruction_with_constant(
+                Instruction::LoadConstant,
+                member_string.into_value(),
+            );
+
+            // Determine the value for this enum member
+            if let Some(ref initializer) = member.initializer {
+                match initializer {
+                    ast::Expression::StringLiteral(string_lit) => {
+                        // String enum member - this makes it not a pure numeric enum
+                        is_numeric_enum = false;
+                        let string_value = ctx.create_string(string_lit.value.as_str());
+                        ctx.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            string_value.into_value(),
+                        );
+                    }
+                    ast::Expression::NumericLiteral(num_lit) => {
+                        // Numeric literal - update the sequence
+                        let number_value = ctx.create_number(num_lit.value);
+                        ctx.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            number_value.into_value(),
+                        );
+                        current_numeric_value = num_lit.value + 1.0;
+                    }
+                    _ => {
+                        // Computed expression - compile normally
+                        // This might contain enum member references, which need special handling
+                        // For now, mark as not pure numeric to skip reverse mapping
+                        is_numeric_enum = false;
+                        compile_expression_get_value(initializer, ctx);
+                    }
+                }
+            } else {
+                // Auto-increment: use current numeric value
+                let number_value = ctx.create_number(current_numeric_value);
+                ctx.add_instruction_with_constant(
+                    Instruction::StoreConstant,
+                    number_value.into_value(),
+                );
+                current_numeric_value += 1.0;
+            }
+
+            // Use Nova's standard property definition instruction
+            // This takes: object (stays on stack), key (popped), value (from vm.result)
+            ctx.add_instruction(Instruction::ObjectDefineProperty);
+        }
+
+        // 4. Add reverse mappings for numeric enums (TypeScript behavior)
+        // Only for pure numeric enums (no string values or computed expressions)
+        if is_numeric_enum {
+            current_numeric_value = 0f64;
+
+            for member in self.body.members.iter() {
+                let member_name = match &member.id {
+                    ast::TSEnumMemberName::Identifier(ident) => ident.name.as_str(),
+                    _ => "unknown",
+                };
+
+                // Determine the numeric value for reverse mapping
+                let reverse_key_value = if let Some(ref initializer) = member.initializer {
+                    if let ast::Expression::NumericLiteral(num_lit) = initializer {
+                        current_numeric_value = num_lit.value + 1.0;
+                        num_lit.value
+                    } else {
+                        // Should not happen since we filtered to numeric enums
+                        current_numeric_value += 1.0;
+                        continue;
+                    }
+                } else {
+                    let value = current_numeric_value;
+                    current_numeric_value += 1.0;
+                    value
+                };
+
+                // Push numeric value as key
+                let key_number = ctx.create_number(reverse_key_value);
+                ctx.add_instruction_with_constant(
+                    Instruction::LoadConstant,
+                    key_number.into_value(),
+                );
+
+                // Push member name as value
+                let name_string = ctx.create_string(member_name);
+                ctx.add_instruction_with_constant(
+                    Instruction::StoreConstant,
+                    name_string.into_value(),
+                );
+
+                // Define reverse mapping property
+                ctx.add_instruction(Instruction::ObjectDefineProperty);
+            }
+        }
+
+        // 5. Initialize the binding with the completed enum object
+        // Move the enum object from stack to result register
+        ctx.add_instruction(Instruction::Store);
+        // Now initialize the binding (reference is on stack, value is in result)
+        ctx.add_instruction(Instruction::InitializeReferencedBinding);
     }
 }

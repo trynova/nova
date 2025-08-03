@@ -173,15 +173,40 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
             Statement::VariableDeclaration(decl) => decl.bound_names(f),
             Statement::FunctionDeclaration(decl) => decl.bound_names(f),
             Statement::ClassDeclaration(decl) => decl.bound_names(f),
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(decl) => decl.id.bound_names(f),
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) => {
+                // Type aliases don't introduce runtime bindings
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSInterfaceDeclaration(_) => {
+                // Interfaces don't introduce runtime bindings
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+            }
+            #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
-            | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => {
-                unreachable!()
-            }
+            | Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -205,6 +230,8 @@ pub(crate) enum LexicallyScopedDeclaration<'a> {
     Variable(&'a VariableDeclarator<'a>),
     Function(&'a Function<'a>),
     Class(&'a Class<'a>),
+    #[cfg(feature = "typescript")]
+    TSEnum(&'a ast::TSEnumDeclaration<'a>),
     DefaultExport,
 }
 
@@ -435,6 +462,27 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     Declaration::ClassDeclaration(decl) => {
                         f(LexicallyScopedDeclaration::Class(decl));
                     },
+                    #[cfg(feature = "typescript")]
+                    Declaration::TSEnumDeclaration(decl) => {
+                        f(LexicallyScopedDeclaration::TSEnum(decl));
+                    },
+                    #[cfg(feature = "typescript")]
+                    Declaration::TSTypeAliasDeclaration(_) => {
+                        // Type aliases don't introduce runtime bindings
+                    },
+                    #[cfg(feature = "typescript")]
+                    Declaration::TSInterfaceDeclaration(_) => {
+                        // Interfaces don't introduce runtime bindings
+                    },
+                    #[cfg(feature = "typescript")]
+                    Declaration::TSModuleDeclaration(_) => {
+                        // TODO: implement when module declarations are supported
+                    },
+                    #[cfg(feature = "typescript")]
+                    Declaration::TSImportEqualsDeclaration(_) => {
+                        // TODO: implement when import equals declarations are supported
+                    },
+                    #[cfg(not(feature = "typescript"))]
                     Declaration::TSTypeAliasDeclaration(_) |
                     Declaration::TSInterfaceDeclaration(_) |
                     Declaration::TSEnumDeclaration(_) |
@@ -1118,6 +1166,25 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
             }
             // Note: No bounds names for export all and export default declarations.
             Statement::ExportAllDeclaration(_) | Statement::ExportDefaultDeclaration(_) => {}
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(decl) => decl.id.bound_names(f),
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+            }
+            #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSImportEqualsDeclaration(_)
@@ -1198,6 +1265,14 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
                 unreachable!()
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(decl) => f(LexicallyScopedDeclaration::TSEnum(decl)),
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
@@ -1284,6 +1359,27 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
                 unreachable!()
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(_) => {
+                // Enums don't introduce var-declared names
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+            }
+            #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
@@ -1425,6 +1521,13 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
                 unreachable!()
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_) => {}
+            #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
