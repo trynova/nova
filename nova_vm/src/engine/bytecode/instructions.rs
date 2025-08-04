@@ -487,11 +487,6 @@ pub enum Instruction {
     ///
     /// The error message is provided as an identifier.
     VerifyIsObject,
-
-    // TypeScript Enum Support
-    #[cfg(feature = "typescript")]
-    /// Create a TypeScript enum object. The enum name is provided as an identifier.
-    CreateTSEnum,
 }
 
 impl Instruction {
@@ -556,8 +551,6 @@ impl Instruction {
             | Self::StringConcat
             | Self::ThrowError
             | Self::VerifyIsObject => 1,
-            #[cfg(feature = "typescript")]
-            Self::CreateTSEnum => 0,
             _ => 0,
         }
     }
@@ -1296,8 +1289,6 @@ impl TryFrom<u8> for Instruction {
         const IMPORTCALL: u8 = Instruction::ImportCall.as_u8();
         const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
-        #[cfg(feature = "typescript")]
-        const CREATETSENUM: u8 = Instruction::CreateTSEnum.as_u8();
         match value {
             ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
                 BinaryOperator::Addition,
@@ -1505,8 +1496,6 @@ impl TryFrom<u8> for Instruction {
             IMPORTCALL => Ok(Instruction::ImportCall),
             IMPORTMETA => Ok(Instruction::ImportMeta),
             VERIFYISOBJECT => Ok(Instruction::VerifyIsObject),
-            #[cfg(feature = "typescript")]
-            CREATETSENUM => Ok(Instruction::CreateTSEnum),
             _ => Err(()),
         }
     }

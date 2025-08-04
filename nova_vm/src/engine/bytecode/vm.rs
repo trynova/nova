@@ -3184,22 +3184,6 @@ impl Vm {
                     ));
                 }
             }
-            #[cfg(feature = "typescript")]
-            Instruction::CreateTSEnum => {
-                // Create a new ordinary object to serve as the enum
-                let enum_object = OrdinaryObject::create_object(
-                    agent,
-                    Some(
-                        agent
-                            .current_realm_record()
-                            .intrinsics()
-                            .object_prototype()
-                            .into_object(),
-                    ),
-                    &[],
-                );
-                vm.stack.push(enum_object.into_value().unbind());
-            }
         }
 
         Ok(ContinuationKind::Normal)
