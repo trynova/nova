@@ -36,14 +36,13 @@ use core::{
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
 use std::rc::Rc;
 
 use super::{
     module::module_semantics::{
         LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
     },
-    source_code::SourceCode,
+    source_code::{SourceCode, SourceCodeType},
 };
 
 pub type HostDefined = Rc<dyn Any>;
@@ -300,20 +299,26 @@ pub fn parse_script<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> ScriptOrErrors<'a> {
     // 1. Let script be ParseText(sourceText, Script).
-    let mut source_type = if strict_mode {
+    let source_type = if strict_mode {
         // Strict mode script is equal to module code.
-        SourceType::default().with_module(true)
+        SourceCodeType::StrictScript
     } else {
         // Loose mode script is just script code.
-        SourceType::default().with_script(true)
+        SourceCodeType::Script
     };
-    if cfg!(feature = "typescript") {
-        source_type = source_type.with_typescript(true);
-    }
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, gc) };
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            source_text,
+            source_type,
+            #[cfg(feature = "typescript")]
+            true,
+            gc,
+        )
+    };
 
     let (program, source_code) = match parse_result {
         // 2. If script is a List of errors, return script.
@@ -328,7 +333,13 @@ pub fn parse_script<'a>(
         // [[Realm]]: realm,
         realm: realm.unbind(),
         // [[ECMAScriptCode]]: script,
-        ecmascript_code: ManuallyDrop::new(program),
+        // SAFETY: We are moving the Program onto the heap together with the
+        // SourceCode reference: the latter will keep alive the allocation that
+        // Program points to. Hence, we can unbind the Program from the garbage
+        // collector lifetime here.
+        ecmascript_code: ManuallyDrop::new(unsafe {
+            core::mem::transmute::<Program, Program<'static>>(program)
+        }),
         // [[LoadedModules]]: « »,
         loaded_modules: Default::default(),
         // [[HostDefined]]: hostDefined,
@@ -715,21 +726,28 @@ pub(crate) fn global_declaration_instantiation<'a>(
 
 #[cfg(test)]
 mod test {
-    use crate::ecmascript::builtins::{Array, BuiltinFunctionArgs, create_builtin_function};
-    use crate::ecmascript::execution::JsResult;
-    use crate::ecmascript::execution::agent::ExceptionType;
-    use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-    use crate::engine::context::{Bindable, GcScope};
-    use crate::engine::rootable::Scopable;
-    use crate::engine::unwrap_try;
     use crate::{
         SmallInteger,
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,
-            builtins::{ArgumentsList, Behaviour},
-            execution::{Agent, DefaultHostHooks, agent::Options, initialize_default_realm},
+            builtins::{
+                ArgumentsList, Array, Behaviour, BuiltinFunctionArgs, create_builtin_function,
+            },
+            execution::{
+                Agent, DefaultHostHooks, JsResult,
+                agent::{ExceptionType, Options},
+                initialize_default_realm,
+            },
             scripts_and_modules::script::{parse_script, script_evaluation},
-            types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
+            types::{
+                BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Number, Object, PropertyKey,
+                String, Value,
+            },
+        },
+        engine::{
+            context::{Bindable, GcScope},
+            rootable::Scopable,
+            unwrap_try,
         },
     };
 

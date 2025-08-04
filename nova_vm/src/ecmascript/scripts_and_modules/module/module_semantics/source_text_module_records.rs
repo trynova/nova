@@ -15,7 +15,6 @@ use ahash::AHashSet;
 use oxc_ast::ast::{self, Program};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
 
 use crate::{
     ecmascript::{
@@ -44,7 +43,7 @@ use crate::{
                 CyclicModuleRecordStatus, inner_module_evaluation, inner_module_linking,
             },
             script::HostDefined,
-            source_code::SourceCode,
+            source_code::{SourceCode, SourceCodeType},
         },
         syntax_directed_operations::{
             contains::{Contains, ContainsSymbol},
@@ -1672,16 +1671,18 @@ pub fn parse_module<'a>(
 ) -> ModuleOrErrors<'a> {
     let realm = realm.bind(gc);
     // 1. Let body be ParseText(sourceText, Module).
-    let source_type = if cfg!(feature = "typescript") {
-        SourceType::default()
-            .with_module(true)
-            .with_typescript(true)
-    } else {
-        SourceType::default().with_module(true)
-    };
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, gc) };
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            source_text,
+            SourceCodeType::Module,
+            #[cfg(feature = "typescript")]
+            true,
+            gc,
+        )
+    };
 
     let (body, source_code) = match parse_result {
         // 2. If body is a List of errors, return body.
@@ -2031,7 +2032,13 @@ pub fn parse_module<'a>(
         // [[DFSAncestorIndex]]: empty
         cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
         // [[ECMAScriptCode]]: body,
-        ecmascript_code: ManuallyDrop::new(body),
+        // SAFETY: We are moving the Program onto the heap together with the
+        // SourceCode reference: the latter will keep alive the allocation that
+        // Program points to. Hence, we can unbind the Program from the garbage
+        // collector lifetime here.
+        ecmascript_code: ManuallyDrop::new(unsafe {
+            core::mem::transmute::<Program, Program<'static>>(body)
+        }),
         compiled_bytecode: None,
         // [[Context]]: empty,
         context: Default::default(),
