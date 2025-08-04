@@ -4,12 +4,6 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::ecmascript::types::{IntoPrimitive, Primitive};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::small_bigint::SmallBigInt;
-use crate::engine::{TryResult, unwrap_try};
-use crate::heap::HeapSweepWeakReference;
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -21,16 +15,23 @@ use crate::{
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
             FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
-            InternalSlots, IntoObject, IntoValue, NUMBER_DISCRIMINANT, Number, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT,
-            SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, String, Symbol,
-            Value, bigint::HeapBigInt,
+            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, Number,
+            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
+            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, String, Symbol, Value, bigint::HeapBigInt,
         },
     },
-    engine::small_f64::SmallF64,
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_bigint::SmallBigInt,
+        small_f64::SmallF64,
+        unwrap_try,
+    },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        indexes::PrimitiveObjectIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::PrimitiveObjectIndex,
     },
 };
 use small_string::SmallString;

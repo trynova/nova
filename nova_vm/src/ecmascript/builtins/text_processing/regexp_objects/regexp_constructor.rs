@@ -2,32 +2,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::get;
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_reg_exp;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinGetter;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::regexp::reg_exp_alloc;
-use crate::ecmascript::builtins::regexp::reg_exp_initialize;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::Realm;
-
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::PropertyKey;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::Value;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::IntrinsicConstructorIndexes;
-use crate::heap::WellKnownSymbolIndexes;
+use crate::{
+    ecmascript::{
+        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_reg_exp},
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            regexp::{reg_exp_alloc, reg_exp_initialize},
+        },
+        execution::{Agent, JsResult, Realm},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+};
 
 pub struct RegExpConstructor;
 

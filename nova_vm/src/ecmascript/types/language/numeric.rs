@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, NoGcScope};
-use crate::engine::small_bigint::SmallBigInt;
 use crate::{
     SmallInteger,
     ecmascript::execution::Agent,
     engine::{
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
 };

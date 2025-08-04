@@ -1,9 +1,11 @@
 use core::marker::PhantomData;
 
-use crate::engine::context::NoGcScope;
 use crate::{
     ecmascript::execution::Agent,
-    engine::rootable::{HeapRootRef, Rootable},
+    engine::{
+        context::NoGcScope,
+        rootable::{HeapRootRef, Rootable},
+    },
 };
 
 /// # Global heap root
@@ -21,13 +23,14 @@ impl<T: Rootable> Global<T> {
     /// collected until the Global is explicitly released.
     #[must_use]
     pub fn new(agent: &Agent, value: T) -> Self {
-        let value = match T::to_root_repr(value) {
+        let heap_root_data = match T::to_root_repr(value) {
             Ok(stack_repr) => {
                 // The value doesn't need rooting.
                 return Self(stack_repr, PhantomData);
             }
             Err(heap_data) => heap_data,
         };
+        let value = heap_root_data;
         let mut globals = agent.heap.globals.borrow_mut();
         let reused_index = globals.iter_mut().enumerate().find_map(|(index, entry)| {
             if entry.is_none() {

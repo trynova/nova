@@ -4,13 +4,9 @@
 
 //! ## [27.2.1.1 PromiseCapability Records]()
 
-use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::get,
+        abstract_operations::operations_on_objects::{get, try_get},
         builtins::promise::{
             Promise,
             data::{PromiseHeapData, PromiseState},
@@ -20,6 +16,11 @@ use crate::{
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
         types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, Value},
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };

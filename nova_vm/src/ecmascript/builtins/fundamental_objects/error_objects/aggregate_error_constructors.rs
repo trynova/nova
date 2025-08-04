@@ -2,16 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    create_array_from_scoped_list, throw_not_callable,
-};
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator, iterator_to_list},
-            operations_on_objects::define_property_or_throw,
+            operations_on_objects::{
+                create_array_from_scoped_list, define_property_or_throw, throw_not_callable,
+            },
             type_conversion::to_string,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -24,6 +21,10 @@ use crate::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
             PropertyKey, String, Value,
         },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::IntrinsicConstructorIndexes,
 };

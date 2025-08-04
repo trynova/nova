@@ -6,16 +6,14 @@
 
 use std::{
     marker::PhantomData,
-    mem::ManuallyDrop,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
 
 use ahash::AHashSet;
-use oxc_ast::ast::{self, Program};
+use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
 
 use crate::{
     ecmascript::{
@@ -44,7 +42,7 @@ use crate::{
                 CyclicModuleRecordStatus, inner_module_evaluation, inner_module_linking,
             },
             script::HostDefined,
-            source_code::SourceCode,
+            source_code::{ParseResult, SourceCode, SourceCodeType},
         },
         syntax_directed_operations::{
             contains::{Contains, ContainsSymbol},
@@ -94,7 +92,7 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     /// allocator drops all of the data in a single go. All that needs to be
     /// dropped here is the local Program itself, not any of its referred
     /// parts.
-    ecmascript_code: ManuallyDrop<Program<'static>>,
+    ecmascript_code: NonNull<[ast::Statement<'a>]>,
     /// Compiled bytecode of \[\[ECMAScriptCode]], placed here for resuming
     /// async module evaluation after an await.
     compiled_bytecode: Option<Executable<'a>>,
@@ -140,6 +138,11 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     /// SourceCode struct.
     pub(crate) source_code: SourceCode<'a>,
 }
+
+// SAFETY: [[ECMAScriptCode]] does not permit mutable access, and points to
+// data considered (and used as) immutable. It is safe to send the pointer to
+// other threads.
+unsafe impl Send for SourceTextModuleRecord<'_> {}
 
 /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -233,24 +236,18 @@ impl<'m> SourceTextModule<'m> {
     }
 
     /// Get the module statements as a slice.
-    ///
-    /// ## Safety
-    ///
-    /// The `self` SourceTextModule must be valid (not use-after-free) when
-    /// this call is performed, and a copy of it must be rooted (eg. present on
-    /// the execution context stack) while the slice is held. A use-after-free
-    /// `self` will lead to a panic or the conceptually wrong module's
-    /// statements being borrowed from the heap. If the SourceTextModule is not
-    /// rooted (at least a copy of it), then the slice will become a dangling
-    /// pointer during garbage collection.
-    pub(crate) unsafe fn get_statements<'a>(&'a self, agent: &Agent) -> &'a [ast::Statement<'a>] {
+    pub(crate) fn get_statements<'a>(
+        self,
+        agent: &Agent,
+        _: NoGcScope<'a, '_>,
+    ) -> &'a [ast::Statement<'a>] {
         // SAFETY: Caller promises that SourceTextModule is rooted while the
         // statements slice is held: the SourceTextModuleRecord may move during
         // GC but the statements it points to do not move. Hence the reference
         // is valid while the self SourceTextModule is held (the parent call).
         unsafe {
             core::mem::transmute::<&[ast::Statement], &'a [ast::Statement<'a>]>(
-                self.get(agent).ecmascript_code.body.as_slice(),
+                self.get(agent).ecmascript_code.as_ref(),
             )
         }
     }
@@ -1294,9 +1291,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         //     moduleContext is now the running execution context.
         agent.push_execution_context(module_context);
         // 18. Let code be module.[[ECMAScriptCode]].
-        // SAFETY: Garbage collection will not be called and module is
-        // currently on the execution stack, this is all good.
-        let code = unsafe { module.get_statements(agent) };
+        let code = module.get_statements(agent, gc);
         // 19. Let varDeclarations be the VarScopedDeclarations of code.
         let var_declarations = module_var_scoped_declarations(code);
         // 20. Let declaredVarNames be a new empty List.
@@ -1682,18 +1677,25 @@ pub fn parse_module<'a>(
 ) -> ModuleOrErrors<'a> {
     let realm = realm.bind(gc);
     // 1. Let body be ParseText(sourceText, Module).
-    let source_type = if cfg!(feature = "typescript") {
-        SourceType::default()
-            .with_module(true)
-            .with_typescript(true)
-    } else {
-        SourceType::default().with_module(true)
-    };
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, gc) };
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            source_text,
+            SourceCodeType::Module,
+            #[cfg(feature = "typescript")]
+            true,
+            gc,
+        )
+    };
 
-    let (body, source_code) = match parse_result {
+    let ParseResult {
+        source_code,
+        body,
+        directives: _,
+        is_strict: _,
+    } = match parse_result {
         // 2. If body is a List of errors, return body.
         Ok(result) => result,
         Err(errors) => {
@@ -1707,7 +1709,7 @@ pub fn parse_module<'a>(
     let mut import_entries: Vec<ImportEntryRecord> = vec![];
     // 5. Let importedBoundNames be ImportedLocalNames(importEntries).
     let mut imported_bound_names = AHashSet::new();
-    for ee in body.body.iter() {
+    for ee in body.iter() {
         let Some(ee) = ee.as_module_declaration() else {
             continue;
         };
@@ -1783,7 +1785,7 @@ pub fn parse_module<'a>(
     let mut star_export_entries = vec![];
     // 9. Let exportEntries be the ExportEntries of body.
     // 10. For each ExportEntry Record ee of exportEntries, do
-    for ee in body.body.iter() {
+    for ee in body.iter() {
         let Some(ee) = ee.as_module_declaration() else {
             continue;
         };
@@ -2019,45 +2021,52 @@ pub fn parse_module<'a>(
     }
 
     // 11. Let async be body Contains await.
-    let r#async = body.contains(ContainsSymbol::Await);
+    let r#async = Contains::contains(body, ContainsSymbol::Await);
     // 12. Return Source Text Module Record {
-    Ok(agent.heap.create(SourceTextModuleRecord {
-        // [[Realm]]: realm,
-        // [[Environment]]: empty,
-        // [[Namespace]]: empty,
-        // [[HostDefined]]: hostDefined,
-        abstract_fields: AbstractModuleRecord::new(realm, host_defined),
-        // [[CycleRoot]]: empty,
-        // [[HasTLA]]: async,
-        // [[AsyncEvaluationOrder]]: unset,
-        // [[TopLevelCapability]]: empty,
-        // [[AsyncParentModules]]: « »,
-        // [[PendingAsyncDependencies]]: empty,
-        // [[Status]]: new,
-        // [[EvaluationError]]: empty,
-        // [[RequestedModules]]: requestedModules,
-        // [[LoadedModules]]: « »,
-        // [[DFSIndex]]: empty,
-        // [[DFSAncestorIndex]]: empty
-        cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
-        // [[ECMAScriptCode]]: body,
-        ecmascript_code: ManuallyDrop::new(body),
-        compiled_bytecode: None,
-        // [[Context]]: empty,
-        context: Default::default(),
-        // [[ImportMeta]]: empty,
-        import_meta: Default::default(),
-        // [[ImportEntries]]: importEntries,
-        import_entries: import_entries.into_boxed_slice(),
-        // [[LocalExportEntries]]: localExportEntries,
-        local_export_entries: local_export_entries.into_boxed_slice(),
-        // [[IndirectExportEntries]]: indirectExportEntries,
-        indirect_export_entries: indirect_export_entries.into_boxed_slice(),
-        // [[StarExportEntries]]: starExportEntries,
-        star_export_entries: star_export_entries.into_boxed_slice(),
+    Ok(agent
+        .heap
+        .create(SourceTextModuleRecord {
+            // [[Realm]]: realm,
+            // [[Environment]]: empty,
+            // [[Namespace]]: empty,
+            // [[HostDefined]]: hostDefined,
+            abstract_fields: AbstractModuleRecord::new(realm, host_defined),
+            // [[CycleRoot]]: empty,
+            // [[HasTLA]]: async,
+            // [[AsyncEvaluationOrder]]: unset,
+            // [[TopLevelCapability]]: empty,
+            // [[AsyncParentModules]]: « »,
+            // [[PendingAsyncDependencies]]: empty,
+            // [[Status]]: new,
+            // [[EvaluationError]]: empty,
+            // [[RequestedModules]]: requestedModules,
+            // [[LoadedModules]]: « »,
+            // [[DFSIndex]]: empty,
+            // [[DFSAncestorIndex]]: empty
+            cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
+            // [[ECMAScriptCode]]: body,
+            // SAFETY: We are moving the Program onto the heap together with the
+            // SourceCode reference: the latter will keep alive the allocation that
+            // Program points to. Hence, we can unbind the Program from the garbage
+            // collector lifetime here.
+            ecmascript_code: NonNull::from(body),
+            compiled_bytecode: None,
+            // [[Context]]: empty,
+            context: Default::default(),
+            // [[ImportMeta]]: empty,
+            import_meta: Default::default(),
+            // [[ImportEntries]]: importEntries,
+            import_entries: import_entries.into_boxed_slice(),
+            // [[LocalExportEntries]]: localExportEntries,
+            local_export_entries: local_export_entries.into_boxed_slice(),
+            // [[IndirectExportEntries]]: indirectExportEntries,
+            indirect_export_entries: indirect_export_entries.into_boxed_slice(),
+            // [[StarExportEntries]]: starExportEntries,
+            star_export_entries: star_export_entries.into_boxed_slice(),
 
-        source_code,
-    }))
+            source_code,
+        })
+        .unbind())
     // }.
 }
 

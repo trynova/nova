@@ -2,18 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::builtins::weak_ref::WeakRef;
-use crate::ecmascript::execution::add_to_kept_objects;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        builtins::{ArgumentsList, Behaviour, Builtin, weak_ref::WeakRef},
+        execution::{Agent, JsResult, Realm, add_to_kept_objects, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
+    engine::context::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
 };
 

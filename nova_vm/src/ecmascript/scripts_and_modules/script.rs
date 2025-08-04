@@ -30,20 +30,18 @@ use ahash::AHashSet;
 use core::{
     any::Any,
     marker::PhantomData,
-    mem::ManuallyDrop,
     ops::{Index, IndexMut},
 };
-use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
+use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
-use std::rc::Rc;
+use std::{ptr::NonNull, rc::Rc};
 
 use super::{
     module::module_semantics::{
         LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
     },
-    source_code::SourceCode,
+    source_code::{ParseResult, SourceCode, SourceCodeType},
 };
 
 pub type HostDefined = Rc<dyn Any>;
@@ -63,6 +61,23 @@ impl core::fmt::Debug for Script<'_> {
 }
 
 impl Script<'_> {
+    /// Get the script statements as a slice.
+    pub(crate) fn get_statements<'a>(
+        self,
+        agent: &Agent,
+        _: NoGcScope<'a, '_>,
+    ) -> &'a [ast::Statement<'a>] {
+        // SAFETY: Caller promises that SourceTextModule is rooted while the
+        // statements slice is held: the SourceTextModuleRecord may move during
+        // GC but the statements it points to do not move. Hence the reference
+        // is valid while the self SourceTextModule is held (the parent call).
+        unsafe {
+            core::mem::transmute::<&[ast::Statement], &'a [ast::Statement<'a>]>(
+                agent[self].ecmascript_code.as_ref(),
+            )
+        }
+    }
+
     /// Creates a script identififer from a usize.
     ///
     /// ## Panics
@@ -172,12 +187,12 @@ pub struct ScriptRecord<'a> {
     ///
     /// The result of parsing the source text of this script.
     ///
-    /// Note: The Program's drop code is never run. The referred structures
-    /// live in the SourceCode heap data in its contained Allocator. The bump
-    /// allocator drops all of the data in a single go. All that needs to be
-    /// dropped here is the local Program itself, not any of its referred
-    /// parts.
-    pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
+    /// Note: The slice and its contents live in the SourceCode heap data in
+    /// its contained Allocator. The SourceCode is thus in charge of dropping
+    /// the ECMAScriptCode, and we ensure it doesn't drop prematurely by
+    /// holding the SourceCode reference.
+    pub(crate) ecmascript_code: NonNull<[ast::Statement<'a>]>,
+    pub(crate) is_strict: bool,
 
     /// ### \[\[LoadedModules]]
     ///
@@ -199,6 +214,9 @@ pub struct ScriptRecord<'a> {
     pub(crate) source_code: SourceCode<'a>,
 }
 
+// SAFETY: [[ECMAScriptCode]] does not permit mutable access, and points to
+// data considered (and used as) immutable. It is safe to send the pointer to
+// other threads.
 unsafe impl Send for ScriptRecord<'_> {}
 
 pub type ScriptOrErrors<'a> = Result<Script<'a>, Vec<OxcDiagnostic>>;
@@ -261,6 +279,7 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
         let Self {
             realm,
             ecmascript_code: _,
+            is_strict: _,
             loaded_modules,
             host_defined: _,
             source_code,
@@ -274,6 +293,7 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
         let Self {
             realm,
             ecmascript_code: _,
+            is_strict: _,
             loaded_modules,
             host_defined: _,
             source_code,
@@ -300,22 +320,33 @@ pub fn parse_script<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> ScriptOrErrors<'a> {
     // 1. Let script be ParseText(sourceText, Script).
-    let mut source_type = if strict_mode {
+    let source_type = if strict_mode {
         // Strict mode script is equal to module code.
-        SourceType::default().with_module(true)
+        SourceCodeType::StrictScript
     } else {
         // Loose mode script is just script code.
-        SourceType::default().with_script(true)
+        SourceCodeType::Script
     };
-    if cfg!(feature = "typescript") {
-        source_type = source_type.with_typescript(true);
-    }
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, gc) };
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            source_text,
+            source_type,
+            #[cfg(feature = "typescript")]
+            true,
+            gc,
+        )
+    };
 
-    let (program, source_code) = match parse_result {
+    let ParseResult {
+        source_code,
+        body,
+        directives: _,
+        is_strict,
+    } = match parse_result {
         // 2. If script is a List of errors, return script.
         Ok(result) => result,
         Err(errors) => {
@@ -328,7 +359,12 @@ pub fn parse_script<'a>(
         // [[Realm]]: realm,
         realm: realm.unbind(),
         // [[ECMAScriptCode]]: script,
-        ecmascript_code: ManuallyDrop::new(program),
+        // SAFETY: We are moving the statements slice onto the heap together
+        // with the SourceCode reference: the latter will keep alive the
+        // allocation that Statements point to. Hence, we can unbind the
+        // Statements from the garbage collector lifetime here.
+        ecmascript_code: NonNull::from(body),
+        is_strict,
         // [[LoadedModules]]: « »,
         loaded_modules: Default::default(),
         // [[HostDefined]]: hostDefined,
@@ -353,8 +389,7 @@ pub fn script_evaluation<'a>(
     let script = script.bind(gc.nogc());
     let script_record = &agent[script];
     let realm_id = script_record.realm;
-    let is_strict_mode = script_record.ecmascript_code.source_type.is_strict()
-        || script_record.ecmascript_code.has_use_strict_directive();
+    let is_strict_mode = script_record.is_strict;
     let source_code = script_record.source_code;
     let realm = agent.get_realm_record_by_id(realm_id);
 
@@ -397,14 +432,13 @@ pub fn script_evaluation<'a>(
     // NOTE: We cannot define the script here due to reference safety.
 
     // 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
-    let result = global_declaration_instantiation(
-        agent,
-        script.unbind(),
-        global_env.unbind(),
-        gc.reborrow(),
-    )
-    .unbind()
-    .bind(gc.nogc());
+    // SAFETY: script is currently on the execution stack and is thus
+    // indirectly rooted.
+    let result = unsafe {
+        global_declaration_instantiation(agent, script.unbind(), global_env.unbind(), gc.reborrow())
+            .unbind()
+            .bind(gc.nogc())
+    };
 
     let Some(ScriptOrModule::Script(script)) = agent.running_execution_context().script_or_module
     else {
@@ -454,7 +488,11 @@ pub fn script_evaluation<'a>(
 /// returns either a normal completion containing UNUSED or a throw completion.
 /// script is the Script for which the execution context is being established.
 /// env is the global environment in which bindings are to be created.
-pub(crate) fn global_declaration_instantiation<'a>(
+///
+/// ## Safety
+///
+/// Script must be rooted for the duration of this call.
+unsafe fn global_declaration_instantiation<'a>(
     agent: &mut Agent,
     script: Script,
     env: GlobalEnvironment,
@@ -466,24 +504,21 @@ pub(crate) fn global_declaration_instantiation<'a>(
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
     let (lex_names, var_names, var_declarations, lex_declarations) = {
-        let ScriptRecord {
-            ecmascript_code: script,
-            ..
-        } = &agent[script];
-        // SAFETY: The borrow of Program is valid for the duration of this
-        // block; the contents of Program are guaranteed to be valid for as
-        // long as the Script is alive in the heap as they are not reallocated.
-        // Thus in effect VarScopedDeclaration<'_> is valid for the duration
-        // of the global_declaration_instantiation call.
-        let script = unsafe { core::mem::transmute::<&Program, &'static Program<'static>>(script) };
+        let body = agent[script].ecmascript_code;
+        // SAFETY: The caller promises that Script is rooted, meaning that its
+        // backing SourceCode cannot be dropped during this call. Hence, we can
+        // take the body slice reference and keep it alive for the duration of
+        // this call.
+        let body = unsafe { body.as_ref() };
+
         // 1. Let lexNames be the LexicallyDeclaredNames of script.
-        let lex_names = script_lexically_declared_names(script);
+        let lex_names = script_lexically_declared_names(body);
         // 2. Let varNames be the VarDeclaredNames of script.
-        let var_names = script_var_declared_names(script);
+        let var_names = script_var_declared_names(body);
         // 5. Let varDeclarations be the VarScopedDeclarations of script.
-        let var_declarations = script_var_scoped_declarations(script);
+        let var_declarations = script_var_scoped_declarations(body);
         // 13. Let lexDeclarations be the LexicallyScopedDeclarations of script.
-        let lex_declarations = script_lexically_scoped_declarations(script);
+        let lex_declarations = script_lexically_scoped_declarations(body);
         (lex_names, var_names, var_declarations, lex_declarations)
     };
 
@@ -634,12 +669,12 @@ pub(crate) fn global_declaration_instantiation<'a>(
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
-        let mut closure = |identifier: &BindingIdentifier| {
+        let mut closure = |identifier: &ast::BindingIdentifier| {
             bound_names.push(String::from_str(agent, identifier.name.as_str(), gc.nogc()));
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
-                if decl.kind == VariableDeclarationKind::Const {
+                if decl.kind == ast::VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
                         const_bound_names.push(String::from_str(
                             agent,
@@ -717,21 +752,28 @@ pub(crate) fn global_declaration_instantiation<'a>(
 
 #[cfg(test)]
 mod test {
-    use crate::ecmascript::builtins::{Array, BuiltinFunctionArgs, create_builtin_function};
-    use crate::ecmascript::execution::JsResult;
-    use crate::ecmascript::execution::agent::ExceptionType;
-    use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-    use crate::engine::context::{Bindable, GcScope};
-    use crate::engine::rootable::Scopable;
-    use crate::engine::unwrap_try;
     use crate::{
         SmallInteger,
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,
-            builtins::{ArgumentsList, Behaviour},
-            execution::{Agent, DefaultHostHooks, agent::Options, initialize_default_realm},
+            builtins::{
+                ArgumentsList, Array, Behaviour, BuiltinFunctionArgs, create_builtin_function,
+            },
+            execution::{
+                Agent, DefaultHostHooks, JsResult,
+                agent::{ExceptionType, Options},
+                initialize_default_realm,
+            },
             scripts_and_modules::script::{parse_script, script_evaluation},
-            types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
+            types::{
+                BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Number, Object, PropertyKey,
+                String, Value,
+            },
+        },
+        engine::{
+            context::{Bindable, GcScope},
+            rootable::Scopable,
+            unwrap_try,
         },
     };
 

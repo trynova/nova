@@ -844,9 +844,10 @@ mod test {
     #[cfg(feature = "regexp")]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
-        use crate::ecmascript::execution::{Agent, DefaultHostHooks, agent::Options};
-        use crate::heap::indexes::BuiltinFunctionIndex;
-        use crate::heap::indexes::ObjectIndex;
+        use crate::{
+            ecmascript::execution::{Agent, DefaultHostHooks, agent::Options},
+            heap::indexes::{BuiltinFunctionIndex, ObjectIndex},
+        };
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };

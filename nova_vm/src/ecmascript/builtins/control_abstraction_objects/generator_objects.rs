@@ -4,10 +4,6 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -15,11 +11,16 @@ use crate::{
             Agent, ExecutionContext, JsResult, ProtoIntrinsics,
             agent::{ExceptionType, JsError},
         },
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, Value},
     },
-    engine::{Executable, ExecutionResult, SuspendedVm, rootable::HeapRootData},
+    engine::{
+        Executable, ExecutionResult, SuspendedVm,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, Scopable},
+    },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
         indexes::{BaseIndex, GeneratorIndex},
     },
 };

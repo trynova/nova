@@ -16,11 +16,6 @@ mod template_literals;
 mod with_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
-use crate::ecmascript::{
-    builtins::ordinary::shape::ObjectShape,
-    execution::agent::ExceptionType,
-    types::{IntoObject, IntoPrimitive, Primitive, PropertyKey},
-};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     syntax_directed_operations::{
@@ -28,6 +23,14 @@ use crate::ecmascript::{
         scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
     },
     types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
+};
+use crate::{
+    ecmascript::{
+        builtins::ordinary::shape::ObjectShape,
+        execution::{Agent, agent::ExceptionType},
+        types::{IntoObject, IntoPrimitive, Primitive, PropertyKey},
+    },
+    engine::context::NoGcScope,
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
@@ -125,55 +128,64 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NullLi
     }
 }
 
+pub(crate) fn string_literal_to_wtf8<'a>(
+    agent: &mut Agent,
+    string: &ast::StringLiteral,
+    gc: NoGcScope<'a, '_>,
+) -> String<'a> {
+    if string.lone_surrogates {
+        let mut buf = Wtf8Buf::with_capacity(string.value.len());
+        let mut str = string.value.as_str();
+        while let Some(replacement_character_index) = str.find("\u{FFFD}") {
+            // Lone surrogates are encoded as \u{FFFD}XXXX and \u{FFFD}
+            // itself is encoded as \u{FFFD}fffd: hence the fact that we
+            // found a replacement character means that we're guaranteed to
+            // have 7 bytes ahead of the replacement character index: 3 for
+            // the replacement character itself, 4 for the encoded bytes.
+
+            let (preceding, following) = str.split_at(replacement_character_index);
+            let (encoded_surrogate, rest) = following.split_at(7);
+
+            // First copy our preceding slice into the buffer.
+            if !preceding.is_empty() {
+                // SAFETY: we're working within our search buffer.
+                buf.push_str(preceding);
+            }
+            // Drop the replacement character from our str slice.
+            str = rest;
+            // Then split off the encoded bytes.
+            let encoded_bytes: &[u8; 7] = encoded_surrogate.as_bytes().first_chunk().unwrap();
+            fn char_code_to_u16(char_code: u8) -> u16 {
+                if char_code >= 97 {
+                    // 'a'..'f'
+                    (char_code - 87) as u16
+                } else {
+                    // '0'..'9'
+                    (char_code - 48) as u16
+                }
+            }
+            let value = (char_code_to_u16(encoded_bytes[3]) << 12)
+                + (char_code_to_u16(encoded_bytes[4]) << 8)
+                + (char_code_to_u16(encoded_bytes[5]) << 4)
+                + char_code_to_u16(encoded_bytes[6]);
+            // SAFETY: Value cannot be larger than 0xFFFF.
+            let code_point = unsafe { CodePoint::from_u32_unchecked(value as u32) };
+            buf.push(code_point);
+        }
+        if !str.is_empty() {
+            buf.push_str(str);
+        }
+        String::from_wtf8_buf(agent, buf, gc)
+    } else {
+        String::from_str(agent, string.value.as_str(), gc)
+    }
+}
+
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::StringLiteral<'s> {
     type Output = String<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        let constant = if self.lone_surrogates {
-            let mut buf = Wtf8Buf::with_capacity(self.value.len());
-            let mut str = self.value.as_str();
-            while let Some(replacement_character_index) = str.find("\u{FFFD}") {
-                // Lone surrogates are encoded as \u{FFFD}XXXX and \u{FFFD}
-                // itself is encoded as \u{FFFD}fffd: hence the fact that we
-                // found a replacement character means that we're guaranteed to
-                // have 7 bytes ahead of the replacement character index: 3 for
-                // the replacement character itself, 4 for the encoded bytes.
-
-                let (preceding, following) = str.split_at(replacement_character_index);
-                let (encoded_surrogate, rest) = following.split_at(7);
-
-                // First copy our preceding slice into the buffer.
-                if !preceding.is_empty() {
-                    // SAFETY: we're working within our search buffer.
-                    buf.push_str(preceding);
-                }
-                // Drop the replacement character from our str slice.
-                str = rest;
-                // Then split off the encoded bytes.
-                let encoded_bytes: &[u8; 7] = encoded_surrogate.as_bytes().first_chunk().unwrap();
-                fn char_code_to_u16(char_code: u8) -> u16 {
-                    if char_code >= 97 {
-                        // 'a'..'f'
-                        (char_code - 87) as u16
-                    } else {
-                        // '0'..'9'
-                        (char_code - 48) as u16
-                    }
-                }
-                let value = (char_code_to_u16(encoded_bytes[3]) << 12)
-                    + (char_code_to_u16(encoded_bytes[4]) << 8)
-                    + (char_code_to_u16(encoded_bytes[5]) << 4)
-                    + char_code_to_u16(encoded_bytes[6]);
-                // SAFETY: Value cannot be larger than 0xFFFF.
-                let code_point = unsafe { CodePoint::from_u32_unchecked(value as u32) };
-                buf.push(code_point);
-            }
-            if !str.is_empty() {
-                buf.push_str(str);
-            }
-            ctx.create_string_from_wtf8_buf(buf)
-        } else {
-            ctx.create_string(self.value.as_str())
-        };
+        let (agent, gc) = ctx.get_agent_and_gc();
+        let constant = string_literal_to_wtf8(agent, self, gc);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
         constant
     }
