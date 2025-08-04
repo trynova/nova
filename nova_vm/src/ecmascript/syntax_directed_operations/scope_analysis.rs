@@ -4,14 +4,14 @@
 
 use core::ops::Deref;
 
+#[cfg(feature = "typescript")]
+use oxc_ast::ast::TSEnumDeclaration;
 use oxc_ast::ast::{
     BindingIdentifier, BlockStatement, Class, Declaration, ExportDefaultDeclarationKind,
     ForStatementInit, ForStatementLeft, Function, FunctionBody, LabeledStatement, Program,
     Statement, StaticBlock, SwitchCase, SwitchStatement, VariableDeclaration,
     VariableDeclarationKind, VariableDeclarator,
 };
-#[cfg(feature = "typescript")]
-use oxc_ast::ast::TSEnumDeclaration;
 use oxc_ecmascript::BoundNames;
 
 use oxc_span::Atom;
