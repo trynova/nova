@@ -661,6 +661,8 @@ fn eval_declaration_instantiation<'a>(
             }
             LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
+            #[cfg(feature = "typescript")]
+            LexicallyScopedDeclaration::TSEnum(decl) => decl.id.bound_names(&mut closure),
             LexicallyScopedDeclaration::DefaultExport => {
                 bound_names.push(BUILTIN_STRING_MEMORY._default_.scope(agent, gc.nogc()))
             }

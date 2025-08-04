@@ -120,8 +120,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ast::Declaration::FunctionDeclaration(decl) => decl.compile(ctx),
             ast::Declaration::ClassDeclaration(decl) => decl.compile(ctx),
             ast::Declaration::TSTypeAliasDeclaration(_)
-            | ast::Declaration::TSInterfaceDeclaration(_)
-            | ast::Declaration::TSEnumDeclaration(_)
+            | ast::Declaration::TSInterfaceDeclaration(_) => {}
+            #[cfg(feature = "typescript")]
+            ast::Declaration::TSEnumDeclaration(decl) => decl.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::Declaration::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            ast::Declaration::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+            }
+            #[cfg(not(feature = "typescript"))]
+            ast::Declaration::TSEnumDeclaration(_)
             | ast::Declaration::TSModuleDeclaration(_)
             | ast::Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
         }

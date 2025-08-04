@@ -1390,6 +1390,16 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                         env.create_mutable_binding(agent, dn, false);
                     });
                 }
+                #[cfg(feature = "typescript")]
+                LexicallyScopedDeclaration::TSEnum(d) => {
+                    // ii. Else,
+                    d.id.bound_names(&mut |dn| {
+                        let dn = dn.name.as_str();
+                        let dn = String::from_str(agent, dn, gc);
+                        // 1. Perform ! env.CreateMutableBinding(dn, false).
+                        env.create_mutable_binding(agent, dn, false);
+                    });
+                }
                 LexicallyScopedDeclaration::DefaultExport => {
                     // ExportDeclaration : export default AssignmentExpression ;
                     // 1. Return « "*default*" ».

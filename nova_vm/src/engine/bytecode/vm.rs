@@ -4,12 +4,11 @@
 
 mod binding_methods;
 
-use std::{ptr::NonNull, sync::OnceLock};
-
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
+use std::{ptr::NonNull, sync::OnceLock};
 use wtf8::Wtf8Buf;
 
 use crate::{

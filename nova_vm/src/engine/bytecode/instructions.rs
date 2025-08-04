@@ -590,7 +590,7 @@ impl Instruction {
     }
 
     pub fn has_identifier_index(self) -> bool {
-        matches!(
+        let base_matches = matches!(
             self,
             Self::BindingPatternBind
                 | Self::BindingPatternBindNamed
@@ -604,7 +604,14 @@ impl Instruction {
                 | Self::MakeSuperPropertyReferenceWithIdentifierKey
                 | Self::ResolveBinding
                 | Self::VerifyIsObject
-        )
+        );
+
+        #[cfg(feature = "typescript")]
+        let typescript_matches = false;
+        #[cfg(not(feature = "typescript"))]
+        let typescript_matches = false;
+
+        base_matches || typescript_matches
     }
 
     pub fn has_function_expression_index(self) -> bool {
@@ -916,7 +923,8 @@ impl Instr {
     ) -> std::string::String {
         match kind {
             Instruction::BeginSimpleArrayBindingPattern => {
-                format!("{{ length: {}, env: {} }}", arg0, arg1 == 1)
+                let arg1_equals = arg1 == 1;
+                format!("{{ length: {arg0}, env: {arg1_equals} }}")
             }
             Instruction::BindingPatternBindNamed => {
                 format!(
@@ -953,7 +961,8 @@ impl Instr {
                 format!("{static_prefix}#{key}")
             }
             Instruction::InitializeVariableEnvironment => {
-                format!("{{ var count: {}, strict: {} }}", arg0, arg1 == 1)
+                let arg1_equals = arg1 == 1;
+                format!("{{ var count: {arg0}, strict: {arg1_equals} }}")
             }
             Instruction::ObjectDefineGetter => "get function() {}".to_string(),
             Instruction::ObjectDefineMethod => "function() {}".to_string(),
