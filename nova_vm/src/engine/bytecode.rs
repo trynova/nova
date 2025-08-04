@@ -8,7 +8,9 @@ mod instructions;
 pub(super) mod iterator;
 mod vm;
 
-pub(crate) use bytecode_compiler::{CompileContext, CompileEvaluation, NamedEvaluationParameter};
+pub(crate) use bytecode_compiler::{
+    CompileContext, CompileEvaluation, NamedEvaluationParameter, string_literal_to_wtf8,
+};
 pub(crate) use executable::{
     Executable, ExecutableHeapData, FunctionExpression, IndexType, SendableRef,
 };

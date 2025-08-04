@@ -24,6 +24,12 @@ pub(crate) trait Contains {
     fn contains(&self, symbol: ContainsSymbol) -> bool;
 }
 
+impl Contains for [ast::Statement<'_>] {
+    fn contains(&self, symbol: ContainsSymbol) -> bool {
+        self.iter().any(|st| st.contains(symbol))
+    }
+}
+
 impl Contains for ast::Program<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
         self.body.iter().any(|st| st.contains(symbol))

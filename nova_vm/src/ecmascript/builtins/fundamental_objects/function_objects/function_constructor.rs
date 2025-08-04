@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use oxc_ast::ast;
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        scripts_and_modules::source_code::{SourceCode, SourceCodeHeapData, SourceCodeType},
+        scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
             Value,
@@ -234,70 +235,65 @@ pub(crate) fn create_dynamic_function<'a>(
     // avoid code injection, but oxc doesn't have a public API to do that.
     // Instead, we parse the source string as a script, and throw unless it has
     // exactly one statement which is a function declaration of the right kind.
-    let (function, source_code) = {
-        let mut function = None;
-        let mut source_code = None;
 
-        // SAFETY: The safety requirements are that the SourceCode cannot be
-        // GC'd before the program is dropped. If this function returns
-        // successfully, then the program's AST and the SourceCode will both be
-        // kept alive in the returned function object.
-        let parsed_result = unsafe {
-            SourceCode::parse_source(
-                agent,
-                source_string,
-                SourceCodeType::Script,
-                #[cfg(feature = "typescript")]
-                false,
-                gc.nogc(),
-            )
-        };
+    // SAFETY: The safety requirements are that the SourceCode cannot be
+    // GC'd before the program is dropped. If this function returns
+    // successfully, then the program's AST and the SourceCode will both be
+    // kept alive in the returned function object.
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            source_string,
+            SourceCodeType::Script,
+            #[cfg(feature = "typescript")]
+            false,
+            gc.nogc(),
+        )
+    };
 
-        if let Ok((program, sc)) = parsed_result {
-            source_code = Some(sc);
-            if program.hashbang.is_none()
-                && program.directives.is_empty()
-                && program.body.len() == 1
-                && let oxc_ast::ast::Statement::FunctionDeclaration(funct) = &program.body[0]
-                && kind.function_matches_kind(funct)
-            {
-                // SAFETY: the Function is inside a oxc_allocator::Box, which will remain
-                // alive as long as `source_code` is kept alive. Similarly, the inner
-                // lifetime of Function is also kept alive by `source_code`.`
-                function = Some(unsafe {
-                    core::mem::transmute::<&oxc_ast::ast::Function, &'static oxc_ast::ast::Function>(
-                        funct,
-                    )
-                });
-            }
-        }
-
-        if let Some(function) = function {
-            (function, source_code.unwrap())
-        } else {
-            if source_code.is_some() {
-                // In this branch, since we're not returning the function, we
-                // know `source_code` won't be reachable from any heap object,
-                // so we pop it off the heap to help GC along.
-                agent.heap.alloc_counter = agent
-                    .heap
-                    .alloc_counter
-                    .saturating_sub(core::mem::size_of::<Option<SourceCodeHeapData<'static>>>());
-                agent.heap.source_codes.pop();
-                debug_assert_eq!(
-                    source_code.unwrap().get_index(),
-                    agent.heap.source_codes.len()
-                );
-            }
-            return Err(agent.throw_exception_with_static_message(
+    let ParseResult {
+        source_code,
+        body,
+        directives,
+        is_strict,
+    } = match parse_result {
+        Ok(r) => r,
+        Err(err) => {
+            let gc = gc.into_nogc();
+            let message = String::from_string(agent, err.first().unwrap().message.to_string(), gc);
+            return Err(agent.throw_exception_with_message(
                 ExceptionType::SyntaxError,
-                "Invalid function source text.",
-                gc.into_nogc(),
+                message,
+                gc,
             ));
         }
     };
 
+    let function = if let oxc_ast::ast::Statement::FunctionDeclaration(func) = &body[0]
+        // Note: we didn't add a directives so there should be none...
+        && directives.is_empty()
+        // ... and as a result, is_strict should be false!
+        && !is_strict
+        && body.len() == 1
+        && kind.function_matches_kind(func)
+    {
+        func.as_ref()
+    } else {
+        // SAFETY: source text was parsed but didn't match our expectations; no
+        // one has seen it yet and thus it can never be executed in this branch.
+        unsafe { source_code.manually_drop(agent) };
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "Invalid function source text.",
+            gc.into_nogc(),
+        ));
+    };
+
     let source_code = source_code.scope(agent, gc.nogc());
+    // SAFETY: SourceCode keeps the result Function's backing allocation from
+    // being dropped, and SourceCode is currently rooted. Hence, we can detach
+    // the Function from the garbage collector lifetime temporarily.
+    let function = unsafe { core::mem::transmute::<&ast::Function, &ast::Function>(function) };
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
