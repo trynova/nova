@@ -24,6 +24,11 @@ use crate::ecmascript::{
     },
     types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
 };
+#[cfg(feature = "typescript")]
+use crate::{
+    ecmascript::builtins::ordinary::shape::ObjectShapeRecord, engine::context::Bindable,
+    heap::CreateHeapData,
+};
 use crate::{
     ecmascript::{
         builtins::ordinary::shape::ObjectShape,
@@ -3532,7 +3537,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
             return;
         }
 
-        // 3. Create object shape with all enum member keys
+        // 3. Create object shape with all enum member keys directly
         let prototype = Some(
             ctx.get_agent()
                 .current_realm_record()
@@ -3540,19 +3545,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                 .object_prototype()
                 .into_object(),
         );
-        let mut shape = ObjectShape::get_shape_for_prototype(ctx.get_agent_mut(), prototype);
 
-        // Add forward mapping keys to shape
+        // Collect all property keys upfront for intrinsic shape creation
+        let mut property_keys = Vec::new();
+
+        // Add forward mapping keys
         for member in self.body.members.iter() {
             let member_name = match &member.id {
                 ast::TSEnumMemberName::Identifier(ident) => ident.name.as_str(),
                 _ => "unknown",
             };
             let identifier = ctx.create_property_key(member_name);
-            shape = shape.get_child_shape(ctx.get_agent_mut(), identifier);
+            property_keys.push(identifier);
         }
 
-        // Add reverse mapping keys to shape for numeric enums
+        // Add reverse mapping keys for numeric enums
         if is_numeric_enum {
             current_numeric_value = 0f64;
             for member in self.body.members.iter() {
@@ -3567,14 +3574,33 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                     };
 
                 let reverse_key = ctx.create_property_key(&reverse_key_value.to_string());
-                shape = shape.get_child_shape(ctx.get_agent_mut(), reverse_key);
+                property_keys.push(reverse_key);
             }
         }
 
-        // Create an intrinsic shape for this enum if it's simple
-        // Intrinsic shapes are unique and save memory when we expect only one object
-        // with this shape to exist (which is typical for enums)
-        let shape = shape.make_intrinsic(ctx.get_agent_mut());
+        // Create intrinsic shape directly with all properties in one shot
+        let properties_count = property_keys.len();
+        let (cap, index) = ctx
+            .get_agent_mut()
+            .heap
+            .elements
+            .allocate_keys_with_capacity(properties_count.max(1));
+
+        let keys_memory = ctx
+            .get_agent_mut()
+            .heap
+            .elements
+            .get_keys_uninit_raw(cap, index);
+        for (slot, key) in keys_memory.iter_mut().zip(property_keys.iter()) {
+            *slot = Some(key.unbind());
+        }
+
+        let shape = ctx.get_agent_mut().heap.create(ObjectShapeRecord::create(
+            prototype,
+            index,
+            cap,
+            properties_count,
+        ));
 
         // 4. Compile values in correct order (matching the shape)
         current_numeric_value = 0f64;
