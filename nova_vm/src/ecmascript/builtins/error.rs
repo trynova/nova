@@ -209,15 +209,25 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_has_property(agent, property_key, gc),
-            None => TryResult::Continue(
-                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                    agent[self].message.is_some()
-                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause.is_some()
+            None => {
+                let found_direct =
+                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                        agent[self].message.is_some()
+                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                        agent[self].cause.is_some()
+                    } else {
+                        false
+                    };
+                if found_direct {
+                    TryResult::Continue(true)
                 } else {
-                    false
-                },
-            ),
+                    self.internal_prototype(agent).unwrap().try_has_property(
+                        agent,
+                        property_key.unbind(),
+                        gc,
+                    )
+                }
+            }
         }
     }
 
@@ -232,15 +242,23 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             Some(backing_object) => {
                 backing_object.internal_has_property(agent, property_key.unbind(), gc)
             }
-            None => Ok(
-                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                    agent[self].message.is_some()
-                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause.is_some()
+            None => {
+                let found_direct =
+                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                        agent[self].message.is_some()
+                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                        agent[self].cause.is_some()
+                    } else {
+                        false
+                    };
+                if found_direct {
+                    Ok(true)
                 } else {
-                    false
-                },
-            ),
+                    self.internal_prototype(agent)
+                        .unwrap()
+                        .internal_has_property(agent, property_key.unbind(), gc)
+                }
+            }
         }
     }
 
@@ -271,11 +289,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                     };
                 if let Some(property_value) = property_value {
                     TryResult::Continue(property_value)
-                } else if let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc)) {
-                    // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.try_get(agent, property_key, receiver, gc)
                 } else {
-                    TryResult::Continue(Value::Undefined)
+                    // c. Return ? parent.[[Get]](P, Receiver).
+                    self.internal_prototype(agent).unwrap().try_get(
+                        agent,
+                        property_key,
+                        receiver,
+                        gc,
+                    )
                 }
             }
         }
@@ -304,16 +325,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                     };
                 if let Some(property_value) = property_value {
                     Ok(property_value)
-                } else if let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc.nogc()))
-                {
-                    // Note: Error is never a prototype so [[GetPrototypeOf]]
-                    // cannot call user code.
-                    // c. Return ? parent.[[Get]](P, Receiver).
-                    parent
-                        .unbind()
-                        .internal_get(agent, property_key.unbind(), receiver, gc)
                 } else {
-                    Ok(Value::Undefined)
+                    self.internal_prototype(agent).unwrap().internal_get(
+                        agent,
+                        property_key.unbind(),
+                        receiver,
+                        gc,
+                    )
                 }
             }
         }
