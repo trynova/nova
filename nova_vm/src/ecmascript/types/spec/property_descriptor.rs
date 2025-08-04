@@ -441,7 +441,7 @@ impl<'a> PropertyDescriptor<'a> {
         if desc.get.is_some() || desc.set.is_some() {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
-            if desc.writable.is_some() || desc.writable.is_some() {
+            if desc.value.is_some() || desc.writable.is_some() {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
@@ -554,7 +554,7 @@ impl<'a> PropertyDescriptor<'a> {
         if desc.get.is_some() || desc.set.is_some() {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
-            if desc.writable.is_some() || desc.writable.is_some() {
+            if desc.value.is_some() || desc.writable.is_some() {
                 return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
