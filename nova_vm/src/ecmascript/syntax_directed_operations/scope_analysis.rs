@@ -10,6 +10,8 @@ use oxc_ast::ast::{
     Statement, StaticBlock, SwitchCase, SwitchStatement, VariableDeclaration,
     VariableDeclarationKind, VariableDeclarator,
 };
+#[cfg(feature = "typescript")]
+use oxc_ast::ast::TSEnumDeclaration;
 use oxc_ecmascript::BoundNames;
 
 use oxc_span::Atom;
@@ -227,7 +229,7 @@ pub(crate) enum LexicallyScopedDeclaration<'a> {
     Function(&'a Function<'a>),
     Class(&'a Class<'a>),
     #[cfg(feature = "typescript")]
-    TSEnum(&'a ast::TSEnumDeclaration<'a>),
+    TSEnum(&'a TSEnumDeclaration<'a>),
     DefaultExport,
 }
 
