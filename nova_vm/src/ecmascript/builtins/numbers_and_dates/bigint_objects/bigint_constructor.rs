@@ -5,36 +5,30 @@
 use num_bigint::ToBigInt;
 use num_traits::Pow;
 
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
-use crate::ecmascript::abstract_operations::type_conversion::PreferredType;
-use crate::ecmascript::abstract_operations::type_conversion::to_big_int;
-use crate::ecmascript::abstract_operations::type_conversion::to_big_int_primitive;
-use crate::ecmascript::abstract_operations::type_conversion::to_index;
-use crate::ecmascript::abstract_operations::type_conversion::to_primitive;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::BigInt;
-use crate::ecmascript::types::BigIntHeapData;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Number;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::{String, Value};
-
-use crate::SmallInteger;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
-use crate::engine::small_bigint::SmallBigInt;
-use crate::heap::CreateHeapData;
-use crate::heap::IntrinsicConstructorIndexes;
+use crate::{
+    SmallInteger,
+    ecmascript::{
+        abstract_operations::{
+            testing_and_comparison::is_integral_number,
+            type_conversion::{
+                PreferredType, to_big_int, to_big_int_primitive, to_index, to_primitive,
+            },
+        },
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, BigInt, BigIntHeapData, IntoObject, IntoValue, Number, Object,
+            String, Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+        small_bigint::SmallBigInt,
+    },
+    heap::{CreateHeapData, IntrinsicConstructorIndexes},
+};
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
 pub struct BigIntConstructor;

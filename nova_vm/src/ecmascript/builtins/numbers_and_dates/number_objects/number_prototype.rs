@@ -2,20 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::builtins::Behaviour;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::type_conversion::to_integer_or_infinity,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Builtin,
+            ArgumentsList, Behaviour, Builtin,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
 };
 

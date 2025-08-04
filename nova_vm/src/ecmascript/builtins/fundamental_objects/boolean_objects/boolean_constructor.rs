@@ -2,28 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::{String, Value};
-use crate::engine::context::Bindable;
-use crate::engine::context::GcScope;
-use crate::heap::IntrinsicConstructorIndexes;
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::to_boolean,
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+    },
+    engine::context::{Bindable, GcScope},
+    heap::IntrinsicConstructorIndexes,
+};
 
 pub(crate) struct BooleanConstructor;
 

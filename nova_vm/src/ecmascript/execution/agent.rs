@@ -932,15 +932,14 @@ impl Agent {
         let script = match parse_script(self, source_text, realm, false, None, gc.nogc()) {
             Ok(script) => script,
             Err(err) => {
+                let gc = gc.into_nogc();
                 let message =
-                    String::from_string(self, err.first().unwrap().message.to_string(), gc.nogc());
-                return Err(self
-                    .throw_exception_with_message(
-                        ExceptionType::SyntaxError,
-                        message.unbind(),
-                        gc.into_nogc(),
-                    )
-                    .unbind());
+                    String::from_string(self, err.first().unwrap().message.to_string(), gc);
+                return Err(self.throw_exception_with_message(
+                    ExceptionType::SyntaxError,
+                    message,
+                    gc,
+                ));
             }
         };
         script_evaluation(self, script.unbind(), gc)

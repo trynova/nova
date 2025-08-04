@@ -3,17 +3,18 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
-use crate::ecmascript::abstract_operations::type_conversion::to_index;
-use crate::ecmascript::types::{Numeric, Viewable};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::heap::CreateHeapData;
 use crate::{
     Heap,
     ecmascript::{
-        abstract_operations::operations_on_objects::get,
+        abstract_operations::{operations_on_objects::get, type_conversion::to_index},
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, DataBlock, Function, IntoFunction, Number, Object, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, DataBlock, Function, IntoFunction, Number, Numeric, Object,
+            Value, Viewable,
+        },
     },
+    engine::context::{Bindable, GcScope, NoGcScope},
+    heap::CreateHeapData,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?

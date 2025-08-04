@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -10,6 +9,7 @@ use crate::{
         execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, IntoObject, Object, PropertyKey, String, Value},
     },
+    engine::context::{Bindable, GcScope},
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 

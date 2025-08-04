@@ -4,23 +4,22 @@
 
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
-use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
-use crate::ecmascript::builtins::proxy::abstract_operations::{
-    NonRevokedProxy, validate_non_revoked_proxy,
-};
-use crate::ecmascript::types::{Numeric, Primitive, PropertyKey};
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_numeric_primitive,
+        builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            Function, InternalMethods, IntoValue, Number, Object, String, Value, bigint::BigInt,
+            Function, InternalMethods, IntoValue, Number, Numeric, Object, Primitive, PropertyKey,
+            String, Value, bigint::BigInt,
         },
     },
-    heap::PrimitiveHeapIndexable,
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
+    heap::{PrimitiveHeapIndexable, WellKnownSymbolIndexes},
 };
 
 use super::operations_on_objects::get;

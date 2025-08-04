@@ -2,15 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::construct,
-            type_conversion::{to_index, to_integer_or_infinity},
+            type_conversion::{to_index, to_integer_or_infinity, try_to_index},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -21,6 +17,11 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Object, PropertyKey, String, Value,
         },
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

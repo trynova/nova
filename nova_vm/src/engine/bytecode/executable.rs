@@ -20,15 +20,13 @@ use crate::{
     },
     engine::{
         Scoped,
-        bytecode::{
-            CompileContext, CompileEvaluation, NamedEvaluationParameter, instructions::Instr,
-        },
+        bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
         context::{Bindable, GcToken, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
-use oxc_ast::ast::{self, Program, Statement};
+use oxc_ast::ast;
 
 use super::bytecode_compiler::GeneratorKind;
 
@@ -155,10 +153,7 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Script ===");
             eprintln!();
         }
-        // SAFETY: Script uniquely owns the Program and the body buffer does
-        // not move under any circumstances during heap operations.
-        let body: &[Statement] =
-            unsafe { core::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
+        let body = script.get_statements(agent, gc);
         let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);
@@ -176,9 +171,7 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Module ===");
             eprintln!();
         }
-        // SAFETY: Garbage collection is not triggered during this call, so the
-        // statements cannot become dangling.
-        let body = unsafe { module.get_statements(agent) };
+        let body = module.get_statements(agent, gc);
         let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);
@@ -213,7 +206,7 @@ impl<'gc> Executable<'gc> {
 
     pub(crate) fn compile_eval_body(
         agent: &mut Agent,
-        program: &Program,
+        body: &[ast::Statement],
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         if agent.options.print_internals {
@@ -223,16 +216,7 @@ impl<'gc> Executable<'gc> {
         }
         let mut ctx = CompileContext::new(agent, gc);
 
-        // eval('"asd"') is parsed into an empty body with a single directive.
-        // Multiple directives are also possible, but only the last one is
-        // really relevant to us as storing constants cannot be observed.
-        if program.body.is_empty() {
-            if let Some(directive) = program.directives.last() {
-                directive.expression.compile(&mut ctx);
-            }
-        } else {
-            ctx.compile_statements(&program.body);
-        }
+        ctx.compile_statements(body);
         ctx.do_implicit_return();
         ctx.finish()
     }
