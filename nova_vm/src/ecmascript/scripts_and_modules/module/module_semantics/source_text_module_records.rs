@@ -1673,8 +1673,16 @@ pub fn parse_module<'a>(
     // 1. Let body be ParseText(sourceText, Module).
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result =
-        unsafe { SourceCode::parse_source(agent, source_text, SourceCodeType::Module, gc) };
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            source_text,
+            SourceCodeType::Module,
+            #[cfg(feature = "typescript")]
+            true,
+            gc,
+        )
+    };
 
     let (body, source_code) = match parse_result {
         // 2. If body is a List of errors, return body.

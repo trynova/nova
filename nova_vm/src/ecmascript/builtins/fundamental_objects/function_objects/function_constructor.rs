@@ -243,7 +243,14 @@ pub(crate) fn create_dynamic_function<'a>(
         // successfully, then the program's AST and the SourceCode will both be
         // kept alive in the returned function object.
         let parsed_result = unsafe {
-            SourceCode::parse_source(agent, source_string, SourceCodeType::Script, gc.nogc())
+            SourceCode::parse_source(
+                agent,
+                source_string,
+                SourceCodeType::Script,
+                #[cfg(feature = "typescript")]
+                false,
+                gc.nogc(),
+            )
         };
 
         if let Ok((program, sc)) = parsed_result {

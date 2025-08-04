@@ -41,7 +41,7 @@ impl core::fmt::Debug for SourceCode<'_> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SourceCodeType {
     Script,
     StrictScript,
@@ -70,6 +70,7 @@ impl<'a> SourceCode<'a> {
         agent: &mut Agent,
         source: String,
         source_type: SourceCodeType,
+        #[cfg(feature = "typescript")] typescript: bool,
         gc: NoGcScope<'a, '_>,
     ) -> Result<(Program<'a>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
@@ -133,62 +134,83 @@ impl<'a> SourceCode<'a> {
         let mut allocator = NonNull::from(Box::leak(Box::default()));
         // SAFETY: Parser is dropped before allocator.
         let alloc = unsafe { allocator.as_mut() };
-        let parser_result = if cfg!(feature = "typescript") {
-            // TypeScript always runs as strict. Nice!
-            Parser::new(alloc, source_text, SourceType::ts()).parse()
-        } else {
-            match source_type {
-                SourceCodeType::Script => {
-                    Parser::new(alloc, source_text, SourceType::cjs()).parse()
+        let parser_result = match source_type {
+            SourceCodeType::Script => {
+                #[allow(unused_mut)]
+                let mut source_type = SourceType::cjs();
+                #[cfg(feature = "typescript")]
+                if typescript {
+                    source_type = source_type.with_typescript(true);
                 }
-                SourceCodeType::StrictScript => {
-                    // Strict script! We first parse this as a module, which makes
-                    // the script parsing strict but allows module declarations. If
-                    // that works, then we parse it as a normal script and check
-                    // that it works as well: this will catch module declarations
-                    // and TLA.
-                    let parser_result = Parser::new(alloc, source_text, SourceType::mjs()).parse();
-                    if parser_result.panicked {
-                        let errors = parser_result.errors;
-                        // SAFETY: No references to allocator exist anymore. It is safe to
-                        // drop it.
-                        drop(unsafe { Box::from_raw(allocator.as_mut()) });
-                        // TODO: Include error messages in the exception.
-                        return Err(errors);
-                    }
-                    let sloppy_parser = Parser::new(alloc, source_text, SourceType::cjs());
-                    let ParserReturn {
-                        errors: sloppy_errors,
-                        program: sloppy_program,
-                        ..
-                    } = sloppy_parser.parse();
-                    if !sloppy_errors.is_empty() {
-                        // SAFETY: No references to allocator exist anymore. It is safe to
-                        // drop it.
-                        drop(unsafe { Box::from_raw(allocator.as_mut()) });
-                        // TODO: Include error messages in the exception.
-                        return Err(sloppy_errors);
-                    }
-                    let SemanticBuilderReturn {
-                        errors: sloppy_errors,
-                        ..
-                    } = SemanticBuilder::new()
-                        .with_check_syntax_error(true)
-                        .build(&sloppy_program);
+                Parser::new(alloc, source_text, source_type).parse()
+            }
+            SourceCodeType::StrictScript => {
+                #[allow(unused_mut)]
+                let mut source_type = SourceType::mjs();
+                #[cfg(feature = "typescript")]
+                if typescript {
+                    source_type = source_type.with_typescript(true);
+                }
 
-                    if !sloppy_errors.is_empty() {
-                        // Drop program before dropping allocator.
-                        // SAFETY: No references to allocator exist anymore. It is safe to
-                        // drop it.
-                        drop(unsafe { Box::from_raw(allocator.as_mut()) });
-                        // TODO: Include error messages in the exception.
-                        return Err(sloppy_errors);
-                    }
-                    parser_result
+                // Strict script! We first parse this as a module, which makes
+                // the script parsing strict but allows module declarations. If
+                // that works, then we parse it as a normal script and check
+                // that it works as well: this will catch module declarations
+                // and TLA.
+                let parser_result = Parser::new(alloc, source_text, source_type).parse();
+                if parser_result.panicked {
+                    let errors = parser_result.errors;
+                    // SAFETY: No references to allocator exist anymore. It is safe to
+                    // drop it.
+                    drop(unsafe { Box::from_raw(allocator.as_mut()) });
+                    // TODO: Include error messages in the exception.
+                    return Err(errors);
                 }
-                SourceCodeType::Module => {
-                    Parser::new(alloc, source_text, SourceType::mjs()).parse()
+
+                #[allow(unused_mut)]
+                let mut source_type = SourceType::cjs();
+                #[cfg(feature = "typescript")]
+                if typescript {
+                    source_type = source_type.with_typescript(true);
                 }
+                let sloppy_parser = Parser::new(alloc, source_text, source_type);
+                let ParserReturn {
+                    errors: sloppy_errors,
+                    program: sloppy_program,
+                    ..
+                } = sloppy_parser.parse();
+                if !sloppy_errors.is_empty() {
+                    // SAFETY: No references to allocator exist anymore. It is safe to
+                    // drop it.
+                    drop(unsafe { Box::from_raw(allocator.as_mut()) });
+                    // TODO: Include error messages in the exception.
+                    return Err(sloppy_errors);
+                }
+                let SemanticBuilderReturn {
+                    errors: sloppy_errors,
+                    ..
+                } = SemanticBuilder::new()
+                    .with_check_syntax_error(true)
+                    .build(&sloppy_program);
+
+                if !sloppy_errors.is_empty() {
+                    // Drop program before dropping allocator.
+                    // SAFETY: No references to allocator exist anymore. It is safe to
+                    // drop it.
+                    drop(unsafe { Box::from_raw(allocator.as_mut()) });
+                    // TODO: Include error messages in the exception.
+                    return Err(sloppy_errors);
+                }
+                parser_result
+            }
+            SourceCodeType::Module => {
+                #[allow(unused_mut)]
+                let mut source_type = SourceType::mjs();
+                #[cfg(feature = "typescript")]
+                if typescript {
+                    source_type = source_type.with_typescript(true);
+                }
+                Parser::new(alloc, source_text, source_type).parse()
             }
         };
 
@@ -390,7 +412,14 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
         // SAFETY: tests.
         let errors = unsafe {
-            SourceCode::parse_source(&mut agent, source_text, SourceCodeType::Script, gc.nogc())
+            SourceCode::parse_source(
+                &mut agent,
+                source_text,
+                SourceCodeType::Script,
+                #[cfg(feature = "typescript")]
+                false,
+                gc.nogc(),
+            )
         }
         .unwrap_err();
 
@@ -411,6 +440,8 @@ mod test {
                 &mut agent,
                 source_text,
                 SourceCodeType::StrictScript,
+                #[cfg(feature = "typescript")]
+                false,
                 gc.nogc(),
             )
         }

@@ -226,7 +226,16 @@ pub fn perform_eval<'gc>(
     // call happens.
     // The Program thus refers to a valid, live Allocator for the duration of
     // this call.
-    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type, gc.nogc()) };
+    let parse_result = unsafe {
+        SourceCode::parse_source(
+            agent,
+            x,
+            source_type,
+            #[cfg(feature = "typescript")]
+            false,
+            gc.nogc(),
+        )
+    };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
     let (script, source_code) = match parse_result {
