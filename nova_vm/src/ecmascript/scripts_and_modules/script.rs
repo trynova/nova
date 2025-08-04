@@ -711,21 +711,28 @@ pub(crate) fn global_declaration_instantiation<'a>(
 
 #[cfg(test)]
 mod test {
-    use crate::ecmascript::builtins::{Array, BuiltinFunctionArgs, create_builtin_function};
-    use crate::ecmascript::execution::JsResult;
-    use crate::ecmascript::execution::agent::ExceptionType;
-    use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-    use crate::engine::context::{Bindable, GcScope};
-    use crate::engine::rootable::Scopable;
-    use crate::engine::unwrap_try;
     use crate::{
         SmallInteger,
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,
-            builtins::{ArgumentsList, Behaviour},
-            execution::{Agent, DefaultHostHooks, agent::Options, initialize_default_realm},
+            builtins::{
+                ArgumentsList, Array, Behaviour, BuiltinFunctionArgs, create_builtin_function,
+            },
+            execution::{
+                Agent, DefaultHostHooks, JsResult,
+                agent::{ExceptionType, Options},
+                initialize_default_realm,
+            },
             scripts_and_modules::script::{parse_script, script_evaluation},
-            types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
+            types::{
+                BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Number, Object, PropertyKey,
+                String, Value,
+            },
+        },
+        engine::{
+            context::{Bindable, GcScope},
+            rootable::Scopable,
+            unwrap_try,
         },
     };
 

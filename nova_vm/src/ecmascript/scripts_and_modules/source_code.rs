@@ -140,10 +140,6 @@ impl<'a> SourceCode<'a> {
                     let parser_result = Parser::new(alloc, source_text, SourceType::mjs()).parse();
                     if parser_result.panicked {
                         let errors = parser_result.errors;
-                        // Drop program before dropping allocator.
-                        #[allow(clippy::drop_non_drop)]
-                        drop(parser_result.program);
-                        drop(parser_result.module_record);
                         // SAFETY: No references to allocator exist anymore. It is safe to
                         // drop it.
                         drop(unsafe { Box::from_raw(allocator.as_mut()) });
@@ -153,12 +149,25 @@ impl<'a> SourceCode<'a> {
                     let sloppy_parser = Parser::new(alloc, source_text, SourceType::cjs());
                     let ParserReturn {
                         errors: sloppy_errors,
+                        program: sloppy_program,
                         ..
                     } = sloppy_parser.parse();
                     if !sloppy_errors.is_empty() {
+                        // SAFETY: No references to allocator exist anymore. It is safe to
+                        // drop it.
+                        drop(unsafe { Box::from_raw(allocator.as_mut()) });
+                        // TODO: Include error messages in the exception.
+                        return Err(sloppy_errors);
+                    }
+                    let SemanticBuilderReturn {
+                        errors: sloppy_errors,
+                        ..
+                    } = SemanticBuilder::new()
+                        .with_check_syntax_error(true)
+                        .build(&sloppy_program);
+
+                    if !sloppy_errors.is_empty() {
                         // Drop program before dropping allocator.
-                        #[allow(clippy::drop_non_drop)]
-                        drop(parser_result);
                         // SAFETY: No references to allocator exist anymore. It is safe to
                         // drop it.
                         drop(unsafe { Box::from_raw(allocator.as_mut()) });
@@ -178,9 +187,6 @@ impl<'a> SourceCode<'a> {
         } = parser_result;
 
         if !errors.is_empty() {
-            // Drop program before dropping allocator.
-            #[allow(clippy::drop_non_drop)]
-            drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
             // drop it.
             drop(unsafe { Box::from_raw(allocator.as_mut()) });
@@ -193,9 +199,6 @@ impl<'a> SourceCode<'a> {
             .build(&program);
 
         if !errors.is_empty() {
-            // Drop program before dropping allocator.
-            #[allow(clippy::drop_non_drop)]
-            drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
             // drop it.
             drop(unsafe { Box::from_raw(allocator.as_mut()) });
@@ -353,5 +356,56 @@ impl HeapMarkAndSweep for SourceCode<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.source_codes.shift_index(&mut self.0);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        ecmascript::{
+            execution::{Agent, DefaultHostHooks, agent::Options, initialize_default_realm},
+            scripts_and_modules::source_code::{SourceCode, SourceCodeType},
+            types::String,
+        },
+        engine::context::GcScope,
+    };
+
+    #[test]
+    fn script_with_imports() {
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent, gc.reborrow());
+
+        let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
+        // SAFETY: tests.
+        let errors = unsafe {
+            SourceCode::parse_source(&mut agent, source_text, SourceCodeType::Script, gc.nogc())
+        }
+        .unwrap_err();
+
+        assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn strict_script_with_imports() {
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent, gc.reborrow());
+
+        let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
+        // SAFETY: tests.
+        let errors = unsafe {
+            SourceCode::parse_source(
+                &mut agent,
+                source_text,
+                SourceCodeType::StrictScript,
+                gc.nogc(),
+            )
+        }
+        .unwrap_err();
+
+        assert!(!errors.is_empty());
     }
 }
