@@ -52,16 +52,26 @@ impl<'a> SourceCode<'a> {
     /// Parses the given source string as JavaScript code and returns the
     /// parsed result and a SourceCode heap reference.
     ///
-    /// ### Safety
+    /// ### Program lifetime
     ///
-    /// The caller must keep the SourceCode from being garbage collected until
-    /// they drop the parsed code.
+    /// The Program is a structure containing references to the SourceCode's
+    /// internal bump allocator memory, and to the source code String's heap
+    /// allocated data (if the source code was not heap allocated, it is forced
+    /// onto the heap). The SourceCode's heap data keeps a reference to the
+    /// source code String, keeping it from being garbage collected while the
+    /// SourceCode lives. The bump allocator lives as long as the SourceCode
+    /// lives, meaning that the caller must ensure that the Program is not used
+    /// after the SourceCode is garbage collected.
+    ///
+    /// In general, this means either not retaining the Program past a garbage
+    /// collection safepoint, or keeping the SourceCode reference alive for as
+    /// long as the Program is referenced.
     pub(crate) unsafe fn parse_source(
         agent: &mut Agent,
         source: String,
         source_type: SourceCodeType,
         gc: NoGcScope<'a, '_>,
-    ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
+    ) -> Result<(Program<'a>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
         // allocate it on the heap. This makes it safe (for some definition of
         // "safe") for the any functions created referring to this source code to

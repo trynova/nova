@@ -324,7 +324,13 @@ pub fn parse_script<'a>(
         // [[Realm]]: realm,
         realm: realm.unbind(),
         // [[ECMAScriptCode]]: script,
-        ecmascript_code: ManuallyDrop::new(program),
+        // SAFETY: We are moving the Program onto the heap together with the
+        // SourceCode reference: the latter will keep alive the allocation that
+        // Program points to. Hence, we can unbind the Program from the garbage
+        // collector lifetime here.
+        ecmascript_code: ManuallyDrop::new(unsafe {
+            core::mem::transmute::<Program, Program<'static>>(program)
+        }),
         // [[LoadedModules]]: « »,
         loaded_modules: Default::default(),
         // [[HostDefined]]: hostDefined,

@@ -356,36 +356,43 @@ pub fn perform_eval<'gc>(
     };
     // 27. Push evalContext onto the execution context stack; evalContext is now the running execution context.
     agent.push_execution_context(eval_context);
+    let result = {
+        // SAFETY: ECMAScriptCodeEvaluationState inside eval_context contains the
+        // SourceCode reference, keeping Program's backing allocation from being
+        // dropped by garbage collection. We can detach the Program from the GC
+        // lifetime for the duration of evalContext being on the execution
+        // context stack.
+        let script = unsafe { core::mem::transmute::<Program, Program<'static>>(script) };
 
-    // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
-    let result = eval_declaration_instantiation(
-        agent,
-        &script,
-        ecmascript_code.variable_environment,
-        ecmascript_code.lexical_environment,
-        ecmascript_code.private_environment,
-        strict_eval,
-        gc.reborrow(),
-    )
-    .unbind()
-    .bind(gc.nogc());
+        // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
+        let result = eval_declaration_instantiation(
+            agent,
+            &script,
+            ecmascript_code.variable_environment,
+            ecmascript_code.lexical_environment,
+            ecmascript_code.private_environment,
+            strict_eval,
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
 
-    // 29. If result is a normal completion, then
-    let result = match result {
-        Ok(_) => {
-            let exe =
-                Executable::compile_eval_body(agent, &script, gc.nogc()).scope(agent, gc.nogc());
-            // a. Set result to Completion(Evaluation of body).
-            // 30. If result is a normal completion and result.[[Value]] is empty, then
-            // a. Set result to NormalCompletion(undefined).
-            let result = Vm::execute(agent, exe.clone(), None, gc).into_js_result();
-            // SAFETY: No one can access the bytecode anymore.
-            unsafe { exe.take(agent).try_drop(agent) };
-            result
+        // 29. If result is a normal completion, then
+        match result {
+            Ok(_) => {
+                let exe = Executable::compile_eval_body(agent, &script, gc.nogc())
+                    .scope(agent, gc.nogc());
+                // a. Set result to Completion(Evaluation of body).
+                // 30. If result is a normal completion and result.[[Value]] is empty, then
+                // a. Set result to NormalCompletion(undefined).
+                let result = Vm::execute(agent, exe.clone(), None, gc).into_js_result();
+                // SAFETY: No one can access the bytecode anymore.
+                unsafe { exe.take(agent).try_drop(agent) };
+                result
+            }
+            Err(err) => Err(err.unbind().bind(gc.into_nogc())),
         }
-        Err(err) => Err(err.unbind().bind(gc.into_nogc())),
     };
-
     // 31. Suspend evalContext and remove it from the execution context stack.
     agent.pop_execution_context().unwrap().suspend();
 

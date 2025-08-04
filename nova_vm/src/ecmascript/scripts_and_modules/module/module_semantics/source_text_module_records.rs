@@ -2024,7 +2024,13 @@ pub fn parse_module<'a>(
         // [[DFSAncestorIndex]]: empty
         cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
         // [[ECMAScriptCode]]: body,
-        ecmascript_code: ManuallyDrop::new(body),
+        // SAFETY: We are moving the Program onto the heap together with the
+        // SourceCode reference: the latter will keep alive the allocation that
+        // Program points to. Hence, we can unbind the Program from the garbage
+        // collector lifetime here.
+        ecmascript_code: ManuallyDrop::new(unsafe {
+            core::mem::transmute::<Program, Program<'static>>(body)
+        }),
         compiled_bytecode: None,
         // [[Context]]: empty,
         context: Default::default(),
