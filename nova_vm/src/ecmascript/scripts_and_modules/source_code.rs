@@ -41,6 +41,13 @@ impl core::fmt::Debug for SourceCode<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum SourceCodeType {
+    Script,
+    StrictScript,
+    Module,
+}
+
 impl<'a> SourceCode<'a> {
     /// Parses the given source string as JavaScript code and returns the
     /// parsed result and a SourceCode heap reference.
@@ -52,7 +59,7 @@ impl<'a> SourceCode<'a> {
     pub(crate) unsafe fn parse_source(
         agent: &mut Agent,
         source: String,
-        source_type: SourceType,
+        source_type: SourceCodeType,
         gc: NoGcScope<'a, '_>,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
@@ -115,11 +122,60 @@ impl<'a> SourceCode<'a> {
 
         let mut allocator = NonNull::from(Box::leak(Box::default()));
         // SAFETY: Parser is dropped before allocator.
-        let parser = Parser::new(unsafe { allocator.as_mut() }, source_text, source_type);
+        let alloc = unsafe { allocator.as_mut() };
+        let parser_result = if cfg!(feature = "typescript") {
+            // TypeScript always runs as strict. Nice!
+            Parser::new(alloc, source_text, SourceType::ts()).parse()
+        } else {
+            match source_type {
+                SourceCodeType::Script => {
+                    Parser::new(alloc, source_text, SourceType::cjs()).parse()
+                }
+                SourceCodeType::StrictScript => {
+                    // Strict script! We first parse this as a module, which makes
+                    // the script parsing strict but allows module declarations. If
+                    // that works, then we parse it as a normal script and check
+                    // that it works as well: this will catch module declarations
+                    // and TLA.
+                    let parser_result = Parser::new(alloc, source_text, SourceType::mjs()).parse();
+                    if parser_result.panicked {
+                        let errors = parser_result.errors;
+                        // Drop program before dropping allocator.
+                        #[allow(clippy::drop_non_drop)]
+                        drop(parser_result.program);
+                        drop(parser_result.module_record);
+                        // SAFETY: No references to allocator exist anymore. It is safe to
+                        // drop it.
+                        drop(unsafe { Box::from_raw(allocator.as_mut()) });
+                        // TODO: Include error messages in the exception.
+                        return Err(errors);
+                    }
+                    let sloppy_parser = Parser::new(alloc, source_text, SourceType::cjs());
+                    let ParserReturn {
+                        errors: sloppy_errors,
+                        ..
+                    } = sloppy_parser.parse();
+                    if !sloppy_errors.is_empty() {
+                        // Drop program before dropping allocator.
+                        #[allow(clippy::drop_non_drop)]
+                        drop(parser_result);
+                        // SAFETY: No references to allocator exist anymore. It is safe to
+                        // drop it.
+                        drop(unsafe { Box::from_raw(allocator.as_mut()) });
+                        // TODO: Include error messages in the exception.
+                        return Err(sloppy_errors);
+                    }
+                    parser_result
+                }
+                SourceCodeType::Module => {
+                    Parser::new(alloc, source_text, SourceType::mjs()).parse()
+                }
+            }
+        };
 
         let ParserReturn {
             errors, program, ..
-        } = parser.parse();
+        } = parser_result;
 
         if !errors.is_empty() {
             // Drop program before dropping allocator.

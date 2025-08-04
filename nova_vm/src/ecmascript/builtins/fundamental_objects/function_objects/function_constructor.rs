@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use oxc_span::SourceType;
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -15,7 +14,7 @@ use crate::{
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        scripts_and_modules::source_code::{SourceCode, SourceCodeHeapData},
+        scripts_and_modules::source_code::{SourceCode, SourceCodeHeapData, SourceCodeType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
             Value,
@@ -239,13 +238,13 @@ pub(crate) fn create_dynamic_function<'a>(
         let mut function = None;
         let mut source_code = None;
 
-        let source_type = SourceType::default().with_script(true);
         // SAFETY: The safety requirements are that the SourceCode cannot be
         // GC'd before the program is dropped. If this function returns
         // successfully, then the program's AST and the SourceCode will both be
         // kept alive in the returned function object.
-        let parsed_result =
-            unsafe { SourceCode::parse_source(agent, source_string, source_type, gc.nogc()) };
+        let parsed_result = unsafe {
+            SourceCode::parse_source(agent, source_string, SourceCodeType::Script, gc.nogc())
+        };
 
         if let Ok((program, sc)) = parsed_result {
             source_code = Some(sc);

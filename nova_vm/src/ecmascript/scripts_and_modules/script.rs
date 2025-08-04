@@ -36,14 +36,13 @@ use core::{
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
 use std::rc::Rc;
 
 use super::{
     module::module_semantics::{
         LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
     },
-    source_code::SourceCode,
+    source_code::{SourceCode, SourceCodeType},
 };
 
 pub type HostDefined = Rc<dyn Any>;
@@ -300,16 +299,13 @@ pub fn parse_script<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> ScriptOrErrors<'a> {
     // 1. Let script be ParseText(sourceText, Script).
-    let mut source_type = if strict_mode {
+    let source_type = if strict_mode {
         // Strict mode script is equal to module code.
-        SourceType::default().with_module(true)
+        SourceCodeType::StrictScript
     } else {
         // Loose mode script is just script code.
-        SourceType::default().with_script(true)
+        SourceCodeType::Script
     };
-    if cfg!(feature = "typescript") {
-        source_type = source_type.with_typescript(true);
-    }
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.

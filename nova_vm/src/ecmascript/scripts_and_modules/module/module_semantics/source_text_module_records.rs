@@ -15,7 +15,6 @@ use ahash::AHashSet;
 use oxc_ast::ast::{self, Program};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
 
 use crate::{
     ecmascript::{
@@ -44,7 +43,7 @@ use crate::{
                 CyclicModuleRecordStatus, inner_module_evaluation, inner_module_linking,
             },
             script::HostDefined,
-            source_code::SourceCode,
+            source_code::{SourceCode, SourceCodeType},
         },
         syntax_directed_operations::{
             contains::{Contains, ContainsSymbol},
@@ -1672,16 +1671,10 @@ pub fn parse_module<'a>(
 ) -> ModuleOrErrors<'a> {
     let realm = realm.bind(gc);
     // 1. Let body be ParseText(sourceText, Module).
-    let source_type = if cfg!(feature = "typescript") {
-        SourceType::default()
-            .with_module(true)
-            .with_typescript(true)
-    } else {
-        SourceType::default().with_module(true)
-    };
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
-    let parse_result = unsafe { SourceCode::parse_source(agent, source_text, source_type, gc) };
+    let parse_result =
+        unsafe { SourceCode::parse_source(agent, source_text, SourceCodeType::Module, gc) };
 
     let (body, source_code) = match parse_result {
         // 2. If body is a List of errors, return body.

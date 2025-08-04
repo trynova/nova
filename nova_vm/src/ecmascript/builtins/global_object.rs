@@ -7,13 +7,13 @@ use core::str;
 use ahash::AHashSet;
 use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
 use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
 use crate::ecmascript::execution::get_this_environment;
+use crate::ecmascript::scripts_and_modules::source_code::SourceCodeType;
 use crate::ecmascript::types::Primitive;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -215,9 +215,9 @@ pub fn perform_eval<'gc>(
     // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
     let source_type = if strict_caller {
-        SourceType::default().with_module(true)
+        SourceCodeType::StrictScript
     } else {
-        SourceType::default().with_script(true)
+        SourceCodeType::Script
     };
     // SAFETY: Script is only kept alive for the duration of this call, and any
     // references made to it by functions being created in the eval call will
