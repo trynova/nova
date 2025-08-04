@@ -79,6 +79,7 @@ use crate::{
             },
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
+            promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
             promise_objects::promise_abstract_operations::promise_finally_functions::PromiseFinallyFunctionHeapData,
             proxy::data::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
@@ -173,6 +174,7 @@ pub(crate) struct Heap {
     pub(crate) promises: Vec<Option<PromiseHeapData<'static>>>,
     pub(crate) proxys: Vec<Option<ProxyHeapData<'static>>>,
     pub(crate) realms: Vec<Option<RealmRecord<'static>>>,
+    pub(crate) promise_all_records: Vec<Option<PromiseAllRecord<'static>>>,
     #[cfg(feature = "regexp")]
     pub(crate) regexps: Vec<Option<RegExpHeapData<'static>>>,
     #[cfg(feature = "regexp")]
@@ -325,6 +327,7 @@ impl Heap {
             promise_resolving_functions: Vec::with_capacity(0),
             promise_finally_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),
+            promise_all_records: Vec::with_capacity(0),
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),
             #[cfg(feature = "regexp")]
