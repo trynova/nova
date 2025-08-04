@@ -84,6 +84,12 @@ pub(crate) fn instantiation<'s>(
     for d in function_body_var_scoped_declarations(body) {
         // a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
         if let VarScopedDeclaration::Function(d) = d {
+            // Skip function declarations with declare modifier - they are TypeScript ambient declarations
+            #[cfg(feature = "typescript")]
+            if d.declare {
+                continue;
+            }
+
             // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
             // ii. Let fn be the sole element of the BoundNames of d.
             let f_name = d.id.as_ref().unwrap().name;
@@ -351,6 +357,12 @@ pub(crate) fn instantiation<'s>(
                 ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }),
             LexicallyScopedDeclaration::Function(decl) => {
+                // Skip function declarations with declare modifier - they are TypeScript ambient declarations
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    continue;
+                }
+
                 let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
                 ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
@@ -372,6 +384,12 @@ pub(crate) fn instantiation<'s>(
 
     // 36. For each Parse Node f of functionsToInitialize, do
     for f in functions.values() {
+        // Skip function declarations with declare modifier - they are TypeScript ambient declarations
+        #[cfg(feature = "typescript")]
+        if f.declare {
+            continue;
+        }
+
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv
         //    and privateEnv.
         f.compile(ctx);

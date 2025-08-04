@@ -403,6 +403,10 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
             Statement::DebuggerStatement(_) => {},
             // StatementListItem : Declaration
             Statement::VariableDeclaration(decl) => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 // VariableStatement
                 if decl.kind.is_var() {
                     // 2. Return a new empty List.
@@ -1279,7 +1283,14 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
                     f(LexicallyScopedDeclaration::Variable(decl));
                 }
             }
-            Statement::ClassDeclaration(decl) => f(LexicallyScopedDeclaration::Class(decl)),
+            Statement::ClassDeclaration(decl) => {
+                // Skip class declarations with declare modifier - they are TypeScript ambient declarations
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
+                f(LexicallyScopedDeclaration::Class(decl));
+            }
             #[cfg(feature = "typescript")]
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
@@ -1348,6 +1359,10 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
             // StatementListItem : Declaration
             // 1. If Declaration is Declaration : HoistableDeclaration , then
             Statement::FunctionDeclaration(decl) => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 // a. Return the BoundNames of HoistableDeclaration.
                 decl.bound_names(f)
             }
@@ -1456,6 +1471,10 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
             }
             // LabelledItem : FunctionDeclaration
             Statement::FunctionDeclaration(decl) => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 // 1. Return BoundNames of FunctionDeclaration.
                 decl.bound_names(f);
             }
@@ -1517,6 +1536,10 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             }
             // 2. Return VarScopedDeclarations of Statement.
             Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 // VariableStatement
                 decl.var_scoped_declarations(f);
             }
@@ -1547,6 +1570,10 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             // StatementListItem : Declaration
             // 1. If Declaration is Declaration : HoistableDeclaration , then
             Statement::FunctionDeclaration(decl) => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 // a. Let declaration be DeclarationPart of HoistableDeclaration.
                 // b. Return « declaration ».
                 f(VarScopedDeclaration::Function(decl));
@@ -1613,11 +1640,19 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for LabeledStatement<'a> {
                 self.body.var_scoped_declarations(f);
             }
             Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 decl.var_scoped_declarations(f);
             }
             Statement::FunctionDeclaration(decl) => {
                 // LabelledItem : FunctionDeclaration
                 // 1. Return « FunctionDeclaration ».
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 f(VarScopedDeclaration::Function(decl));
             }
             Statement::TSTypeAliasDeclaration(_)
