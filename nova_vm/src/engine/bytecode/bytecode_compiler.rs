@@ -3544,14 +3544,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
         if is_numeric_enum {
             current_numeric_value = 0f64;
             for member in self.body.members.iter() {
-                let reverse_key_value = if let Some(ast::Expression::NumericLiteral(num_lit)) = &member.initializer {
-                    current_numeric_value = num_lit.value + 1.0;
-                    num_lit.value
-                } else {
-                    let value = current_numeric_value;
-                    current_numeric_value += 1.0;
-                    value
-                };
+                let reverse_key_value =
+                    if let Some(ast::Expression::NumericLiteral(num_lit)) = &member.initializer {
+                        current_numeric_value = num_lit.value + 1.0;
+                        num_lit.value
+                    } else {
+                        let value = current_numeric_value;
+                        current_numeric_value += 1.0;
+                        value
+                    };
 
                 let reverse_key = ctx.create_property_key(&reverse_key_value.to_string());
                 shape = shape.get_child_shape(ctx.get_agent_mut(), reverse_key);
