@@ -6,27 +6,19 @@ use core::cmp::Ordering;
 
 use wtf8::Wtf8Buf;
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    invoke, try_create_data_property_or_throw, try_length_of_array_like,
-};
-use crate::ecmascript::abstract_operations::type_conversion::{
-    try_to_integer_or_infinity, try_to_string,
-};
-use crate::ecmascript::types::InternalMethods;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::{Rootable, Scopable};
-use crate::engine::{ScopableCollection, Scoped, TryResult, unwrap_try};
 use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
                 call_function, create_data_property_or_throw, delete_property_or_throw, get,
-                has_property, length_of_array_like, set,
+                has_property, invoke, length_of_array_like, set, try_create_data_property_or_throw,
+                try_length_of_array_like,
             },
             testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
+                try_to_integer_or_infinity, try_to_string,
             },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -39,9 +31,15 @@ use crate::{
             agent::{ExceptionType, JsError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
+            Number, Object, PropertyKey, String, Value,
         },
+    },
+    engine::{
+        ScopableCollection, Scoped, TryResult,
+        context::{Bindable, GcScope},
+        rootable::{Rootable, Scopable},
+        unwrap_try,
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

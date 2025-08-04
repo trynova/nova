@@ -2,27 +2,28 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
-    IteratorRecord, get_iterator_direct, if_abrupt_close_iterator, iterator_close_with_error,
-    iterator_close_with_value, iterator_step_value,
-};
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    call, setter_that_ignores_prototype_properties, throw_not_callable,
-};
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
-use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::builtins::{Array, BuiltinGetter, BuiltinSetter};
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::{IntoObject, IntoValue, Object};
-use crate::engine::ScopableCollection;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_iterator_objects::{
+                IteratorRecord, get_iterator_direct, if_abrupt_close_iterator,
+                iterator_close_with_error, iterator_close_with_value, iterator_step_value,
+            },
+            operations_on_objects::{
+                call, setter_that_ignores_prototype_properties, throw_not_callable,
+            },
+            testing_and_comparison::is_callable,
+            type_conversion::to_boolean,
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Value},
+        builtins::{ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinSetter},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, PropertyKey, String, Value},
+    },
+    engine::{
+        ScopableCollection,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

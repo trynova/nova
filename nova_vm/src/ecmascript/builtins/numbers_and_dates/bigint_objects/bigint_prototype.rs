@@ -2,16 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity;
-use crate::ecmascript::builtins::Behaviour;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_integer_or_infinity,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin, primitive_objects::PrimitiveObjectData},
+        builtins::{ArgumentsList, Behaviour, Builtin, primitive_objects::PrimitiveObjectData},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

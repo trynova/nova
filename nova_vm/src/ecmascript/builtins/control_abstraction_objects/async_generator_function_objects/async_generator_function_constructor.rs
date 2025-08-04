@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -12,8 +10,9 @@ use crate::{
         fundamental_objects::function_objects::function_constructor::{
             DynamicFunctionKind, create_dynamic_function,
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
+    engine::context::GcScope,
     heap::IntrinsicConstructorIndexes,
 };
 

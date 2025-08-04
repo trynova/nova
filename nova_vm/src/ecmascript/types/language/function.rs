@@ -6,23 +6,31 @@ mod data;
 pub mod into_function;
 
 use super::{
+    InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey, String, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
-    }, InternalMethods, Object, OrdinaryObject, InternalSlots, PropertyKey, Value, String
+    },
 };
-use crate::engine::{context::{ Bindable, GcScope, NoGcScope}, TryResult};
 use crate::{
     ecmascript::{
         builtins::{
-            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction, ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction
+            ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction,
+            promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
-    }, engine::rootable::{HeapRootData, HeapRootRef, Rootable}, heap::{CompactionLists, HeapMarkAndSweep, WorkQueues}
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 pub(crate) use data::*;

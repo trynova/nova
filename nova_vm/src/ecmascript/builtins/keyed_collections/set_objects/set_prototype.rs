@@ -6,8 +6,6 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -18,12 +16,18 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator,
+            keyed_collections::{
+                map_objects::map_prototype::canonicalize_keyed_collection_key,
+                set_objects::set_iterator_objects::set_iterator::SetIterator,
+            },
             set::{Set, data::SetData},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };

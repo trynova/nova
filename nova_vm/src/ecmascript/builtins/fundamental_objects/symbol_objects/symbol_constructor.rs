@@ -2,28 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::to_string;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::IntoObject;
-
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::SymbolHeapData;
-use crate::ecmascript::types::Value;
-use crate::engine::context::{Bindable, GcScope};
-use crate::heap::CreateHeapData;
-use crate::heap::IntrinsicConstructorIndexes;
-use crate::heap::WellKnownSymbolIndexes;
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::to_string,
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, String, SymbolHeapData, Value,
+        },
+    },
+    engine::context::{Bindable, GcScope},
+    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+};
 
 pub(crate) struct SymbolConstructor;
 

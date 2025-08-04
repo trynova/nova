@@ -2,26 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::{
-    InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::heap::indexes::StringIteratorIndex;
-use crate::heap::{
-    CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-};
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        builtins::{ArgumentsList, Behaviour, Builtin},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, String, Value,
+        },
     },
-    heap::WellKnownSymbolIndexes,
+    engine::context::{Bindable, GcScope, NoGcScope},
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WellKnownSymbolIndexes, WorkQueues, indexes::StringIteratorIndex,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

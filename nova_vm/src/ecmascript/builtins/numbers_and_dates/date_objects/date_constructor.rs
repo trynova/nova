@@ -4,39 +4,32 @@
 
 use std::time::SystemTime;
 
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::date::Date;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::{
-    ArgumentsList,
-    date::data::{DateValue, time_clip},
-};
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Number;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::{String, Value};
-use crate::ecmascript::{
-    abstract_operations::type_conversion::to_number,
-    numbers_and_dates::date_objects::date_prototype::{
-        make_date, make_day, make_full_year, make_time, utc,
-    },
-};
-use crate::engine::context::Bindable;
-use crate::engine::context::GcScope;
-use crate::heap::IntrinsicConstructorIndexes;
-use crate::{SmallInteger, ecmascript::abstract_operations::type_conversion::to_primitive};
 use crate::{
-    ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder,
-    engine::rootable::Scopable,
+    SmallInteger,
+    ecmascript::{
+        abstract_operations::type_conversion::{to_number, to_primitive},
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            date::{
+                Date,
+                data::{DateValue, time_clip},
+            },
+            ordinary::ordinary_create_from_constructor,
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
+        numbers_and_dates::date_objects::date_prototype::{
+            make_date, make_day, make_full_year, make_time, utc,
+        },
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, String, Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::IntrinsicConstructorIndexes,
 };
 
 use super::date_prototype::{MS_PER_MINUTE, to_date_string};

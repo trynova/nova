@@ -5,27 +5,23 @@
 use core::str;
 
 use ahash::AHashSet;
-use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
+use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 use wtf8::{CodePoint, Wtf8Buf};
 
-use crate::ecmascript::abstract_operations::type_conversion::{
-    is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
-};
-use crate::ecmascript::execution::get_this_environment;
-use crate::ecmascript::scripts_and_modules::source_code::SourceCodeType;
-use crate::ecmascript::types::Primitive;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_number,
+        abstract_operations::type_conversion::{
+            is_trimmable_whitespace, to_int32, to_int32_number, to_number, to_number_primitive,
+            to_string,
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            PrivateEnvironment, Realm, agent::ExceptionType, new_declarative_environment,
+            PrivateEnvironment, Realm, agent::ExceptionType, get_this_environment,
+            new_declarative_environment,
         },
-        scripts_and_modules::source_code::SourceCode,
+        scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
@@ -34,9 +30,14 @@ use crate::{
                 script_var_scoped_declarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, String, Value},
     },
-    engine::{Executable, Vm},
+    engine::{
+        Executable, Vm,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        string_literal_to_wtf8,
+    },
     heap::IntrinsicFunctionIndexes,
 };
 
@@ -238,7 +239,12 @@ pub fn perform_eval<'gc>(
     };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
-    let (script, source_code) = match parse_result {
+    let ParseResult {
+        source_code,
+        body,
+        directives,
+        is_strict,
+    } = match parse_result {
         Ok(result) => result,
         Err(errors) => {
             let message = format!(
@@ -249,30 +255,20 @@ pub fn perform_eval<'gc>(
         }
     };
 
-    // Note: oxc only allows us to do strict mode parsing by using the module
-    // source type, but that also allows module declarations. We need to
-    // manually check against import and export declarations inside eval.
-    if strict_caller
-        && script.body.iter().any(|st| {
-            st.is_module_declaration() || {
-                if let oxc_ast::ast::Statement::ExpressionStatement(st) = &st {
-                    matches!(st.expression, oxc_ast::ast::Expression::MetaProperty(_))
-                } else {
-                    false
-                }
-            }
-        })
-    {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "module declarations may only appear at top level of a module",
-            gc.into_nogc(),
-        ));
-    }
-
     // c. If script Contains ScriptBody is false, return undefined.
-    if script.is_empty() {
-        return Ok(Value::Undefined);
+    if body.is_empty() {
+        let empty_result = if directives.is_empty() {
+            Value::Undefined
+        } else {
+            // If directives exist, it means that the last directive gets used
+            // as the eval result.
+            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc())
+                .into_value()
+        };
+        // SAFETY: SourceCode was just parsed and found empty; even if it had
+        // been executed, it would do nothing.
+        unsafe { source_code.manually_drop(agent) };
+        return Ok(empty_result.unbind());
     }
 
     // TODO:
@@ -284,7 +280,7 @@ pub fn perform_eval<'gc>(
 
     // 12. If strictCaller is true, let strictEval be true.
     // 13. Else, let strictEval be ScriptIsStrict of script.
-    let strict_eval = strict_caller || script.has_use_strict_directive();
+    let strict_eval = strict_caller || is_strict;
     if strict_caller {
         debug_assert!(strict_eval);
     }
@@ -367,16 +363,17 @@ pub fn perform_eval<'gc>(
     agent.push_execution_context(eval_context);
     let result = {
         // SAFETY: ECMAScriptCodeEvaluationState inside eval_context contains the
-        // SourceCode reference, keeping Program's backing allocation from being
-        // dropped by garbage collection. We can detach the Program from the GC
+        // SourceCode reference, keeping body's backing allocation from being
+        // dropped by garbage collection. We can detach the body from the GC
         // lifetime for the duration of evalContext being on the execution
         // context stack.
-        let script = unsafe { core::mem::transmute::<Program, Program<'static>>(script) };
+        let body = unsafe { core::mem::transmute::<&[ast::Statement], &[ast::Statement]>(body) };
 
         // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
+        // SAFETY: SourceCode is rooted for the duration of this call.
         let result = eval_declaration_instantiation(
             agent,
-            &script,
+            body,
             ecmascript_code.variable_environment,
             ecmascript_code.lexical_environment,
             ecmascript_code.private_environment,
@@ -389,8 +386,8 @@ pub fn perform_eval<'gc>(
         // 29. If result is a normal completion, then
         match result {
             Ok(_) => {
-                let exe = Executable::compile_eval_body(agent, &script, gc.nogc())
-                    .scope(agent, gc.nogc());
+                let exe =
+                    Executable::compile_eval_body(agent, body, gc.nogc()).scope(agent, gc.nogc());
                 // a. Set result to Completion(Evaluation of body).
                 // 30. If result is a normal completion and result.[[Value]] is empty, then
                 // a. Set result to NormalCompletion(undefined).
@@ -419,9 +416,9 @@ pub fn perform_eval<'gc>(
 /// Declarative Environment Record), privateEnv (a PrivateEnvironment Record or
 /// null), and strict (a Boolean) and returns either a normal completion
 /// containing UNUSED or a throw completion.
-pub fn eval_declaration_instantiation<'a>(
+fn eval_declaration_instantiation<'a>(
     agent: &mut Agent,
-    script: &Program,
+    script: &[ast::Statement],
     var_env: Environment,
     lex_env: Environment,
     private_env: Option<PrivateEnvironment>,
@@ -642,7 +639,7 @@ pub fn eval_declaration_instantiation<'a>(
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
-        let mut closure = |identifier: &BindingIdentifier| {
+        let mut closure = |identifier: &ast::BindingIdentifier| {
             bound_names.push(
                 String::from_str(agent, identifier.name.as_str(), gc.nogc())
                     .scope(agent, gc.nogc()),
@@ -650,7 +647,7 @@ pub fn eval_declaration_instantiation<'a>(
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
-                if decl.kind == VariableDeclarationKind::Const {
+                if decl.kind == ast::VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
                         const_bound_names.push(String::from_str(
                             agent,

@@ -2,32 +2,32 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
-    IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_step_value,
-};
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    call_function, get, throw_not_callable,
-};
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
-use crate::ecmascript::builtins::Array;
-use crate::ecmascript::builtins::array::ArrayHeap;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::weak_set::WeakSet;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::execution::{ProtoIntrinsics, can_be_held_weakly, throw_not_weak_key_error};
-use crate::ecmascript::types::{Function, IntoValue};
-use crate::engine::Scoped;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::Heap;
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_iterator_objects::{
+                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_step_value,
+            },
+            operations_on_objects::{call_function, get, throw_not_callable},
+            testing_and_comparison::is_callable,
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
+        builtins::{
+            ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            array::ArrayHeap, ordinary::ordinary_create_from_constructor, weak_set::WeakSet,
+        },
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType, can_be_held_weakly,
+            throw_not_weak_key_error,
+        },
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
-    heap::IntrinsicConstructorIndexes,
+    engine::{
+        Scoped,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
+    heap::{Heap, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct WeakSetConstructor;
