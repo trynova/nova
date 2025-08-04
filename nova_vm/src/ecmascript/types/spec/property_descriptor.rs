@@ -2,14 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{try_get, try_has_property};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, has_property},
+            operations_on_objects::{get, has_property, try_get, try_has_property},
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
@@ -17,6 +13,11 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
+    },
+    engine::{
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::ObjectEntry,
 };

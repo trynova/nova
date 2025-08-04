@@ -26,7 +26,8 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
         syntax_directed_operations::function_definitions::{
-            evaluate_async_function_body, evaluate_function_body, evaluate_generator_body,
+            evaluate_async_function_body, evaluate_async_generator_body, evaluate_function_body,
+            evaluate_generator_body,
         },
         types::{
             BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
@@ -35,24 +36,17 @@ use crate::{
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set,
+            function_internal_set, function_try_get, function_try_has_property, function_try_set,
         },
     },
-    engine::{Executable, rootable::Scopable},
+    engine::{
+        Executable, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+    },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues, indexes::ECMAScriptFunctionIndex,
-    },
-};
-use crate::{
-    ecmascript::{
-        syntax_directed_operations::function_definitions::evaluate_async_generator_body,
-        types::{function_try_get, function_try_has_property, function_try_set},
-    },
-    engine::{
-        TryResult,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
 };
 

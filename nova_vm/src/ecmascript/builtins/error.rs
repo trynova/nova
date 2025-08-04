@@ -8,22 +8,23 @@ use core::ops::{Index, IndexMut};
 
 pub(crate) use data::ErrorHeapData;
 
-use crate::ecmascript::types::IntoObject;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{TryResult, unwrap_try};
-use crate::heap::HeapSweepWeakReference;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        unwrap_try,
+    },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, indexes::ErrorIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::ErrorIndex,
     },
 };
 

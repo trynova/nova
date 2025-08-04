@@ -5,28 +5,23 @@
 use core::str;
 
 use ahash::AHashSet;
-use oxc_ast::ast::{self, BindingIdentifier, VariableDeclarationKind};
+use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 use wtf8::{CodePoint, Wtf8Buf};
 
-use crate::ecmascript::abstract_operations::type_conversion::{
-    is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
-};
-use crate::ecmascript::execution::get_this_environment;
-use crate::ecmascript::scripts_and_modules::source_code::{ParseResult, SourceCodeType};
-use crate::ecmascript::types::Primitive;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
-use crate::engine::string_literal_to_wtf8;
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_number,
+        abstract_operations::type_conversion::{
+            is_trimmable_whitespace, to_int32, to_int32_number, to_number, to_number_primitive,
+            to_string,
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            PrivateEnvironment, Realm, agent::ExceptionType, new_declarative_environment,
+            PrivateEnvironment, Realm, agent::ExceptionType, get_this_environment,
+            new_declarative_environment,
         },
-        scripts_and_modules::source_code::SourceCode,
+        scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
@@ -35,9 +30,14 @@ use crate::{
                 script_var_scoped_declarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, String, Value},
     },
-    engine::{Executable, Vm},
+    engine::{
+        Executable, Vm,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        string_literal_to_wtf8,
+    },
     heap::IntrinsicFunctionIndexes,
 };
 
@@ -639,7 +639,7 @@ fn eval_declaration_instantiation<'a>(
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
-        let mut closure = |identifier: &BindingIdentifier| {
+        let mut closure = |identifier: &ast::BindingIdentifier| {
             bound_names.push(
                 String::from_str(agent, identifier.name.as_str(), gc.nogc())
                     .scope(agent, gc.nogc()),
@@ -647,7 +647,7 @@ fn eval_declaration_instantiation<'a>(
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
-                if decl.kind == VariableDeclarationKind::Const {
+                if decl.kind == ast::VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
                         const_bound_names.push(String::from_str(
                             agent,

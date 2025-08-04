@@ -2,33 +2,32 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    try_get, try_has_own_property,
-};
-use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity_number;
-use crate::ecmascript::builtins::SetFunctionNamePrefix;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
                 call_function, create_list_from_array_like, get, has_own_property,
-                ordinary_has_instance,
+                ordinary_has_instance, try_get, try_has_own_property,
             },
             testing_and_comparison::is_callable,
+            type_conversion::to_integer_or_infinity_number,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor, bound_function::bound_function_create, set_function_name,
+            BuiltinIntrinsicConstructor, SetFunctionNamePrefix,
+            bound_function::bound_function_create, set_function_name,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
             Number, OrdinaryObject, PropertyKey, String, Value,
         },
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::{
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,

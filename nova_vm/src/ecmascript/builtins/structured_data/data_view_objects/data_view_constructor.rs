@@ -2,11 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::builtins::array_buffer::{
-    ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
-};
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_index,
@@ -14,8 +9,8 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             array_buffer::{
-                Ordering, array_buffer_byte_length, is_detached_buffer,
-                is_fixed_length_array_buffer,
+                Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
+                array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer,
             },
             data_view::DataView,
             ordinary::ordinary_create_from_constructor,
@@ -23,6 +18,10 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::IntrinsicConstructorIndexes,
 };

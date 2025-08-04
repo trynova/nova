@@ -7,19 +7,18 @@ use std::convert::Infallible;
 
 use data::PromiseState;
 
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::agent::JsError;
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable, Scopable};
-use crate::heap::{CompactionLists, HeapSweepWeakReference, WorkQueues};
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::JsError},
+        types::{InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
-        CreateHeapData, Heap, HeapMarkAndSweep,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
         indexes::{BaseIndex, PromiseIndex},
     },
 };

@@ -2,11 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::try_define_property_or_throw,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
@@ -20,6 +18,10 @@ use crate::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
             String, Value,
         },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        unwrap_try,
     },
     heap::IntrinsicConstructorIndexes,
 };

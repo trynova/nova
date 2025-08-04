@@ -32,7 +32,7 @@ use core::{
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
-use oxc_ast::ast::{self, BindingIdentifier, VariableDeclarationKind};
+use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use std::{ptr::NonNull, rc::Rc};
@@ -669,12 +669,12 @@ unsafe fn global_declaration_instantiation<'a>(
         // a. NOTE: Lexically declared names are only instantiated here but not initialized.
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
-        let mut closure = |identifier: &BindingIdentifier| {
+        let mut closure = |identifier: &ast::BindingIdentifier| {
             bound_names.push(String::from_str(agent, identifier.name.as_str(), gc.nogc()));
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
-                if decl.kind == VariableDeclarationKind::Const {
+                if decl.kind == ast::VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
                         const_bound_names.push(String::from_str(
                             agent,

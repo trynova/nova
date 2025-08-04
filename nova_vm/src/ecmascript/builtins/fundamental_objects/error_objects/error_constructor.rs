@@ -2,35 +2,31 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::get;
-use crate::ecmascript::abstract_operations::operations_on_objects::has_property;
-use crate::ecmascript::abstract_operations::type_conversion::to_string;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::builtins::error::Error;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::execution::Realm;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::PropertyKey;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::Value;
-use crate::engine::context::Bindable;
-use crate::engine::context::GcScope;
 #[cfg(feature = "proposal-is-error")]
 use crate::engine::context::NoGcScope;
-use crate::engine::rootable::Scopable;
-use crate::heap::IntrinsicConstructorIndexes;
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{get, has_property},
+            type_conversion::to_string,
+        },
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
+            ordinary::ordinary_create_from_constructor,
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            Value,
+        },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::IntrinsicConstructorIndexes,
+};
 
 pub(crate) struct ErrorConstructor;
 

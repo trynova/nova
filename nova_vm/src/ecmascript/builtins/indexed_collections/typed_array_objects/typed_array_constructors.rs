@@ -2,37 +2,38 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
-    get_iterator_from_method, iterator_to_list,
-};
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    get_method, throw_not_callable,
-};
-use crate::ecmascript::abstract_operations::type_conversion::{to_index, try_to_index};
-use crate::ecmascript::builtins::ArrayBuffer;
-use crate::ecmascript::builtins::indexed_collections::typed_array_objects::abstract_operations::{
-    allocate_typed_array, initialize_typed_array_from_array_buffer,
-    initialize_typed_array_from_array_like, initialize_typed_array_from_list,
-    initialize_typed_array_from_typed_array,
-};
-use crate::ecmascript::builtins::typed_array::TypedArray;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::{Function, IntoValue, PropertyKey, U8Clamped, Viewable};
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
-use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
+            operations_on_objects::{get_method, throw_not_callable},
+            type_conversion::{to_index, try_to_index},
+        },
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
+        builtins::{
+            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            indexed_collections::typed_array_objects::abstract_operations::{
+                allocate_typed_array, initialize_typed_array_from_array_buffer,
+                initialize_typed_array_from_array_like, initialize_typed_array_from_list,
+                initialize_typed_array_from_typed_array,
+            },
+            typed_array::TypedArray,
+        },
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            U8Clamped, Value, Viewable,
+        },
     },
-    heap::IntrinsicConstructorIndexes,
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct TypedArrayConstructors;

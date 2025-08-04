@@ -2,12 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::builtins::data_view::abstract_operations::{get_view_value, set_view_value};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     SmallInteger,
     ecmascript::{
+        abstract_operations::type_conversion::to_boolean,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter,
@@ -15,14 +13,15 @@ use crate::{
             data_view::{
                 DataView,
                 abstract_operations::{
-                    get_view_byte_length, is_view_out_of_bounds,
-                    make_data_view_with_buffer_witness_record,
+                    get_view_byte_length, get_view_value, is_view_out_of_bounds,
+                    make_data_view_with_buffer_witness_record, set_view_value,
                 },
             },
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
 };
 
