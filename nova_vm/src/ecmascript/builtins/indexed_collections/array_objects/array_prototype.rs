@@ -879,9 +879,9 @@ impl ArrayPrototype {
             Value::Undefined | Value::Integer(_),
         ) = (this_value, start, end)
         {
-            // Fast path: If the array is simple (no descriptors) and dense (no
+            // Fast path: If the array is trivial (no descriptors) and dense (no
             // holes) then we can write directly into the backing memory.
-            if array.is_simple(agent) && array.is_dense(agent) {
+            if array.is_trivial(agent) && array.is_dense(agent) {
                 let len = array.len(agent) as usize;
 
                 let relative_start = if let Value::Integer(start) = start {
@@ -908,9 +908,11 @@ impl ArrayPrototype {
                     len
                 };
 
-                let data = array.as_mut_slice(agent);
-                data[k..final_end].fill(Some(value.unbind()));
-                return Ok(value.into_value().unbind());
+                if final_end > k {
+                    let data = array.as_mut_slice(agent);
+                    data[k..final_end].fill(Some(value.unbind()));
+                }
+                return Ok(array.into_value().unbind());
             }
         };
         let value = value.scope(agent, nogc);
