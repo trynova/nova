@@ -205,14 +205,10 @@ pub(crate) fn array_set_length<'a>(
         return Ok(array_set_length_no_value_field(agent, a, desc));
     };
     // 2. Let newLenDesc be a copy of Desc.
-    // 13. If newLenDesc does not have a [[Writable]] field or newLenDesc.[[Writable]] is true, then
-    // a. Let newLenDesc.[[Writable]] be true
-    let new_len_writable = desc.writable.unwrap_or(true);
-    // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
-
     let PropertyDescriptor {
         enumerable: desc_enumerable,
         configurable: desc_configurable,
+        writable: desc_writable,
         ..
     } = desc;
 
@@ -247,7 +243,7 @@ pub(crate) fn array_set_length<'a>(
         new_len,
         desc_configurable,
         desc_enumerable,
-        new_len_writable,
+        desc_writable,
     )
     .map_err(|err| agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc))
 }
@@ -263,10 +259,6 @@ pub(crate) fn array_try_set_length(
         return TryResult::Continue(array_set_length_no_value_field(agent, a, desc));
     };
     // 2. Let newLenDesc be a copy of Desc.
-    // 13. If newLenDesc does not have a [[Writable]] field or newLenDesc.[[Writable]] is true, then
-    // a. Let newLenDesc.[[Writable]] be true
-    let new_len_writable = desc.writable.unwrap_or(true);
-    // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let Ok(number_len) = Number::try_from(desc_value) else {
@@ -285,7 +277,7 @@ pub(crate) fn array_try_set_length(
         new_len,
         desc.configurable,
         desc.enumerable,
-        new_len_writable,
+        desc.writable,
     ) {
         Ok(b) => TryResult::Continue(b),
         Err(_) => TryResult::Break(()),
@@ -320,7 +312,7 @@ fn array_set_length_handling(
     new_len: u32,
     desc_configurable: Option<bool>,
     desc_enumerable: Option<bool>,
-    desc_writable: bool,
+    desc_writable: Option<bool>,
 ) -> Result<bool, TryReserveError> {
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
@@ -328,35 +320,67 @@ fn array_set_length_handling(
         arrays, elements, ..
     } = &mut agent.heap;
     let array_heap_data = &mut arrays[a];
-    // 10. Let oldLen be oldLenDesc.[[Value]].
+    // 8. Assert: oldLenDesc is not undefined.
+    // 9. Assert: IsDataDescriptor(oldLenDesc) is true.
+    // 10. Assert: oldLenDesc.[[Configurable]] is false.
+    // 11. Let oldLen be oldLenDesc.[[Value]].
     let (old_len, old_len_writable) = (
         array_heap_data.elements.len(),
         array_heap_data.elements.len_writable,
     );
-    // 12. If oldLenDesc.[[Writable]] is false, return false.
-    if !old_len_writable {
-        return Ok(false);
-    }
-    // Optimization: check OrdinaryDefineOwnProperty conditions for failing early on.
-    if desc_configurable == Some(true) || desc_enumerable == Some(true) {
-        // 16. If succeeded is false, return false.
-        return Ok(false);
-    }
-    // 11. If newLen ≥ oldLen, then
+    // 12. If newLen ≥ oldLen, then
     if new_len >= old_len {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
+        if !array_ordinary_define_property_checks(
+            old_len_writable,
+            old_len,
+            desc_configurable,
+            desc_enumerable,
+            desc_writable,
+            new_len,
+        ) {
+            return Ok(false);
+        }
         array_heap_data.elements.reserve(elements, new_len)?;
         array_heap_data.elements.len = new_len;
-        array_heap_data.elements.len_writable = desc_writable;
+        array_heap_data.elements.len_writable = desc_writable.unwrap_or(old_len_writable);
         return Ok(true);
     }
     debug_assert!(old_len > new_len);
-    // 15. Let succeeded be ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
-    let old_elements = array_heap_data.elements;
+    // 13. If oldLenDesc.[[Writable]] is false, return false.
+    if !old_len_writable {
+        return Ok(false);
+    }
+    // 14. If newLenDesc does not have a [[Writable]] field or
+    //     newLenDesc.[[Writable]] is true, then
+    //     a. Let newWritable be true.
+    // 15. Else,
+    // a. NOTE: Setting the [[Writable]] attribute to false is deferred in case
+    //    any elements cannot be deleted.
+    // b. Let newWritable be false.
+    // c. Set newLenDesc.[[Writable]] to true.
+    let new_writable = desc_writable.unwrap_or(true);
+    // 16. Let succeeded be
+    //     ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
+    // 17. If succeeded is false, return false.
+    if !array_ordinary_define_property_checks(
+        old_len_writable,
+        old_len,
+        desc_configurable,
+        desc_enumerable,
+        if desc_writable == Some(false) {
+            Some(true)
+        } else {
+            desc_writable
+        },
+        new_len,
+    ) {
+        return Ok(false);
+    }
     let ElementStorageMut {
         values,
         descriptors,
-    } = elements.get_element_storage_mut(&old_elements);
+    } = elements.get_element_storage_mut(&array_heap_data.elements);
     if let Entry::Occupied(mut descriptors) = descriptors
         && !descriptors.get().is_empty()
     {
@@ -384,7 +408,7 @@ fn array_set_length_handling(
                 // i. Set newLenDesc.[[Value]] to ! ToUint32(P) + 1𝔽.
                 array_heap_data.elements.len = i + 1;
                 // ii. If newWritable is false, set newLenDesc.[[Writable]] to false.
-                array_heap_data.elements.len_writable &= desc_writable;
+                array_heap_data.elements.len_writable &= new_writable;
                 // iii. Perform ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
                 // iv. Return false.
                 return Ok(false);
@@ -398,9 +422,46 @@ fn array_set_length_handling(
     values[new_len as usize..old_len as usize].fill(None);
     array_heap_data.elements.len = new_len;
     // 18. If newWritable is false, then
-    array_heap_data.elements.len_writable &= desc_writable;
+    array_heap_data.elements.len_writable &= new_writable;
     // a. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor { [[Writable]]: false }).
     // b. Assert: succeeded is true.
     // 19. Return true.
     Ok(true)
+}
+
+fn array_ordinary_define_property_checks(
+    current_writable: bool,
+    current_value: u32,
+    desc_configurable: Option<bool>,
+    desc_enumerable: Option<bool>,
+    desc_writable: Option<bool>,
+    desc_value: u32,
+) -> bool {
+    // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is
+    //    true, return false.
+    if desc_configurable == Some(true) {
+        return false;
+    }
+    // b. If Desc has an [[Enumerable]] field and Desc.[[Enumerable]] is
+    //    not current.[[Enumerable]], return false.
+    if desc_enumerable == Some(true) {
+        return false;
+    }
+    // e. Else if current.[[Writable]] is false, then
+    if !current_writable {
+        // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is
+        //    true, return false.
+        if desc_writable == Some(true) {
+            return false;
+        }
+        // ii. NOTE: SameValue returns true for NaN values which may be
+        //     distinguishable by other means. Returning here ensures that
+        //     any existing property of O remains unmodified.
+        // iii. If Desc has a [[Value]] field, return
+        //      SameValue(Desc.[[Value]], current.[[Value]]).
+        if desc_value != current_value {
+            return false;
+        }
+    }
+    true
 }

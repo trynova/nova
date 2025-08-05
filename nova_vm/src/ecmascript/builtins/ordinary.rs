@@ -407,7 +407,7 @@ fn validate_and_apply_property_descriptor(
     // 5. If current.[[Configurable]] is false, then
     if !current.configurable.unwrap() {
         // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
-        if let Some(true) = descriptor.configurable {
+        if descriptor.configurable == Some(true) {
             return Ok(false);
         }
 
@@ -454,7 +454,7 @@ fn validate_and_apply_property_descriptor(
         // e. Else if current.[[Writable]] is false, then
         else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
-            if let Some(true) = descriptor.writable {
+            if descriptor.writable == Some(true) {
                 return Ok(false);
             }
 
