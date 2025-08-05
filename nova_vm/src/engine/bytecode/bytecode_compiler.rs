@@ -2719,6 +2719,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::VariableDeclaration<'s> {
     type Output = ();
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
+        // If this is a declare statement, it's a TypeScript ambient declaration
+        // and should not generate any runtime code, similar to type declarations
+        #[cfg(feature = "typescript")]
+        if self.declare {
+            return;
+        }
+
         match self.kind {
             // VariableStatement : var VariableDeclarationList ;
             ast::VariableDeclarationKind::Var => {
@@ -3449,7 +3456,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             Self::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
             Self::WhileStatement(statement) => statement.compile_labelled(None, ctx),
             Self::WithStatement(st) => st.compile(ctx),
-            Self::ClassDeclaration(x) => x.compile(ctx),
+            Self::ClassDeclaration(x) => {
+                // If this is a declare statement, it's a TypeScript ambient declaration
+                // and should not generate any runtime code, similar to type declarations
+                #[cfg(feature = "typescript")]
+                if x.declare {
+                    return;
+                }
+                x.compile(ctx);
+            }
             Self::ImportDeclaration(_) => {
                 // Note: Import declarations do not perform any runtime work.
             }
