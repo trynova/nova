@@ -33,13 +33,13 @@ pub struct PropertyDescriptor<'a> {
 
     /// \[\[Get]]
     ///
-    /// Note: double-Option because these fields can be set explicity undefined
+    /// Note: double-Option because these fields can be set explicitly undefined
     /// to unset them.
     pub get: Option<Option<Function<'a>>>,
 
     /// \[\[Set]]
     ///
-    /// Note: double-Option because these fields can be set explicity undefined
+    /// Note: double-Option because these fields can be set explicitly undefined
     /// to unset them.
     pub set: Option<Option<Function<'a>>>,
 
@@ -60,13 +60,13 @@ pub struct ScopedPropertyDescriptor<'a> {
 
     /// \[\[Get]]
     ///
-    /// Note: double-Option because these fields can be set explicity undefined
+    /// Note: double-Option because these fields can be set explicitly undefined
     /// to unset them.
     pub get: Option<Option<Scoped<'a, Function<'static>>>>,
 
     /// \[\[Set]]
     ///
-    /// Note: double-Option because these fields can be set explicity undefined
+    /// Note: double-Option because these fields can be set explicitly undefined
     /// to unset them.
     pub set: Option<Option<Scoped<'a, Function<'static>>>>,
 
