@@ -298,7 +298,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 // 1. Let expr be ? Evaluation of UnaryExpression.
                 // NOTE: GetValue must be called even though its value is not used because it may have observable side-effects.
                 // 2. Perform ? GetValue(expr).
-                compile_expression_get_value(&self.argument, ctx);
+                if !self.argument.is_literal() {
+                    compile_expression_get_value(&self.argument, ctx);
+                }
                 // 3. Return undefined.
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             }
