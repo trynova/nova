@@ -779,14 +779,16 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         } else {
             Default::default()
         };
-        let elements = &agent[self].elements;
-        let mut keys = Vec::with_capacity(elements.len() as usize + 1 + backing_keys.len());
+        let ElementStorageRef {
+            values,
+            descriptors,
+        } = agent[self].elements.get_storage(agent);
+        let mut keys = Vec::with_capacity(values.len() as usize + 1 + backing_keys.len());
 
-        let elements_data = &agent[elements];
-
-        for (index, value) in elements_data.iter().enumerate() {
-            if value.is_some() {
-                keys.push(PropertyKey::Integer((index as u32).into()))
+        for (index, value) in values.iter().enumerate() {
+            let index = index as u32;
+            if value.is_some() || descriptors.is_some_and(|d| d.contains_key(&index)) {
+                keys.push(index.into());
             }
         }
 
