@@ -783,7 +783,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             values,
             descriptors,
         } = agent[self].elements.get_storage(agent);
-        let mut keys = Vec::with_capacity(values.len() as usize + 1 + backing_keys.len());
+        let mut keys = Vec::with_capacity(values.len() + 1 + backing_keys.len());
 
         for (index, value) in values.iter().enumerate() {
             let index = index as u32;
