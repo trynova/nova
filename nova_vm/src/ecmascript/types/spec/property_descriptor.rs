@@ -32,10 +32,16 @@ pub struct PropertyDescriptor<'a> {
     pub writable: Option<bool>,
 
     /// \[\[Get]]
-    pub get: Option<Function<'a>>,
+    ///
+    /// Note: double-Option because these fields can be set explicitly undefined
+    /// to unset them.
+    pub get: Option<Option<Function<'a>>>,
 
     /// \[\[Set]]
-    pub set: Option<Function<'a>>,
+    ///
+    /// Note: double-Option because these fields can be set explicitly undefined
+    /// to unset them.
+    pub set: Option<Option<Function<'a>>>,
 
     /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
@@ -53,10 +59,16 @@ pub struct ScopedPropertyDescriptor<'a> {
     pub writable: Option<bool>,
 
     /// \[\[Get]]
-    pub get: Option<Scoped<'a, Function<'static>>>,
+    ///
+    /// Note: double-Option because these fields can be set explicitly undefined
+    /// to unset them.
+    pub get: Option<Option<Scoped<'a, Function<'static>>>>,
 
     /// \[\[Set]]
-    pub set: Option<Scoped<'a, Function<'static>>>,
+    ///
+    /// Note: double-Option because these fields can be set explicitly undefined
+    /// to unset them.
+    pub set: Option<Option<Scoped<'a, Function<'static>>>>,
 
     /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
@@ -71,8 +83,14 @@ impl<'b> ScopedPropertyDescriptor<'b> {
         PropertyDescriptor {
             value: self.value.as_ref().map(|v| v.get(agent).bind(gc)),
             writable: self.writable,
-            get: self.get.as_ref().map(|f| f.get(agent).bind(gc)),
-            set: self.set.as_ref().map(|f| f.get(agent).bind(gc)),
+            get: self
+                .get
+                .as_ref()
+                .map(|f| f.as_ref().map(|f| f.get(agent).bind(gc))),
+            set: self
+                .set
+                .as_ref()
+                .map(|f| f.as_ref().map(|f| f.get(agent).bind(gc))),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -86,9 +104,13 @@ impl<'b> ScopedPropertyDescriptor<'b> {
             value: self.value.map(|v| unsafe { v.take(agent).bind(gc) }),
             writable: self.writable,
             // SAFETY: PropertyDescriptor cannot be shared.
-            get: self.get.map(|f| unsafe { f.take(agent).bind(gc) }),
+            get: self
+                .get
+                .map(|f| f.map(|f| unsafe { f.take(agent).bind(gc) })),
             // SAFETY: PropertyDescriptor cannot be shared.
-            set: self.set.map(|f| unsafe { f.take(agent).bind(gc) }),
+            set: self
+                .set
+                .map(|f| f.map(|f| unsafe { f.take(agent).bind(gc) })),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -104,8 +126,8 @@ impl<'a> PropertyDescriptor<'a> {
         ScopedPropertyDescriptor {
             value: self.value.map(|v| v.scope(agent, gc)),
             writable: self.writable,
-            get: self.get.map(|f| f.scope(agent, gc)),
-            set: self.set.map(|f| f.scope(agent, gc)),
+            get: self.get.map(|f| f.map(|f| f.scope(agent, gc))),
+            set: self.set.map(|f| f.map(|f| f.scope(agent, gc))),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -397,7 +419,9 @@ impl<'a> PropertyDescriptor<'a> {
                     ));
                 };
                 // c. Set desc.[[Get]] to getter.
-                desc.get = Some(getter.unbind());
+                desc.get = Some(Some(getter.unbind()));
+            } else {
+                desc.get = Some(None);
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
@@ -430,7 +454,9 @@ impl<'a> PropertyDescriptor<'a> {
                     ));
                 };
                 // c. Set desc.[[Set]] to setter.
-                desc.set = Some(setter.unbind());
+                desc.set = Some(Some(setter.unbind()));
+            } else {
+                desc.set = Some(None);
             }
         }
 
@@ -441,7 +467,7 @@ impl<'a> PropertyDescriptor<'a> {
         if desc.get.is_some() || desc.set.is_some() {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
-            if desc.writable.is_some() || desc.writable.is_some() {
+            if desc.value.is_some() || desc.writable.is_some() {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
@@ -527,7 +553,9 @@ impl<'a> PropertyDescriptor<'a> {
                     )));
                 };
                 // c. Set desc.[[Get]] to getter.
-                desc.get = Some(getter.unbind());
+                desc.get = Some(Some(getter.unbind()));
+            } else {
+                desc.get = Some(None);
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
@@ -547,14 +575,16 @@ impl<'a> PropertyDescriptor<'a> {
                     )));
                 };
                 // c. Set desc.[[Set]] to setter.
-                desc.set = Some(setter.unbind());
+                desc.set = Some(Some(setter.unbind()));
+            } else {
+                desc.set = Some(None);
             }
         }
         // 15. If desc has a [[Get]] field or desc has a [[Set]] field, then
         if desc.get.is_some() || desc.set.is_some() {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
-            if desc.writable.is_some() || desc.writable.is_some() {
+            if desc.value.is_some() || desc.writable.is_some() {
                 return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
@@ -575,8 +605,8 @@ impl<'a> PropertyDescriptor<'a> {
         let like = PropertyDescriptor {
             value: Some(Value::Undefined),
             writable: Some(false),
-            get: None,
-            set: None,
+            get: Some(None),
+            set: Some(None),
             enumerable: Some(false),
             configurable: Some(false),
         };

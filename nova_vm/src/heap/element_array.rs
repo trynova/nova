@@ -20,7 +20,7 @@ use core::{
     mem::MaybeUninit,
     ops::{Index, IndexMut},
 };
-use std::collections::hash_map::Entry;
+use std::collections::{TryReserveError, hash_map::Entry};
 
 /// Shared access to an element storage.
 pub(crate) struct ElementStorageRef<'a, 'gc> {
@@ -301,13 +301,17 @@ impl<'gc> ElementsVector<'gc> {
         }
     }
 
-    pub(crate) fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
+    pub(crate) fn reserve(
+        &mut self,
+        elements: &mut ElementArrays,
+        new_len: u32,
+    ) -> Result<(), TryReserveError> {
         if new_len <= self.cap() {
             // Enough capacity present already
-            return;
+            return Ok(());
         }
 
-        elements.reserve_elements(self, new_len);
+        elements.reserve_elements(self, new_len)
     }
 
     pub(crate) fn push(
@@ -315,9 +319,9 @@ impl<'gc> ElementsVector<'gc> {
         elements: &mut ElementArrays,
         value: Option<Value>,
         descriptor: Option<ElementDescriptor>,
-    ) {
+    ) -> Result<(), TryReserveError> {
         if self.is_full() {
-            self.reserve(elements, self.len() + 1);
+            self.reserve(elements, self.len() + 1)?;
         }
         let next_over_end = match self.cap {
             ElementArrayKey::Empty => unreachable!(),
@@ -365,6 +369,7 @@ impl<'gc> ElementsVector<'gc> {
                 .insert(self.len, descriptor.unbind());
         }
         self.len += 1;
+        Ok(())
     }
 }
 
@@ -460,38 +465,52 @@ pub enum ElementDescriptor<'a> {
     /// { value, writable: false, enumerable: false, configurable: false }
     /// ```
     ReadOnlyUnenumerableUnconfigurableData,
-    // TODO: Is { enumerable, configurable } actually a real case or is that just in the spec?
-    // If it is then a NoReadNoWrite*umerable*onfigurable set of descriptors is needed
     /// ```js
-    /// { get, enumerable: true, configurable: true }
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedEnumerableConfigurableAccessor,
+    /// ```js
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedEnumerableUnconfigurableAccessor,
+    /// ```js
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedUnenumerableConfigurableAccessor,
+    /// ```js
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedUnenumerableUnconfigurableAccessor,
+    /// ```js
+    /// { get, set: undefined, enumerable: true, configurable: true }
     /// ```
     ReadOnlyEnumerableConfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { get, enumerable: true, configurable: false }
+    /// { get, set: undefined, enumerable: true, configurable: false }
     /// ```
     ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { get, enumerable: false, configurable: true }
+    /// { get, set: undefined, enumerable: false, configurable: true }
     /// ```
     ReadOnlyUnenumerableConfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { get, enumerable: false, configurable: false }
+    /// { get, set: undefined, enumerable: false, configurable: false }
     /// ```
     ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { set, enumerable: true, configurable: true }
+    /// { get: undefined, set, enumerable: true, configurable: true }
     /// ```
     WriteOnlyEnumerableConfigurableAccessor { set: Function<'a> },
     /// ```js
-    /// { set, enumerable: true, configurable: false }
+    /// { get: undefined, set, enumerable: true, configurable: false }
     /// ```
     WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'a> },
     /// ```js
-    /// { set, enumerable: false, configurable: true }
+    /// { get: undefined, set, enumerable: false, configurable: true }
     /// ```
     WriteOnlyUnenumerableConfigurableAccessor { set: Function<'a> },
     /// ```js
-    /// { set, enumerable: false, configurable: false }
+    /// { get: undefined, set, enumerable: false, configurable: false }
     /// ```
     WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'a> },
     /// ```js
@@ -724,18 +743,10 @@ impl<'a> ElementDescriptor<'a> {
         let configurable = descriptor.configurable.unwrap_or(false);
         let enumerable = descriptor.enumerable.unwrap_or(false);
         let writable = descriptor.writable.unwrap_or(false);
-        if configurable
-            && enumerable
-            && descriptor.get.is_none()
-            && descriptor.set.is_none()
-            && writable
-        {
-            // Default data descriptor, return None.
-            return None;
-        }
         Some(match (descriptor.get, descriptor.set) {
             (None, None) => match (writable, enumerable, configurable) {
-                (true, true, true) => unreachable!(),
+                // Default data descriptor, return None.
+                (true, true, true) => return None,
                 (true, true, false) => Self::WritableEnumerableUnconfigurableData,
                 (true, false, true) => Self::WritableUnenumerableConfigurableData,
                 (true, false, false) => Self::WritableUnenumerableUnconfigurableData,
@@ -744,19 +755,25 @@ impl<'a> ElementDescriptor<'a> {
                 (false, false, true) => Self::ReadOnlyUnenumerableConfigurableData,
                 (false, false, false) => Self::ReadOnlyUnenumerableUnconfigurableData,
             },
-            (None, Some(set)) => match (enumerable, configurable) {
+            (None | Some(None), None | Some(None)) => match (enumerable, configurable) {
+                (true, true) => Self::UndefinedEnumerableConfigurableAccessor,
+                (true, false) => Self::UndefinedEnumerableUnconfigurableAccessor,
+                (false, true) => Self::UndefinedUnenumerableConfigurableAccessor,
+                (false, false) => Self::UndefinedUnenumerableUnconfigurableAccessor,
+            },
+            (None | Some(None), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
                 (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
                 (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
                 (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
             },
-            (Some(get), None) => match (enumerable, configurable) {
+            (Some(Some(get)), None | Some(None)) => match (enumerable, configurable) {
                 (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
                 (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
                 (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
                 (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
             },
-            (Some(get), Some(set)) => match (enumerable, configurable) {
+            (Some(Some(get)), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
                 (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
                 (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
@@ -790,19 +807,19 @@ impl<'a> ElementDescriptor<'a> {
         let enumerable = descriptor.enumerable.unwrap_or(false);
         let configurable = descriptor.configurable.unwrap_or(false);
         match (descriptor.get, descriptor.set) {
-            (None, Some(set)) => match (enumerable, configurable) {
+            (None | Some(None), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
                 (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
                 (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
                 (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
             },
-            (Some(get), None) => match (enumerable, configurable) {
+            (Some(Some(get)), None | Some(None)) => match (enumerable, configurable) {
                 (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
                 (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
                 (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
                 (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
             },
-            (Some(get), Some(set)) => match (enumerable, configurable) {
+            (Some(Some(get)), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
                 (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
                 (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
@@ -819,6 +836,12 @@ impl<'a> ElementDescriptor<'a> {
         configurable: bool,
     ) -> Self {
         match (get, set) {
+            (None, None) => match (enumerable, configurable) {
+                (true, true) => Self::UndefinedEnumerableConfigurableAccessor,
+                (true, false) => Self::UndefinedEnumerableUnconfigurableAccessor,
+                (false, true) => Self::UndefinedUnenumerableConfigurableAccessor,
+                (false, false) => Self::UndefinedUnenumerableUnconfigurableAccessor,
+            },
             (None, Some(set)) => match (enumerable, configurable) {
                 (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
                 (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
@@ -837,7 +860,6 @@ impl<'a> ElementDescriptor<'a> {
                 (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
                 (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
             },
-            _ => unreachable!(),
         }
     }
 
@@ -853,184 +875,192 @@ impl<'a> ElementDescriptor<'a> {
                 value,
                 configurable: Some(true),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::WritableEnumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::WritableUnenumerableConfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(true),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::WritableUnenumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyEnumerableConfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(true),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyEnumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyUnenumerableConfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(true),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedEnumerableConfigurableAccessor => PropertyDescriptor {
+                configurable: Some(true),
+                enumerable: Some(true),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor => PropertyDescriptor {
+                configurable: Some(false),
+                enumerable: Some(true),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedUnenumerableConfigurableAccessor => PropertyDescriptor {
+                configurable: Some(true),
+                enumerable: Some(false),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedUnenumerableUnconfigurableAccessor => PropertyDescriptor {
+                configurable: Some(false),
+                enumerable: Some(false),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
         }
@@ -1089,6 +1119,8 @@ impl<'a> ElementDescriptor<'a> {
                 | ElementDescriptor::WritableEnumerableUnconfigurableData
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableData
                 | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+                | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+                | ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
                 | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { .. }
                 | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
@@ -1105,6 +1137,8 @@ impl<'a> ElementDescriptor<'a> {
                 | ElementDescriptor::WritableUnenumerableConfigurableData
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableData
                 | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+                | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+                | ElementDescriptor::UndefinedUnenumerableConfigurableAccessor
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
                 | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { .. }
                 | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
@@ -1250,9 +1284,9 @@ impl<const N: usize> ElementArray<N> {
         &mut self,
         source: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor>>,
-    ) -> ElementIndex<'static> {
+    ) -> Result<ElementIndex<'static>, TryReserveError> {
         let length = source.len();
-        self.values.reserve(1);
+        self.values.try_reserve(1)?;
         let remaining = self.values.spare_capacity_mut();
         assert!(length <= N);
         let last = remaining.get_mut(0).unwrap();
@@ -1296,7 +1330,7 @@ impl<const N: usize> ElementArray<N> {
             };
             self.descriptors.insert(index, descriptors);
         }
-        index
+        Ok(index)
     }
 
     fn remove(&mut self, vector: &ElementsVector, index: usize) {
@@ -1570,7 +1604,7 @@ impl ElementArrays {
         key: ElementArrayKey,
         source: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
-    ) -> ElementIndex<'static> {
+    ) -> Result<ElementIndex<'static>, TryReserveError> {
         debug_assert_eq!(
             core::mem::size_of::<Option<[Option<Value>; 1]>>(),
             core::mem::size_of::<[Option<Value>; 1]>()
@@ -1578,7 +1612,7 @@ impl ElementArrays {
         match key {
             ElementArrayKey::Empty => {
                 assert!(source.is_empty() && descriptors.is_none());
-                ElementIndex::from_u32_index(0)
+                Ok(ElementIndex::from_u32_index(0))
             }
             ElementArrayKey::E4 => self.e2pow4.push(source, descriptors),
             ElementArrayKey::E6 => self.e2pow6.push(source, descriptors),
@@ -1591,17 +1625,21 @@ impl ElementArrays {
         }
     }
 
-    fn reserve_elements(&mut self, elements_vector: &mut ElementsVector, new_len: u32) {
+    fn reserve_elements(
+        &mut self,
+        elements_vector: &mut ElementsVector,
+        new_len: u32,
+    ) -> Result<(), TryReserveError> {
         if new_len <= elements_vector.cap.cap() {
             // Already big enough, no need to grow
-            return;
+            return Ok(());
         }
         self.reserve_elements_raw(
             &mut elements_vector.elements_index,
             &mut elements_vector.cap,
             elements_vector.len,
             new_len,
-        );
+        )
     }
 
     pub(crate) fn reserve_elements_raw(
@@ -1610,7 +1648,7 @@ impl ElementArrays {
         cap: &mut ElementArrayKey,
         old_len: u32,
         new_len: u32,
-    ) {
+    ) -> Result<(), TryReserveError> {
         let new_key = ElementArrayKey::from(new_len);
         assert_ne!(new_key, *cap);
         let ElementArrays {
@@ -1783,7 +1821,8 @@ impl ElementArrays {
             }
         };
         *cap = new_key;
-        *index = new_index;
+        *index = new_index?;
+        Ok(())
     }
 
     pub(crate) fn reserve_properties_raw(
@@ -1808,14 +1847,14 @@ impl ElementArrays {
     pub(crate) fn allocate_elements_with_capacity(
         &mut self,
         capacity: usize,
-    ) -> ElementsVector<'static> {
+    ) -> Result<ElementsVector<'static>, TryReserveError> {
         let cap = ElementArrayKey::from(capacity);
-        ElementsVector {
-            elements_index: self.push_values(cap, &[], None),
+        Ok(ElementsVector {
+            elements_index: self.push_values(cap, &[], None)?,
             cap,
             len: 0,
             len_writable: true,
-        }
+        })
     }
 
     fn allocate_object_property_storage(
@@ -1823,16 +1862,16 @@ impl ElementArrays {
         length: usize,
         values: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
-    ) -> ElementsVector<'static> {
+    ) -> Result<ElementsVector<'static>, TryReserveError> {
         let cap = ElementArrayKey::from(length);
         let len = length as u32;
-        let values_index = self.push_values(cap, values, descriptors);
-        ElementsVector {
-            elements_index: values_index,
+        let elements_index = self.push_values(cap, values, descriptors)?;
+        Ok(ElementsVector {
+            elements_index,
             cap,
             len,
             len_writable: true,
-        }
+        })
     }
 
     /// Allocate an empty PropertyKey backing store with the given capacity.
@@ -2219,7 +2258,7 @@ impl ElementArrays {
             Option<ElementDescriptor>,
             Option<Value<'a>>,
         )>,
-    ) -> ElementsVector<'a> {
+    ) -> Result<ElementsVector<'a>, TryReserveError> {
         let length = entries.len();
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>> = None;
@@ -2243,16 +2282,15 @@ impl ElementArrays {
         &mut self,
         values: &[Option<Value<'a>>],
         descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
-    ) -> ElementsVector<'a> {
+    ) -> Result<ElementsVector<'a>, TryReserveError> {
         let length = values.len();
         self.allocate_object_property_storage(length, values, descriptors)
-            .unbind()
     }
 
     pub(crate) fn allocate_object_property_storage_from_entries_slice<'a>(
         &mut self,
         entries: &[ObjectEntry<'a>],
-    ) -> ElementsVector<'a> {
+    ) -> Result<ElementsVector<'a>, TryReserveError> {
         let length = entries.len();
         let mut keys: Vec<PropertyKey> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
@@ -2612,7 +2650,11 @@ impl HeapMarkAndSweep for ElementDescriptor<'static> {
             | ElementDescriptor::ReadOnlyEnumerableConfigurableData
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
-            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData
+            | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableUnconfigurableAccessor => {}
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
@@ -2644,7 +2686,11 @@ impl HeapMarkAndSweep for ElementDescriptor<'static> {
             | ElementDescriptor::ReadOnlyEnumerableConfigurableData
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
-            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData
+            | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableUnconfigurableAccessor => {}
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }

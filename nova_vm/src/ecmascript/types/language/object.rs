@@ -12,6 +12,7 @@ mod property_key_vec;
 mod property_storage;
 
 use core::hash::Hash;
+use std::collections::TryReserveError;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
@@ -240,8 +241,8 @@ impl<'a> OrdinaryObject<'a> {
         agent[self].len()
     }
 
-    pub(crate) fn reserve(self, agent: &mut Agent, new_len: u32) {
-        agent.heap.objects[self].reserve(&mut agent.heap.elements, new_len);
+    pub(crate) fn reserve(self, agent: &mut Agent, new_len: u32) -> Result<(), TryReserveError> {
+        agent.heap.objects[self].reserve(&mut agent.heap.elements, new_len)
     }
 
     pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
@@ -396,7 +397,8 @@ impl<'a> OrdinaryObject<'a> {
         } = agent
             .heap
             .elements
-            .allocate_object_property_storage_from_entries_slice(entries);
+            .allocate_object_property_storage_from_entries_slice(entries)
+            .expect("Failed to create object");
         agent
             .heap
             .create(ObjectHeapData::new(shape, values, cap, len, extensible))
@@ -427,7 +429,11 @@ impl<'a> OrdinaryObject<'a> {
             cap,
             len,
             len_writable: extensible,
-        } = agent.heap.elements.allocate_property_storage(values, None);
+        } = agent
+            .heap
+            .elements
+            .allocate_property_storage(values, None)
+            .expect("Failed to create object");
         agent
             .heap
             .create(ObjectHeapData::new(shape, values, cap, len, extensible))
@@ -501,7 +507,9 @@ impl<'a> OrdinaryObject<'a> {
         // source and the self objects will be identical after this operation.
         let len = keys.len() as u32;
         let source_shape = agent[source].get_shape();
-        self.reserve(agent, len);
+        if self.reserve(agent, len).is_err() {
+            return false;
+        };
         let ElementStorageUninit {
             values: target_values,
             ..

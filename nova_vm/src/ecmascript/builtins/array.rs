@@ -433,14 +433,17 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 let backing_object = self
                     .get_backing_object(agent)
                     .unwrap_or_else(|| self.create_backing_object(agent));
-                return TryResult::Continue(ordinary_define_own_property(
+                return match ordinary_define_own_property(
                     agent,
                     self.into_object(),
                     backing_object,
                     property_key,
                     property_descriptor,
                     gc,
-                ));
+                ) {
+                    Ok(b) => TryResult::Continue(b),
+                    Err(_) => TryResult::Break(()),
+                };
             }
             // Let lengthDesc be OrdinaryGetOwnProperty(A, "length").
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
@@ -464,7 +467,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     ..
                 } = &mut agent.heap;
                 let array_heap_data = &mut arrays[self];
-                array_heap_data.elements.reserve(elements, index + 1);
+                if array_heap_data
+                    .elements
+                    .reserve(elements, index + 1)
+                    .is_err()
+                {
+                    return TryResult::Break(());
+                }
                 let value = property_descriptor.value;
                 let element_descriptor =
                     ElementDescriptor::from_property_descriptor(property_descriptor);
@@ -477,9 +486,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 if element_descriptor.is_some() {
                     *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
                 }
-                array_heap_data
+                if array_heap_data
                     .elements
-                    .push(elements, value, element_descriptor);
+                    .push(elements, value, element_descriptor)
+                    .is_err()
+                {
+                    return TryResult::Break(());
+                }
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
                 // This should've already been handled by the push.
@@ -500,14 +513,17 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            TryResult::Continue(ordinary_define_own_property(
+            match ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor,
                 gc,
-            ))
+            ) {
+                Ok(b) => TryResult::Continue(b),
+                Err(_) => TryResult::Break(()),
+            }
         }
     }
 
@@ -929,7 +945,7 @@ fn ordinary_define_own_property_for_array(
     let current_writable = current_descriptor.map_or(Some(true), |c| c.is_writable());
     let current_enumerable = current_descriptor.is_none_or(|c| c.is_enumerable());
     let current_configurable = current_descriptor.is_none_or(|c| c.is_configurable());
-    let current_is_data_descriptor = current_descriptor.is_some_and(|c| c.is_data_descriptor());
+    let current_is_data_descriptor = current_descriptor.is_none_or(|c| c.is_data_descriptor());
     let current_is_accessor_descriptor =
         current_descriptor.is_some_and(|c| c.is_accessor_descriptor());
     let current_getter = current_descriptor.and_then(|c| c.getter_function(gc));
@@ -938,7 +954,7 @@ fn ordinary_define_own_property_for_array(
     // 5. If current.[[Configurable]] is false, then
     if !current_configurable {
         // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
-        if let Some(true) = descriptor.configurable {
+        if descriptor.configurable == Some(true) {
             return false;
         }
 
@@ -961,33 +977,31 @@ fn ordinary_define_own_property_for_array(
 
         // d. If IsAccessorDescriptor(current) is true, then
         if current_is_accessor_descriptor {
-            // i. If Desc has a [[Get]] field and SameValue(Desc.[[Get]], current.[[Get]]) is false,
-            //    return false.
-            if let Some(desc_get) = descriptor.get
-                && current_getter != Some(desc_get)
-            {
+            // i. If Desc has a [[Get]] field and
+            //    SameValue(Desc.[[Get]], current.[[Get]]) is false,
+            if descriptor.get.is_some_and(|get| get != current_getter) {
                 return false;
             }
 
-            // ii. If Desc has a [[Set]] field and SameValue(Desc.[[Set]], current.[[Set]]) is
-            //     false, return false.
-            if let Some(desc_set) = descriptor.set
-                && current_setter != Some(desc_set)
-            {
+            // ii. If Desc has a [[Set]] field and
+            //     SameValue(Desc.[[Set]], current.[[Set]]) is false,
+            if descriptor.set.is_some_and(|set| set != current_setter) {
                 return false;
             }
         }
         // e. Else if current.[[Writable]] is false, then
         else if !current_writable.unwrap() {
-            // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
-            if let Some(true) = descriptor.writable {
+            // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is
+            //    true,
+            if descriptor.writable == Some(true) {
                 return false;
             }
 
-            // ii. If Desc has a [[Value]] field and SameValue(Desc.[[Value]], current.[[Value]])
-            //     is false, return false.
-            if let Some(desc_value) = descriptor.value
-                && !same_value(agent, desc_value, current_value.unwrap())
+            // ii. If Desc has a [[Value]] field and
+            //     SameValue(Desc.[[Value]], current.[[Value]]) is false,
+            if descriptor
+                .value
+                .is_some_and(|value| !same_value(agent, value, current_value.unwrap()))
             {
                 return false;
             }
@@ -1009,8 +1023,8 @@ fn ordinary_define_own_property_for_array(
         //      the value of the corresponding field in Desc if Desc has that field, or to the
         //      attribute's default value otherwise.
         let elem_descriptor = ElementDescriptor::from_accessor_descriptor_fields(
-            descriptor.get,
-            descriptor.set,
+            descriptor.get.flatten(),
+            descriptor.set.flatten(),
             enumerable,
             configurable,
         );
@@ -1045,13 +1059,13 @@ fn ordinary_define_own_property_for_array(
     }
     // c. Else,
     else {
-        // i. For each field of Desc, set the corresponding attribute of the property named P
-        //    of object O to the value of the field.
+        // i. For each field of Desc, set the corresponding attribute of the
+        //    property named P of object O to the value of the field.
         let mut descriptor = descriptor;
         let result_value = descriptor.value.or(current_value);
         descriptor.writable = descriptor.writable.or(current_writable);
-        descriptor.get = descriptor.get.or(current_getter);
-        descriptor.set = descriptor.set.or(current_setter);
+        descriptor.get = descriptor.get.or(current_getter.map(Some));
+        descriptor.set = descriptor.set.or(current_setter.map(Some));
         descriptor.enumerable = Some(descriptor.enumerable.unwrap_or(current_enumerable));
         descriptor.configurable = Some(descriptor.configurable.unwrap_or(current_configurable));
         let elem_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
@@ -1077,8 +1091,11 @@ fn mutate_data_descriptor(
         } = agent.heap.elements.get_element_storage_mut(elements);
         values[index as usize] = descriptor_value.unbind();
         if let Entry::Occupied(mut descriptors) = descriptors {
-            let descriptors = descriptors.get_mut();
-            descriptors.remove(&index);
+            let descs = descriptors.get_mut();
+            descs.remove(&index);
+            if descs.is_empty() {
+                descriptors.remove();
+            }
         }
     }
 }
@@ -1097,8 +1114,11 @@ fn mutate_element_descriptor(
         ..
     } = agent.heap.elements.get_element_storage_mut(elements)
     {
-        let descriptors = descriptors.get_mut();
-        descriptors.remove(&index);
+        let descs = descriptors.get_mut();
+        descs.remove(&index);
+        if descs.is_empty() {
+            descriptors.remove();
+        }
     }
 }
 

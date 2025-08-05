@@ -884,15 +884,17 @@ impl Vm {
                 // 9. If propKey is a Private Name, then
                 // a. Return PrivateElement { [[Key]]: propKey, [[Kind]]: accessor, [[Get]]: closure, [[Set]]: undefined }.
                 // 10. Else,
-                // a. Let desc be the PropertyDescriptor { [[Get]]: closure, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+                // a. Let desc be the PropertyDescriptor {
                 let desc = PropertyDescriptor {
-                    value: None,
-                    writable: None,
-                    get: Some(closure.into_function().unbind()),
-                    set: None,
+                    // [[Get]]: closure,
+                    get: Some(Some(closure.into_function().unbind())),
+                    // [[Enumerable]]: enumerable,
                     enumerable: Some(enumerable),
+                    // [[Configurable]]: true
                     configurable: Some(true),
+                    ..Default::default()
                 };
+                // }.
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
                 let object = object.unbind();
                 let prop_key = prop_key.unbind();
@@ -963,15 +965,17 @@ impl Vm {
                 // 8. If propKey is a Private Name, then
                 // a. Return PrivateElement { [[Key]]: propKey, [[Kind]]: accessor, [[Get]]: undefined, [[Set]]: closure }.
                 // 9. Else,
-                // a. Let desc be the PropertyDescriptor { [[Set]]: closure, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+                // a. Let desc be the PropertyDescriptor {
                 let desc = PropertyDescriptor {
-                    value: None,
-                    writable: None,
-                    get: None,
-                    set: Some(closure.into_function().unbind()),
+                    // [[Set]]: closure,
+                    set: Some(Some(closure.into_function().unbind())),
+                    // [[Enumerable]]: enumerable,
                     enumerable: Some(enumerable),
+                    // [[Configurable]]: true
                     configurable: Some(true),
+                    ..Default::default()
                 };
+                // }.
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
                 let object = object.unbind();
                 let prop_key = prop_key.unbind();
@@ -1743,12 +1747,12 @@ impl Vm {
                             None
                         },
                         get: if is_getter {
-                            Some(closure.into_function().unbind())
+                            Some(Some(closure.into_function().unbind()))
                         } else {
                             None
                         },
                         set: if is_setter {
-                            Some(closure.into_function().unbind())
+                            Some(Some(closure.into_function().unbind()))
                         } else {
                             None
                         },
@@ -1795,11 +1799,18 @@ impl Vm {
                     let private_name = private_env.add_static_private_field(agent, description);
                     let object = vm.stack.last().unwrap().bind(gc.nogc());
                     let object = Object::try_from(object).unwrap();
-                    object
+                    if let Err(err) = object
                         .get_or_create_backing_object(agent)
                         .bind(gc.nogc())
                         .property_storage()
-                        .add_private_field_slot(agent, private_name);
+                        .add_private_field_slot(agent, private_name)
+                    {
+                        return Err(agent.throw_exception(
+                            ExceptionType::RangeError,
+                            err.to_string(),
+                            gc.into_nogc(),
+                        ));
+                    };
                 } else {
                     private_env.add_instance_private_field(agent, description);
                 }

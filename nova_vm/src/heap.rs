@@ -93,8 +93,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, ObjectHeapData, PropertyKey, String,
-            StringHeapData, Symbol, SymbolHeapData, Value, bigint::HeapBigInt,
+            HeapNumber, HeapString, NumberHeapData, ObjectHeapData, String, StringHeapData, Symbol,
+            SymbolHeapData, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -108,9 +108,9 @@ use crate::{
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
 use element_array::{
-    ElementArray2Pow4, ElementArray2Pow6, ElementDescriptor, ElementsVector, PropertyKeyArray2Pow4,
-    PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
-    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
+    ElementArray2Pow4, ElementArray2Pow6, PropertyKeyArray2Pow4, PropertyKeyArray2Pow6,
+    PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12, PropertyKeyArray2Pow16,
+    PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
 };
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{
@@ -568,26 +568,6 @@ impl Heap {
         self.numbers.push(Some(number.into()));
         self.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
         HeapNumber(NumberIndex::last(&self.numbers))
-    }
-
-    pub(crate) fn create_elements_with_key_value_descriptor_entries<'gc>(
-        &mut self,
-        entries: Vec<(
-            PropertyKey<'gc>,
-            Option<ElementDescriptor>,
-            Option<Value<'gc>>,
-        )>,
-    ) -> ElementsVector<'gc> {
-        self.alloc_counter += entries.iter().fold(0, |acc, entry| {
-            acc + core::mem::size_of::<Option<Value>>() * 2
-                + if entry.1.is_none() {
-                    0
-                } else {
-                    core::mem::size_of::<(u32, ElementDescriptor)>()
-                }
-        });
-        self.elements
-            .allocate_object_property_storage_from_entries_vec(entries)
     }
 }
 

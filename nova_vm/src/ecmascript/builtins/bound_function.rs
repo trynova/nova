@@ -10,7 +10,7 @@ use crate::{
             operations_on_objects::{call_function, construct},
             testing_and_comparison::is_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
             InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
@@ -113,10 +113,20 @@ pub(crate) fn bound_function_create<'a>(
     // 5. Set obj.[[Call]] as described in 10.4.1.1.
     // 6. If IsConstructor(targetFunction) is true, then
     // a. Set obj.[[Construct]] as described in 10.4.1.2.
-    let mut elements = agent
+    let mut elements = match agent
         .heap
         .elements
-        .allocate_elements_with_capacity(bound_args.len());
+        .allocate_elements_with_capacity(bound_args.len())
+    {
+        Ok(e) => e,
+        Err(err) => {
+            return Err(agent.throw_exception(
+                ExceptionType::RangeError,
+                err.to_string(),
+                gc.into_nogc(),
+            ));
+        }
+    };
     elements.len = u32::try_from(bound_args.len()).unwrap();
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
@@ -193,13 +203,16 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        TryResult::Continue(function_internal_define_own_property(
+        match function_internal_define_own_property(
             self,
             agent,
             property_key,
             property_descriptor,
             gc,
-        ))
+        ) {
+            Ok(b) => TryResult::Continue(b),
+            Err(_) => TryResult::Break(()),
+        }
     }
 
     fn try_has_property(

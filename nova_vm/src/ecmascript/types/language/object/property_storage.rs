@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::cell::Ref;
-use std::{collections::hash_map::Entry, ptr::NonNull};
+use std::{
+    collections::{TryReserveError, hash_map::Entry},
+    ptr::NonNull,
+};
 
 use ahash::AHashMap;
 
@@ -60,7 +63,11 @@ impl<'a> PropertyStorage<'a> {
     }
 
     /// Adds an uninitialized PrivateName field to the object.
-    pub(crate) fn add_private_field_slot(self, agent: &mut Agent, private_name: PrivateName) {
+    pub(crate) fn add_private_field_slot(
+        self,
+        agent: &mut Agent,
+        private_name: PrivateName,
+    ) -> Result<(), TryReserveError> {
         // SAFETY: Private fields are backed by on-stack data; mutating Agent
         // is totally okay.
         unsafe {
@@ -69,7 +76,7 @@ impl<'a> PropertyStorage<'a> {
                 self.0,
                 NonNull::from(&[PrivateField::Field { key: private_name }]),
             )
-        };
+        }
     }
 
     /// Copy all PrivateMethods and reserve PrivateName fields from the current
@@ -107,7 +114,9 @@ impl<'a> PropertyStorage<'a> {
         // SAFETY: insert_private_fields does not touch environments, and it
         // cannot push into the private_fields list. Hence the pointer here is
         // always valid.
-        unsafe { Self::insert_private_fields(agent, self.0, private_fields) };
+        if let Err(err) = unsafe { Self::insert_private_fields(agent, self.0, private_fields) } {
+            return Err(agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc));
+        };
         Ok(())
     }
 
@@ -118,7 +127,7 @@ impl<'a> PropertyStorage<'a> {
         agent: &mut Agent,
         object: OrdinaryObject,
         private_fields: NonNull<[PrivateField]>,
-    ) {
+    ) -> Result<(), TryReserveError> {
         let original_len = object.len(agent);
         let original_shape = object.get_shape(agent);
         // SAFETY: User says so.
@@ -129,7 +138,7 @@ impl<'a> PropertyStorage<'a> {
         agent.heap.alloc_counter +=
             core::mem::size_of::<Option<Value>>().saturating_mul(private_fields.len());
         agent[object].set_shape(new_shape);
-        object.reserve(agent, original_len + private_fields.len() as u32);
+        object.reserve(agent, original_len + private_fields.len() as u32)?;
         let ElementStorageUninit {
             values,
             mut descriptors,
@@ -181,6 +190,7 @@ impl<'a> PropertyStorage<'a> {
             }
         }
         agent[object].set_len(original_len.wrapping_add(private_fields.len() as u32));
+        Ok(())
     }
 
     pub(crate) fn set_private_field_value(
@@ -324,7 +334,7 @@ impl<'a> PropertyStorage<'a> {
         key: PropertyKey<'a>,
         descriptor: PropertyDescriptor<'a>,
         gc: NoGcScope,
-    ) {
+    ) -> Result<(), TryReserveError> {
         let object = self.0;
 
         let value = descriptor.value;
@@ -359,7 +369,7 @@ impl<'a> PropertyStorage<'a> {
                     }
                     _ => {}
                 }
-                return;
+                return Ok(());
             }
             keys.len() as u32
         } else {
@@ -374,7 +384,7 @@ impl<'a> PropertyStorage<'a> {
             } else {
                 0
             };
-        object.reserve(agent, new_len);
+        object.reserve(agent, new_len)?;
         agent[object].set_len(new_len);
         let ElementStorageMut {
             values,
@@ -403,6 +413,7 @@ impl<'a> PropertyStorage<'a> {
         } else {
             agent[object].set_shape(new_shape);
         }
+        Ok(())
     }
 
     pub fn remove(self, agent: &mut Agent, o: Object, key: PropertyKey<'a>) {
