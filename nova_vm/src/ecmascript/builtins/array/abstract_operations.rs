@@ -303,7 +303,7 @@ fn array_set_length_no_value_field(agent: &mut Agent, a: Array, desc: PropertyDe
     } else if desc.writable == Some(false) {
         agent[a].elements.len_writable = false;
     }
-    return true;
+    true
 }
 
 fn array_set_length_handling(

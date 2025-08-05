@@ -513,7 +513,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            return match ordinary_define_own_property(
+            match ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
@@ -523,7 +523,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             ) {
                 Ok(b) => TryResult::Continue(b),
                 Err(_) => TryResult::Break(()),
-            };
+            }
         }
     }
 
