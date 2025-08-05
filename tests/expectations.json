@@ -945,7 +945,6 @@
   "built-ins/Function/prototype/toString/symbol-named-builtins.js": "FAIL",
   "built-ins/GeneratorFunction/proto-from-ctor-realm-prototype.js": "FAIL",
   "built-ins/GeneratorFunction/proto-from-ctor-realm.js": "FAIL",
-  "built-ins/GeneratorFunction/prototype/constructor.js": "FAIL",
   "built-ins/Iterator/concat/arguments-checked-in-order.js": "FAIL",
   "built-ins/Iterator/concat/fresh-iterator-result.js": "FAIL",
   "built-ins/Iterator/concat/get-iterator-method-only-once.js": "FAIL",
