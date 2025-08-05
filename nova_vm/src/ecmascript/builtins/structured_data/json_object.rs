@@ -392,7 +392,7 @@ impl JSONObject {
         });
 
         // 10. Let wrapper be OrdinaryObjectCreate(%Object.prototype%).
-        let Object::Object(wrapper) = ordinary_object_create_with_intrinsics(
+        let Object::Object(mut wrapper) = ordinary_object_create_with_intrinsics(
             agent,
             Some(ProtoIntrinsics::Object),
             None,
@@ -401,15 +401,41 @@ impl JSONObject {
             unreachable!()
         };
         // SAFETY: value is not shared.
-        let value = unsafe { value.take(agent) }.bind(gc.nogc());
+        let mut value = unsafe { value.take(agent) }.bind(gc.nogc());
         // 11. Perform ! CreateDataPropertyOrThrow(wrapper, the empty String, value).
-        wrapper.property_storage().set(
-            agent,
-            wrapper.into_object(),
-            String::EMPTY_STRING.to_property_key(),
-            PropertyDescriptor::new_data_descriptor(value),
-            gc.nogc(),
-        );
+        if wrapper
+            .property_storage()
+            .set(
+                agent,
+                wrapper.into_object(),
+                String::EMPTY_STRING.to_property_key(),
+                PropertyDescriptor::new_data_descriptor(value),
+                gc.nogc(),
+            )
+            .is_err()
+        {
+            let scoped_value = value.scope(agent, gc.nogc());
+            let scoped_wrapper = wrapper.scope(agent, gc.nogc());
+            agent.gc(gc.reborrow());
+            // SAFETY: Not shared.
+            unsafe {
+                wrapper = scoped_wrapper.take(agent).bind(gc.nogc());
+                value = scoped_value.take(agent).bind(gc.nogc());
+            }
+            if let Err(err) = wrapper.property_storage().set(
+                agent,
+                wrapper.into_object(),
+                String::EMPTY_STRING.to_property_key(),
+                PropertyDescriptor::new_data_descriptor(value),
+                gc.nogc(),
+            ) {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    err.to_string(),
+                    gc.into_nogc(),
+                ));
+            };
+        }
         // 12. Let state be the JSON Serialization Record { [[ReplacerFunction]]: ReplacerFunction, [[Stack]]: stack, [[Indent]]: indent, [[Gap]]: gap, [[PropertyList]]: PropertyList }.
         let mut state = JSONSerializationRecord {
             result: Wtf8Buf::new(),

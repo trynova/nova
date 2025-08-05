@@ -42,7 +42,7 @@ pub(crate) use compile_context::{
     JumpIndex, NamedEvaluationParameter,
 };
 use num_traits::Num;
-use oxc_ast::ast::{self, Expression};
+use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use template_literals::get_template_object;
@@ -1870,7 +1870,7 @@ pub(super) fn compile_get_value_maybe_keep_reference<'gc>(
 }
 
 pub(super) fn compile_expression_output_get_value<'gc>(
-    expr: &Expression,
+    expr: &ast::Expression,
     ctx: &mut CompileContext<'_, '_, 'gc, '_>,
     output: Option<ExpressionOutput<'gc>>,
 ) {

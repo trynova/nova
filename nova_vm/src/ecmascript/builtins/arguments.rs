@@ -213,9 +213,9 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         key,
         PropertyDescriptor {
             // [[Get]]: %ThrowTypeError%,
-            get: Some(throw_type_error.into_function()),
+            get: Some(Some(throw_type_error.into_function())),
             // [[Set]]: %ThrowTypeError%,
-            set: Some(throw_type_error.into_function()),
+            set: Some(Some(throw_type_error.into_function())),
             // [[Enumerable]]: false,
             enumerable: Some(false),
             // [[Configurable]]: false }).

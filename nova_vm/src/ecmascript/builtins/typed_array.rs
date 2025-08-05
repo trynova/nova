@@ -9,7 +9,7 @@ use data::TypedArrayArrayLength;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
@@ -525,14 +525,17 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            TryResult::Continue(ordinary_define_own_property(
+            match ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor,
                 gc,
-            ))
+            ) {
+                Ok(b) => TryResult::Continue(b),
+                Err(_) => TryResult::Break(()),
+            }
         }
     }
 
@@ -595,14 +598,17 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let backing_object = o
                 .get_backing_object(agent)
                 .unwrap_or_else(|| o.create_backing_object(agent));
-            Ok(ordinary_define_own_property(
+            ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor.unbind(),
                 gc.nogc(),
-            ))
+            )
+            .map_err(|err| {
+                agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc.into_nogc())
+            })
         }
     }
 

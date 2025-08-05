@@ -619,21 +619,22 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .bind(gc.nogc());
         // 10. If trapResultObj is undefined, then
         if trap_result_obj_is_undefined {
-            if let Some(target_desc) = target_desc {
-                // b. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
-                if target_desc.configurable == Some(false) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::TypeError,
-                        format!(
-                            "proxy can't report a non-configurable own property '{}' as non-existent.",
-                            scoped_property_key.get(agent).as_display(agent)
-                        ),
-                        gc.into_nogc(),
-                    ));
-                }
-            } else {
-                // a. If targetDesc is undefined, return undefined.
+            // a. If targetDesc is undefined,
+            let Some(target_desc) = target_desc else {
+                // return undefined.
                 return Ok(None);
+            };
+            // b. If targetDesc.[[Configurable]] is false,
+            if target_desc.configurable == Some(false) {
+                // throw a TypeError exception.
+                return Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "proxy can't report a non-configurable own property '{}' as non-existent.",
+                        scoped_property_key.get(agent).as_display(agent)
+                    ),
+                    gc.into_nogc(),
+                ));
             }
             // c. Let extensibleTarget be ? IsExtensible(target).
             let extensible_target =
@@ -668,13 +669,22 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         result_desc.complete_property_descriptor().unbind()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
         let target_desc = target_desc.map(|desc| desc.take(agent, gc.nogc()));
-        let valid = is_compatible_property_descriptor(
+        let valid = match is_compatible_property_descriptor(
             agent,
             extensible_target,
             result_desc.clone(),
             target_desc.clone(),
             gc.nogc(),
-        );
+        ) {
+            Ok(b) => b,
+            Err(err) => {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    err.to_string(),
+                    gc.into_nogc(),
+                ));
+            }
+        };
         // 15. If valid is false, throw a TypeError exception.
         if !valid {
             return Err(agent.throw_exception_with_static_message(
@@ -814,7 +824,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let gc = gc.into_nogc();
         let target_desc = target_desc.map(|desc| desc.get(agent, gc));
         let property_descriptor = property_descriptor.take(agent, gc);
-        if target_desc.is_none() {
+        let Some(target_desc) = target_desc else {
             // a. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
                 return Err(agent.throw_exception(
@@ -837,56 +847,48 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     gc,
                 ));
             }
-        } else
+            // 16. Return true.
+            return Ok(true);
+        };
         // 15. Else,
-        // a. If IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) is false, throw a TypeError exception.
-        if !is_compatible_property_descriptor(
+        let is_compatible = is_compatible_property_descriptor(
             agent,
             extensible_target,
             property_descriptor.clone(),
-            target_desc.clone(),
+            Some(target_desc.clone()),
             gc,
-        ) {
-            return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    format!(
-                        "proxy can't define an incompatible property descriptor ('{}', proxy can't report an existing non-configurable property as configurable)",
-                        property_key.get(agent).as_display(agent)
-                    ),
-                    gc,
-                ));
-        } else
+        )
+        .map_err(|err| agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc))?;
+        // a. If IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) is false, throw a TypeError exception.
+        if !is_compatible {
+            let message = format!(
+                "proxy can't define an incompatible property descriptor ('{}', proxy can't report an existing non-configurable property as configurable)",
+                property_key.get(agent).as_display(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc));
+        }
         // b. If settingConfigFalse is true and targetDesc.[[Configurable]] is true, throw a TypeError exception.
-        if setting_config_false
-            && let Some(target_desc) = &target_desc
-            && target_desc.configurable == Some(true)
-        {
-            return Err(agent.throw_exception(
-                            ExceptionType::TypeError,
-                            format!(
-                                "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing configurable property as non-configurable)",
-                                property_key.get(agent).as_display(agent)
-                            ),
-                            gc,
-                        ));
-        } else
-        // c. If IsDataDescriptor(targetDesc) is true, targetDesc.[[Configurable]] is false, and targetDesc.[[Writable]] is true, then
-        if let Some(target_desc) = target_desc &&
-            property_descriptor.is_data_descriptor()
+        if setting_config_false && target_desc.configurable == Some(true) {
+            let message = format!(
+                "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing configurable property as non-configurable)",
+                property_key.get(agent).as_display(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc));
+        }
+        // c. If IsDataDescriptor(targetDesc) is true,
+        if target_desc.is_data_descriptor()
+                    // targetDesc.[[Configurable]] is false,
                     && target_desc.configurable == Some(false)
+                    // and targetDesc.[[Writable]] is true, then
                     && target_desc.writable == Some(true)
                     //  i. If Desc has a [[Writable]] field and Desc.[[Writable]] is false, throw a TypeError exception.
-                    && let Some(writable) = property_descriptor.writable
-         && !writable
+                    && property_descriptor.writable == Some(false)
         {
-            return Err(agent.throw_exception(
-                                ExceptionType::TypeError,
-                                format!(
-                                    "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing non-configurable writable property as non-writable)",
-                                    property_key.get(agent).as_display(agent)
-                                ),
-                                gc,
-                            ));
+            let message = format!(
+                "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing non-configurable writable property as non-writable)",
+                property_key.get(agent).as_display(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc));
         }
         // 16. Return true.
         Ok(true)
@@ -1113,27 +1115,28 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .unbind()?
             .bind(gc.nogc());
         let trap_result = trap_result.get(agent).bind(gc.nogc());
-        // 9. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
-        // a. If IsDataDescriptor(targetDesc) is true and
-        //    targetDesc.[[Writable]] is false, then
-        // i. If SameValue(trapResult, targetDesc.[[Value]]) is false,
-        //    throw a TypeError exception.
-        // b. If IsAccessorDescriptor(targetDesc) is true and
-        //    targetDesc.[[Get]] is undefined, then
-        // i. If trapResult is not undefined, throw a TypeError exception.
+        // 9. If targetDesc is not undefined and
         if let Some(target_desc) = target_desc
+            // targetDesc.[[Configurable]] is false, then
             && target_desc.configurable == Some(false)
+            // a. If IsDataDescriptor(targetDesc) is true and
             && (target_desc.is_data_descriptor()
+                // targetDesc.[[Writable]] is false, then
                 && target_desc.writable == Some(false)
+                // i. If SameValue(trapResult, targetDesc.[[Value]]) is false, ...
                 && !same_value(
                     agent,
                     trap_result,
                     target_desc.value.unwrap_or(Value::Undefined),
                 )
+                // b. If IsAccessorDescriptor(targetDesc) is true and
                 || target_desc.is_accessor_descriptor()
-                    && target_desc.get.is_none()
-                    && trap_result.is_undefined())
+                    // targetDesc.[[Get]] is undefined, then
+                    && target_desc.get.is_none_or(|g| g.is_none())
+                    // i. If trapResult is not undefined, ...
+                    && !trap_result.is_undefined())
         {
+            // ... throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid Proxy [[Get]] method",
@@ -1253,33 +1256,31 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        // 10. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
+        // 10. If targetDesc is not undefined and
         if let Some(target_desc) = target_desc
+            // targetDesc.[[Configurable]] is false, then
             && target_desc.configurable == Some(false)
-        {
             // a. If IsDataDescriptor(targetDesc) is true and
-            //    targetDesc.[[Writable]] is false, then
-            // i. If SameValue(V, targetDesc.[[Value]]) is false,
-            //    throw a TypeError exception.
-            // b. If IsAccessorDescriptor(targetDesc) is true and
-            //    targetDesc.[[Value]] is undefined, then
-            // i. If targetDesc.[[Set]] is undefined,
-            //    throw a TypeError exception.
-            if target_desc.is_data_descriptor()
+            && (target_desc.is_data_descriptor()
+                // targetDesc.[[Writable]] is false, then
                 && target_desc.writable == Some(false)
+                // i. If SameValue(V, targetDesc.[[Value]]) is false, ...
                 && !same_value(
                     agent,
                     scoped_value.get(agent),
                     target_desc.value.unwrap_or(Value::Undefined),
                 )
-                || target_desc.is_accessor_descriptor() && target_desc.set.is_none()
-            {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Invalid Proxy [[Set]] method",
-                    gc.into_nogc(),
-                ));
-            }
+                // b. If IsAccessorDescriptor(targetDesc) is true, then
+                || target_desc.is_accessor_descriptor()
+                    // i. If targetDesc.[[Set]] is undefined, ...
+                    && target_desc.set.is_none_or(|s| s.is_none()))
+        {
+            // ... throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid Proxy [[Set]] method",
+                gc.into_nogc(),
+            ));
         }
         // 10. Return trapResult.
         Ok(true)
@@ -1374,30 +1375,26 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let Some(target_desc) = target_desc else {
             return Ok(true);
         };
-        // 11. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
+        // 11. If targetDesc.[[Configurable]] is false,
         if target_desc.configurable == Some(false) {
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                format!(
-                    "property '{}' is non-configurable and can't be deleted",
-                    scoped_property_key.get(agent).as_display(agent)
-                ),
-                gc.into_nogc(),
-            ));
+            // throw a TypeError exception.
+            let message = format!(
+                "property '{}' is non-configurable and can't be deleted",
+                scoped_property_key.get(agent).as_display(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc.into_nogc()));
         };
         // 12. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target =
             is_extensible(agent, scoped_target.get(agent), gc.reborrow()).unbind()?;
-        // 13. If extensibleTarget is false, throw a TypeError exception.
+        // 13. If extensibleTarget is false,
         if !extensible_target {
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                format!(
-                    "proxy can't delete property '{}' on a non-extensible object",
-                    scoped_property_key.get(agent).as_display(agent)
-                ),
-                gc.into_nogc(),
-            ));
+            // throw a TypeError exception.
+            let message = format!(
+                "proxy can't delete property '{}' on a non-extensible object",
+                scoped_property_key.get(agent).as_display(agent)
+            );
+            return Err(agent.throw_exception(ExceptionType::TypeError, message, gc.into_nogc()));
         };
         // 14. Return true.
         Ok(true)
@@ -1482,12 +1479,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         for value in trap_result.iter(agent) {
             let p = value.get(gc.nogc());
             if unique_trap_results.contains(&p) {
+                let message = format!(
+                    "proxy [[OwnPropertyKeys]] can't report property '{}' more than once",
+                    p.as_display(agent),
+                );
                 return Err(agent.throw_exception(
                     ExceptionType::TypeError,
-                    format!(
-                        "proxy [[OwnPropertyKeys]] can't report property '{}' more than once",
-                        p.as_display(agent),
-                    ),
+                    message,
                     gc.into_nogc(),
                 ));
             }
