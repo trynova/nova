@@ -88,7 +88,7 @@ impl AggregateErrorConstructor {
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message = message.map(|message| message.get(agent).bind(gc.nogc()));
         let heap_data = &mut agent[o];
-        heap_data.kind = ExceptionType::Error;
+        heap_data.kind = ExceptionType::AggregateError;
         heap_data.message = message.unbind();
         heap_data.cause = cause.unbind();
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
