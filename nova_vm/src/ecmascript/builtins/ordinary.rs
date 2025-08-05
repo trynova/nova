@@ -6,7 +6,10 @@ pub(crate) mod caches;
 pub mod shape;
 
 use core::ops::{Index, IndexMut};
-use std::{collections::hash_map::Entry, vec};
+use std::{
+    collections::{TryReserveError, hash_map::Entry},
+    vec,
+};
 
 use caches::{CacheToPopulate, Caches};
 
@@ -283,7 +286,7 @@ pub(crate) fn ordinary_define_own_property(
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
     gc: NoGcScope,
-) -> bool {
+) -> Result<bool, TryReserveError> {
     // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
     // meaning that we know that this method cannot call into JavaScript.
     // 1. Let current be ! O.[[GetOwnProperty]](P).
@@ -311,7 +314,7 @@ pub(crate) fn is_compatible_property_descriptor(
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
     gc: NoGcScope,
-) -> bool {
+) -> Result<bool, TryReserveError> {
     let property_key = PropertyKey::from_str(agent, "", gc);
     validate_and_apply_property_descriptor(
         agent,
@@ -333,19 +336,19 @@ fn validate_and_apply_property_descriptor(
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
     gc: NoGcScope,
-) -> bool {
+) -> Result<bool, TryReserveError> {
     // 1. Assert: IsPropertyKey(P) is true.
 
     // 2. If current is undefined, then
     let Some(current) = current else {
         // a. If extensible is false, return false.
         if !extensible {
-            return false;
+            return Ok(false);
         }
 
         // b. If O is undefined, return true.
         let Some((o, backing_object)) = o else {
-            return true;
+            return Ok(true);
         };
 
         // c. If IsAccessorDescriptor(Desc) is true, then
@@ -366,7 +369,7 @@ fn validate_and_apply_property_descriptor(
                     ..Default::default()
                 },
                 gc,
-            )
+            )?;
         }
         // d. Else,
         else {
@@ -386,11 +389,11 @@ fn validate_and_apply_property_descriptor(
                     ..Default::default()
                 },
                 gc,
-            )
+            )?;
         }
 
         // e. Return true.
-        return true;
+        return Ok(true);
     };
 
     // 3. Assert: current is a fully populated Property Descriptor.
@@ -398,20 +401,20 @@ fn validate_and_apply_property_descriptor(
 
     // 4. If Desc does not have any fields, return true.
     if !descriptor.has_fields() {
-        return true;
+        return Ok(true);
     }
 
     // 5. If current.[[Configurable]] is false, then
     if !current.configurable.unwrap() {
         // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
         if let Some(true) = descriptor.configurable {
-            return false;
+            return Ok(false);
         }
 
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
         if descriptor.enumerable.is_some() && descriptor.enumerable != current.enumerable {
-            return false;
+            return Ok(false);
         }
 
         // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
@@ -419,7 +422,7 @@ fn validate_and_apply_property_descriptor(
         if !descriptor.is_generic_descriptor()
             && descriptor.is_accessor_descriptor() != current.is_accessor_descriptor()
         {
-            return false;
+            return Ok(false);
         }
 
         // d. If IsAccessorDescriptor(current) is true, then
@@ -429,10 +432,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_get) = descriptor.get {
                 if let Some(cur_get) = current.get {
                     if desc_get != cur_get {
-                        return false;
+                        return Ok(false);
                     }
                 } else {
-                    return false;
+                    return Ok(false);
                 }
             }
 
@@ -441,10 +444,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_set) = descriptor.set {
                 if let Some(cur_set) = current.set {
                     if desc_set != cur_set {
-                        return false;
+                        return Ok(false);
                     }
                 } else {
-                    return false;
+                    return Ok(false);
                 }
             }
         }
@@ -452,7 +455,7 @@ fn validate_and_apply_property_descriptor(
         else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
             if let Some(true) = descriptor.writable {
-                return false;
+                return Ok(false);
             }
 
             // ii. If Desc has a [[Value]] field and SameValue(Desc.[[Value]], current.[[Value]])
@@ -460,10 +463,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_value) = descriptor.value {
                 if let Some(cur_value) = current.value {
                     if !same_value(agent, desc_value, cur_value) {
-                        return false;
+                        return Ok(false);
                     }
                 } else {
-                    return false;
+                    return Ok(false);
                 }
             }
         }
@@ -502,7 +505,7 @@ fn validate_and_apply_property_descriptor(
                     ..Default::default()
                 },
                 gc,
-            );
+            )?;
         }
         // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
         else if current.is_accessor_descriptor() && descriptor.is_data_descriptor() {
@@ -541,7 +544,7 @@ fn validate_and_apply_property_descriptor(
                     ..Default::default()
                 },
                 gc,
-            );
+            )?;
         }
         // c. Else,
         else {
@@ -560,12 +563,12 @@ fn validate_and_apply_property_descriptor(
                     configurable: descriptor.configurable.or(current.configurable),
                 },
                 gc,
-            );
+            )?;
         }
     }
 
     // 7. Return true.
-    true
+    Ok(true)
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)

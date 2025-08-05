@@ -2055,7 +2055,13 @@ pub(crate) fn copy_data_properties<'a>(
                 .unwrap(),
         )
         .unwrap();
-        target.reserve(agent, new_size);
+        if let Err(err) = target.reserve(agent, new_size) {
+            return Err(agent.throw_exception(
+                ExceptionType::RangeError,
+                err.to_string(),
+                gc.into_nogc(),
+            ));
+        };
     }
 
     // 4. For each element nextKey of keys, do

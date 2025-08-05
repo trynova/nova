@@ -669,13 +669,22 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         result_desc.complete_property_descriptor().unbind()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
         let target_desc = target_desc.map(|desc| desc.take(agent, gc.nogc()));
-        let valid = is_compatible_property_descriptor(
+        let valid = match is_compatible_property_descriptor(
             agent,
             extensible_target,
             result_desc.clone(),
             target_desc.clone(),
             gc.nogc(),
-        );
+        ) {
+            Ok(b) => b,
+            Err(err) => {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    err.to_string(),
+                    gc.into_nogc(),
+                ));
+            }
+        };
         // 15. If valid is false, throw a TypeError exception.
         if !valid {
             return Err(agent.throw_exception_with_static_message(
@@ -842,14 +851,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return Ok(true);
         };
         // 15. Else,
-        // a. If IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) is false, throw a TypeError exception.
-        if !is_compatible_property_descriptor(
+        let is_compatible = is_compatible_property_descriptor(
             agent,
             extensible_target,
             property_descriptor.clone(),
             Some(target_desc.clone()),
             gc,
-        ) {
+        )
+        .map_err(|err| agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc))?;
+        // a. If IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) is false, throw a TypeError exception.
+        if !is_compatible {
             let message = format!(
                 "proxy can't define an incompatible property descriptor ('{}', proxy can't report an existing non-configurable property as configurable)",
                 property_key.get(agent).as_display(agent)

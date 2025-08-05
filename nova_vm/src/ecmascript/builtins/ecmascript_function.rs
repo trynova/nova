@@ -374,13 +374,16 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        TryResult::Continue(function_internal_define_own_property(
+        match function_internal_define_own_property(
             self,
             agent,
             property_key,
             property_descriptor,
             gc,
-        ))
+        ) {
+            Ok(b) => TryResult::Continue(b),
+            Err(_) => TryResult::Break(()),
+        }
     }
 
     fn try_has_property(
@@ -1042,26 +1045,29 @@ pub(crate) fn make_constructor<'a>(
         ))
         .unwrap();
         // b. Perform ! DefinePropertyOrThrow(
-        prototype.property_storage().set(
-            agent,
-            // prototype,
-            prototype.into_object(),
-            // "constructor",
-            BUILTIN_STRING_MEMORY.constructor.into(),
-            // PropertyDescriptor {
-            PropertyDescriptor {
-                // [[Value]]: F,
-                value: Some(function.into_value().unbind()),
-                // [[Writable]]: writablePrototype,
-                writable: Some(writable_prototype),
-                // [[Enumerable]]: false,
-                enumerable: Some(false),
-                // [[Configurable]]: true
-                configurable: Some(true),
-                ..Default::default()
-            },
-            gc,
-        );
+        prototype
+            .property_storage()
+            .set(
+                agent,
+                // prototype,
+                prototype.into_object(),
+                // "constructor",
+                BUILTIN_STRING_MEMORY.constructor.into(),
+                // PropertyDescriptor {
+                PropertyDescriptor {
+                    // [[Value]]: F,
+                    value: Some(function.into_value().unbind()),
+                    // [[Writable]]: writablePrototype,
+                    writable: Some(writable_prototype),
+                    // [[Enumerable]]: false,
+                    enumerable: Some(false),
+                    // [[Configurable]]: true
+                    configurable: Some(true),
+                    ..Default::default()
+                },
+                gc,
+            )
+            .expect("Failed to allocate memory for constructor");
         // }).
         prototype
     });
@@ -1069,26 +1075,29 @@ pub(crate) fn make_constructor<'a>(
         .get_backing_object(agent)
         .unwrap_or_else(|| function.create_backing_object(agent));
     // 6. Perform ! DefinePropertyOrThrow(
-    backing_object.property_storage().set(
-        agent,
-        // F,
-        function.into_object(),
-        // "prototype",
-        BUILTIN_STRING_MEMORY.prototype.into(),
-        // PropertyDescriptor {
-        PropertyDescriptor {
-            // [[Value]]: prototype,
-            value: Some(prototype.into_value().unbind()),
-            // [[Writable]]: writablePrototype,
-            writable: Some(writable_prototype),
-            // [[Enumerable]]: false,
-            enumerable: Some(false),
-            // [[Configurable]]: false
-            configurable: Some(false),
-            ..Default::default()
-        },
-        gc,
-    );
+    backing_object
+        .property_storage()
+        .set(
+            agent,
+            // F,
+            function.into_object(),
+            // "prototype",
+            BUILTIN_STRING_MEMORY.prototype.into(),
+            // PropertyDescriptor {
+            PropertyDescriptor {
+                // [[Value]]: prototype,
+                value: Some(prototype.into_value().unbind()),
+                // [[Writable]]: writablePrototype,
+                writable: Some(writable_prototype),
+                // [[Enumerable]]: false,
+                enumerable: Some(false),
+                // [[Configurable]]: false
+                configurable: Some(false),
+                ..Default::default()
+            },
+            gc,
+        )
+        .expect("Failed to allocate memory for constructor");
     // }).
     // 7. Return UNUSED.
 }

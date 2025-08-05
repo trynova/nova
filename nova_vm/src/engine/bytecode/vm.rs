@@ -1799,11 +1799,18 @@ impl Vm {
                     let private_name = private_env.add_static_private_field(agent, description);
                     let object = vm.stack.last().unwrap().bind(gc.nogc());
                     let object = Object::try_from(object).unwrap();
-                    object
+                    if let Err(err) = object
                         .get_or_create_backing_object(agent)
                         .bind(gc.nogc())
                         .property_storage()
-                        .add_private_field_slot(agent, private_name);
+                        .add_private_field_slot(agent, private_name)
+                    {
+                        return Err(agent.throw_exception(
+                            ExceptionType::RangeError,
+                            err.to_string(),
+                            gc.into_nogc(),
+                        ));
+                    };
                 } else {
                     private_env.add_instance_private_field(agent, description);
                 }

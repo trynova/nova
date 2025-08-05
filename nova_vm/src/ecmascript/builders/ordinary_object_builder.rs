@@ -384,7 +384,8 @@ pub(super) fn create_intrinsic_backing_object(
     } = agent
         .heap
         .elements
-        .allocate_object_property_storage_from_entries_vec(properties);
+        .allocate_object_property_storage_from_entries_vec(properties)
+        .expect("Failed to create intrinsic backing object");
 
     let slot = agent
         .heap

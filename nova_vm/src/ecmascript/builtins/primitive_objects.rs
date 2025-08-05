@@ -257,13 +257,16 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
                 // a. Let extensible be S.[[Extensible]].
                 // b. Return IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
-                return TryResult::Continue(is_compatible_property_descriptor(
+                return match is_compatible_property_descriptor(
                     agent,
                     self.internal_extensible(agent),
                     property_descriptor,
                     Some(string_desc),
                     gc,
-                ));
+                ) {
+                    Ok(b) => TryResult::Continue(b),
+                    Err(_) => TryResult::Break(()),
+                };
             }
             // 3. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
         }
@@ -271,14 +274,17 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        TryResult::Continue(ordinary_define_own_property(
+        match ordinary_define_own_property(
             agent,
             self.into_object(),
             backing_object,
             property_key,
             property_descriptor,
             gc,
-        ))
+        ) {
+            Ok(b) => TryResult::Continue(b),
+            Err(_) => TryResult::Break(()),
+        }
     }
 
     fn try_has_property(

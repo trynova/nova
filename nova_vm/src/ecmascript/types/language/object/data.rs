@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::collections::TryReserveError;
+
 use super::Object;
 use crate::{
     ecmascript::builtins::ordinary::shape::{ObjectShape, ObjectShapeRecord},
@@ -41,14 +43,18 @@ impl<'a> ObjectHeapData<'a> {
     }
 
     /// Reserve memory for given size property storage.
-    pub(super) fn reserve(&mut self, elements: &mut impl AsMut<ElementArrays>, new_len: u32) {
+    pub(super) fn reserve(
+        &mut self,
+        elements: &mut impl AsMut<ElementArrays>,
+        new_len: u32,
+    ) -> Result<(), TryReserveError> {
         if self.cap >= ElementArrayKey::from(new_len) {
             // Enough room to hold the new data; nothing to do.
-            return;
+            return Ok(());
         }
         elements
             .as_mut()
-            .reserve_elements_raw(&mut self.values, &mut self.cap, self.len, new_len);
+            .reserve_elements_raw(&mut self.values, &mut self.cap, self.len, new_len)
     }
 
     pub(super) fn get_storage<'e>(&self, elements: &'e ElementArrays) -> ElementStorageRef<'e, 'a> {

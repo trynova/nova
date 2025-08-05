@@ -433,14 +433,17 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 let backing_object = self
                     .get_backing_object(agent)
                     .unwrap_or_else(|| self.create_backing_object(agent));
-                return TryResult::Continue(ordinary_define_own_property(
+                return match ordinary_define_own_property(
                     agent,
                     self.into_object(),
                     backing_object,
                     property_key,
                     property_descriptor,
                     gc,
-                ));
+                ) {
+                    Ok(b) => TryResult::Continue(b),
+                    Err(_) => TryResult::Break(()),
+                };
             }
             // Let lengthDesc be OrdinaryGetOwnProperty(A, "length").
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
@@ -464,7 +467,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     ..
                 } = &mut agent.heap;
                 let array_heap_data = &mut arrays[self];
-                array_heap_data.elements.reserve(elements, index + 1);
+                if array_heap_data
+                    .elements
+                    .reserve(elements, index + 1)
+                    .is_err()
+                {
+                    return TryResult::Break(());
+                }
                 let value = property_descriptor.value;
                 let element_descriptor =
                     ElementDescriptor::from_property_descriptor(property_descriptor);
@@ -477,9 +486,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 if element_descriptor.is_some() {
                     *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
                 }
-                array_heap_data
+                if array_heap_data
                     .elements
-                    .push(elements, value, element_descriptor);
+                    .push(elements, value, element_descriptor)
+                    .is_err()
+                {
+                    return TryResult::Break(());
+                }
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
                 // This should've already been handled by the push.
@@ -500,14 +513,17 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            TryResult::Continue(ordinary_define_own_property(
+            return match ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor,
                 gc,
-            ))
+            ) {
+                Ok(b) => TryResult::Continue(b),
+                Err(_) => TryResult::Break(()),
+            };
         }
     }
 

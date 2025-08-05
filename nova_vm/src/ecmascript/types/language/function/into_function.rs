@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::collections::TryReserveError;
+
 use super::Function;
 use crate::{
     ecmascript::{
@@ -123,7 +125,7 @@ pub(crate) fn function_internal_define_own_property<'a>(
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
     gc: NoGcScope,
-) -> bool {
+) -> Result<bool, TryReserveError> {
     let backing_object = func
         .get_backing_object(agent)
         .unwrap_or_else(|| func.create_backing_object(agent));

@@ -20,7 +20,7 @@ use core::{
     mem::MaybeUninit,
     ops::{Index, IndexMut},
 };
-use std::collections::hash_map::Entry;
+use std::collections::{TryReserveError, hash_map::Entry};
 
 /// Shared access to an element storage.
 pub(crate) struct ElementStorageRef<'a, 'gc> {
@@ -301,13 +301,17 @@ impl<'gc> ElementsVector<'gc> {
         }
     }
 
-    pub(crate) fn reserve(&mut self, elements: &mut ElementArrays, new_len: u32) {
+    pub(crate) fn reserve(
+        &mut self,
+        elements: &mut ElementArrays,
+        new_len: u32,
+    ) -> Result<(), TryReserveError> {
         if new_len <= self.cap() {
             // Enough capacity present already
-            return;
+            return Ok(());
         }
 
-        elements.reserve_elements(self, new_len);
+        elements.reserve_elements(self, new_len)
     }
 
     pub(crate) fn push(
@@ -315,9 +319,9 @@ impl<'gc> ElementsVector<'gc> {
         elements: &mut ElementArrays,
         value: Option<Value>,
         descriptor: Option<ElementDescriptor>,
-    ) {
+    ) -> Result<(), TryReserveError> {
         if self.is_full() {
-            self.reserve(elements, self.len() + 1);
+            self.reserve(elements, self.len() + 1)?;
         }
         let next_over_end = match self.cap {
             ElementArrayKey::Empty => unreachable!(),
@@ -365,6 +369,7 @@ impl<'gc> ElementsVector<'gc> {
                 .insert(self.len, descriptor.unbind());
         }
         self.len += 1;
+        Ok(())
     }
 }
 
@@ -1279,9 +1284,9 @@ impl<const N: usize> ElementArray<N> {
         &mut self,
         source: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor>>,
-    ) -> ElementIndex<'static> {
+    ) -> Result<ElementIndex<'static>, TryReserveError> {
         let length = source.len();
-        self.values.reserve(1);
+        self.values.try_reserve(1)?;
         let remaining = self.values.spare_capacity_mut();
         assert!(length <= N);
         let last = remaining.get_mut(0).unwrap();
@@ -1325,7 +1330,7 @@ impl<const N: usize> ElementArray<N> {
             };
             self.descriptors.insert(index, descriptors);
         }
-        index
+        Ok(index)
     }
 
     fn remove(&mut self, vector: &ElementsVector, index: usize) {
@@ -1599,7 +1604,7 @@ impl ElementArrays {
         key: ElementArrayKey,
         source: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
-    ) -> ElementIndex<'static> {
+    ) -> Result<ElementIndex<'static>, TryReserveError> {
         debug_assert_eq!(
             core::mem::size_of::<Option<[Option<Value>; 1]>>(),
             core::mem::size_of::<[Option<Value>; 1]>()
@@ -1607,7 +1612,7 @@ impl ElementArrays {
         match key {
             ElementArrayKey::Empty => {
                 assert!(source.is_empty() && descriptors.is_none());
-                ElementIndex::from_u32_index(0)
+                Ok(ElementIndex::from_u32_index(0))
             }
             ElementArrayKey::E4 => self.e2pow4.push(source, descriptors),
             ElementArrayKey::E6 => self.e2pow6.push(source, descriptors),
@@ -1620,17 +1625,21 @@ impl ElementArrays {
         }
     }
 
-    fn reserve_elements(&mut self, elements_vector: &mut ElementsVector, new_len: u32) {
+    fn reserve_elements(
+        &mut self,
+        elements_vector: &mut ElementsVector,
+        new_len: u32,
+    ) -> Result<(), TryReserveError> {
         if new_len <= elements_vector.cap.cap() {
             // Already big enough, no need to grow
-            return;
+            return Ok(());
         }
         self.reserve_elements_raw(
             &mut elements_vector.elements_index,
             &mut elements_vector.cap,
             elements_vector.len,
             new_len,
-        );
+        )
     }
 
     pub(crate) fn reserve_elements_raw(
@@ -1639,7 +1648,7 @@ impl ElementArrays {
         cap: &mut ElementArrayKey,
         old_len: u32,
         new_len: u32,
-    ) {
+    ) -> Result<(), TryReserveError> {
         let new_key = ElementArrayKey::from(new_len);
         assert_ne!(new_key, *cap);
         let ElementArrays {
@@ -1812,7 +1821,8 @@ impl ElementArrays {
             }
         };
         *cap = new_key;
-        *index = new_index;
+        *index = new_index?;
+        Ok(())
     }
 
     pub(crate) fn reserve_properties_raw(
@@ -1837,14 +1847,14 @@ impl ElementArrays {
     pub(crate) fn allocate_elements_with_capacity(
         &mut self,
         capacity: usize,
-    ) -> ElementsVector<'static> {
+    ) -> Result<ElementsVector<'static>, TryReserveError> {
         let cap = ElementArrayKey::from(capacity);
-        ElementsVector {
-            elements_index: self.push_values(cap, &[], None),
+        Ok(ElementsVector {
+            elements_index: self.push_values(cap, &[], None)?,
             cap,
             len: 0,
             len_writable: true,
-        }
+        })
     }
 
     fn allocate_object_property_storage(
@@ -1852,16 +1862,16 @@ impl ElementArrays {
         length: usize,
         values: &[Option<Value>],
         descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
-    ) -> ElementsVector<'static> {
+    ) -> Result<ElementsVector<'static>, TryReserveError> {
         let cap = ElementArrayKey::from(length);
         let len = length as u32;
-        let values_index = self.push_values(cap, values, descriptors);
-        ElementsVector {
-            elements_index: values_index,
+        let elements_index = self.push_values(cap, values, descriptors)?;
+        Ok(ElementsVector {
+            elements_index,
             cap,
             len,
             len_writable: true,
-        }
+        })
     }
 
     /// Allocate an empty PropertyKey backing store with the given capacity.
@@ -2248,7 +2258,7 @@ impl ElementArrays {
             Option<ElementDescriptor>,
             Option<Value<'a>>,
         )>,
-    ) -> ElementsVector<'a> {
+    ) -> Result<ElementsVector<'a>, TryReserveError> {
         let length = entries.len();
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>> = None;
@@ -2272,16 +2282,15 @@ impl ElementArrays {
         &mut self,
         values: &[Option<Value<'a>>],
         descriptors: Option<AHashMap<u32, ElementDescriptor<'static>>>,
-    ) -> ElementsVector<'a> {
+    ) -> Result<ElementsVector<'a>, TryReserveError> {
         let length = values.len();
         self.allocate_object_property_storage(length, values, descriptors)
-            .unbind()
     }
 
     pub(crate) fn allocate_object_property_storage_from_entries_slice<'a>(
         &mut self,
         entries: &[ObjectEntry<'a>],
-    ) -> ElementsVector<'a> {
+    ) -> Result<ElementsVector<'a>, TryReserveError> {
         let length = entries.len();
         let mut keys: Vec<PropertyKey> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);

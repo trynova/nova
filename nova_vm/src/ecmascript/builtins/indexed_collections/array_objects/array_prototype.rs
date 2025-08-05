@@ -400,7 +400,13 @@ impl ArrayPrototype {
             let Heap {
                 arrays, elements, ..
             } = &mut agent.heap;
-            arrays[a].elements.reserve(elements, total_len);
+            if let Err(err) = arrays[a].elements.reserve(elements, total_len) {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    err.to_string(),
+                    gc.into_nogc(),
+                ));
+            }
         }
 
         let a = a.scope(agent, gc.nogc());
@@ -2181,9 +2187,16 @@ impl ArrayPrototype {
             let Heap {
                 arrays, elements, ..
             } = &mut agent.heap;
-            arrays[array]
+            if let Err(err) = arrays[array]
                 .elements
-                .reserve(elements, len as u32 + arg_count as u32);
+                .reserve(elements, len as u32 + arg_count as u32)
+            {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    err.to_string(),
+                    gc.into_nogc(),
+                ));
+            }
         }
         // 5. For each element E of items, do
         for e in items.iter() {
@@ -3884,7 +3897,13 @@ impl ArrayPrototype {
                 let Heap {
                     arrays, elements, ..
                 } = &mut agent.heap;
-                arrays[array].elements.reserve(elements, final_len);
+                if let Err(err) = arrays[array].elements.reserve(elements, final_len) {
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        err.to_string(),
+                        gc.into_nogc(),
+                    ));
+                }
                 agent[array].elements.len += arg_count as u32;
                 // Fast path: Copy old items to the end of array,
                 // copy new items to the front of the array.

@@ -211,13 +211,16 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        TryResult::Continue(function_internal_define_own_property(
+        match function_internal_define_own_property(
             self,
             agent,
             property_key,
             property_descriptor,
             gc,
-        ))
+        ) {
+            Ok(b) => TryResult::Continue(b),
+            Err(_) => TryResult::Break(()),
+        }
     }
 
     fn try_has_property(
