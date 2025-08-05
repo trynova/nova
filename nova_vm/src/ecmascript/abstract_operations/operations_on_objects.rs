@@ -329,18 +329,10 @@ pub(crate) fn create_data_property<'a, 'gc>(
     value: Value,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let property_key = property_key.bind(gc.nogc());
     // 1. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true }.
-    let new_desc = PropertyDescriptor {
-        value: Some(value.unbind()),
-        writable: Some(true),
-        get: None,
-        set: None,
-        enumerable: Some(true),
-        configurable: Some(true),
-    };
+    let new_desc = PropertyDescriptor::new_data_descriptor(value);
     // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-    object.internal_define_own_property(agent, property_key.unbind(), new_desc, gc)
+    object.internal_define_own_property(agent, property_key, new_desc, gc)
 }
 
 /// ### Try [7.3.7 CreateDataPropertyOrThrow ( O, P, V )](https://tc39.es/ecma262/#sec-createdatapropertyorthrow)

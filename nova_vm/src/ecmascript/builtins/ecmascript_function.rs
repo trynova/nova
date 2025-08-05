@@ -1041,41 +1041,55 @@ pub(crate) fn make_constructor<'a>(
             gc,
         ))
         .unwrap();
-        // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
-        let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
+        // b. Perform ! DefinePropertyOrThrow(
         prototype.property_storage().set(
             agent,
+            // prototype,
             prototype.into_object(),
-            key,
+            // "constructor",
+            BUILTIN_STRING_MEMORY.constructor.into(),
+            // PropertyDescriptor {
             PropertyDescriptor {
+                // [[Value]]: F,
                 value: Some(function.into_value().unbind()),
+                // [[Writable]]: writablePrototype,
                 writable: Some(writable_prototype),
+                // [[Enumerable]]: false,
                 enumerable: Some(false),
+                // [[Configurable]]: true
                 configurable: Some(true),
                 ..Default::default()
             },
             gc,
         );
+        // }).
         prototype
     });
-    // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
-    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
     let backing_object = function
         .get_backing_object(agent)
         .unwrap_or_else(|| function.create_backing_object(agent));
+    // 6. Perform ! DefinePropertyOrThrow(
     backing_object.property_storage().set(
         agent,
+        // F,
         function.into_object(),
-        key,
+        // "prototype",
+        BUILTIN_STRING_MEMORY.prototype.into(),
+        // PropertyDescriptor {
         PropertyDescriptor {
+            // [[Value]]: prototype,
             value: Some(prototype.into_value().unbind()),
+            // [[Writable]]: writablePrototype,
             writable: Some(writable_prototype),
+            // [[Enumerable]]: false,
             enumerable: Some(false),
+            // [[Configurable]]: false
             configurable: Some(false),
             ..Default::default()
         },
         gc,
     );
+    // }).
     // 7. Return UNUSED.
 }
 

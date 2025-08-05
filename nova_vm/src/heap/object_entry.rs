@@ -38,36 +38,38 @@ impl<'a> ObjectEntry<'a> {
 }
 
 impl<'a> From<PropertyDescriptor<'a>> for ObjectEntryPropertyDescriptor<'a> {
-    fn from(value: PropertyDescriptor<'a>) -> Self {
-        let configurable = value.configurable.unwrap_or(true);
-        let enumerable = value.enumerable.unwrap_or(true);
-        if value.get.is_some() && value.set.is_some() {
+    fn from(desc: PropertyDescriptor<'a>) -> Self {
+        let configurable = desc.configurable.unwrap_or(true);
+        let enumerable = desc.enumerable.unwrap_or(true);
+        let get = desc.get.flatten();
+        let set = desc.set.flatten();
+        if let (Some(get), Some(set)) = (get, set) {
             ObjectEntryPropertyDescriptor::ReadWrite {
-                get: value.get.unwrap(),
-                set: value.set.unwrap(),
+                get,
+                set,
                 enumerable,
                 configurable,
             }
-        } else if value.get.is_some() {
+        } else if let Some(get) = get {
             ObjectEntryPropertyDescriptor::ReadOnly {
-                get: value.get.unwrap(),
+                get,
                 enumerable,
                 configurable,
             }
-        } else if value.set.is_some() {
+        } else if let Some(set) = set {
             ObjectEntryPropertyDescriptor::WriteOnly {
-                set: value.set.unwrap(),
+                set,
                 enumerable,
                 configurable,
             }
-        } else if value.value.is_some() {
+        } else if let Some(value) = desc.value {
             ObjectEntryPropertyDescriptor::Data {
-                value: value.value.unwrap(),
-                writable: value.writable.unwrap_or(true),
+                value,
+                writable: desc.writable.unwrap_or(true),
                 enumerable,
                 configurable,
             }
-        } else if value.writable == Some(false) {
+        } else if desc.writable == Some(false) {
             ObjectEntryPropertyDescriptor::Blocked {
                 enumerable,
                 configurable,

@@ -359,8 +359,8 @@ fn validate_and_apply_property_descriptor(
                 o,
                 property_key,
                 PropertyDescriptor {
-                    get: descriptor.get,
-                    set: descriptor.set,
+                    get: Some(descriptor.get.unwrap_or(None)),
+                    set: Some(descriptor.set.unwrap_or(None)),
                     enumerable: Some(descriptor.enumerable.unwrap_or(false)),
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
@@ -495,8 +495,8 @@ fn validate_and_apply_property_descriptor(
                 o,
                 property_key,
                 PropertyDescriptor {
-                    get: descriptor.get,
-                    set: descriptor.set,
+                    get: Some(descriptor.get.unwrap_or(None)),
+                    set: Some(descriptor.set.unwrap_or(None)),
                     enumerable: Some(enumerable),
                     configurable: Some(configurable),
                     ..Default::default()
@@ -835,7 +835,7 @@ pub(crate) fn ordinary_get<'gc>(
 
     // 5. Let getter be desc.[[Get]].
     // 6. If getter is undefined, return undefined.
-    let Some(getter) = descriptor.get else {
+    let Some(Some(getter)) = descriptor.get else {
         return Ok(Value::Undefined);
     };
 
@@ -927,15 +927,12 @@ fn ordinary_try_set_with_own_descriptor(
         // c. Else,
         else {
             // i. Set ownDesc to the PropertyDescriptor {
-            //      [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
-            //    }.
-            PropertyDescriptor {
-                value: Some(Value::Undefined),
-                writable: Some(true),
-                enumerable: Some(true),
-                configurable: Some(true),
-                ..Default::default()
-            }
+            //   [[Value]]: undefined,
+            //   [[Writable]]: true,
+            //   [[Enumerable]]: true,
+            //   [[Configurable]]: true
+            // }.
+            PropertyDescriptor::new_data_descriptor(Value::Undefined)
         }
     };
 
@@ -1141,7 +1138,7 @@ fn ordinary_set_with_own_descriptor<'a>(
 
     // 4. Let setter be ownDesc.[[Set]].
     // 5. If setter is undefined, return false.
-    let Some(setter) = own_descriptor.set else {
+    let Some(Some(setter)) = own_descriptor.set else {
         return Ok(false);
     };
 

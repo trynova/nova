@@ -460,38 +460,52 @@ pub enum ElementDescriptor<'a> {
     /// { value, writable: false, enumerable: false, configurable: false }
     /// ```
     ReadOnlyUnenumerableUnconfigurableData,
-    // TODO: Is { enumerable, configurable } actually a real case or is that just in the spec?
-    // If it is then a NoReadNoWrite*umerable*onfigurable set of descriptors is needed
     /// ```js
-    /// { get, enumerable: true, configurable: true }
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedEnumerableConfigurableAccessor,
+    /// ```js
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedEnumerableUnconfigurableAccessor,
+    /// ```js
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedUnenumerableConfigurableAccessor,
+    /// ```js
+    /// { get: undefined, set: undefined, enumerable: true, configurable: true }
+    /// ```
+    UndefinedUnenumerableUnconfigurableAccessor,
+    /// ```js
+    /// { get, set: undefined, enumerable: true, configurable: true }
     /// ```
     ReadOnlyEnumerableConfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { get, enumerable: true, configurable: false }
+    /// { get, set: undefined, enumerable: true, configurable: false }
     /// ```
     ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { get, enumerable: false, configurable: true }
+    /// { get, set: undefined, enumerable: false, configurable: true }
     /// ```
     ReadOnlyUnenumerableConfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { get, enumerable: false, configurable: false }
+    /// { get, set: undefined, enumerable: false, configurable: false }
     /// ```
     ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'a> },
     /// ```js
-    /// { set, enumerable: true, configurable: true }
+    /// { get: undefined, set, enumerable: true, configurable: true }
     /// ```
     WriteOnlyEnumerableConfigurableAccessor { set: Function<'a> },
     /// ```js
-    /// { set, enumerable: true, configurable: false }
+    /// { get: undefined, set, enumerable: true, configurable: false }
     /// ```
     WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'a> },
     /// ```js
-    /// { set, enumerable: false, configurable: true }
+    /// { get: undefined, set, enumerable: false, configurable: true }
     /// ```
     WriteOnlyUnenumerableConfigurableAccessor { set: Function<'a> },
     /// ```js
-    /// { set, enumerable: false, configurable: false }
+    /// { get: undefined, set, enumerable: false, configurable: false }
     /// ```
     WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'a> },
     /// ```js
@@ -724,18 +738,10 @@ impl<'a> ElementDescriptor<'a> {
         let configurable = descriptor.configurable.unwrap_or(false);
         let enumerable = descriptor.enumerable.unwrap_or(false);
         let writable = descriptor.writable.unwrap_or(false);
-        if configurable
-            && enumerable
-            && descriptor.get.is_none()
-            && descriptor.set.is_none()
-            && writable
-        {
-            // Default data descriptor, return None.
-            return None;
-        }
         Some(match (descriptor.get, descriptor.set) {
             (None, None) => match (writable, enumerable, configurable) {
-                (true, true, true) => unreachable!(),
+                // Default data descriptor, return None.
+                (true, true, true) => return None,
                 (true, true, false) => Self::WritableEnumerableUnconfigurableData,
                 (true, false, true) => Self::WritableUnenumerableConfigurableData,
                 (true, false, false) => Self::WritableUnenumerableUnconfigurableData,
@@ -744,19 +750,25 @@ impl<'a> ElementDescriptor<'a> {
                 (false, false, true) => Self::ReadOnlyUnenumerableConfigurableData,
                 (false, false, false) => Self::ReadOnlyUnenumerableUnconfigurableData,
             },
-            (None, Some(set)) => match (enumerable, configurable) {
+            (None | Some(None), None | Some(None)) => match (enumerable, configurable) {
+                (true, true) => Self::UndefinedEnumerableConfigurableAccessor,
+                (true, false) => Self::UndefinedEnumerableUnconfigurableAccessor,
+                (false, true) => Self::UndefinedUnenumerableConfigurableAccessor,
+                (false, false) => Self::UndefinedUnenumerableUnconfigurableAccessor,
+            },
+            (None | Some(None), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
                 (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
                 (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
                 (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
             },
-            (Some(get), None) => match (enumerable, configurable) {
+            (Some(Some(get)), None | Some(None)) => match (enumerable, configurable) {
                 (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
                 (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
                 (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
                 (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
             },
-            (Some(get), Some(set)) => match (enumerable, configurable) {
+            (Some(Some(get)), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
                 (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
                 (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
@@ -790,19 +802,19 @@ impl<'a> ElementDescriptor<'a> {
         let enumerable = descriptor.enumerable.unwrap_or(false);
         let configurable = descriptor.configurable.unwrap_or(false);
         match (descriptor.get, descriptor.set) {
-            (None, Some(set)) => match (enumerable, configurable) {
+            (None | Some(None), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
                 (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
                 (false, true) => Self::WriteOnlyUnenumerableConfigurableAccessor { set },
                 (false, false) => Self::WriteOnlyUnenumerableUnconfigurableAccessor { set },
             },
-            (Some(get), None) => match (enumerable, configurable) {
+            (Some(Some(get)), None | Some(None)) => match (enumerable, configurable) {
                 (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
                 (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
                 (false, true) => Self::ReadOnlyUnenumerableConfigurableAccessor { get },
                 (false, false) => Self::ReadOnlyUnenumerableUnconfigurableAccessor { get },
             },
-            (Some(get), Some(set)) => match (enumerable, configurable) {
+            (Some(Some(get)), Some(Some(set))) => match (enumerable, configurable) {
                 (true, true) => Self::ReadWriteEnumerableConfigurableAccessor { get, set },
                 (true, false) => Self::ReadWriteEnumerableUnconfigurableAccessor { get, set },
                 (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
@@ -819,6 +831,12 @@ impl<'a> ElementDescriptor<'a> {
         configurable: bool,
     ) -> Self {
         match (get, set) {
+            (None, None) => match (enumerable, configurable) {
+                (true, true) => Self::UndefinedEnumerableConfigurableAccessor,
+                (true, false) => Self::UndefinedEnumerableUnconfigurableAccessor,
+                (false, true) => Self::UndefinedUnenumerableConfigurableAccessor,
+                (false, false) => Self::UndefinedUnenumerableUnconfigurableAccessor,
+            },
             (None, Some(set)) => match (enumerable, configurable) {
                 (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
                 (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
@@ -837,7 +855,6 @@ impl<'a> ElementDescriptor<'a> {
                 (false, true) => Self::ReadWriteUnenumerableConfigurableAccessor { get, set },
                 (false, false) => Self::ReadWriteUnenumerableUnconfigurableAccessor { get, set },
             },
-            _ => unreachable!(),
         }
     }
 
@@ -853,184 +870,192 @@ impl<'a> ElementDescriptor<'a> {
                 value,
                 configurable: Some(true),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::WritableEnumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::WritableUnenumerableConfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(true),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::WritableUnenumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(true),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyEnumerableConfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(true),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyEnumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(true),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyUnenumerableConfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(true),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => PropertyDescriptor {
                 value,
                 configurable: Some(false),
                 enumerable: Some(false),
-                get: None,
-                set: None,
                 writable: Some(false),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedEnumerableConfigurableAccessor => PropertyDescriptor {
+                configurable: Some(true),
+                enumerable: Some(true),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor => PropertyDescriptor {
+                configurable: Some(false),
+                enumerable: Some(true),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedUnenumerableConfigurableAccessor => PropertyDescriptor {
+                configurable: Some(true),
+                enumerable: Some(false),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
+            },
+            ElementDescriptor::UndefinedUnenumerableUnconfigurableAccessor => PropertyDescriptor {
+                configurable: Some(false),
+                enumerable: Some(false),
+                get: Some(None),
+                set: Some(None),
+                ..Default::default()
             },
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: None,
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(None),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyUnenumerableConfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: None,
-                    set: Some(set),
-                    writable: None,
+                    get: Some(None),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteEnumerableConfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
             ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, set } => {
                 PropertyDescriptor {
-                    value: None,
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: Some(get),
-                    set: Some(set),
-                    writable: None,
+                    get: Some(Some(get)),
+                    set: Some(Some(set)),
+                    ..Default::default()
                 }
             }
         }
@@ -1089,6 +1114,8 @@ impl<'a> ElementDescriptor<'a> {
                 | ElementDescriptor::WritableEnumerableUnconfigurableData
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableData
                 | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
+                | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+                | ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
                 | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { .. }
                 | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
@@ -1105,6 +1132,8 @@ impl<'a> ElementDescriptor<'a> {
                 | ElementDescriptor::WritableUnenumerableConfigurableData
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableData
                 | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
+                | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+                | ElementDescriptor::UndefinedUnenumerableConfigurableAccessor
                 | ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { .. }
                 | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { .. }
                 | ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { .. }
@@ -2612,7 +2641,11 @@ impl HeapMarkAndSweep for ElementDescriptor<'static> {
             | ElementDescriptor::ReadOnlyEnumerableConfigurableData
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
-            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData
+            | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableUnconfigurableAccessor => {}
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
@@ -2644,7 +2677,11 @@ impl HeapMarkAndSweep for ElementDescriptor<'static> {
             | ElementDescriptor::ReadOnlyEnumerableConfigurableData
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableData
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableData
-            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData => {}
+            | ElementDescriptor::ReadOnlyUnenumerableUnconfigurableData
+            | ElementDescriptor::UndefinedEnumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedEnumerableUnconfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableConfigurableAccessor
+            | ElementDescriptor::UndefinedUnenumerableUnconfigurableAccessor => {}
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyUnenumerableConfigurableAccessor { get }
