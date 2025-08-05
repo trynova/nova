@@ -73,11 +73,11 @@ impl NumberConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
-        let value = arguments.get(0).bind(nogc);
         let mut new_target = new_target.bind(nogc);
 
         // 1. If value is present, then
-        let n = if !value.is_undefined() {
+        let n = if !arguments.is_empty() {
+            let value = arguments.get(0).bind(nogc);
             // a. Let prim be ? ToNumeric(value).
             let prim = if let Ok(prim) = Primitive::try_from(value) {
                 to_numeric_primitive(agent, prim, nogc).unbind()?.bind(nogc)
