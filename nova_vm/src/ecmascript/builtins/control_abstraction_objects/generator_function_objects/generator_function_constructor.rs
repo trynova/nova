@@ -91,22 +91,29 @@ impl GeneratorFunctionConstructor {
             ),
             gc,
         );
-        //   b. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+        //   b. Perform ! DefinePropertyOrThrow(
         unwrap_try(try_define_property_or_throw(
             agent,
+            // F,
             f,
+            // "prototype",
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+            // PropertyDescriptor {
             PropertyDescriptor {
+                // [[Value]]: prototype,
                 value: Some(prototype.into_value().unbind()),
+                // [[Writable]]: true,
                 writable: Some(true),
-                get: None,
-                set: None,
+                // [[Enumerable]]: false,
                 enumerable: Some(false),
+                // [[Configurable]]: false
                 configurable: Some(false),
+                ..Default::default()
             },
             gc,
         ))
         .unwrap();
+        // }).
 
         Ok(f.into_value())
     }

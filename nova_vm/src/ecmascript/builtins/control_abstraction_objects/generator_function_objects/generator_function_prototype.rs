@@ -24,7 +24,14 @@ impl GeneratorFunctionPrototype {
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(3)
             .with_prototype(function_prototype)
-            .with_constructor_property(generator_function_constructor)
+            .with_property(|builder| {
+                builder
+                    .with_value_readonly(generator_function_constructor.into_value())
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .with_key(BUILTIN_STRING_MEMORY.constructor.into())
+                    .build()
+            })
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.prototype.into())
