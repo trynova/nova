@@ -474,9 +474,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 {
                     return TryResult::Break(());
                 }
-                let value = property_descriptor.value;
+                let mut value = property_descriptor.value;
                 let element_descriptor =
                     ElementDescriptor::from_property_descriptor(property_descriptor);
+                if element_descriptor.is_none_or(|d| d.is_data_descriptor()) {
+                    value = Some(value.unwrap_or(Value::Undefined));
+                }
                 if index > length {
                     // Elements backing store should be filled with Nones already
                     array_heap_data.elements.len = index;
