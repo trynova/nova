@@ -2136,7 +2136,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
         if self.prefix {
             ctx.add_instruction(Instruction::LoadCopy);
         }
-        ctx.add_instruction(Instruction::PutValue);
+        if let Some(identifier) = identifier {
+            let cache = ctx.create_property_lookup_cache(identifier);
+            ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
+        } else {
+            ctx.add_instruction(Instruction::PutValue);
+        }
         ctx.add_instruction(Instruction::Store);
     }
 }
