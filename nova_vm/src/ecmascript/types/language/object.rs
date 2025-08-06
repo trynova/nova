@@ -12,7 +12,10 @@ mod property_key_vec;
 mod property_storage;
 
 use core::hash::Hash;
-use std::collections::TryReserveError;
+use std::{
+    collections::{TryReserveError, hash_map::Entry},
+    ops::ControlFlow,
+};
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
@@ -290,6 +293,42 @@ impl<'a> OrdinaryObject<'a> {
                     .is_some_and(|d| d.get(&(offset as u32)).unwrap().has_setter())
             );
             TryResult::Continue(Value::Undefined)
+        }
+    }
+
+    pub(crate) unsafe fn try_set_property_by_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        offset: u16,
+        value: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<Function<'gc>, bool> {
+        let data = self.get_elements_storage_mut(agent);
+        match data.descriptors {
+            Entry::Occupied(e) => {
+                let e = e.into_mut();
+                let offset = offset as u32;
+                let d = e.get(&offset);
+                if let Some(d) = d
+                    && !(d.is_data_descriptor() && d.is_writable().unwrap())
+                {
+                    // Either unwritable data descriptor, or an accessor
+                    // descriptor.
+                    if let Some(setter) = d.setter_function(gc) {
+                        ControlFlow::Break(setter)
+                    } else {
+                        ControlFlow::Continue(false)
+                    }
+                } else {
+                    data.values[offset as usize] = Some(value.unbind());
+                    ControlFlow::Continue(true)
+                }
+            }
+            Entry::Vacant(_) => {
+                // No descriptors: pure WEC data properties.
+                data.values[offset as usize] = Some(value.unbind());
+                ControlFlow::Continue(true)
+            }
         }
     }
 

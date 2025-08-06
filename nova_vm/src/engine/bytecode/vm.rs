@@ -8,7 +8,7 @@ use binding_methods::{execute_simple_array_binding, execute_simple_object_bindin
 use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
-use std::{ptr::NonNull, sync::OnceLock};
+use std::{ops::ControlFlow, ptr::NonNull, sync::OnceLock};
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -55,6 +55,7 @@ use crate::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
             throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
+            try_put_value,
         },
     },
     engine::{
@@ -1028,6 +1029,61 @@ impl Vm {
                     |agent, gc| put_value(agent, &reference, value, gc),
                     gc,
                 )?;
+            }
+            Instruction::PutValueWithCache => {
+                let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+                let value = vm.result.take().unwrap();
+                let reference = vm.reference.take().unwrap();
+                assert!(reference.is_static_property_reference());
+
+                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
+                    && !object.is_proxy()
+                    && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
+                {
+                    let shape = backing_object.get_shape(agent);
+                    if let Some((offset, prototype)) = cache.find(agent, shape) {
+                        if let Some(offset) = offset
+                            && prototype.is_none()
+                        {
+                            set_value_by_offset(
+                                agent,
+                                vm,
+                                backing_object.unbind(),
+                                object.unbind(),
+                                offset,
+                                value,
+                                reference.strict(),
+                                gc,
+                            )?;
+                            return Ok(ContinuationKind::Normal);
+                        }
+                    }
+
+                    agent.heap.caches.set_current_cache(
+                        object,
+                        cache,
+                        reference.referenced_name_property_key(),
+                        shape,
+                    );
+                    true
+                } else {
+                    false
+                };
+
+                let result = try_put_value(agent, &reference, value, gc.nogc()).is_continue();
+
+                if set_current_cache {
+                    agent.heap.caches.clear_current_cache_to_populate();
+                }
+
+                if !result {
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| put_value(agent, &reference, value, gc),
+                        gc,
+                    )?;
+                }
             }
             Instruction::GetValueWithCache => {
                 let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
@@ -3982,4 +4038,55 @@ fn get_value_by_offset<'a>(
         vm.result = Some(result);
     }
     Ok(())
+}
+
+fn set_value_by_offset<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    backing_object: OrdinaryObject,
+    object: Object,
+    offset: u16,
+    value: Value,
+    strict: bool,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let backing_object = backing_object.bind(gc.nogc());
+    let object = object.bind(gc.nogc());
+    let value = value.bind(gc.nogc());
+
+    // SAFETY: I'm pretty sure this is okay.
+    match unsafe { backing_object.try_set_property_by_offset(agent, offset, value, gc.nogc()) } {
+        ControlFlow::Continue(succeeded) => {
+            if !succeeded && strict {
+                // Failed to set.
+                Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "failed to set property",
+                    gc.into_nogc(),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        ControlFlow::Break(setter) => {
+            let setter = setter.unbind();
+            let object = object.unbind();
+            let mut value = value.unbind();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| {
+                    call_function(
+                        agent,
+                        setter,
+                        object.into_value(),
+                        Some(ArgumentsList::from_mut_value(&mut value)),
+                        gc,
+                    )
+                    .map(|_| ())
+                },
+                gc,
+            )
+        }
+    }
 }
