@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_list;
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord;
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
 use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
 use crate::ecmascript::builtins::{create_builtin_function, Array, BuiltinFunctionArgs};
@@ -276,42 +278,61 @@ impl PromiseConstructor {
         };
 
         let result_capability = PromiseCapability::new(agent, gc.nogc());
-        let result_promise = result_capability.promise().scope(agent, gc.nogc());
+        let result_promise = result_capability.promise();
 
-        let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
-            &'a mut Agent,
-            Value<'b>,
-            ArgumentsList<'c, 'd>,
-            GcScope<'_gc, 'e>,
-        ) -> Result<
-            Value<'_gc>,
-            JsError<'_gc>,
-        > = |_agent, _this_value, arguments, _gc| {
-            let result_value = arguments.get(0);
-            eprintln!("Promise fulfilled with result: {:?}", result_value);
-            Ok(result_value.unbind())
+        // let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
+        //     &'a mut Agent,
+        //     Value<'b>,
+        //     ArgumentsList<'c, 'd>,
+        //     GcScope<'_gc, 'e>,
+        // ) -> Result<
+        //     Value<'_gc>,
+        //     JsError<'_gc>,
+        // > = |_agent, _this_value, arguments, _gc| {
+        //     let result_value = arguments.get(0);
+        //     eprintln!("Promise fulfilled with result: {:?}", result_value);
+        //     Ok(result_value.unbind())
+        // };
+
+        // let result_callback = create_builtin_function(
+        //     agent,
+        //     Behaviour::Regular(result_callback_closure),
+        //     BuiltinFunctionArgs::new(0, "Promise.all callback"),
+        //     gc.nogc(),
+        // );
+
+        // let fulfill_handler = PromiseReactionHandler::JobCallback(result_callback.into());
+        // let reject_handler = PromiseReactionHandler::Empty;
+
+        // inner_promise_then(
+        //     agent,
+        //     promise_to_await,
+        //     fulfill_handler,
+        //     reject_handler,
+        //     Some(result_capability),
+        //     gc.nogc(),
+        // );
+
+        let args: [Value<'gc>; 1] = [Value::Undefined; 1];
+        let result_array = Array::from_slice(agent, &args, gc.nogc());
+        let promise_all_record =
+            PromiseAllRecord::new(agent, &result_capability.unbind(), 1, gc.nogc());
+
+        let promise_all_handler = PromiseReactionHandler::PromiseAll {
+            index: 0,
+            promise_all: promise_all_record,
         };
-
-        let result_callback = create_builtin_function(
-            agent,
-            Behaviour::Regular(result_callback_closure),
-            BuiltinFunctionArgs::new(0, "Promise.all callback"),
-            gc.nogc(),
-        );
-
-        let fulfill_handler = PromiseReactionHandler::JobCallback(result_callback.into());
-        let reject_handler = PromiseReactionHandler::Empty;
 
         inner_promise_then(
             agent,
             promise_to_await,
-            fulfill_handler,
-            reject_handler,
-            Some(result_capability),
+            promise_all_handler,
+            PromiseReactionHandler::Empty,
+            None,
             gc.nogc(),
         );
 
-        Ok(result_promise.get(agent).into_value())
+        Ok(result_promise.unbind().into_value())
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
