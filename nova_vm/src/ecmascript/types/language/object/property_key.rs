@@ -163,7 +163,7 @@ impl<'a> PropertyKey<'a> {
         if !(0..=(2i64.pow(32) - 2)).contains(&int) {
             return None;
         }
-        return Some(int as u32);
+        Some(int as u32)
     }
 
     pub(self) fn is_str_eq_num(s: &Wtf8, n: i64) -> bool {

@@ -249,7 +249,7 @@ impl<'a> Array<'a> {
         arena[self].elements.get_storage(arena.as_ref())
     }
 
-    pub(crate) fn get_storage_mut(self, agent: &mut Agent) -> ElementStorageMut {
+    pub(crate) fn get_storage_mut(self, agent: &mut Agent) -> ElementStorageMut<'_> {
         agent.heap.arrays[self]
             .elements
             .get_storage_mut(&mut agent.heap.elements)
@@ -710,7 +710,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             // a. Return ? parent.[[HasProperty]](P).
             return parent.try_get(agent, property_key, receiver, gc);
         }
-        return TryResult::Continue(Value::Undefined);
+        TryResult::Continue(Value::Undefined)
     }
 
     fn internal_get<'gc>(
@@ -774,7 +774,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             // a. Return ? parent.[[HasProperty]](P).
             return parent.internal_get(agent, property_key.unbind(), receiver.unbind(), gc);
         }
-        return Ok(Value::Undefined);
+        Ok(Value::Undefined)
     }
 
     fn try_delete(
