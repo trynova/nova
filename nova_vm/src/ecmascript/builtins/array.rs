@@ -47,7 +47,10 @@ use crate::{
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
-use super::ordinary::{ordinary_delete, ordinary_get_own_property, ordinary_try_get};
+use super::ordinary::{
+    ordinary_delete, ordinary_get, ordinary_get_own_property, ordinary_has_property,
+    ordinary_try_get, ordinary_try_has_property,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array<'a>(ArrayIndex<'a>);
@@ -237,6 +240,19 @@ impl<'a> Array<'a> {
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
         let elements = agent[self].elements;
         &mut agent[&elements]
+    }
+
+    pub(crate) fn get_storage(
+        self,
+        arena: &impl ArrayHeapIndexable<'a>,
+    ) -> ElementStorageRef<'_, 'a> {
+        arena[self].elements.get_storage(arena.as_ref())
+    }
+
+    pub(crate) fn get_storage_mut(self, agent: &mut Agent) -> ElementStorageMut {
+        agent.heap.arrays[self]
+            .elements
+            .get_storage_mut(&mut agent.heap.elements)
     }
 }
 
