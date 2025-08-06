@@ -413,9 +413,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // 1. If DestructuringAssignmentTarget is neither an ObjectLiteral
             //    nor an ArrayLiteral, then
             // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-            if let Some(target) = rest.target.as_simple_assignment_target() {
-                target.compile(ctx);
-            }
+            let identifier = if let Some(target) = rest.target.as_simple_assignment_target() {
+                target.compile(ctx)
+            } else {
+                None
+            };
             ctx.add_instruction(Instruction::IteratorRestIntoArray);
             // 5. If DestructuringAssignmentTarget is neither an ObjectLiteral
             //    nor an ArrayLiteral, then
@@ -427,7 +429,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 target.compile(ctx);
             } else {
                 // a. Return ? PutValue(lRef, A).
-                ctx.add_instruction(Instruction::PutValue);
+                if let Some(identifier) = identifier {
+                    let cache = ctx.create_property_lookup_cache(identifier);
+                    ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
+                } else {
+                    ctx.add_instruction(Instruction::PutValue);
+                }
             }
         }
         // Note: An error during IteratorClose should not jump into
