@@ -373,25 +373,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
-        if let PropertyKey::Integer(index) = property_key {
-            let index = index.into_i64();
-            if !ARRAY_INDEX_RANGE.contains(&index) {
-                if let Some(backing_object) = self.get_backing_object(agent) {
-                    return TryResult::Continue(
-                        ordinary_get_own_property(
-                            agent,
-                            self.into_object(),
-                            backing_object,
-                            property_key,
-                        )
-                        .bind(gc),
-                    );
-                } else {
-                    return TryResult::Continue(None);
-                }
-            }
-            // ARRAY_INDEX_RANGE guarantees were in u32 area.
-            let index = index as u32;
+        if let Some(index) = property_key.into_u32() {
             let elements = &agent[self].elements;
             let length = elements.len();
             if index >= length {
@@ -443,24 +425,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
     ) -> TryResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             array_try_set_length(agent, self, property_descriptor)
-        } else if let PropertyKey::Integer(index) = property_key {
-            let index = index.into_i64();
-            if !ARRAY_INDEX_RANGE.contains(&index) {
-                let backing_object = self
-                    .get_backing_object(agent)
-                    .unwrap_or_else(|| self.create_backing_object(agent));
-                return match ordinary_define_own_property(
-                    agent,
-                    self.into_object(),
-                    backing_object,
-                    property_key,
-                    property_descriptor,
-                    gc,
-                ) {
-                    Ok(b) => TryResult::Continue(b),
-                    Err(_) => TryResult::Break(()),
-                };
-            }
+        } else if let Some(index) = property_key.into_u32() {
             // Let lengthDesc be OrdinaryGetOwnProperty(A, "length").
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
             // c. Assert: lengthDesc.[[Configurable]] is false.
@@ -470,7 +435,6 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let length_writable = elements.len_writable;
             // e. Assert: length is a non-negative integral Number.
             // f. Let index be ! ToUint32(P).
-            let index = index as u32;
             if index >= length {
                 // g. If index ≥ length and lengthDesc.[[Writable]] is false, return false.
                 if !length_writable {
@@ -735,24 +699,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
     ) -> TryResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             TryResult::Continue(false)
-        } else if let PropertyKey::Integer(index) = property_key {
-            let index = index.into_i64();
-            if !ARRAY_INDEX_RANGE.contains(&index) {
-                return TryResult::Continue(
-                    self.get_backing_object(agent)
-                        .map(|backing_object| {
-                            ordinary_delete(
-                                agent,
-                                self.into_object(),
-                                backing_object,
-                                property_key,
-                                gc,
-                            )
-                        })
-                        .unwrap_or(true),
-                );
-            }
-            let index = index as u32;
+        } else if let Some(index) = property_key.into_u32() {
             let elements = agent[self].elements;
             if index >= elements.len() {
                 return TryResult::Continue(true);
@@ -771,7 +718,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     descriptors.remove(&index);
                 }
             }
-            // Index has been checked to be between 0 <= idx < len; indexing should never fail.
+            // Index has been checked to be between 0 <= idx < len;
+            // indexing should never fail.
             values[index as usize] = None;
             TryResult::Continue(true)
         } else {
