@@ -4,6 +4,19 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
+    create_iter_result_object, iterator_close_with_error,
+};
+use crate::ecmascript::builtins::Array;
+use crate::ecmascript::scripts_and_modules::module::module_semantics::cyclic_module_records::{
+    async_module_execution_fulfilled, async_module_execution_rejected,
+};
+use crate::ecmascript::scripts_and_modules::module::{
+    import_get_module_namespace, link_and_evaluate,
+};
+use crate::engine::Global;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -145,41 +158,6 @@ impl PromiseReactionJob {
         let Self { reaction, argument } = self;
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
-        // The following are substeps of point 1 in NewPromiseReactionJob.
-        // Handle PromiseAll case separately to avoid borrowing conflicts
-        if matches!(
-            agent[reaction].handler,
-            PromiseReactionHandler::PromiseAll { .. }
-        ) {
-            let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
-            let reaction_type = agent[reaction].reaction_type;
-
-            if let PromiseReactionHandler::PromiseAll {
-                remaining_unresolved_promise_count,
-                ..
-            } = &mut agent[reaction].handler
-            {
-                let (handler_result, promise_capability) = match reaction_type {
-                    PromiseReactionType::Fulfill => {
-                        *remaining_unresolved_promise_count -= 1;
-                        // TODO: handler promise finish
-                        (Ok(argument), capability)
-                    }
-                    PromiseReactionType::Reject => {
-                        // TODO: handle rejections
-                        (Err(JsError::new(argument)), capability)
-                    }
-                };
-
-                match handler_result {
-                    Err(err) => promise_capability.reject(agent, err.value(), gc.nogc()),
-                    Ok(value) => promise_capability
-                        .unbind()
-                        .resolve(agent, value.unbind(), gc),
-                };
-                return Ok(());
-            }
-        }
 
         let (handler_result, promise_capability) = match agent[reaction].handler {
             PromiseReactionHandler::Empty => {
@@ -323,8 +301,17 @@ impl PromiseReactionJob {
                     }
                 }
             }
-            PromiseReactionHandler::PromiseAll { .. } => {
-                unreachable!("PromiseAll case is handled separately above")
+            PromiseReactionHandler::PromiseAll { promise_all, index } => {
+                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        let mut promise_all_record = agent.heap.promise_all_records[promise_all];
+                        promise_all_record.on_promise_fufilled(agent, index, argument, gc.nogc());
+
+                        (Ok(argument), capability)
+                    }
+                    PromiseReactionType::Reject => (Err(JsError::new(argument)), capability),
+                }
             }
         };
 
