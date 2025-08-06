@@ -321,7 +321,7 @@ impl<'a> PropertyStorage<'a> {
         result.map(|index| {
             let value = values[index].unbind();
             let index = index as u32;
-            let descriptor = descriptors.and_then(|d| d.get(&index)).cloned();
+            let descriptor = descriptors.and_then(|d| d.get(&index));
             let result = ElementDescriptor::to_property_descriptor(descriptor, value);
             (result, index)
         })

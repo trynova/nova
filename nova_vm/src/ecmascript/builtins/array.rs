@@ -391,8 +391,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 TryResult::Continue(None)
             } else {
                 TryResult::Continue(Some(ElementDescriptor::to_property_descriptor(
-                    descriptor.cloned(),
-                    value,
+                    descriptor, value,
                 )))
             };
         }
