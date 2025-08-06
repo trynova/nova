@@ -4,19 +4,6 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
-    create_iter_result_object, iterator_close_with_error,
-};
-use crate::ecmascript::builtins::Array;
-use crate::ecmascript::scripts_and_modules::module::module_semantics::cyclic_module_records::{
-    async_module_execution_fulfilled, async_module_execution_rejected,
-};
-use crate::ecmascript::scripts_and_modules::module::{
-    import_get_module_namespace, link_and_evaluate,
-};
-use crate::engine::Global;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
