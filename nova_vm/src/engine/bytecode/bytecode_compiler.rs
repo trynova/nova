@@ -1904,6 +1904,18 @@ pub(super) fn compile_expression_get_value_keep_reference<'s>(
     }
 }
 
+pub(super) fn compile_put_value<'gc>(
+    ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    identifier: Option<PropertyKey<'gc>>,
+) {
+    if let Some(identifier) = identifier {
+        let cache = ctx.create_property_lookup_cache(identifier);
+        ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
+    } else {
+        ctx.add_instruction(Instruction::PutValue);
+    }
+}
+
 pub(crate) enum ExpressionOutput<'gc> {
     Literal(Primitive<'gc>),
     Place(PropertyKey<'gc>),
@@ -2136,12 +2148,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
         if self.prefix {
             ctx.add_instruction(Instruction::LoadCopy);
         }
-        if let Some(identifier) = identifier {
-            let cache = ctx.create_property_lookup_cache(identifier);
-            ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
-        } else {
-            ctx.add_instruction(Instruction::PutValue);
-        }
+        compile_put_value(ctx, identifier);
         ctx.add_instruction(Instruction::Store);
     }
 }

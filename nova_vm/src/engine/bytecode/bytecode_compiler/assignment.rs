@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     CompileContext, CompileEvaluation, NamedEvaluationParameter, compile_expression_get_value,
-    is_anonymous_function_definition,
+    compile_put_value, is_anonymous_function_definition,
 };
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentExpression<'s> {
@@ -332,17 +332,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     element
                 {
                     // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-                    let needs_pop_reference =
+                    let (identifier, needs_pop_reference) =
                         if let Some(binding) = element.binding.as_simple_assignment_target() {
-                            binding.compile(ctx);
+                            let identifier = binding.compile(ctx);
                             if element.init.is_literal() {
-                                false
+                                (identifier, false)
                             } else {
                                 ctx.add_instruction(Instruction::PushReference);
-                                true
+                                (identifier, true)
                             }
                         } else {
-                            false
+                            (None, false)
                         };
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
@@ -367,11 +367,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             ctx.add_instruction(Instruction::PopReference);
                         }
                         // 7. Return ? PutValue(lRef, v).
-                        ctx.add_instruction(Instruction::PutValue);
+                        compile_put_value(ctx, identifier);
                     }
                 } else if let Some(element) = element.as_simple_assignment_target() {
                     // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-                    element.compile(ctx);
+                    let identifier = element.compile(ctx);
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
                     // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -383,7 +383,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     // 5. Else,
                     // a. Let v be value.
                     // 7. Return ? PutValue(lRef, v).
-                    ctx.add_instruction(Instruction::PutValue);
+                    compile_put_value(ctx, identifier);
                 } else {
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
@@ -429,12 +429,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 target.compile(ctx);
             } else {
                 // a. Return ? PutValue(lRef, A).
-                if let Some(identifier) = identifier {
-                    let cache = ctx.create_property_lookup_cache(identifier);
-                    ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
-                } else {
-                    ctx.add_instruction(Instruction::PutValue);
-                }
+                compile_put_value(ctx, identifier);
             }
         }
         // Note: An error during IteratorClose should not jump into
