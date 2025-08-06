@@ -267,6 +267,21 @@ impl<'a> Reference<'a> {
         (base, name)
     }
 
+    /// Get \[\[ThisValue]] or \[\[Base]] as a Value.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the reference is a variable reference or unresolvable.
+    pub(crate) fn this_value(&self) -> Value<'a> {
+        match self {
+            Reference::PropertyExpression(v) | Reference::PropertyExpressionStrict(v) => v.base,
+            Reference::Property(v) | Reference::PropertyStrict(v) => v.base,
+            Reference::SuperExpression(v) | Reference::SuperExpressionStrict(v) => v.this_value,
+            Reference::Super(v) | Reference::SuperStrict(v) => v.this_value,
+            _ => unreachable!("{:?}", self),
+        }
+    }
+
     /// Get \[\[Base]] as a Value.
     ///
     /// ## Panics

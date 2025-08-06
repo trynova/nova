@@ -28,7 +28,9 @@ use crate::{
     },
 };
 
-use super::ordinary::{ordinary_delete, ordinary_get_own_property, ordinary_try_get};
+use super::ordinary::{
+    ordinary_delete, ordinary_get_own_property, ordinary_set, ordinary_try_get, ordinary_try_set,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -345,23 +347,19 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         receiver: Value,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                backing_object.try_set(agent, property_key, value, receiver, gc)
-            }
-            None => {
-                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-                    && value.is_string()
-                {
-                    agent[self].message = Some(String::try_from(value.unbind()).unwrap());
-                    TryResult::Continue(true)
-                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = Some(value.unbind());
-                    TryResult::Continue(true)
-                } else {
-                    let backing_object = self.create_backing_object(agent);
-                    backing_object.try_set(agent, property_key, value, receiver, gc)
-                }
+        if self.get_backing_object(agent).is_some() {
+            ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        } else {
+            if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) && value.is_string()
+            {
+                agent[self].message = Some(String::try_from(value.unbind()).unwrap());
+                TryResult::Continue(true)
+            } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                agent[self].cause = Some(value.unbind());
+                TryResult::Continue(true)
+            } else {
+                self.create_backing_object(agent);
+                ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
             }
         }
     }
@@ -375,23 +373,33 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                backing_object.internal_set(agent, property_key.unbind(), value, receiver, gc)
-            }
-            None => {
-                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-                    && value.is_string()
-                {
-                    agent[self].message = Some(String::try_from(value.unbind()).unwrap());
-                    Ok(true)
-                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = Some(value.unbind());
-                    Ok(true)
-                } else {
-                    let backing_object = self.create_backing_object(agent);
-                    backing_object.internal_set(agent, property_key.unbind(), value, receiver, gc)
-                }
+        if self.get_backing_object(agent).is_some() {
+            ordinary_set(
+                agent,
+                self.into_object(),
+                property_key.unbind(),
+                value,
+                receiver,
+                gc,
+            )
+        } else {
+            if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) && value.is_string()
+            {
+                agent[self].message = Some(String::try_from(value.unbind()).unwrap());
+                Ok(true)
+            } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                agent[self].cause = Some(value.unbind());
+                Ok(true)
+            } else {
+                self.create_backing_object(agent);
+                ordinary_set(
+                    agent,
+                    self.into_object(),
+                    property_key.unbind(),
+                    value,
+                    receiver,
+                    gc,
+                )
             }
         }
     }

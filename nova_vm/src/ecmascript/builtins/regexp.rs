@@ -322,12 +322,18 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // If we're setting the last index and we have a backing object,
             // then we set the value there first and observe the result.
             let new_last_index = RegExpLastIndex::from_value(value);
-            if let Some(backing_object) = self.get_backing_object(agent) {
+            if self.get_backing_object(agent).is_some() {
                 // Note: The lastIndex is an unconfigurable data property: It
                 // cannot be turned into a getter or setter and will thus never
                 // call into JavaScript.
-                let success =
-                    unwrap_try(backing_object.try_set(agent, property_key, value, receiver, gc));
+                let success = unwrap_try(ordinary_try_set(
+                    agent,
+                    self.into_object(),
+                    property_key,
+                    value,
+                    receiver,
+                    gc,
+                ));
                 if success {
                     // We successfully set the value, so set it in our direct
                     // data as well.

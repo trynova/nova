@@ -274,25 +274,27 @@ impl<'a> OrdinaryObject<'a> {
         agent[self].set_shape(new_shape);
     }
 
-    pub(crate) unsafe fn try_get_property_by_offset(
+    pub(crate) unsafe fn try_get_property_by_offset<'gc>(
         self,
         agent: &Agent,
         offset: u16,
-    ) -> TryResult<Value<'a>> {
-        let data = self.get_elements_storage(agent);
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<Function<'gc>, Value<'gc>> {
+        let obj = self.bind(gc);
+        let data = obj.get_elements_storage(agent);
         if let Some(value) = data.values[offset as usize] {
-            TryResult::Continue(value)
-        } else if data
+            ControlFlow::Continue(value)
+        } else if let Some(getter) = data
             .descriptors
-            .is_some_and(|d| d.get(&(offset as u32)).unwrap().has_getter())
+            .and_then(|d| d.get(&(offset as u32)).unwrap().getter_function(gc))
         {
-            TryResult::Break(())
+            ControlFlow::Break(getter)
         } else {
             debug_assert!(
                 data.descriptors
                     .is_some_and(|d| d.get(&(offset as u32)).unwrap().has_setter())
             );
-            TryResult::Continue(Value::Undefined)
+            ControlFlow::Continue(Value::Undefined)
         }
     }
 

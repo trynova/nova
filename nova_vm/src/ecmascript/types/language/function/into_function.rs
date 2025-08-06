@@ -247,8 +247,8 @@ pub(crate) fn function_try_set<'a>(
     receiver: Value,
     gc: NoGcScope,
 ) -> TryResult<bool> {
-    if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.try_set(agent, property_key, value, receiver, gc)
+    if func.get_backing_object(agent).is_some() {
+        ordinary_try_set(agent, func.into_object(), property_key, value, receiver, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
@@ -268,8 +268,15 @@ pub(crate) fn function_internal_set<'a, 'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
     let property_key = property_key.bind(gc.nogc());
-    if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_set(agent, property_key.unbind(), value, receiver, gc)
+    if func.get_backing_object(agent).is_some() {
+        ordinary_set(
+            agent,
+            func.into_object(),
+            property_key.unbind(),
+            value,
+            receiver,
+            gc,
+        )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {

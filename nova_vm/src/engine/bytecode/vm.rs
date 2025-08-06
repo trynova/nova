@@ -1051,32 +1051,34 @@ impl Vm {
                                 backing_object.unbind(),
                                 object.unbind(),
                                 offset,
-                                value,
+                                value.unbind(),
                                 reference.strict(),
                                 gc,
                             )?;
                             return Ok(ContinuationKind::Normal);
                         }
+                        false
+                    } else {
+                        agent.heap.caches.set_current_cache(
+                            object,
+                            cache,
+                            reference.referenced_name_property_key(),
+                            shape,
+                        );
+                        true
                     }
-
-                    agent.heap.caches.set_current_cache(
-                        object,
-                        cache,
-                        reference.referenced_name_property_key(),
-                        shape,
-                    );
-                    true
                 } else {
                     false
                 };
 
-                let result = try_put_value(agent, &reference, value, gc.nogc()).is_continue();
-
+                let result = try_put_value(agent, &reference, value, gc.nogc());
                 if set_current_cache {
                     agent.heap.caches.clear_current_cache_to_populate();
                 }
 
-                if !result {
+                if let TryResult::Continue(result) = result {
+                    result.unbind()?;
+                } else {
                     with_vm_gc(
                         agent,
                         vm,
@@ -2019,8 +2021,8 @@ impl Vm {
                         )
                     },
                     gc,
-                )?;
-                vm.result = Some(result.unbind());
+                );
+                vm.result = Some(result?.unbind());
             }
             Instruction::EvaluateNew => {
                 let args = vm.get_call_args(instr, gc.nogc());
@@ -4019,23 +4021,26 @@ fn get_value_by_offset<'a>(
     offset: u16,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let backing_object = backing_object.bind(gc.nogc());
+    let object = object.bind(gc.nogc());
+
     // SAFETY: I'm pretty sure this is okay.
-    if let TryResult::Continue(value) =
-        unsafe { backing_object.try_get_property_by_offset(agent, offset) }
-    {
-        vm.result = Some(value.unbind());
-    } else {
-        let result = with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| {
-                // SAFETY: I'm pretty sure this is okay.
-                unsafe { backing_object.call_property_getter_by_offset(agent, offset, object, gc) }
-            },
-            gc,
-        )
-        .unbind()?;
-        vm.result = Some(result);
+    match unsafe { backing_object.try_get_property_by_offset(agent, offset, gc.nogc()) } {
+        ControlFlow::Continue(result) => {
+            vm.result = Some(result.unbind());
+        }
+        ControlFlow::Break(getter) => {
+            let object = object.unbind();
+            let getter = getter.unbind();
+            let result = with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| call_function(agent, getter.unbind(), object.into_value(), None, gc),
+                gc,
+            )
+            .unbind()?;
+            vm.result = Some(result);
+        }
     }
     Ok(())
 }
