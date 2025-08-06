@@ -864,11 +864,11 @@ impl<'a> ElementDescriptor<'a> {
     }
 
     pub(crate) fn to_property_descriptor(
-        descriptor: Option<Self>,
+        descriptor: Option<&Self>,
         value: Option<Value>,
     ) -> PropertyDescriptor<'a> {
         let descriptor =
-            descriptor.unwrap_or(ElementDescriptor::WritableEnumerableConfigurableData);
+            descriptor.unwrap_or(&ElementDescriptor::WritableEnumerableConfigurableData);
         let value = value.map(Value::unbind);
         match descriptor {
             ElementDescriptor::WritableEnumerableConfigurableData => PropertyDescriptor {
@@ -959,7 +959,7 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: Some(Some(get)),
+                    get: Some(Some(*get)),
                     set: Some(None),
                     ..Default::default()
                 }
@@ -968,7 +968,7 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: Some(Some(get)),
+                    get: Some(Some(*get)),
                     set: Some(None),
                     ..Default::default()
                 }
@@ -977,7 +977,7 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: Some(Some(get)),
+                    get: Some(Some(*get)),
                     set: Some(None),
                     ..Default::default()
                 }
@@ -986,7 +986,7 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: Some(Some(get)),
+                    get: Some(Some(*get)),
                     set: Some(None),
                     ..Default::default()
                 }
@@ -996,7 +996,7 @@ impl<'a> ElementDescriptor<'a> {
                     configurable: Some(true),
                     enumerable: Some(true),
                     get: Some(None),
-                    set: Some(Some(set)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1005,7 +1005,7 @@ impl<'a> ElementDescriptor<'a> {
                     configurable: Some(false),
                     enumerable: Some(true),
                     get: Some(None),
-                    set: Some(Some(set)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1014,7 +1014,7 @@ impl<'a> ElementDescriptor<'a> {
                     configurable: Some(true),
                     enumerable: Some(false),
                     get: Some(None),
-                    set: Some(Some(set)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1023,7 +1023,7 @@ impl<'a> ElementDescriptor<'a> {
                     configurable: Some(false),
                     enumerable: Some(false),
                     get: Some(None),
-                    set: Some(Some(set)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1031,8 +1031,8 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(true),
                     enumerable: Some(true),
-                    get: Some(Some(get)),
-                    set: Some(Some(set)),
+                    get: Some(Some(*get)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1040,8 +1040,8 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(false),
                     enumerable: Some(true),
-                    get: Some(Some(get)),
-                    set: Some(Some(set)),
+                    get: Some(Some(*get)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1049,8 +1049,8 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(true),
                     enumerable: Some(false),
-                    get: Some(Some(get)),
-                    set: Some(Some(set)),
+                    get: Some(Some(*get)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }
@@ -1058,8 +1058,8 @@ impl<'a> ElementDescriptor<'a> {
                 PropertyDescriptor {
                     configurable: Some(false),
                     enumerable: Some(false),
-                    get: Some(Some(get)),
-                    set: Some(Some(set)),
+                    get: Some(Some(*get)),
+                    set: Some(Some(*set)),
                     ..Default::default()
                 }
             }

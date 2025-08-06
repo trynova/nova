@@ -824,7 +824,11 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList::from_mut_slice(&mut [k_value.unbind(), f_k])),
+                    Some(ArgumentsList::from_mut_slice(&mut [
+                        k_value.unbind(),
+                        f_k,
+                        o.get(agent).into_value(),
+                    ])),
                     gc.reborrow(),
                 )
                 .unbind()?

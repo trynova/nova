@@ -634,41 +634,24 @@ pub(crate) fn ordinary_has_property<'a>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
-    mut gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
-    // Note: We scope here because it's likely we've already tried.
-    let scoped_object = object.scope(agent, gc.nogc());
-    let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
 
     let has_own = object
-        .unbind()
-        .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+        .get_shape(agent)
+        .keys(&agent.heap.object_shapes, &agent.heap.elements)
+        .contains(&property_key);
 
     // 2. If hasOwn is not undefined, return true.
-    if has_own.is_some() {
+    if has_own {
         return Ok(true);
     }
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let object = scoped_object.get(agent).bind(gc.nogc());
-    let (parent, property_key) =
-        if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
-            (parent, scoped_property_key.get(agent).bind(gc.nogc()))
-        } else {
-            (
-                object
-                    .unbind()
-                    .internal_get_prototype_of(agent, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc()),
-                scoped_property_key.get(agent).bind(gc.nogc()),
-            )
-        };
+    let parent = object.internal_prototype(agent).bind(gc.nogc());
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {

@@ -151,6 +151,21 @@ impl<'a> PropertyKey<'a> {
         matches!(self, PropertyKey::Integer(_))
     }
 
+    /// Extract a JavaScript Array index (an integer in the inclusive range of
+    /// `0..=(2^32 - 2)`) from a PropertyKey if it matches the range.
+    ///
+    /// Returns None if the PropertyKey does not match the range.
+    pub fn into_u32(self) -> Option<u32> {
+        let PropertyKey::Integer(int) = self else {
+            return None;
+        };
+        let int = int.into_i64();
+        if !(0..=(2i64.pow(32) - 2)).contains(&int) {
+            return None;
+        }
+        Some(int as u32)
+    }
+
     pub(self) fn is_str_eq_num(s: &Wtf8, n: i64) -> bool {
         // TODO: Come up with some advanced algorithm.
         s == Wtf8Buf::from_string(n.to_string())

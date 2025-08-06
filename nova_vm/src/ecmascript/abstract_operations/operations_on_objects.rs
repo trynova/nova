@@ -59,14 +59,13 @@ use super::{
 #[inline]
 pub(crate) fn get<'a, 'b>(
     agent: &mut Agent,
-    o: impl IntoObject<'b>,
+    o: impl InternalMethods<'b>,
     p: PropertyKey,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     let p = p.bind(gc.nogc());
     // 1. Return ? O.[[Get]](P, O).
-    o.into_object()
-        .internal_get(agent, p.unbind(), o.into_value(), gc)
+    o.internal_get(agent, p.unbind(), o.into_value(), gc)
 }
 
 /// ### Try [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
@@ -78,12 +77,12 @@ pub(crate) fn get<'a, 'b>(
 #[inline]
 pub(crate) fn try_get<'a, 'gc>(
     agent: &mut Agent,
-    o: impl IntoObject<'a>,
+    o: impl InternalMethods<'a>,
     p: PropertyKey,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<Value<'gc>> {
     // 1. Return ? O.[[Get]](P, O).
-    o.into_object().try_get(agent, p, o.into_value(), gc)
+    o.try_get(agent, p, o.into_value(), gc)
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
