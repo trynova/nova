@@ -996,8 +996,8 @@ fn debug_print_identifier(
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
-    let identifier = exe.fetch_identifier(agent, index, gc);
-    identifier.to_string_lossy(agent).to_string()
+    let identifier = exe.fetch_property_key(agent, index, gc);
+    identifier.as_display(agent).to_string()
 }
 
 fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {

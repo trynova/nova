@@ -46,7 +46,10 @@ fn for_in_of_head_evaluation<'s, 'gc>(
         // c. For each String name of uninitializedBoundNames, do
         for name in uninitialized_bound_names.iter() {
             // i. Perform ! newEnv.CreateMutableBinding(name, false).
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, *name);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                name.to_property_key(),
+            );
         }
         // d. Set the running execution context's LexicalEnvironment to newEnv.
     }
@@ -240,7 +243,7 @@ fn for_in_of_body_evaluation<'s>(
                         } else {
                             Instruction::CreateMutableBinding
                         },
-                        identifier,
+                        identifier.to_property_key(),
                     );
                 });
                 // 1. Let status be
@@ -276,11 +279,14 @@ fn for_in_of_body_evaluation<'s>(
                         } else {
                             Instruction::CreateMutableBinding
                         },
-                        lhs_name,
+                        lhs_name.to_property_key(),
                     );
 
                     // 3. Let lhsRef be ! ResolveBinding(lhsName).
-                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, lhs_name);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        lhs_name.to_property_key(),
+                    );
                     // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
                     ctx.add_instruction(Instruction::InitializeReferencedBinding)
                 });

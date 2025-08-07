@@ -151,11 +151,17 @@ pub(crate) fn instantiation<'s>(
 
         // i. Perform ! env.CreateMutableBinding(paramName, false).
         let param_name = ctx.create_string(param_name);
-        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, param_name);
+        ctx.add_instruction_with_identifier(
+            Instruction::CreateMutableBinding,
+            param_name.to_property_key(),
+        );
         // ii. If hasDuplicates is true, then
         if has_duplicates {
             // 1. Perform ! env.InitializeBinding(paramName, undefined).
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, param_name);
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                param_name.to_property_key(),
+            );
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
@@ -183,21 +189,21 @@ pub(crate) fn instantiation<'s>(
             //     assign to this binding, so its mutability is not observable.
             ctx.add_instruction_with_identifier(
                 Instruction::CreateImmutableBinding,
-                BUILTIN_STRING_MEMORY.arguments,
+                BUILTIN_STRING_MEMORY.arguments.to_property_key(),
             );
         } else {
             // d. Else,
             //   i. Perform ! env.CreateMutableBinding("arguments", false).
             ctx.add_instruction_with_identifier(
                 Instruction::CreateMutableBinding,
-                BUILTIN_STRING_MEMORY.arguments,
+                BUILTIN_STRING_MEMORY.arguments.to_property_key(),
             );
         }
 
         // e. Perform ! env.InitializeBinding("arguments", ao).
         ctx.add_instruction_with_identifier(
             Instruction::ResolveBinding,
-            BUILTIN_STRING_MEMORY.arguments,
+            BUILTIN_STRING_MEMORY.arguments.to_property_key(),
         );
         ctx.add_instruction(Instruction::InitializeReferencedBinding);
 
@@ -251,9 +257,15 @@ pub(crate) fn instantiation<'s>(
             let n_string = ctx.create_string(&n);
             instantiated_var_names.insert(n);
             // 2. Perform ! env.CreateMutableBinding(n, false).
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                n_string.to_property_key(),
+            );
             // 3. Perform ! env.InitializeBinding(n, undefined).
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                n_string.to_property_key(),
+            );
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
@@ -301,7 +313,10 @@ pub(crate) fn instantiation<'s>(
             } else {
                 // 4. Else,
                 // a. Let initialValue be ! env.GetBindingValue(n, false).
-                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+                ctx.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    n_string.to_property_key(),
+                );
                 ctx.add_instruction(Instruction::GetValue);
                 ctx.add_instruction(Instruction::Load);
             }
@@ -347,14 +362,20 @@ pub(crate) fn instantiation<'s>(
                 decl.id.bound_names(&mut |identifier| {
                     let dn = ctx.create_string(&identifier.name);
                     // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
-                    ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, dn);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::CreateImmutableBinding,
+                        dn.to_property_key(),
+                    );
                 })
             }
             // ii. Else,
             //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
             LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
                 let dn = ctx.create_string(&identifier.name);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             }),
             LexicallyScopedDeclaration::Function(decl) => {
                 // Skip function declarations with declare modifier - they are TypeScript ambient declarations
@@ -364,15 +385,24 @@ pub(crate) fn instantiation<'s>(
                 }
 
                 let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             }
             LexicallyScopedDeclaration::Class(decl) => {
                 let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             }
             LexicallyScopedDeclaration::DefaultExport => {
                 let dn = BUILTIN_STRING_MEMORY._default_;
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             }
             #[cfg(feature = "typescript")]
             LexicallyScopedDeclaration::TSEnum(decl) => {
@@ -397,7 +427,7 @@ pub(crate) fn instantiation<'s>(
         let f_name = ctx.create_string(&f.id.as_ref().unwrap().name);
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name.to_property_key());
         ctx.add_instruction(Instruction::PutValue);
     }
 }

@@ -933,10 +933,6 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.executable.get_jump_index_to_here()
     }
 
-    pub(super) fn add_identifier(&mut self, identifier: String<'gc>) -> usize {
-        self.executable.add_identifier(identifier)
-    }
-
     pub(super) fn add_instruction_with_immediate(
         &mut self,
         instruction: Instruction,
@@ -958,7 +954,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn add_instruction_with_identifier(
         &mut self,
         instruction: Instruction,
-        identifier: String<'gc>,
+        identifier: PropertyKey<'gc>,
     ) {
         self.executable
             .add_instruction_with_identifier(instruction, identifier);
@@ -980,7 +976,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         constant: impl Into<Value<'gc>>,
     ) {
         self.executable
-            .add_instruction_with_identifier_and_constant(instruction, identifier, constant);
+            .add_instruction_with_identifier_and_constant(
+                instruction,
+                identifier.to_property_key(),
+                constant,
+            );
     }
 
     pub(super) fn add_instruction_with_identifier_and_immediate(
@@ -990,7 +990,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         immediate: usize,
     ) {
         self.executable
-            .add_instruction_with_identifier_and_immediate(instruction, identifier, immediate);
+            .add_instruction_with_identifier_and_immediate(
+                instruction,
+                identifier.to_property_key(),
+                immediate,
+            );
     }
 
     pub(super) fn add_instruction_with_immediate_and_immediate(

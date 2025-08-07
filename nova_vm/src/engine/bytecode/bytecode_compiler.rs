@@ -31,11 +31,12 @@ use crate::{
 };
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_property_key_simple,
         builtins::ordinary::shape::ObjectShape,
         execution::{Agent, agent::ExceptionType},
         types::{IntoObject, IntoPrimitive, Primitive, PropertyKey},
     },
-    engine::context::NoGcScope,
+    engine::{TryResult, context::NoGcScope},
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
@@ -200,7 +201,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
     type Output = ();
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let identifier = ctx.create_string(self.name.as_str());
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+        ctx.add_instruction_with_identifier(
+            Instruction::ResolveBinding,
+            identifier.to_property_key(),
+        );
     }
 }
 
@@ -209,7 +213,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let identifier = ctx.create_string(self.name.as_str());
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+        ctx.add_instruction_with_identifier(
+            Instruction::ResolveBinding,
+            identifier.to_property_key(),
+        );
         identifier
     }
 }
@@ -221,7 +228,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
         let identifier = ctx.create_string(self.name.as_str());
         ctx.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
-            identifier,
+            identifier.to_property_key(),
         );
         identifier.to_property_key()
     }
@@ -414,9 +421,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ParenthesizedExpression<'s>
 {
-    type Output = ();
-    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
-        self.expression.compile(ctx);
+    type Output = Option<ExpressionOutput<'gc>>;
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
+        self.expression.compile(ctx)
     }
 }
 
@@ -1147,8 +1154,8 @@ fn compile_optional_base_reference<'s>(
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ComputedMemberExpression<'s>
 {
-    type Output = ();
-    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
+    type Output = Option<PropertyKey<'gc>>;
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         compile_optional_base_reference(&self.object, self.optional, ctx);
         // If we do not have optional chaining present it means that base value
         // is currently in the result slot. We need to store it on the stack.
@@ -1163,19 +1170,39 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         let optional_chain = ctx.optional_chains.take();
         // 1. Let baseReference be ? Evaluation of expression.
         // 2. Let baseValue be ? GetValue(baseReference).
-        compile_expression_get_value(&self.expression, ctx);
+        let output = compile_expression_get_value(&self.expression, ctx);
         // After we're done with compiling the member expression we go back
         // into the chain.
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
         }
 
+        if let Some(ExpressionOutput::Literal(literal)) = output {
+            let (agent, gc) = ctx.get_agent_and_gc();
+            if let TryResult::Continue(identifier) = to_property_key_simple(agent, literal, gc) {
+                if self.object.is_super() {
+                    ctx.add_instruction_with_identifier(
+                        Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
+                        identifier,
+                    );
+                } else {
+                    ctx.add_instruction(Instruction::Store);
+                    // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+                    ctx.add_instruction_with_identifier(
+                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                        identifier,
+                    );
+                }
+                return Some(identifier);
+            }
+        }
         if self.object.is_super() {
             ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
         } else {
             // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
             ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
         }
+        None
     }
 }
 
@@ -1197,7 +1224,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             let identifier = ctx.create_string(self.property.name.as_str());
             ctx.add_instruction_with_identifier(
                 Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
-                identifier,
+                identifier.to_property_key(),
             );
             identifier.to_property_key()
         } else {
@@ -1224,7 +1251,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         let identifier = ctx.create_string(&self.field.name);
-        ctx.add_instruction_with_identifier(Instruction::MakePrivateReference, identifier);
+        ctx.add_instruction_with_identifier(
+            Instruction::MakePrivateReference,
+            identifier.to_property_key(),
+        );
     }
 }
 
@@ -1254,16 +1284,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainE
             false
         };
         match &self.expression {
-            ast::ChainElement::CallExpression(call) => {
-                call.compile(ctx);
+            ast::ChainElement::CallExpression(expr) => {
+                expr.compile(ctx);
             }
-            ast::ChainElement::ComputedMemberExpression(call) => {
-                call.compile(ctx);
-                compile_get_value_maybe_keep_reference(ctx, None, ctx.is_call_optional_chain_this);
+            ast::ChainElement::ComputedMemberExpression(expr) => {
+                let identifier = expr.compile(ctx);
+                compile_get_value_maybe_keep_reference(
+                    ctx,
+                    identifier,
+                    ctx.is_call_optional_chain_this,
+                );
                 ctx.is_call_optional_chain_this = false;
             }
-            ast::ChainElement::StaticMemberExpression(call) => {
-                let identifier = call.compile(ctx);
+            ast::ChainElement::StaticMemberExpression(expr) => {
+                let identifier = expr.compile(ctx);
                 compile_get_value_maybe_keep_reference(
                     ctx,
                     Some(identifier),
@@ -1271,14 +1305,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainE
                 );
                 ctx.is_call_optional_chain_this = false;
             }
-            ast::ChainElement::PrivateFieldExpression(call) => {
-                call.compile(ctx);
+            ast::ChainElement::PrivateFieldExpression(expr) => {
+                expr.compile(ctx);
                 compile_get_value_maybe_keep_reference(ctx, None, ctx.is_call_optional_chain_this);
                 ctx.is_call_optional_chain_this = false;
             }
             #[cfg(feature = "typescript")]
-            ast::ChainElement::TSNonNullExpression(call) => {
-                call.expression.compile(ctx);
+            ast::ChainElement::TSNonNullExpression(expr) => {
+                expr.expression.compile(ctx);
             }
             #[cfg(not(feature = "typescript"))]
             ast::ChainElement::TSNonNullExpression(_) => unreachable!(),
@@ -1394,7 +1428,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Privat
         // 5. Let privateEnv be the running execution context's PrivateEnvironment.
         // 6. Assert: privateEnv is not null.
         // 7. Let privateName be ResolvePrivateIdentifier(privateEnv, privateIdentifier).
-        ctx.add_instruction_with_identifier(Instruction::MakePrivateReference, private_identifier);
+        ctx.add_instruction_with_identifier(
+            Instruction::MakePrivateReference,
+            private_identifier.to_property_key(),
+        );
         // 8. If PrivateElementFind(rVal, privateName) is not empty, return true.
         // 9. Return false.
         ctx.add_instruction(Instruction::HasPrivateElement);
@@ -1473,19 +1510,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         //  CallExpression : CallExpression TemplateLiteral
 
         // 1. Let tagRef be ? Evaluation of MemberExpression/CallExpression.
-        self.tag.compile(ctx);
         // 2. Let tagFunc be ? GetValue(tagRef).
-        let need_pop_reference = if is_reference(&self.tag) {
-            ctx.add_instruction(Instruction::GetValueKeepReference);
-            if !self.quasi.is_no_substitution_template() {
-                ctx.add_instruction(Instruction::PushReference);
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+        compile_expression_get_value_keep_reference(&self.tag, ctx);
+        let need_pop_reference =
+            !self.quasi.is_no_substitution_template() && is_reference(&self.tag);
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PushReference);
+        }
         // Load tagFunc to the stack.
         ctx.add_instruction(Instruction::Load);
 
@@ -1753,7 +1784,10 @@ fn compile_delegate_yield_expression<'s>(
             // We should verify that the result of the await is an object, and then
             // return the original result.
             let error_message = ctx.create_string("iterator.return() returned a non-object value");
-            ctx.add_instruction_with_identifier(Instruction::VerifyIsObject, error_message);
+            ctx.add_instruction_with_identifier(
+                Instruction::VerifyIsObject,
+                error_message.to_property_key(),
+            );
             ctx.add_instruction(Instruction::Store);
         } else {
             // 4. Else, perform ? IteratorClose(iteratorRecord, closeCompletion).
@@ -1884,24 +1918,27 @@ pub(super) fn compile_expression_output_get_value<'gc>(
     }
 }
 
-pub(super) fn compile_expression_get_value<'s>(
+pub(super) fn compile_expression_get_value<'s, 'gc>(
     expr: &'s ast::Expression<'s>,
-    ctx: &mut CompileContext<'_, 's, '_, '_>,
-) {
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+) -> Option<ExpressionOutput<'gc>> {
     let output = expr.compile(ctx);
     compile_expression_output_get_value(expr, ctx, output);
+    output
 }
 
-pub(super) fn compile_expression_get_value_keep_reference<'s>(
+pub(super) fn compile_expression_get_value_keep_reference<'s, 'gc>(
     expr: &'s ast::Expression<'s>,
-    ctx: &mut CompileContext<'_, 's, '_, '_>,
-) {
-    if let Some(ExpressionOutput::Place(property_key)) = expr.compile(ctx) {
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+) -> Option<ExpressionOutput<'gc>> {
+    let output = expr.compile(ctx);
+    if let Some(ExpressionOutput::Place(property_key)) = output {
         let cache = ctx.create_property_lookup_cache(property_key);
         ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
     } else if is_reference(expr) {
         ctx.add_instruction(Instruction::GetValueKeepReference);
     }
+    output
 }
 
 pub(super) fn compile_put_value<'gc>(
@@ -1916,6 +1953,7 @@ pub(super) fn compile_put_value<'gc>(
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum ExpressionOutput<'gc> {
     Literal(Primitive<'gc>),
     Place(PropertyKey<'gc>),
@@ -1965,8 +2003,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 None
             }
             ast::Expression::ComputedMemberExpression(x) => {
-                x.compile(ctx);
-                None
+                x.compile(ctx).map(|key| ExpressionOutput::Place(key))
             }
             ast::Expression::ConditionalExpression(x) => {
                 x.compile(ctx);
@@ -2004,10 +2041,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 x.compile(ctx);
                 None
             }
-            ast::Expression::ParenthesizedExpression(x) => {
-                x.compile(ctx);
-                None
-            }
+            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::PrivateFieldExpression(x) => {
                 x.compile(ctx);
                 None
@@ -2099,10 +2133,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
                 x.compile(ctx);
                 None
             }
-            ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => {
-                x.compile(ctx);
-                None
-            }
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(x) => x.compile(ctx),
             ast::SimpleAssignmentTarget::PrivateFieldExpression(x) => {
                 x.compile(ctx);
                 None
@@ -2298,7 +2329,7 @@ fn simple_array_pattern<'s, I>(
                 let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBind,
-                    identifier_string,
+                    identifier_string.to_property_key(),
                 )
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
@@ -2325,7 +2356,7 @@ fn simple_array_pattern<'s, I>(
                 let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
-                    identifier_string,
+                    identifier_string.to_property_key(),
                 );
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
@@ -2423,7 +2454,10 @@ fn simple_object_pattern<'s>(
                 ast::BindingPatternKind::BindingIdentifier(_)
             ));
             let identifier_string = ctx.create_string(identifier.name.as_str());
-            ctx.add_instruction_with_identifier(Instruction::BindingPatternBind, identifier_string);
+            ctx.add_instruction_with_identifier(
+                Instruction::BindingPatternBind,
+                identifier_string.to_property_key(),
+            );
         } else {
             let key_string = match &ele.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
@@ -2523,7 +2557,7 @@ fn simple_object_pattern<'s>(
                 let identifier_string = ctx.create_string(identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
-                    identifier_string,
+                    identifier_string.to_property_key(),
                 );
             }
             _ => unreachable!(),
@@ -2594,7 +2628,10 @@ fn complex_object_pattern<'s>(
         );
 
         let identifier_string = ctx.create_string(identifier.name.as_str());
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
+        ctx.add_instruction_with_identifier(
+            Instruction::ResolveBinding,
+            identifier_string.to_property_key(),
+        );
         if !has_environment {
             ctx.add_instruction(Instruction::PutValue);
         } else {
@@ -2652,7 +2689,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         let binding_id = ctx.create_string(binding_identifier.name.as_str());
                         ctx.add_instruction_with_identifier(
                             Instruction::ResolveBinding,
-                            binding_id,
+                            binding_id.to_property_key(),
                         );
                         // Note: v is already in the result register after
                         // IteratorStepValueOrUndefined above.
@@ -2767,9 +2804,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
-                    let identifier_string = ctx.create_string(identifier.name.as_str());
-                    let identifier = ctx.add_identifier(identifier_string);
-                    ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
+                    let identifier = ctx.create_string(identifier.name.as_str());
+                    ctx.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        identifier.to_property_key(),
+                    );
                     let is_literal = init.is_literal();
                     if !is_literal {
                         ctx.add_instruction(Instruction::PushReference);
@@ -2777,19 +2816,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
-                        ctx.add_instruction_with_immediate(Instruction::LoadConstant, identifier);
+                        ctx.add_instruction_with_constant(Instruction::LoadConstant, identifier);
                         // a. Let value be ? NamedEvaluation of Initializer with argument StackId.
                         ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
-                        init.compile(ctx);
-                    } else {
                         // 4. Else,
                         // a. Let rhs be ? Evaluation of Initializer.
                         // b. Let value be ? GetValue(rhs).
-                        compile_expression_get_value(init, ctx);
-                        if is_reference(init) {
-                            debug_assert!(!is_literal);
-                        }
                     }
+                    compile_expression_get_value(init, ctx);
                     // 5. Perform ? PutValue(lhs, value).
                     if !is_literal {
                         ctx.add_instruction(Instruction::PopReference);
@@ -2819,9 +2853,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
-                    let identifier_string = ctx.create_string(identifier.name.as_str());
-                    let identifier = ctx.add_identifier(identifier_string);
-                    ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
+                    let identifier = ctx.create_string(identifier.name.as_str());
+                    ctx.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        identifier.to_property_key(),
+                    );
 
                     let Some(init) = &decl.init else {
                         // LexicalBinding : BindingIdentifier
@@ -2843,15 +2879,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
                         // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                        ctx.add_instruction_with_immediate(Instruction::LoadConstant, identifier);
+                        ctx.add_instruction_with_constant(Instruction::LoadConstant, identifier);
                         ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
-                        init.compile(ctx);
-                    } else {
                         // 4. Else,
                         // a. Let rhs be ? Evaluation of Initializer.
                         // b. Let value be ? GetValue(rhs).
-                        compile_expression_get_value(init, ctx);
                     }
+                    compile_expression_get_value(init, ctx);
 
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
                     if do_push_reference {
@@ -2916,7 +2950,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                                 let identifier = ctx.create_string(dn.name.as_str());
                                 ctx.add_instruction_with_identifier(
                                     Instruction::CreateImmutableBinding,
-                                    identifier,
+                                    identifier.to_property_key(),
                                 )
                             });
                         } else {
@@ -2930,7 +2964,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                                 per_iteration_lets.push(identifier);
                                 ctx.add_instruction_with_identifier(
                                     Instruction::CreateMutableBinding,
-                                    identifier,
+                                    identifier.to_property_key(),
                                 )
                             });
                         }
@@ -3043,18 +3077,21 @@ fn create_per_iteration_environment<'gc>(
 
         let binding = *per_iteration_lets.first().unwrap();
         // Get value of binding from lastIterationEnv.
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding.to_property_key());
         ctx.add_instruction(Instruction::GetValue);
         // Note: here we do not use exit & enter lexical
         // environment helpers as we'd just immediately exit again.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, binding);
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+        ctx.add_instruction_with_identifier(
+            Instruction::CreateMutableBinding,
+            binding.to_property_key(),
+        );
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding.to_property_key());
         ctx.add_instruction(Instruction::InitializeReferencedBinding);
     } else {
         for bn in per_iteration_lets {
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, bn.to_property_key());
             ctx.add_instruction(Instruction::GetValue);
             ctx.add_instruction(Instruction::Load);
         }
@@ -3063,8 +3100,11 @@ fn create_per_iteration_environment<'gc>(
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         for bn in per_iteration_lets.iter().rev() {
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, *bn);
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                bn.to_property_key(),
+            );
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, bn.to_property_key());
             ctx.add_instruction(Instruction::Store);
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
@@ -3269,7 +3309,10 @@ fn catch_clause_evaluation<'s>(
         // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
         exception_param.pattern.bound_names(&mut |arg_name| {
             let arg_name = ctx.create_string(arg_name.name.as_str());
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, arg_name);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                arg_name.to_property_key(),
+            );
         });
         // 5. Let status be Completion(BindingInitialization of
         //    CatchParameter with arguments thrownValue and catchEnv).

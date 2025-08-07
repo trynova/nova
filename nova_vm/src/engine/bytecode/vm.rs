@@ -2168,8 +2168,8 @@ impl Vm {
                 );
             }
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
-                let property_name_string =
-                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                let property_key =
+                    executable.fetch_property_key(agent, instr.get_first_index(), gc.nogc());
                 let base_value = vm.result.take().unwrap().bind(gc.nogc());
                 let strict = agent
                     .running_execution_context()
@@ -2178,13 +2178,7 @@ impl Vm {
                     .is_strict_mode;
 
                 vm.reference = Some(
-                    Reference::new_property_reference(
-                        base_value,
-                        // Note: identifiers cannot be numeric.
-                        property_name_string.to_property_key(),
-                        strict,
-                    )
-                    .unbind(),
+                    Reference::new_property_reference(base_value, property_key, strict).unbind(),
                 );
             }
             Instruction::MakePrivateReference => {
@@ -2276,7 +2270,7 @@ impl Vm {
                     .bind(gc.nogc());
                 // 3. Let propertyKey be the StringValue of IdentifierName.
                 let property_key =
-                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                    executable.fetch_property_key(agent, instr.get_first_index(), gc.nogc());
                 // 4. Let strict be IsStrict(this SuperProperty).
                 let strict = agent
                     .running_execution_context()
@@ -2300,8 +2294,7 @@ impl Vm {
                         // [[Base]]: baseValue,
                         base_value,
                         // [[ReferencedName]]: propertyKey,
-                        // Note: identifiers cannot be numeric.
-                        property_key.to_property_key(),
+                        property_key,
                         // [[ThisValue]]: actualThis
                         actual_this,
                         // [[Strict]]: strict,

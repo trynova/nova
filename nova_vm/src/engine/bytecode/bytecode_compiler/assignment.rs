@@ -31,7 +31,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                     && self.span.start == identifier.span.start
                 {
                     let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        identifier.to_property_key(),
+                    );
                     named_evaluation_identifier = Some(identifier);
                 } else {
                     identifier.compile(ctx);
@@ -40,8 +43,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             }
             ast::AssignmentTarget::ComputedMemberExpression(expression) => {
                 // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
-                expression.compile(ctx);
-                None
+                expression.compile(ctx)
             }
             ast::AssignmentTarget::ArrayAssignmentTarget(_)
             | ast::AssignmentTarget::ObjectAssignmentTarget(_) => {
@@ -289,10 +291,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 t.compile(ctx);
                 None
             }
-            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => {
-                t.compile(ctx);
-                None
-            }
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => t.compile(ctx),
             ast::SimpleAssignmentTarget::StaticMemberExpression(t) => Some(t.compile(ctx)),
             ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => {
                 t.compile(ctx);
@@ -567,7 +566,7 @@ fn compile_assignment_target_property<'s>(
             let key = ctx.create_string(identifier.binding.name.as_str());
             ctx.add_instruction_with_identifier(
                 Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                key,
+                key.to_property_key(),
             );
             // result: None
             // stack: [source?]

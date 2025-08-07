@@ -53,7 +53,10 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
             decl.id.bound_names(&mut |identifier| {
                 let dn = ctx.create_string(&identifier.name);
                 // 1. Perform ! env.CreateImmutableBinding(dn, true).
-                ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateImmutableBinding,
+                    dn.to_property_key(),
+                );
             })
         }
         // ii. Else,
@@ -61,7 +64,10 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
             // 1. Perform ! env.CreateMutableBinding(dn, false).
             // NOTE: This step is replaced in section B.3.2.6.
             let dn = ctx.create_string(&identifier.name);
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                dn.to_property_key(),
+            );
         }),
         LexicallyScopedDeclaration::Function(decl) => {
             // b. If d is either a FunctionDeclaration,
@@ -72,11 +78,14 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
             let dn = ctx.create_string(&r#fn.name);
             // 1. Perform ! env.CreateMutableBinding(dn, false).
             // NOTE: This step is replaced in section B.3.2.6.
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                dn.to_property_key(),
+            );
             // ii. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
             decl.compile(ctx);
             // iii. Perform ! env.InitializeBinding(fn, fo).
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, dn);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, dn.to_property_key());
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
             // NOTE: This step is replaced in section B.3.2.6.
         }
@@ -85,7 +94,10 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
                 let dn = ctx.create_string(&identifier.name);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             });
         }
         LexicallyScopedDeclaration::DefaultExport => unreachable!(),
