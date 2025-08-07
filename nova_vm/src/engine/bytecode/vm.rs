@@ -1042,16 +1042,31 @@ impl Vm {
                 {
                     let shape = backing_object.get_shape(agent);
                     if let Some((offset, prototype)) = cache.find(agent, shape) {
-                        if let Some(offset) = offset
-                            && prototype.is_none()
-                        {
-                            set_value_by_offset(
+                        if let Some(offset) = offset {
+                            if prototype.is_none() {
+                                set_value_by_offset(
+                                    agent,
+                                    vm,
+                                    (object.unbind(), backing_object.unbind()),
+                                    offset,
+                                    value.unbind(),
+                                    reference.strict(),
+                                    gc,
+                                )?;
+                                return Ok(ContinuationKind::Normal);
+                            }
+                        } else {
+                            with_vm_gc(
                                 agent,
                                 vm,
-                                (object.unbind(), backing_object.unbind()),
-                                offset,
-                                value.unbind(),
-                                reference.strict(),
+                                |agent, gc| {
+                                    object.internal_define_own_property(
+                                        agent,
+                                        reference.referenced_name_property_key(),
+                                        PropertyDescriptor::new_data_descriptor(value),
+                                        gc,
+                                    )
+                                },
                                 gc,
                             )?;
                             return Ok(ContinuationKind::Normal);

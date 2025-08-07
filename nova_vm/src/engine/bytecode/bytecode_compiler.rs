@@ -36,7 +36,10 @@ use crate::{
         execution::{Agent, agent::ExceptionType},
         types::{IntoObject, IntoPrimitive, Primitive, PropertyKey},
     },
-    engine::{TryResult, context::NoGcScope},
+    engine::{
+        TryResult,
+        context::{Bindable, NoGcScope},
+    },
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
@@ -1846,19 +1849,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::YieldE
             ctx.add_instruction(Instruction::Await);
         } else {
             // 3. Otherwise, return ? GeneratorYield(CreateIteratorResultObject(value, false)).
-            ctx.add_instruction(Instruction::ObjectCreate);
-            ctx.add_instruction_with_constant(
-                Instruction::LoadConstant,
-                BUILTIN_STRING_MEMORY.value,
-            );
-            ctx.add_instruction(Instruction::ObjectDefineProperty);
-            ctx.add_instruction_with_constant(
-                Instruction::LoadConstant,
-                BUILTIN_STRING_MEMORY.done,
-            );
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, false.into_value());
-            ctx.add_instruction(Instruction::ObjectDefineProperty);
-            ctx.add_instruction(Instruction::Store);
+            compile_create_iterator_result_object(ctx, false);
         }
         ctx.add_instruction(Instruction::Yield);
         // Note: generators can be resumed with a Return instruction. For those
@@ -1867,6 +1858,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::YieldE
         ctx.compile_return(true);
         ctx.set_jump_target_here(jump_over_return);
     }
+}
+
+fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
+    let (agent, gc) = ctx.get_agent_and_gc();
+    let prototype = agent
+        .current_realm_record()
+        .intrinsics()
+        .object_prototype()
+        .bind(gc);
+    let shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+        .get_child_shape(agent, BUILTIN_STRING_MEMORY.value.to_property_key())
+        .get_child_shape(agent, BUILTIN_STRING_MEMORY.done.to_property_key());
+    ctx.add_instruction(Instruction::Load);
+    ctx.add_instruction_with_constant(Instruction::LoadConstant, done);
+    ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
 }
 
 pub(super) fn compile_get_value<'gc>(
