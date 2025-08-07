@@ -349,18 +349,17 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     ) -> TryResult<bool> {
         if self.get_backing_object(agent).is_some() {
             ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && value.is_string()
+        {
+            agent[self].message = Some(String::try_from(value.unbind()).unwrap());
+            TryResult::Continue(true)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+            agent[self].cause = Some(value.unbind());
+            TryResult::Continue(true)
         } else {
-            if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) && value.is_string()
-            {
-                agent[self].message = Some(String::try_from(value.unbind()).unwrap());
-                TryResult::Continue(true)
-            } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                agent[self].cause = Some(value.unbind());
-                TryResult::Continue(true)
-            } else {
-                self.create_backing_object(agent);
-                ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
-            }
+            self.create_backing_object(agent);
+            ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
         }
     }
 
@@ -382,25 +381,24 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 receiver,
                 gc,
             )
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && value.is_string()
+        {
+            agent[self].message = Some(String::try_from(value.unbind()).unwrap());
+            Ok(true)
+        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+            agent[self].cause = Some(value.unbind());
+            Ok(true)
         } else {
-            if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) && value.is_string()
-            {
-                agent[self].message = Some(String::try_from(value.unbind()).unwrap());
-                Ok(true)
-            } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                agent[self].cause = Some(value.unbind());
-                Ok(true)
-            } else {
-                self.create_backing_object(agent);
-                ordinary_set(
-                    agent,
-                    self.into_object(),
-                    property_key.unbind(),
-                    value,
-                    receiver,
-                    gc,
-                )
-            }
+            self.create_backing_object(agent);
+            ordinary_set(
+                agent,
+                self.into_object(),
+                property_key.unbind(),
+                value,
+                receiver,
+                gc,
+            )
         }
     }
 

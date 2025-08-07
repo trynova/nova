@@ -2003,7 +2003,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 None
             }
             ast::Expression::ComputedMemberExpression(x) => {
-                x.compile(ctx).map(|key| ExpressionOutput::Place(key))
+                x.compile(ctx).map(ExpressionOutput::Place)
             }
             ast::Expression::ConditionalExpression(x) => {
                 x.compile(ctx);

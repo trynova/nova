@@ -1048,8 +1048,7 @@ impl Vm {
                             set_value_by_offset(
                                 agent,
                                 vm,
-                                backing_object.unbind(),
-                                object.unbind(),
+                                (object.unbind(), backing_object.unbind()),
                                 offset,
                                 value.unbind(),
                                 reference.strict(),
@@ -4041,15 +4040,14 @@ fn get_value_by_offset<'a>(
 fn set_value_by_offset<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    backing_object: OrdinaryObject,
-    object: Object,
+    o: (Object, OrdinaryObject),
     offset: u16,
     value: Value,
     strict: bool,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let backing_object = backing_object.bind(gc.nogc());
-    let object = object.bind(gc.nogc());
+    let object = o.0.bind(gc.nogc());
+    let backing_object = o.1.bind(gc.nogc());
     let value = value.bind(gc.nogc());
 
     // SAFETY: I'm pretty sure this is okay.
