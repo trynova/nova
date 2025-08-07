@@ -841,8 +841,7 @@ pub(crate) fn ordinary_try_set(
     let property_key = property_key.bind(gc);
 
     // 1. Let ownDesc be ! O.[[GetOwnProperty]](P).
-    // We're guaranteed to always get a result here.
-    let own_descriptor = object.try_get_own_property(agent, property_key, gc)?;
+    let own_descriptor = unwrap_try(object.try_get_own_property(agent, property_key, gc));
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_try_set_with_own_descriptor(

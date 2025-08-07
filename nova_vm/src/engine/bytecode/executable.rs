@@ -16,7 +16,7 @@ use crate::{
             module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
         },
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
-        types::{String, Value},
+        types::{PropertyKey, String, Value},
     },
     engine::{
         Scoped,
@@ -290,6 +290,18 @@ impl<'gc> Executable<'gc> {
         value.bind(gc)
     }
 
+    #[inline]
+    fn fetch_property_key(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> PropertyKey<'gc> {
+        let value = agent[self].constants[index];
+        // SAFETY: caller wants a PropertyKey.
+        unsafe { PropertyKey::from_value_unchecked(value).bind(gc) }
+    }
+
     fn fetch_function_expression<'a>(
         self,
         agent: &'a Agent,
@@ -366,6 +378,16 @@ impl Scoped<'_, Executable<'static>> {
         gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
         self.get(agent).fetch_identifier(agent, index, gc)
+    }
+
+    #[inline]
+    pub(super) fn fetch_property_key<'gc>(
+        &self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> PropertyKey<'gc> {
+        self.get(agent).fetch_property_key(agent, index, gc)
     }
 
     #[inline]

@@ -48,7 +48,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             // a. Perform ! classEnv.CreateImmutableBinding(classBinding, true).
             let identifier = ctx.create_string(class_binding.name.as_str());
             class_identifier = Some(identifier);
-            ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, identifier);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateImmutableBinding,
+                identifier.to_property_key(),
+            );
         } else if let Some(anonymous_class_name) = anonymous_class_name {
             has_class_name_on_stack = true;
             match anonymous_class_name {
@@ -160,7 +163,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                 ctx.add_instruction(Instruction::StoreCopy);
                 ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                    BUILTIN_STRING_MEMORY.prototype,
+                    BUILTIN_STRING_MEMORY.prototype.to_property_key(),
                 );
                 let cache = ctx.create_property_lookup_cache(
                     BUILTIN_STRING_MEMORY.prototype.to_property_key(),
@@ -179,7 +182,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                 ctx.add_instruction(Instruction::Store);
                 // ... throw a TypeError exception.
                 let error_message = ctx.create_string("class heritage is not an object or null");
-                ctx.add_instruction_with_identifier(Instruction::VerifyIsObject, error_message);
+                ctx.add_instruction_with_identifier(
+                    Instruction::VerifyIsObject,
+                    error_message.to_property_key(),
+                );
                 ctx.add_instruction(Instruction::Load);
                 ctx.set_jump_target_here(jump_over_verify_is_object);
 
@@ -553,7 +559,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         if let Some(class_binding) = class_identifier {
             // a. Perform ! classEnv.InitializeBinding(classBinding, F).
             ctx.add_instruction(Instruction::StoreCopy);
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_binding);
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                class_binding.to_property_key(),
+            );
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
@@ -669,7 +678,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
             ctx.add_instruction(Instruction::StoreCopy);
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                class_identifier.to_property_key(),
+            );
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
@@ -696,7 +708,10 @@ fn compile_computed_field_name<'s, 'gc>(
     value: Option<&'s ast::Expression<'s>>,
 ) -> PropertyInitializerField<'s, 'gc> {
     let computed_key_id = ctx.create_string_from_owned(format!("^{next_computed_key_id}"));
-    ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, computed_key_id);
+    ctx.add_instruction_with_identifier(
+        Instruction::CreateImmutableBinding,
+        computed_key_id.to_property_key(),
+    );
     // 1. Let name be ? Evaluation of ClassElementName.
     // ### ComputedPropertyName : [ AssignmentExpression ]
     // 1. Let exprValue be ? Evaluation of AssignmentExpression.
@@ -706,7 +721,10 @@ fn compile_computed_field_name<'s, 'gc>(
     // TODO: To be fully compliant, we need to perform ToPropertyKey here as
     // otherwise we change the order of errors thrown.
     // 3. Return ? ToPropertyKey(propName).
-    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, computed_key_id);
+    ctx.add_instruction_with_identifier(
+        Instruction::ResolveBinding,
+        computed_key_id.to_property_key(),
+    );
     ctx.add_instruction(Instruction::InitializeReferencedBinding);
     PropertyInitializerField::Computed((computed_key_id, value))
 }
@@ -944,9 +962,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             let n_string = ctx.create_string(&n);
             instantiated_var_names.insert(n);
             // 2. Perform ! env.CreateMutableBinding(n, false).
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                n_string.to_property_key(),
+            );
             // 3. Perform ! env.InitializeBinding(n, undefined).
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                n_string.to_property_key(),
+            );
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
@@ -964,7 +988,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                             // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
                             ctx.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
-                                dn,
+                                dn.to_property_key(),
                             );
                         })
                     }
@@ -974,25 +998,40 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                 LexicallyScopedDeclaration::Variable(decl) => {
                     decl.id.bound_names(&mut |identifier| {
                         let dn = ctx.create_string(&identifier.name);
-                        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                        ctx.add_instruction_with_identifier(
+                            Instruction::CreateMutableBinding,
+                            dn.to_property_key(),
+                        );
                     })
                 }
                 LexicallyScopedDeclaration::Function(decl) => {
                     let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        dn.to_property_key(),
+                    );
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
                     let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        dn.to_property_key(),
+                    );
                 }
                 LexicallyScopedDeclaration::DefaultExport => {
                     let dn = BUILTIN_STRING_MEMORY._default_;
-                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        dn.to_property_key(),
+                    );
                 }
                 #[cfg(feature = "typescript")]
                 LexicallyScopedDeclaration::TSEnum(decl) => {
                     let dn = ctx.create_string(&decl.id.name);
-                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::CreateMutableBinding,
+                        dn.to_property_key(),
+                    );
                 }
             }
         }
@@ -1005,7 +1044,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             let f_name = ctx.create_string(&f.id.as_ref().unwrap().name);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                f_name.to_property_key(),
+            );
             ctx.add_instruction(Instruction::PutValue);
         }
 
@@ -1049,7 +1091,10 @@ fn compile_class_computed_field<'s, 'gc>(
 ) {
     // stack: [constructor]
     // Resolve the static computed key ID to the actual computed key value.
-    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, property_key_id);
+    ctx.add_instruction_with_identifier(
+        Instruction::ResolveBinding,
+        property_key_id.to_property_key(),
+    );
     // Load the computed key value into the stack.
     ctx.add_instruction(Instruction::GetValue);
     ctx.add_instruction(Instruction::Load);

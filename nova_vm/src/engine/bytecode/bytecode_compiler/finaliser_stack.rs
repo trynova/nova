@@ -468,7 +468,10 @@ pub(super) fn compile_async_iterator_exit(executable: &mut ExecutableContext) {
     // We should verify that the result of the await is an object, and then
     // return the original result.
     let error_message = executable.create_string("iterator.return() returned a non-object value");
-    executable.add_instruction_with_identifier(Instruction::VerifyIsObject, error_message);
+    executable.add_instruction_with_identifier(
+        Instruction::VerifyIsObject,
+        error_message.to_property_key(),
+    );
     executable.add_instruction(Instruction::Store);
 }
 

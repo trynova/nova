@@ -116,6 +116,7 @@ impl<'a> Caches<'a> {
                 break;
             }
             shapes.sort();
+            shapes.dedup();
 
             // Then filter the shapes to only those that have our intrinsic
             // object in their prototype chain.

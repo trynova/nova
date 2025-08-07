@@ -13,7 +13,7 @@ use crate::{
             regexp::{RegExp, reg_exp_create_literal},
         },
         execution::Agent,
-        types::{BigInt, IntoValue, Number, PropertyKey, String, Value},
+        types::{BigInt, Number, PropertyKey, String, Value},
     },
     engine::{
         Executable, ExecutableHeapData, FunctionExpression, Instruction,
@@ -207,17 +207,19 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         })
     }
 
-    pub(super) fn add_identifier(&mut self, identifier: String<'gc>) -> usize {
+    pub(super) fn add_identifier(&mut self, identifier: PropertyKey<'gc>) -> usize {
+        // SAFETY: we do not want to convert integer keys to strings here.
+        let identifier_value = unsafe { identifier.into_value_unchecked() };
         let duplicate = self
             .constants
             .iter()
             .enumerate()
-            .find(|item| String::try_from(*item.1) == Ok(identifier))
+            .find(|item| item.1 == &identifier_value)
             .map(|(idx, _)| idx);
 
         duplicate.unwrap_or_else(|| {
             let index = self.constants.len();
-            self.constants.push(identifier.into_value());
+            self.constants.push(identifier_value);
             index
         })
     }
@@ -262,7 +264,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     pub(super) fn add_instruction_with_identifier(
         &mut self,
         instruction: Instruction,
-        identifier: String<'gc>,
+        identifier: PropertyKey<'gc>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_identifier_index());
@@ -286,7 +288,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     pub(super) fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,
-        identifier: String<'gc>,
+        identifier: PropertyKey<'gc>,
         constant: impl Into<Value<'gc>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
@@ -301,7 +303,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     pub(super) fn add_instruction_with_identifier_and_immediate(
         &mut self,
         instruction: Instruction,
-        identifier: String<'gc>,
+        identifier: PropertyKey<'gc>,
         immediate: usize,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);

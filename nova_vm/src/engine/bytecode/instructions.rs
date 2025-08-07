@@ -255,6 +255,8 @@ pub enum Instruction {
     /// Call PutValue() with the last reference on the reference stack and the
     /// result value.
     PutValue,
+    /// Same as PutValue but with a cache slot.
+    PutValueWithCache,
     /// Store ResolveBinding() in the reference register.
     ResolveBinding,
     /// Store ResolveThisBinding() in the result register.
@@ -535,9 +537,7 @@ impl Instruction {
             | Self::EvaluateNew
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::EvaluateSuper
-            // | Self::GetValue
             | Self::GetValueWithCache
-            // | Self::GetValueKeepReference
             | Self::GetValueWithCacheKeepReference
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
@@ -545,7 +545,7 @@ impl Instruction {
             | Self::MakePrivateReference
             | Self::MakeSuperPropertyReferenceWithIdentifierKey
             | Self::ObjectCreateWithShape
-            // | Self::PutValue
+            | Self::PutValueWithCache
             | Self::ResolveBinding
             | Self::StoreConstant
             | Self::StringConcat
@@ -570,8 +570,9 @@ impl Instruction {
     pub fn has_cache_index(self) -> bool {
         matches!(
             self,
-            // Self::GetValueKeepReference | Self::GetValue | Self::PutValue
-            Self::GetValueWithCache | Self::GetValueWithCacheKeepReference
+            Self::GetValueWithCache
+                | Self::GetValueWithCacheKeepReference
+                | Self::PutValueWithCache
         )
     }
 
@@ -995,8 +996,8 @@ fn debug_print_identifier(
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
-    let identifier = exe.fetch_identifier(agent, index, gc);
-    identifier.to_string_lossy(agent).to_string()
+    let identifier = exe.fetch_property_key(agent, index, gc);
+    identifier.as_display(agent).to_string()
 }
 
 fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {
@@ -1230,6 +1231,7 @@ impl TryFrom<u8> for Instruction {
         const PUSHEXCEPTIONJUMPTARGET: u8 = Instruction::PushExceptionJumpTarget.as_u8();
         const PUSHREFERENCE: u8 = Instruction::PushReference.as_u8();
         const PUTVALUE: u8 = Instruction::PutValue.as_u8();
+        const PUTVALUEWITHCACHE: u8 = Instruction::PutValueWithCache.as_u8();
         const RESOLVEBINDING: u8 = Instruction::ResolveBinding.as_u8();
         const RESOLVETHISBINDING: u8 = Instruction::ResolveThisBinding.as_u8();
         const RETURN: u8 = Instruction::Return.as_u8();
@@ -1439,6 +1441,7 @@ impl TryFrom<u8> for Instruction {
             PUSHEXCEPTIONJUMPTARGET => Ok(Instruction::PushExceptionJumpTarget),
             PUSHREFERENCE => Ok(Instruction::PushReference),
             PUTVALUE => Ok(Instruction::PutValue),
+            PUTVALUEWITHCACHE => Ok(Instruction::PutValueWithCache),
             RESOLVEBINDING => Ok(Instruction::ResolveBinding),
             RESOLVETHISBINDING => Ok(Instruction::ResolveThisBinding),
             RETURN => Ok(Instruction::Return),

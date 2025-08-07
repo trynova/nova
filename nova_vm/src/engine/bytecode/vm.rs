@@ -8,7 +8,7 @@ use binding_methods::{execute_simple_array_binding, execute_simple_object_bindin
 use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
-use std::{ptr::NonNull, sync::OnceLock};
+use std::{ops::ControlFlow, ptr::NonNull, sync::OnceLock};
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -55,6 +55,7 @@ use crate::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
             throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
+            try_put_value,
         },
     },
     engine::{
@@ -1029,6 +1030,77 @@ impl Vm {
                     gc,
                 )?;
             }
+            Instruction::PutValueWithCache => {
+                let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+                let value = vm.result.take().unwrap();
+                let reference = vm.reference.take().unwrap();
+                assert!(reference.is_static_property_reference());
+
+                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
+                    && !object.is_proxy()
+                    && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
+                {
+                    let shape = backing_object.get_shape(agent);
+                    if let Some((offset, prototype)) = cache.find(agent, shape) {
+                        if let Some(offset) = offset {
+                            if prototype.is_none() {
+                                set_value_by_offset(
+                                    agent,
+                                    vm,
+                                    (object.unbind(), backing_object.unbind()),
+                                    offset,
+                                    value.unbind(),
+                                    reference.strict(),
+                                    gc,
+                                )?;
+                                return Ok(ContinuationKind::Normal);
+                            }
+                        } else {
+                            with_vm_gc(
+                                agent,
+                                vm,
+                                |agent, gc| {
+                                    object.internal_define_own_property(
+                                        agent,
+                                        reference.referenced_name_property_key(),
+                                        PropertyDescriptor::new_data_descriptor(value),
+                                        gc,
+                                    )
+                                },
+                                gc,
+                            )?;
+                            return Ok(ContinuationKind::Normal);
+                        }
+                        false
+                    } else {
+                        agent.heap.caches.set_current_cache(
+                            object,
+                            cache,
+                            reference.referenced_name_property_key(),
+                            shape,
+                        );
+                        true
+                    }
+                } else {
+                    false
+                };
+
+                let result = try_put_value(agent, &reference, value, gc.nogc());
+                if set_current_cache {
+                    agent.heap.caches.clear_current_cache_to_populate();
+                }
+
+                if let TryResult::Continue(result) = result {
+                    result.unbind()?;
+                } else {
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| put_value(agent, &reference, value, gc),
+                        gc,
+                    )?;
+                }
+            }
             Instruction::GetValueWithCache => {
                 let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
                 // 1. If V is not a Reference Record, return V.
@@ -1963,8 +2035,8 @@ impl Vm {
                         )
                     },
                     gc,
-                )?;
-                vm.result = Some(result.unbind());
+                );
+                vm.result = Some(result?.unbind());
             }
             Instruction::EvaluateNew => {
                 let args = vm.get_call_args(instr, gc.nogc());
@@ -2110,8 +2182,8 @@ impl Vm {
                 );
             }
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
-                let property_name_string =
-                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                let property_key =
+                    executable.fetch_property_key(agent, instr.get_first_index(), gc.nogc());
                 let base_value = vm.result.take().unwrap().bind(gc.nogc());
                 let strict = agent
                     .running_execution_context()
@@ -2120,13 +2192,7 @@ impl Vm {
                     .is_strict_mode;
 
                 vm.reference = Some(
-                    Reference::new_property_reference(
-                        base_value,
-                        // Note: identifiers cannot be numeric.
-                        property_name_string.to_property_key(),
-                        strict,
-                    )
-                    .unbind(),
+                    Reference::new_property_reference(base_value, property_key, strict).unbind(),
                 );
             }
             Instruction::MakePrivateReference => {
@@ -2218,7 +2284,7 @@ impl Vm {
                     .bind(gc.nogc());
                 // 3. Let propertyKey be the StringValue of IdentifierName.
                 let property_key =
-                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                    executable.fetch_property_key(agent, instr.get_first_index(), gc.nogc());
                 // 4. Let strict be IsStrict(this SuperProperty).
                 let strict = agent
                     .running_execution_context()
@@ -2242,8 +2308,7 @@ impl Vm {
                         // [[Base]]: baseValue,
                         base_value,
                         // [[ReferencedName]]: propertyKey,
-                        // Note: identifiers cannot be numeric.
-                        property_key.to_property_key(),
+                        property_key,
                         // [[ThisValue]]: actualThis
                         actual_this,
                         // [[Strict]]: strict,
@@ -3963,23 +4028,76 @@ fn get_value_by_offset<'a>(
     offset: u16,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let backing_object = backing_object.bind(gc.nogc());
+    let object = object.bind(gc.nogc());
+
     // SAFETY: I'm pretty sure this is okay.
-    if let TryResult::Continue(value) =
-        unsafe { backing_object.try_get_property_by_offset(agent, offset) }
-    {
-        vm.result = Some(value.unbind());
-    } else {
-        let result = with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| {
-                // SAFETY: I'm pretty sure this is okay.
-                unsafe { backing_object.call_property_getter_by_offset(agent, offset, object, gc) }
-            },
-            gc,
-        )
-        .unbind()?;
-        vm.result = Some(result);
+    match unsafe { backing_object.try_get_property_by_offset(agent, offset, gc.nogc()) } {
+        ControlFlow::Continue(result) => {
+            vm.result = Some(result.unbind());
+        }
+        ControlFlow::Break(getter) => {
+            let object = object.unbind();
+            let getter = getter.unbind();
+            let result = with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| call_function(agent, getter.unbind(), object.into_value(), None, gc),
+                gc,
+            )
+            .unbind()?;
+            vm.result = Some(result);
+        }
     }
     Ok(())
+}
+
+fn set_value_by_offset<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    o: (Object, OrdinaryObject),
+    offset: u16,
+    value: Value,
+    strict: bool,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let object = o.0.bind(gc.nogc());
+    let backing_object = o.1.bind(gc.nogc());
+    let value = value.bind(gc.nogc());
+
+    // SAFETY: I'm pretty sure this is okay.
+    match unsafe { backing_object.try_set_property_by_offset(agent, offset, value, gc.nogc()) } {
+        ControlFlow::Continue(succeeded) => {
+            if !succeeded && strict {
+                // Failed to set.
+                Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "failed to set property",
+                    gc.into_nogc(),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        ControlFlow::Break(setter) => {
+            let setter = setter.unbind();
+            let object = object.unbind();
+            let mut value = value.unbind();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| {
+                    call_function(
+                        agent,
+                        setter,
+                        object.into_value(),
+                        Some(ArgumentsList::from_mut_value(&mut value)),
+                        gc,
+                    )
+                    .map(|_| ())
+                },
+                gc,
+            )
+        }
+    }
 }

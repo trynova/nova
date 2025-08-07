@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     CompileContext, CompileEvaluation, NamedEvaluationParameter, compile_expression_get_value,
-    is_anonymous_function_definition,
+    compile_get_value_keep_reference, compile_put_value, is_anonymous_function_definition,
 };
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentExpression<'s> {
@@ -21,7 +21,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let mut named_evaluation_identifier = None;
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
-        match &self.left {
+        let lref = match &self.left {
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
                 if is_anonymous_function_definition(&self.right)
                 // NOTE: If the left hand side does not constitute the start of
@@ -31,15 +31,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                     && self.span.start == identifier.span.start
                 {
                     let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        identifier.to_property_key(),
+                    );
                     named_evaluation_identifier = Some(identifier);
                 } else {
                     identifier.compile(ctx);
                 }
+                None
             }
             ast::AssignmentTarget::ComputedMemberExpression(expression) => {
                 // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
-                expression.compile(ctx);
+                expression.compile(ctx)
             }
             ast::AssignmentTarget::ArrayAssignmentTarget(_)
             | ast::AssignmentTarget::ObjectAssignmentTarget(_) => {
@@ -62,22 +66,26 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             ast::AssignmentTarget::PrivateFieldExpression(expression) => {
                 // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
                 expression.compile(ctx);
+                None
             }
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
                 // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
-                expression.compile(ctx);
+                Some(expression.compile(ctx))
             }
             #[cfg(feature = "typescript")]
             ast::AssignmentTarget::TSNonNullExpression(x) => {
                 x.expression.compile(ctx);
+                None
             }
             #[cfg(feature = "typescript")]
             ast::AssignmentTarget::TSAsExpression(x) => {
                 x.expression.compile(ctx);
+                None
             }
             #[cfg(feature = "typescript")]
             ast::AssignmentTarget::TSSatisfiesExpression(x) => {
                 x.expression.compile(ctx);
+                None
             }
             #[cfg(not(feature = "typescript"))]
             ast::AssignmentTarget::TSAsExpression(_)
@@ -106,13 +114,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 ctx.add_instruction(Instruction::PopReference);
             }
 
-            ctx.add_instruction(Instruction::PutValue);
+            compile_put_value(ctx, lref);
 
             // ... Return rval.
             ctx.add_instruction(Instruction::Store);
         } else if let Some(operator) = self.operator.to_logical_operator() {
             // 2. Let lval be ? GetValue(lref).
-            ctx.add_instruction(Instruction::GetValueKeepReference);
+            compile_get_value_keep_reference(ctx, lref);
             let needs_save_reference = !self.right.is_literal();
             if needs_save_reference {
                 ctx.add_instruction(Instruction::PushReference);
@@ -163,7 +171,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             if needs_save_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
-            ctx.add_instruction(Instruction::PutValue);
+            compile_put_value(ctx, lref);
             let jump_over_else = if needs_save_reference {
                 ctx.add_instruction(Instruction::Store);
                 Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
@@ -182,7 +190,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             }
         } else {
             // 2. let lval be ? GetValue(lref).
-            ctx.add_instruction(Instruction::GetValueKeepReference);
+            compile_get_value_keep_reference(ctx, lref);
             ctx.add_instruction(Instruction::Load);
             let do_push_reference = !self.right.is_literal();
             if do_push_reference {
@@ -202,7 +210,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             if do_push_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
-            ctx.add_instruction(Instruction::PutValue);
+            compile_put_value(ctx, lref);
             // 9. Return r.
             ctx.add_instruction(Instruction::Store);
         };
@@ -238,7 +246,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 // result: None
                 // stack: [value]
             }
-            target.compile(ctx);
+            let identifier = target.compile(ctx);
             if needs_load_store {
                 // result: None
                 // stack: [value]
@@ -248,7 +256,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // result: value
             // stack: []
             // reference: &target
-            ctx.add_instruction(Instruction::PutValue);
+            compile_put_value(ctx, identifier);
             // result: None
             // stack: []
             // reference: None
@@ -283,10 +291,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 t.compile(ctx);
                 None
             }
-            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => {
-                t.compile(ctx);
-                None
-            }
+            ast::SimpleAssignmentTarget::ComputedMemberExpression(t) => t.compile(ctx),
             ast::SimpleAssignmentTarget::StaticMemberExpression(t) => Some(t.compile(ctx)),
             ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => {
                 t.compile(ctx);
@@ -332,17 +337,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     element
                 {
                     // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-                    let needs_pop_reference =
+                    let (identifier, needs_pop_reference) =
                         if let Some(binding) = element.binding.as_simple_assignment_target() {
-                            binding.compile(ctx);
+                            let identifier = binding.compile(ctx);
                             if element.init.is_literal() {
-                                false
+                                (identifier, false)
                             } else {
                                 ctx.add_instruction(Instruction::PushReference);
-                                true
+                                (identifier, true)
                             }
                         } else {
-                            false
+                            (None, false)
                         };
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
@@ -367,11 +372,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             ctx.add_instruction(Instruction::PopReference);
                         }
                         // 7. Return ? PutValue(lRef, v).
-                        ctx.add_instruction(Instruction::PutValue);
+                        compile_put_value(ctx, identifier);
                     }
                 } else if let Some(element) = element.as_simple_assignment_target() {
                     // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-                    element.compile(ctx);
+                    let identifier = element.compile(ctx);
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
                     // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -383,7 +388,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     // 5. Else,
                     // a. Let v be value.
                     // 7. Return ? PutValue(lRef, v).
-                    ctx.add_instruction(Instruction::PutValue);
+                    compile_put_value(ctx, identifier);
                 } else {
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
@@ -413,9 +418,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // 1. If DestructuringAssignmentTarget is neither an ObjectLiteral
             //    nor an ArrayLiteral, then
             // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-            if let Some(target) = rest.target.as_simple_assignment_target() {
-                target.compile(ctx);
-            }
+            let identifier = if let Some(target) = rest.target.as_simple_assignment_target() {
+                target.compile(ctx)
+            } else {
+                None
+            };
             ctx.add_instruction(Instruction::IteratorRestIntoArray);
             // 5. If DestructuringAssignmentTarget is neither an ObjectLiteral
             //    nor an ArrayLiteral, then
@@ -427,7 +434,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 target.compile(ctx);
             } else {
                 // a. Return ? PutValue(lRef, A).
-                ctx.add_instruction(Instruction::PutValue);
+                compile_put_value(ctx, identifier);
             }
         }
         // Note: An error during IteratorClose should not jump into
@@ -559,7 +566,7 @@ fn compile_assignment_target_property<'s>(
             let key = ctx.create_string(identifier.binding.name.as_str());
             ctx.add_instruction_with_identifier(
                 Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                key,
+                key.to_property_key(),
             );
             // result: None
             // stack: [source?]

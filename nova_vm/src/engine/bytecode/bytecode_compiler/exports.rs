@@ -57,7 +57,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 // b. Perform ? InitializeBoundName("*default*", value, env).
                 ctx.add_instruction_with_identifier(
                     Instruction::ResolveBinding,
-                    BUILTIN_STRING_MEMORY._default_,
+                    BUILTIN_STRING_MEMORY._default_.to_property_key(),
                 );
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 // 4. Return empty.
@@ -86,7 +86,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 // 4. Perform ? InitializeBoundName("*default*", value, env).
                 ctx.add_instruction_with_identifier(
                     Instruction::ResolveBinding,
-                    BUILTIN_STRING_MEMORY._default_,
+                    BUILTIN_STRING_MEMORY._default_.to_property_key(),
                 );
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 // 5. Return empty.
