@@ -407,7 +407,10 @@ pub(crate) fn instantiation<'s>(
             #[cfg(feature = "typescript")]
             LexicallyScopedDeclaration::TSEnum(decl) => {
                 let dn = ctx.create_string(&decl.id.name);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             }
         }
     }

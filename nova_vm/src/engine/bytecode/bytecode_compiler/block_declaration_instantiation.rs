@@ -105,7 +105,10 @@ pub fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::TSEnum(decl) => {
             let dn = ctx.create_string(&decl.id.name);
             // Create mutable binding for the enum
-            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                dn.to_property_key(),
+            );
         }
     }
 }

@@ -25,10 +25,7 @@ use crate::ecmascript::{
     types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
 };
 #[cfg(feature = "typescript")]
-use crate::{
-    ecmascript::builtins::ordinary::shape::ObjectShapeRecord, engine::context::Bindable,
-    heap::CreateHeapData,
-};
+use crate::{ecmascript::builtins::ordinary::shape::ObjectShapeRecord, heap::CreateHeapData};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_property_key_simple,
