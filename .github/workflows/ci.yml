@@ -39,7 +39,6 @@ jobs:
         with:
           shared-key: warm
       - name: Install Dylint
-        if: false
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-dylint,dylint-link
@@ -50,11 +49,9 @@ jobs:
           cargo +stable clippy --all-targets -- -D warnings
           cargo +nightly-2025-05-14 clippy --all-targets --all-features -- -D warnings
       - name: Dylint tests
-        if: false
         working-directory: nova_lint
         run: cargo test
       - name: Dylint
-        if: false
         run: cargo dylint --all
 
   build:
