@@ -3575,9 +3575,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
 
         // 1. Create the enum name binding
         let enum_name = self.id.name.as_str();
-        let enum_name_string = ctx.create_string(enum_name);
-        let enum_identifier = ctx.add_identifier(enum_name_string);
-        ctx.add_instruction_with_immediate(Instruction::ResolveBinding, enum_identifier);
+        let enum_identifier = ctx.create_string(enum_name);
+        ctx.add_instruction_with_identifier(
+            Instruction::ResolveBinding,
+            enum_identifier.to_property_key(),
+        );
 
         // 2. Analyze enum properties to determine if we can use ObjectCreateWithShape
         let mut current_numeric_value = 0f64;
