@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_list;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord;
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::{PromiseAllRecordHeapData, PromiseAllRecord};
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
 use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
 use crate::ecmascript::builtins::{create_builtin_function, Array, BuiltinFunctionArgs};
@@ -315,8 +315,11 @@ impl PromiseConstructor {
 
         let args: [Value<'gc>; 1] = [Value::Undefined; 1];
         let result_array = Array::from_slice(agent, &args, gc.nogc());
-        let promise_all_record =
-            PromiseAllRecord::new(agent, &result_capability.unbind(), 1, gc.nogc());
+        let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
+            promise_capability: &result_capability,
+            remaining_unresolved_promise_count: 1,
+            result_array,
+        });
 
         let promise_all_handler = PromiseReactionHandler::PromiseAll {
             index: 0,
