@@ -56,6 +56,7 @@ use crate::ecmascript::{
         ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         primitive_objects::PrimitiveObject,
         promise::Promise,
+        promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
         promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecordHeapData,
         promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         proxy::Proxy,
@@ -233,7 +234,7 @@ pub(crate) struct WorkQueues {
     pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub promise_finally_functions: Vec<BuiltinPromiseFinallyFunction<'static>>,
-    pub promise_all_records: Vec<PromiseAllRecordHeapData<'static>>,
+    pub promise_all_records: Vec<PromiseAllRecord<'static>>,
     pub proxys: Vec<Proxy<'static>>,
     pub realms: Vec<Realm<'static>>,
     #[cfg(feature = "regexp")]
