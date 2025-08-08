@@ -6,7 +6,8 @@ mod data;
 pub mod into_function;
 
 use super::{
-    InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey, String, Value,
+    CachedLookupResult, InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey,
+    String, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -20,6 +21,7 @@ use crate::{
         builtins::{
             ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             bound_function::BoundFunction,
+            ordinary::caches::{PropertyLookupCache, PropertyOffset},
             promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
@@ -36,7 +38,7 @@ use crate::{
 pub(crate) use data::*;
 pub use into_function::IntoFunction;
 pub(crate) use into_function::{
-    FunctionInternalProperties, function_create_backing_object,
+    FunctionInternalProperties, function_cached_lookup, function_create_backing_object,
     function_internal_define_own_property, function_internal_delete, function_internal_get,
     function_internal_get_own_property, function_internal_has_property,
     function_internal_own_property_keys, function_internal_set, function_try_get,
@@ -256,6 +258,48 @@ impl<'a> InternalSlots<'a> for Function<'a> {
         {
             // Create function base object with custom prototype
             todo!()
+        }
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        match self {
+            Function::BoundFunction(f) => f.cached_lookup(agent, p, cache, gc),
+            Function::BuiltinFunction(f) => f.cached_lookup(agent, p, cache, gc),
+            Function::ECMAScriptFunction(f) => f.cached_lookup(agent, p, cache, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(f) => f.cached_lookup(agent, p, cache, gc),
+            Function::BuiltinPromiseResolvingFunction(f) => f.cached_lookup(agent, p, cache, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn get_property_by_offset<'gc>(
+        self,
+        agent: &Agent,
+        cache: PropertyLookupCache,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        match self {
+            Function::BoundFunction(f) => f.get_property_by_offset(agent, cache, offset, gc),
+            Function::BuiltinFunction(f) => f.get_property_by_offset(agent, cache, offset, gc),
+            Function::ECMAScriptFunction(f) => f.get_property_by_offset(agent, cache, offset, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(f) => {
+                f.get_property_by_offset(agent, cache, offset, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(f) => {
+                f.get_property_by_offset(agent, cache, offset, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
 }

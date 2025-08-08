@@ -14,10 +14,10 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
-            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, Number,
-            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
-            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+            CachedLookupResult, FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
+            InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
+            NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive, PropertyDescriptor,
+            PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
             SYMBOL_DISCRIMINANT, String, Symbol, Value, bigint::HeapBigInt,
         },
     },
@@ -37,7 +37,8 @@ use crate::{
 use small_string::SmallString;
 
 use super::ordinary::{
-    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
+    caches::PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
+    ordinary_try_has_property_entry, ordinary_try_set, shape::ObjectShape,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -185,6 +186,18 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         );
     }
 
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.object_shape(agent)
+        } else {
+            agent[self]
+                .data
+                .into_primitive()
+                .object_shape(agent)
+                .unwrap()
+        }
+    }
+
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         match self.get_backing_object(agent) {
             Some(obj) => obj.internal_prototype(agent),
@@ -211,6 +224,23 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
                         .get_intrinsic_default_proto(intrinsic_default_proto),
                 )
             }
+        }
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        if let Ok(string) = String::try_from(agent[self].data)
+            && let Some(value) = string.get_property_value(agent, p)
+        {
+            CachedLookupResult::Found(value.bind(gc))
+        } else {
+            let shape = self.object_shape(agent);
+            shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
         }
     }
 }

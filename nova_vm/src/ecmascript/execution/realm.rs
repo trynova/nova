@@ -845,7 +845,11 @@ mod test {
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
         use crate::{
-            ecmascript::execution::{Agent, DefaultHostHooks, agent::Options},
+            ecmascript::{
+                builtins::BuiltinFunction,
+                execution::{Agent, DefaultHostHooks, agent::Options},
+                types::OrdinaryObject,
+            },
             heap::indexes::{BuiltinFunctionIndex, ObjectIndex},
         };
 
@@ -854,15 +858,12 @@ mod test {
         let gc = GcScope::new(&mut gc, &mut scope);
         initialize_default_realm(&mut agent, gc);
         assert_eq!(
-            agent.current_realm_record().intrinsics().object_index_base,
-            ObjectIndex::from_index(0)
+            agent.current_realm_record().intrinsics().object_prototype(),
+            OrdinaryObject::new(ObjectIndex::from_index(0))
         );
         assert_eq!(
-            agent
-                .current_realm_record()
-                .intrinsics()
-                .builtin_function_index_base,
-            BuiltinFunctionIndex::from_index(0)
+            agent.current_realm_record().intrinsics().object(),
+            BuiltinFunction(BuiltinFunctionIndex::from_index(0))
         );
         #[cfg(feature = "array-buffer")]
         assert!(agent.heap.array_buffers.is_empty());

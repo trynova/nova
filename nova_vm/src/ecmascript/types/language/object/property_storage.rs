@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-use super::{IntoObject, Object, OrdinaryObject, PropertyKey};
+use super::{InternalSlots, IntoObject, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
@@ -129,7 +129,7 @@ impl<'a> PropertyStorage<'a> {
         private_fields: NonNull<[PrivateField]>,
     ) -> Result<(), TryReserveError> {
         let original_len = object.len(agent);
-        let original_shape = object.get_shape(agent);
+        let original_shape = object.object_shape(agent);
         // SAFETY: User says so.
         let (new_shape, insertion_index) =
             unsafe { original_shape.add_private_fields(agent, private_fields) };
@@ -376,7 +376,7 @@ impl<'a> PropertyStorage<'a> {
             0
         };
         let new_len = cur_len.checked_add(1).unwrap();
-        let old_shape = object.get_shape(agent);
+        let old_shape = object.object_shape(agent);
         let new_shape = old_shape.get_child_shape(agent, key);
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
             + if element_descriptor.is_some() {
@@ -467,7 +467,7 @@ impl<'a> PropertyStorage<'a> {
                 }
             }
         }
-        let old_shape = object.get_shape(agent);
+        let old_shape = object.object_shape(agent);
         let new_shape = old_shape.get_shape_with_removal(agent, index);
         agent[object].set_len(new_len);
         if old_shape == new_shape {

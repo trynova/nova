@@ -2,14 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{marker::PhantomData, num::NonZeroU32, ops::Neg};
+use std::{marker::PhantomData, num::NonZeroU32};
 
 use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{InternalMethods, Object, PropertyKey},
+        types::{InternalMethods, Object, PropertyKey, Value},
     },
     engine::{
         TryResult,
@@ -37,7 +37,7 @@ pub(crate) struct Caches<'a> {
 
 #[derive(Debug)]
 pub(crate) struct CacheToPopulate<'a> {
-    pub(crate) receiver: Object<'a>,
+    pub(crate) receiver: Value<'a>,
     pub(crate) cache: PropertyLookupCache<'a>,
     pub(crate) key: PropertyKey<'a>,
     pub(crate) shape: ObjectShape<'a>,
@@ -88,7 +88,7 @@ impl<'a> Caches<'a> {
         };
         let cache = *cache;
         // Find our invalidated Object's prototypes. Any caches targeting these
-        // must be checked along with the NOT_FOUND caches.
+        // must be checked along with the UNSET caches.
         let mut prototype_chain = if let Some(proto) = shape.get_prototype(agent) {
             let mut protos = vec![proto];
             let mut proto = proto.try_get_prototype_of(agent, gc);
@@ -141,7 +141,7 @@ impl<'a> Caches<'a> {
                     affected_shapes.binary_search(s.as_ref()?).ok()?;
                     if
                     // ...it is cached as unfound, or
-                    offset.is_not_found() ||
+                    offset.is_unset() ||
                     // ...it is cached as matching a property in our
                     // prototype chain...
                     prototype_chain.binary_search(proto.as_ref()?).is_ok()
@@ -219,7 +219,7 @@ impl<'a> Caches<'a> {
                     .zip(prototypes.prototypes.iter_mut())
             })
             .filter(|((s, offset), proto)| {
-                !offset.is_not_found()
+                !offset.is_unset()
                     && (*s == &Some(shape)
                         && self_index.as_ref().is_some_and(|i| {
                             offset.get_property_offset() >= i.get_property_offset()
@@ -248,7 +248,7 @@ impl<'a> Caches<'a> {
                 // Property after the removed property; shift the offset's
                 // absolute value down by one.
                 assert_ne!(property_offset, 0);
-                offset.0 += if offset.0.is_negative() { 1 } else { -1 };
+                offset.0 -= 1;
             }
         }
     }
@@ -265,7 +265,7 @@ impl<'a> Caches<'a> {
     ///   the intrinsic object's old prototype chain must be invalidated.
     /// * If the new prototype is null, then all caches with a shape that uses
     ///   the intrinsic object as a prototype and have found any key in the
-    ///   intrinsic object's old prototype chain must change to NOT_FOUND.
+    ///   intrinsic object's old prototype chain must change to UNSET.
     pub(crate) fn invalidate_caches_on_intrinsic_shape_prototype_change(
         agent: &mut Agent,
         o: Object,
@@ -332,7 +332,7 @@ impl<'a> Caches<'a> {
                         if
                         // ...it is cached as unfound and our new prototype is
                         // non-null, or...
-                        offset.is_not_found() && new_prototype.is_some() ||
+                        offset.is_unset() && new_prototype.is_some() ||
                         // ...it is cached as matching a property in our
                         // prototype chain...
                         prototype_chain.binary_search(proto.as_ref()?).is_ok()
@@ -357,8 +357,8 @@ impl<'a> Caches<'a> {
                 *proto = None;
             } else {
                 // If we assigned a null prototype then all matched caches
-                // should turn to NOT_FOUND.
-                *offset = PropertyOffset::NOT_FOUND;
+                // should turn to UNSET.
+                *offset = PropertyOffset::UNSET;
                 *proto = None;
             }
         }
@@ -385,7 +385,7 @@ impl<'a> Caches<'a> {
 
     pub(crate) fn set_current_cache(
         &mut self,
-        receiver: Object,
+        receiver: Value,
         cache: PropertyLookupCache,
         key: PropertyKey,
         shape: ObjectShape,
@@ -440,7 +440,7 @@ impl Caches<'static> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub(crate) struct PropertyLookupCache<'a>(NonZeroU32, PhantomData<&'a GcToken>);
+pub struct PropertyLookupCache<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
 pub(crate) struct PropertyLookupCacheResult<'a> {
     cache: PropertyLookupCache<'a>,
@@ -478,30 +478,56 @@ impl<'a> PropertyLookupCache<'a> {
         self,
         agent: &Agent,
         shape: ObjectShape<'a>,
-    ) -> Option<(Option<u16>, Option<Object<'a>>)> {
+    ) -> Option<(PropertyOffset, Option<Object<'a>>)> {
         let caches = &agent.heap.caches;
         let record = &caches.property_lookup_caches[self.get_index()];
         if let Some((i, offset)) = record.find(shape) {
-            return Some(if offset.is_not_found() {
-                (None, None)
-            } else if offset.is_prototype_property() {
+            let prototype = if !offset.is_unset() && offset.is_prototype_property() {
                 let prototype = caches.property_lookup_cache_prototypes[self.get_index()]
                     .prototypes[i as usize]
                     .unwrap();
-                (Some(offset.get_property_offset()), Some(prototype))
+                Some(prototype)
             } else {
                 debug_assert!(
                     caches.property_lookup_cache_prototypes[self.get_index()].prototypes
                         [i as usize]
                         .is_none()
                 );
-                (Some(offset.get_property_offset()), None)
-            });
-        }
-        if let Some(next) = record.next {
+                None
+            };
+            Some((offset, prototype))
+        } else if let Some(next) = record.next {
             next.find(agent, shape)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn insert_unset(self, agent: &mut Agent, shape: ObjectShape<'a>) {
+        debug_assert!(self.find(agent, shape).is_none());
+        let offset = PropertyOffset::UNSET;
+        let caches = &mut agent.heap.caches;
+        let mut cache = self;
+        let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
+        loop {
+            let (record, _) = cache.get_mut(caches);
+            if record.insert(shape, offset).is_some() {
+                return;
+            }
+            if let Some(next) = record.next {
+                cache = next;
+                continue;
+            }
+            record.next = Some(next_to_create);
+            caches
+                .property_lookup_caches
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+            caches
+                .property_lookup_cache_prototypes
+                .push(PropertyLookupCacheRecordPrototypes::new());
+            let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
+            debug_assert_eq!(cache, next_to_create);
+            break;
         }
     }
 
@@ -717,19 +743,32 @@ unsafe impl Bindable for PropertyLookupCacheRecord<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub(crate) struct PropertyOffset(i16);
+pub struct PropertyOffset(u16);
 
 impl PropertyOffset {
-    /// Property lookup index indicating that the property was not found in the
-    /// Object Shape or its prototype chain.
-    const NOT_FOUND: Self = Self(i16::MIN);
+    /// Bit set if this property offset refers into the shape's prototype
+    /// chain.
+    const PROTOTYPE_BIT_MASK: u16 = 0x8000;
+    /// Bit set if this property is found in the target object or prototype's
+    /// custom property storage.
+    const CUSTOM_STORAGE_BIT_MASK: u16 = 0x4000;
+    const UNSET_BIT_MASK: u16 = 0x2000;
+    const OFFSET_BIT_MASK: u16 = 0x1FFF;
+    /// Property lookup index indicating that the property was not set in the
+    /// Object Shape or in its prototype chain.
+    const UNSET: Self = Self(0xFFFF);
 
     /// Create a new property lookup offset.
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
     pub(crate) fn new(offset: u32) -> Option<Self> {
-        Some(Self(i16::try_from(offset).ok()?))
+        let masked = offset & Self::OFFSET_BIT_MASK as u32;
+        if masked == offset {
+            Some(Self(masked as u16))
+        } else {
+            None
+        }
     }
 
     /// Create a new prototype property lookup offset.
@@ -737,37 +776,68 @@ impl PropertyOffset {
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
     pub(crate) fn new_prototype(offset: u32) -> Option<Self> {
-        let offset = i16::try_from(offset).ok()?.neg().checked_sub(1)?;
-        if offset == i16::MIN {
-            // This would mean NOT_FOUND, we cannot use it as a prototype
-            // offset.
-            return None;
+        let masked = offset & Self::OFFSET_BIT_MASK as u32;
+        if masked == offset {
+            Some(Self(masked as u16 | Self::PROTOTYPE_BIT_MASK))
+        } else {
+            None
         }
-        Some(Self(offset))
     }
 
-    /// Returns true if the property was not found on the Object with this
-    /// Object Shape.
+    /// Create a new property lookup offset for custom property storage.
+    ///
+    /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn is_not_found(self) -> bool {
-        self == Self::NOT_FOUND
+    pub(crate) fn new_custom(offset: u32) -> Option<Self> {
+        let masked = offset & Self::OFFSET_BIT_MASK as u32;
+        if masked == offset {
+            Some(Self(masked as u16 | Self::CUSTOM_STORAGE_BIT_MASK))
+        } else {
+            None
+        }
+    }
+
+    /// Create a new prototype property lookup offset for custom property
+    /// storage.
+    ///
+    /// Returns None if the offset is beyond supported limits.
+    #[inline(always)]
+    pub(crate) fn new_custom_prototype(offset: u32) -> Option<Self> {
+        let masked = offset & Self::OFFSET_BIT_MASK as u32;
+        if masked == offset {
+            Some(Self(
+                masked as u16 | Self::PROTOTYPE_BIT_MASK | Self::CUSTOM_STORAGE_BIT_MASK,
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Returns true if the property was not set on the Object with this
+    /// Object Shape or in its prototype chain.
+    #[inline(always)]
+    pub(crate) fn is_unset(self) -> bool {
+        (self.0 & Self::UNSET_BIT_MASK) > 0
     }
 
     /// Returns true if the property was found on the Object Shape's prototype.
     #[inline(always)]
     pub(crate) fn is_prototype_property(self) -> bool {
-        self.0.is_negative()
+        (self.0 & Self::PROTOTYPE_BIT_MASK) > 0
+    }
+
+    /// Returns true if the property was found in the target object or its
+    /// prototype's custom property storage.
+    #[inline(always)]
+    pub(crate) fn is_custom_property(self) -> bool {
+        (self.0 & Self::CUSTOM_STORAGE_BIT_MASK) > 0
     }
 
     /// Returns the offset that the property was found at.
     #[inline(always)]
     pub(crate) fn get_property_offset(self) -> u16 {
-        debug_assert!(!self.is_not_found());
-        if self.is_prototype_property() {
-            (self.0 + 1).unsigned_abs()
-        } else {
-            self.0 as u16
-        }
+        debug_assert!(!self.is_unset());
+        self.0 & Self::OFFSET_BIT_MASK
     }
 }
 

@@ -30,13 +30,14 @@ use crate::{
             evaluate_generator_body,
         },
         types::{
-            BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, ECMAScriptFunctionHeapData, Function,
             FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, function_try_get, function_try_has_property, function_try_set,
+            function_cached_lookup, function_create_backing_object,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -52,7 +53,10 @@ use crate::{
 
 use super::{
     ArgumentsList,
-    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+    ordinary::{
+        caches::PropertyLookupCache, ordinary_create_from_constructor,
+        ordinary_object_create_with_intrinsics,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -339,6 +343,16 @@ impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
             };
             Some(proto)
         }
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        function_cached_lookup(self, agent, p, cache, gc)
     }
 }
 

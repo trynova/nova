@@ -11,8 +11,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoObject,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -34,7 +34,8 @@ use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
 use super::ordinary::{
-    ordinary_get_own_property, ordinary_set, ordinary_try_get, ordinary_try_set,
+    caches::PropertyLookupCache, ordinary_get_own_property, ordinary_set, ordinary_try_get,
+    ordinary_try_set,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -171,6 +172,25 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
                 .is_none()
         );
     }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        // Regardless of the backing object, we might have a valid value
+        // for lastIndex.
+        if p == BUILTIN_STRING_MEMORY.lastIndex.into()
+            && let Some(last_index) = agent[self].last_index.get_value()
+        {
+            CachedLookupResult::Found(last_index.into())
+        } else {
+            let shape = self.object_shape(agent);
+            shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
+        }
+    }
 }
 
 impl<'a> InternalMethods<'a> for RegExp<'a> {
@@ -251,12 +271,12 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
-        if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
-            // Regardless of the backing object, we might have a valid value
-            // for lastIndex.
-            if let Some(last_index) = agent[self].last_index.get_value() {
-                return TryResult::Continue(last_index.into());
-            }
+        // Regardless of the backing object, we might have a valid value
+        // for lastIndex.
+        if property_key == BUILTIN_STRING_MEMORY.lastIndex.into()
+            && let Some(last_index) = agent[self].last_index.get_value()
+        {
+            return TryResult::Continue(last_index.into());
         }
         if let Some(backing_object) = self.get_backing_object(agent) {
             ordinary_try_get(

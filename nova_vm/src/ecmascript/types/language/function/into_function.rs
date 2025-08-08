@@ -8,13 +8,14 @@ use super::Function;
 use crate::{
     ecmascript::{
         builtins::ordinary::{
-            ordinary_define_own_property, ordinary_delete, ordinary_get_own_property,
-            ordinary_own_property_keys, ordinary_set, ordinary_try_get, ordinary_try_set,
+            caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete,
+            ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_get,
+            ordinary_try_set,
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoValue,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
         },
     },
     engine::{
@@ -83,6 +84,28 @@ pub(crate) fn function_create_backing_object<'a>(
         OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry]);
     func.set_backing_object(agent, backing_object);
     backing_object
+}
+
+pub(crate) fn function_cached_lookup<'a, 'gc>(
+    func: impl FunctionInternalProperties<'a>,
+    agent: &mut Agent,
+    p: PropertyKey,
+    cache: PropertyLookupCache,
+    gc: NoGcScope<'gc, '_>,
+) -> CachedLookupResult<'gc> {
+    let bo = func.get_backing_object(agent);
+    if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+        CachedLookupResult::Found(func.get_length(agent).into())
+    } else if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+        CachedLookupResult::Found(func.get_name(agent).into_value().bind(gc))
+    } else {
+        let shape = if let Some(bo) = bo {
+            bo.object_shape(agent)
+        } else {
+            func.object_shape(agent)
+        };
+        shape.cached_lookup(agent, p, cache, func, gc)
+    }
 }
 
 pub(crate) fn function_internal_get_own_property<'a, 'gc>(

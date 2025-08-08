@@ -19,11 +19,11 @@ mod value_vec;
 pub use bigint::{BigInt, BigIntHeapData};
 pub(crate) use function::{
     BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
-    ECMAScriptFunctionHeapData, FunctionInternalProperties, function_create_backing_object,
-    function_internal_define_own_property, function_internal_delete, function_internal_get,
-    function_internal_get_own_property, function_internal_has_property,
-    function_internal_own_property_keys, function_internal_set, function_try_get,
-    function_try_has_property, function_try_set,
+    ECMAScriptFunctionHeapData, FunctionInternalProperties, function_cached_lookup,
+    function_create_backing_object, function_internal_define_own_property,
+    function_internal_delete, function_internal_get, function_internal_get_own_property,
+    function_internal_has_property, function_internal_own_property_keys, function_internal_set,
+    function_try_get, function_try_has_property, function_try_set,
 };
 pub use function::{Function, IntoFunction};
 pub use into_numeric::IntoNumeric;
@@ -40,6 +40,7 @@ pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
 pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringHeapData};
 pub use symbol::{Symbol, SymbolHeapData};
+pub(crate) use value::CachedLookupResult;
 #[cfg(feature = "date")]
 pub(crate) use value::DATE_DISCRIMINANT;
 #[cfg(feature = "proposal-float16array")]

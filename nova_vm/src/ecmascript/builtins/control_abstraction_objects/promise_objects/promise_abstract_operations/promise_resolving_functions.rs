@@ -7,17 +7,18 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::{
-            ArgumentsList,
+            ArgumentsList, ordinary::caches::PropertyLookupCache,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, FunctionInternalProperties, InternalMethods, InternalSlots, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, function_try_get, function_try_has_property, function_try_set,
+            CachedLookupResult, Function, FunctionInternalProperties, InternalMethods,
+            InternalSlots, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            function_cached_lookup, function_create_backing_object,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -123,6 +124,16 @@ impl<'a> InternalSlots<'a> for BuiltinPromiseResolvingFunction<'a> {
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        function_cached_lookup(self, agent, p, cache, gc)
     }
 }
 

@@ -14,9 +14,10 @@ use crate::{
             Agent, ExecutionContext, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType,
         },
         types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator, String, Value,
+            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, CachedLookupResult, Function,
+            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            ScopedValuesIterator, String, Value, function_cached_lookup,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
@@ -34,6 +35,8 @@ use crate::{
         ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinFunctionIndex,
     },
 };
+
+use super::ordinary::caches::PropertyLookupCache;
 
 #[derive(Default)]
 #[repr(transparent)]
@@ -554,6 +557,16 @@ impl<'a> InternalSlots<'a> for BuiltinFunction<'a> {
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        function_cached_lookup(self, agent, p, cache, gc)
     }
 }
 

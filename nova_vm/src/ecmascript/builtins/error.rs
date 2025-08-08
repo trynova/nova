@@ -12,8 +12,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -29,7 +29,8 @@ use crate::{
 };
 
 use super::ordinary::{
-    ordinary_delete, ordinary_get_own_property, ordinary_set, ordinary_try_get, ordinary_try_set,
+    caches::PropertyLookupCache, ordinary_delete, ordinary_get_own_property, ordinary_set,
+    ordinary_try_get, ordinary_try_set,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -158,7 +159,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                 ExceptionType::ReferenceError => ProtoIntrinsics::ReferenceError,
                 ExceptionType::SyntaxError => ProtoIntrinsics::SyntaxError,
                 ExceptionType::TypeError => ProtoIntrinsics::TypeError,
-                ExceptionType::UriError => ProtoIntrinsics::UriError,
+                ExceptionType::UriError => ProtoIntrinsics::URIError,
             };
             Some(
                 agent
@@ -166,6 +167,34 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                     .intrinsics()
                     .get_intrinsic_default_proto(intrinsic),
             )
+        }
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        let bo = self.get_backing_object(agent);
+        if bo.is_none()
+            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && let Some(message) = agent[self].message
+        {
+            CachedLookupResult::Found(message.into_value().bind(gc))
+        } else if bo.is_none()
+            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+            && let Some(message) = agent[self].cause
+        {
+            CachedLookupResult::Found(message.into_value().bind(gc))
+        } else {
+            let shape = if let Some(bo) = bo {
+                bo.object_shape(agent)
+            } else {
+                self.object_shape(agent)
+            };
+            shape.cached_lookup(agent, p, cache, self, gc)
         }
     }
 }

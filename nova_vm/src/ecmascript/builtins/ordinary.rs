@@ -14,8 +14,11 @@ use std::{
 use caches::{CacheToPopulate, Caches};
 
 use crate::{
-    ecmascript::abstract_operations::operations_on_objects::{
-        try_create_data_property, try_get, try_get_function_realm,
+    ecmascript::{
+        abstract_operations::operations_on_objects::{
+            try_create_data_property, try_get, try_get_function_realm,
+        },
+        types::IntoValue,
     },
     engine::{
         Scoped, TryResult,
@@ -185,7 +188,9 @@ pub(crate) fn ordinary_set_prototype_of(
     }
 
     // 8. Set O.[[Prototype]] to V.
-    let old_shape = object.get_backing_object(agent).map(|o| o.get_shape(agent));
+    let old_shape = object
+        .get_backing_object(agent)
+        .map(|o| o.object_shape(agent));
     object.internal_set_prototype(agent, prototype);
 
     if let Some(shape) = old_shape
@@ -238,7 +243,7 @@ pub(crate) fn ordinary_get_own_property<'a>(
         .caches
         .take_current_cache_to_populate(property_key)
     {
-        let is_receiver = Some(backing_object) == receiver.get_backing_object(agent);
+        let is_receiver = object.into_value() == receiver;
         if is_receiver {
             cache.insert_lookup_offset(agent, shape, offset);
         } else {
@@ -641,7 +646,7 @@ pub(crate) fn ordinary_has_property<'a>(
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
 
     let has_own = object
-        .get_shape(agent)
+        .object_shape(agent)
         .keys(&agent.heap.object_shapes, &agent.heap.elements)
         .contains(&property_key);
 
@@ -718,6 +723,18 @@ pub(crate) fn ordinary_try_get<'gc>(
 
         // b. If parent is null, return undefined.
         let Some(parent) = parent else {
+            if let Some(CacheToPopulate {
+                receiver: _,
+                cache,
+                key: _,
+                shape,
+            }) = agent
+                .heap
+                .caches
+                .take_current_cache_to_populate(property_key)
+            {
+                cache.insert_unset(agent, shape);
+            }
             return TryResult::Continue(Value::Undefined);
         };
         // c. Return ? parent.[[Get]](P, Receiver).
@@ -963,9 +980,6 @@ fn ordinary_try_set_with_own_descriptor(
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
-            let result = unwrap_try(receiver.try_get_own_property(agent, property_key, gc));
-            debug_assert!(result.is_none());
-
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             // Again: Receiver could be a Proxy.
             return try_create_data_property(agent, receiver, property_key, value, gc);
@@ -1345,7 +1359,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
             .into_object(),
-        ProtoIntrinsics::UriError => agent
+        ProtoIntrinsics::URIError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::UriError, None, None))
             .into_object(),
@@ -1626,7 +1640,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             ProtoIntrinsics::Uint8ClampedArray => {
                 Some(intrinsics.uint8_clamped_array().into_function())
             }
-            ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
+            ProtoIntrinsics::URIError => Some(intrinsics.uri_error().into_function()),
             #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
             #[cfg(feature = "weak-refs")]

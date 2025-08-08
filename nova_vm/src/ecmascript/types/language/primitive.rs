@@ -6,6 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     SmallInteger,
+    ecmascript::{builtins::ordinary::caches::PropertyLookupCache, execution::Agent},
     engine::{
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -15,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    IntoValue, Symbol, Value,
+    CachedLookupResult, IntoValue, PropertyKey, String, Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -161,6 +162,31 @@ impl Primitive<'_> {
 
     pub fn is_undefined(self) -> bool {
         matches!(self, Self::Undefined)
+    }
+
+    pub(crate) fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        match self {
+            Primitive::Undefined | Primitive::Null => CachedLookupResult::NoCache,
+            Primitive::Boolean(_)
+            | Primitive::Symbol(_)
+            | Primitive::Number(_)
+            | Primitive::Integer(_)
+            | Primitive::SmallF64(_)
+            | Primitive::BigInt(_)
+            | Primitive::SmallBigInt(_) => self
+                .object_shape(agent)
+                .unwrap()
+                .cached_primitive_lookup(agent, p, cache, self.into_value(), gc),
+            Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
+                .unwrap()
+                .cached_lookup(agent, p, cache, gc),
+        }
     }
 }
 

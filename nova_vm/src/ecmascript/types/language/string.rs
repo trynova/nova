@@ -12,12 +12,15 @@ use core::{
 use std::borrow::Cow;
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, Value,
+    CachedLookupResult, IntoPrimitive, IntoValue, Primitive, PropertyKey,
+    SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value,
 };
 use crate::{
     SmallInteger, SmallString,
-    ecmascript::{execution::Agent, types::PropertyDescriptor},
+    ecmascript::{
+        builtins::ordinary::caches::PropertyLookupCache, execution::Agent,
+        types::PropertyDescriptor,
+    },
     engine::{
         Scoped,
         context::{Bindable, NoGcScope},
@@ -648,6 +651,21 @@ impl<'a> String<'a> {
             }
         } else {
             None
+        }
+    }
+
+    pub(crate) fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        if let Some(v) = self.get_property_value(agent, p) {
+            CachedLookupResult::Found(v.bind(gc))
+        } else {
+            self.object_shape(agent)
+                .cached_primitive_lookup(agent, p, cache, self.into_value(), gc)
         }
     }
 }

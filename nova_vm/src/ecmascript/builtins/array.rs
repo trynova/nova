@@ -20,12 +20,13 @@ use crate::{
         },
         builtins::{
             array::abstract_operations::{array_set_length, array_try_set_length},
-            ordinary::ordinary_define_own_property,
+            ordinary::{caches::Caches, ordinary_define_own_property},
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, Function, InternalMethods, InternalSlots,
+            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     engine::{
@@ -48,8 +49,8 @@ use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
 use super::ordinary::{
-    ordinary_delete, ordinary_get, ordinary_get_own_property, ordinary_has_property,
-    ordinary_try_get, ordinary_try_has_property,
+    caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
+    ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -359,6 +360,49 @@ impl<'a> InternalSlots<'a> for Array<'a> {
                 .internal_set_prototype(agent, prototype);
         }
     }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        // Cached lookup of an Array should return directly from the Array's
+        // internal memory if it can.
+        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
+            // Length lookup: we find it always.
+            return CachedLookupResult::Found(self.len(agent).into_value());
+        } else if let Some(index) = p.into_u32() {
+            // Indexed lookup: check our slice.
+            if let Some(value) = self.as_slice(agent).get(index as usize) {
+                // Found a slot in the slice, check if it contains a Value.
+                if let Some(value) = value {
+                    // Slot contained value, return it.
+                    return CachedLookupResult::Found(value.bind(gc));
+                }
+                // Slot did not contain a value; this is either a hole or an
+                // accessor property.
+                let ElementStorageRef { descriptors, .. } = self.get_storage(agent);
+                if let Some(desc) = descriptors.and_then(|d| d.get(&index)) {
+                    // This was an accessor property; if it has a getter,
+                    // return that. Otherwise, return undefined.
+                    debug_assert!(desc.is_accessor_descriptor());
+                    if let Some(getter) = desc.getter_function(gc) {
+                        return CachedLookupResult::FoundGetter(getter.bind(gc));
+                    } else {
+                        return CachedLookupResult::Found(Value::Undefined);
+                    }
+                }
+                // This was a hole, continue into the prototype chain.
+            }
+        }
+        // If this was an over-indexing, a hole, or a named property on the
+        // Array then we want to perform a normal cached lookup with the
+        // Array's shape.
+        let shape = self.object_shape(agent);
+        shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
+    }
 }
 
 impl<'a> InternalMethods<'a> for Array<'a> {
@@ -478,13 +522,28 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
                 // This should've already been handled by the push.
-                debug_assert_eq!(agent[self].elements.len(), index + 1);
+                debug_assert_eq!(array_heap_data.elements.len(), index + 1);
+                if let Some(shape) = array_heap_data.object_index.map(|o| o.object_shape(agent))
+                    && shape.is_intrinsic(agent)
+                {
+                    // We set a value on an intrinsic object, we have to
+                    // invalidate caches.
+                    Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+                        agent,
+                        self.into_object(),
+                        shape,
+                        index.into(),
+                        u32::MAX,
+                        gc,
+                    );
+                }
                 // iii. Assert: succeeded is true.
                 TryResult::Continue(true)
             } else {
                 // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
                 TryResult::Continue(ordinary_define_own_property_for_array(
                     agent,
+                    self,
                     elements,
                     index,
                     property_descriptor,
@@ -930,8 +989,30 @@ impl HeapSweepWeakReference for Array<'static> {
     }
 }
 
+/// Helper to invalidate property lookup caches associated with an index when
+/// an intrinsic Array is mutated.
+fn invalidate_array_index_caches(agent: &mut Agent, array: Array, index: u32, gc: NoGcScope) {
+    if let Some(shape) = array
+        .get_backing_object(agent)
+        .map(|o| o.object_shape(agent))
+        && shape.is_intrinsic(agent)
+    {
+        // We set a value on an intrinsic object, we have to
+        // invalidate caches.
+        Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+            agent,
+            array.into_object(),
+            shape,
+            index.into(),
+            u32::MAX,
+            gc,
+        );
+    }
+}
+
 fn ordinary_define_own_property_for_array(
     agent: &mut Agent,
+    array: Array,
     elements: ElementsVector,
     index: u32,
     descriptor: PropertyDescriptor,
@@ -970,6 +1051,7 @@ fn ordinary_define_own_property_for_array(
             //    value otherwise.
             let elem_descriptor = ElementDescriptor::from_accessor_descriptor(descriptor);
             insert_element_descriptor(agent, &elements, index, None, elem_descriptor);
+            invalidate_array_index_caches(agent, array, index, gc);
         }
         // d. Else,
         else {
@@ -984,6 +1066,7 @@ fn ordinary_define_own_property_for_array(
                 Some(descriptor_value.unwrap_or(Value::Undefined)),
                 ElementDescriptor::from_data_descriptor(descriptor),
             );
+            invalidate_array_index_caches(agent, array, index, gc);
         }
 
         // e. Return true.
@@ -1084,6 +1167,7 @@ fn ordinary_define_own_property_for_array(
             configurable,
         );
         insert_element_descriptor(agent, &elements, index, None, elem_descriptor);
+        invalidate_array_index_caches(agent, array, index, gc);
     }
     // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
     else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {

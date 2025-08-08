@@ -2,8 +2,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IntoObject, Object, OrdinaryObject};
-use crate::ecmascript::execution::{Agent, ProtoIntrinsics};
+use super::{IntoObject, Object, OrdinaryObject, PropertyKey};
+use crate::{
+    ecmascript::{
+        builtins::ordinary::{
+            caches::{PropertyLookupCache, PropertyOffset},
+            shape::ObjectShape,
+        },
+        execution::{Agent, ProtoIntrinsics},
+        types::CachedLookupResult,
+    },
+    engine::context::NoGcScope,
+};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>
@@ -42,11 +52,26 @@ where
         backing_object
     }
 
-    /// Helper method that gets an existing backing object or creates it if not
-    /// yet created.
-    fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
-        self.get_backing_object(agent)
-            .unwrap_or_else(|| self.create_backing_object(agent))
+    /// ### \[\[ObjectShape]]
+    ///
+    /// This is a custom "internal slot" which defines how to find the generic
+    /// object shape of an item. For an ordinary object the object data itself
+    /// contains the shape. For exotic objects if a backing object exists, the
+    /// Object Shape is held in it. If a backing object does not exist, the
+    /// shape must be statically knowable.
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.object_shape(agent)
+        } else if let Some(shape) = agent
+            .current_realm_record()
+            .intrinsics()
+            .get_intrinsic_object_shape(Self::DEFAULT_PROTOTYPE)
+        {
+            shape
+        } else {
+            let prototype = self.internal_prototype(agent);
+            ObjectShape::get_shape_for_prototype(agent, prototype)
+        }
     }
 
     /// #### \[\[Extensible\]\]
@@ -97,6 +122,50 @@ where
         } else if prototype != self.internal_prototype(agent) {
             self.create_backing_object(agent)
                 .internal_set_prototype(agent, prototype)
+        }
+    }
+
+    /// Helper method that gets an existing backing object or creates it if not
+    /// yet created.
+    ///
+    /// > NOTE: Do not implement this manually; it is derived for you.
+    fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
+        self.get_backing_object(agent)
+            .unwrap_or_else(|| self.create_backing_object(agent))
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        let shape = self.object_shape(agent);
+        shape.cached_lookup(agent, p, cache, self, gc)
+    }
+
+    /// Get a property value by offset from an object.
+    fn get_property_by_offset<'gc>(
+        self,
+        agent: &Agent,
+        cache: PropertyLookupCache,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        if offset.is_custom_property() {
+            // We don't yet cache any of these accesses.
+            todo!(
+                "{} needs to implement custom property caching manually",
+                core::any::type_name::<Self>()
+            )
+        } else {
+            // It should be impossible for us to not have a backing store.
+            self.get_backing_object(agent)
+                .unwrap()
+                .get_property_by_offset(agent, cache, offset, gc)
         }
     }
 }

@@ -14,8 +14,9 @@ use std::ops::Deref;
 
 pub(crate) use self::heap_constants::{
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicPrimitiveObjectIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX, WellKnownSymbolIndexes,
-    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
+    IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
+    WellKnownSymbolIndexes, intrinsic_function_count, intrinsic_object_count,
+    intrinsic_primitive_object_count,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{

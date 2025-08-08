@@ -11,7 +11,7 @@ use crate::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, CachedLookupResult,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
             INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
             IntoObject, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
@@ -45,9 +45,10 @@ use super::{
         typed_array_get_element_generic, typed_array_length, typed_array_set_element_generic,
     },
     ordinary::{
-        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
-        ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
-        ordinary_try_has_property_entry, ordinary_try_set,
+        caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete, ordinary_get,
+        ordinary_get_own_property, ordinary_has_property_entry, ordinary_prevent_extensions,
+        ordinary_set, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
+        shape::ObjectShape,
     },
 };
 
@@ -346,6 +347,15 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
         );
     }
 
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.object_shape(agent)
+        } else {
+            let prototype = self.internal_prototype(agent);
+            ObjectShape::get_shape_for_prototype(agent, prototype)
+        }
+    }
+
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_prototype(agent)
@@ -367,6 +377,27 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
                 TypedArray::Float64Array(_) => intrinsics.float64_array_prototype(),
             };
             Some(default_proto.into_object())
+        }
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        mut p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        // Note: we mutate P but only if it turns into a valid integer, in
+        // which case we never enter the cached_lookup path anyway.
+        ta_canonical_numeric_index_string(agent, &mut p, gc);
+        if let PropertyKey::Integer(numeric_index) = p {
+            // i. Return TypedArrayGetElement(O, numericIndex).
+            let numeric_index = numeric_index.into_i64();
+            let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
+            CachedLookupResult::Found(result.map_or(Value::Undefined, |r| r.into_value()))
+        } else {
+            let shape = self.object_shape(agent);
+            shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
         }
     }
 }

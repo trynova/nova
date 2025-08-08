@@ -22,8 +22,8 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, Function, InternalMethods, InternalSlots,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -38,7 +38,11 @@ use crate::{
     },
 };
 
-use super::ordinary::is_compatible_property_descriptor;
+use super::ordinary::{
+    caches::{PropertyLookupCache, PropertyOffset},
+    is_compatible_property_descriptor,
+    shape::ObjectShape,
+};
 
 pub(crate) mod abstract_operations;
 pub mod data;
@@ -102,32 +106,65 @@ impl<'a> From<Proxy<'a>> for Object<'a> {
 
 impl<'a> InternalSlots<'a> for Proxy<'a> {
     #[inline(always)]
-    fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject<'static>> {
         unreachable!()
     }
 
-    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
+    #[inline(always)]
+    fn set_backing_object(self, _: &mut Agent, _: OrdinaryObject<'static>) {
         unreachable!()
     }
 
-    fn create_backing_object(self, _agent: &mut Agent) -> OrdinaryObject<'static> {
+    #[inline(always)]
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!()
     }
 
-    fn internal_extensible(self, _agent: &Agent) -> bool {
+    #[inline(always)]
+    fn internal_extensible(self, _: &Agent) -> bool {
         unreachable!();
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
+    #[inline(always)]
+    fn internal_set_extensible(self, _: &mut Agent, _: bool) {
         unreachable!();
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
+    #[inline(always)]
+    fn internal_prototype(self, _: &Agent) -> Option<Object<'static>> {
         unreachable!();
     }
 
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+    #[inline(always)]
+    fn internal_set_prototype(self, _: &mut Agent, _prototype: Option<Object>) {
         unreachable!();
+    }
+
+    #[inline(always)]
+    fn object_shape(self, _: &mut Agent) -> ObjectShape<'static> {
+        unreachable!()
+    }
+
+    #[inline(always)]
+    fn cached_lookup<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        CachedLookupResult::FoundProxy(self.bind(gc))
+    }
+
+    #[inline(always)]
+    fn get_property_by_offset<'gc>(
+        self,
+        _: &Agent,
+        _: PropertyLookupCache,
+        _: PropertyOffset,
+        _: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        unreachable!()
     }
 }
 

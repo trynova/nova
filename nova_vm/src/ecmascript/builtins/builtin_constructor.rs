@@ -17,13 +17,14 @@ use crate::{
             base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
-            BUILTIN_STRING_MEMORY, BuiltinConstructorHeapData, Function,
+            BUILTIN_STRING_MEMORY, BuiltinConstructorHeapData, CachedLookupResult, Function,
             FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, function_try_get, function_try_has_property, function_try_set,
+            function_cached_lookup, function_create_backing_object,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -37,7 +38,7 @@ use crate::{
     },
 };
 
-use super::ArgumentsList;
+use super::{ArgumentsList, ordinary::caches::PropertyLookupCache};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
@@ -186,6 +187,16 @@ impl<'a> InternalSlots<'a> for BuiltinConstructorFunction<'a> {
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        function_cached_lookup(self, agent, p, cache, gc)
     }
 }
 

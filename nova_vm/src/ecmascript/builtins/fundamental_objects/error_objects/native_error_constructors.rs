@@ -118,7 +118,7 @@ impl NativeErrorConstructors {
             ExceptionType::ReferenceError => ProtoIntrinsics::ReferenceError,
             ExceptionType::SyntaxError => ProtoIntrinsics::SyntaxError,
             ExceptionType::TypeError => ProtoIntrinsics::TypeError,
-            ExceptionType::UriError => ProtoIntrinsics::UriError,
+            ExceptionType::UriError => ProtoIntrinsics::URIError,
         };
 
         let new_target = new_target.unwrap_or_else(|| {

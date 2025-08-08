@@ -12,13 +12,13 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
-            InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value, function_create_backing_object,
-            function_internal_define_own_property, function_internal_delete, function_internal_get,
-            function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_try_get,
-            function_try_has_property, function_try_set,
+            BoundFunctionHeapData, CachedLookupResult, Function, FunctionInternalProperties,
+            InternalMethods, InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, function_cached_lookup,
+            function_create_backing_object, function_internal_define_own_property,
+            function_internal_delete, function_internal_get, function_internal_get_own_property,
+            function_internal_has_property, function_internal_own_property_keys,
+            function_internal_set, function_try_get, function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -33,7 +33,7 @@ use crate::{
     },
 };
 
-use super::ArgumentsList;
+use super::{ArgumentsList, ordinary::caches::PropertyLookupCache};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -178,6 +178,16 @@ impl<'a> InternalSlots<'a> for BoundFunction<'a> {
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
+    }
+
+    fn cached_lookup<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        function_cached_lookup(self, agent, p, cache, gc)
     }
 }
 

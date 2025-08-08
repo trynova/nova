@@ -16,8 +16,8 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoValue,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -33,6 +33,11 @@ use crate::{
 };
 
 use self::data::ModuleHeapData;
+
+use super::ordinary::{
+    caches::{PropertyLookupCache, PropertyOffset},
+    shape::ObjectShape,
+};
 
 pub mod data;
 
@@ -163,6 +168,33 @@ impl<'a> InternalSlots<'a> for Module<'a> {
 
     #[inline(always)]
     fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+        unreachable!()
+    }
+
+    #[inline(always)]
+    fn object_shape(self, _: &mut Agent) -> ObjectShape<'static> {
+        unreachable!()
+    }
+
+    #[inline(always)]
+    fn cached_lookup<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyLookupCache,
+        _: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
+        CachedLookupResult::NoCache
+    }
+
+    #[inline(always)]
+    fn get_property_by_offset<'gc>(
+        self,
+        _: &Agent,
+        _: PropertyLookupCache,
+        _: PropertyOffset,
+        _: NoGcScope<'gc, '_>,
+    ) -> CachedLookupResult<'gc> {
         unreachable!()
     }
 }

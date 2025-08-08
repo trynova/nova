@@ -49,13 +49,13 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, String, Value,
-            get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
-            throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
-            try_put_value,
+            BUILTIN_STRING_MEMORY, BigInt, CachedLookupResult, Function, InternalMethods,
+            InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
+            OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
+            String, Value, get_this_value, get_value, initialize_referenced_binding,
+            is_private_reference, is_property_reference, is_super_reference,
+            is_unresolvable_reference, put_value, throw_read_undefined_or_null_error,
+            try_get_value, try_initialize_referenced_binding, try_put_value,
         },
     },
     engine::{
@@ -1031,64 +1031,64 @@ impl Vm {
                 )?;
             }
             Instruction::PutValueWithCache => {
-                let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+                let _cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
                 let value = vm.result.take().unwrap();
                 let reference = vm.reference.take().unwrap();
                 assert!(reference.is_static_property_reference());
 
-                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
-                    && !object.is_proxy()
-                    && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
-                {
-                    let shape = backing_object.get_shape(agent);
-                    if let Some((offset, prototype)) = cache.find(agent, shape) {
-                        if let Some(offset) = offset {
-                            if prototype.is_none() {
-                                set_value_by_offset(
-                                    agent,
-                                    vm,
-                                    (object.unbind(), backing_object.unbind()),
-                                    offset,
-                                    value.unbind(),
-                                    reference.strict(),
-                                    gc,
-                                )?;
-                                return Ok(ContinuationKind::Normal);
-                            }
-                        } else {
-                            with_vm_gc(
-                                agent,
-                                vm,
-                                |agent, gc| {
-                                    object.internal_define_own_property(
-                                        agent,
-                                        reference.referenced_name_property_key(),
-                                        PropertyDescriptor::new_data_descriptor(value),
-                                        gc,
-                                    )
-                                },
-                                gc,
-                            )?;
-                            return Ok(ContinuationKind::Normal);
-                        }
-                        false
-                    } else {
-                        agent.heap.caches.set_current_cache(
-                            object,
-                            cache,
-                            reference.referenced_name_property_key(),
-                            shape,
-                        );
-                        true
-                    }
-                } else {
-                    false
-                };
+                // let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
+                //     && !object.is_proxy()
+                //     && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
+                // {
+                //     let shape = backing_object.get_shape(agent);
+                //     if let Some((offset, prototype)) = cache.find(agent, shape) {
+                //         if let Some(offset) = offset {
+                //             if prototype.is_none() {
+                //                 set_value_by_offset(
+                //                     agent,
+                //                     vm,
+                //                     (object.unbind(), backing_object.unbind()),
+                //                     offset,
+                //                     value.unbind(),
+                //                     reference.strict(),
+                //                     gc,
+                //                 )?;
+                //                 return Ok(ContinuationKind::Normal);
+                //             }
+                //         } else {
+                //             with_vm_gc(
+                //                 agent,
+                //                 vm,
+                //                 |agent, gc| {
+                //                     object.internal_define_own_property(
+                //                         agent,
+                //                         reference.referenced_name_property_key(),
+                //                         PropertyDescriptor::new_data_descriptor(value),
+                //                         gc,
+                //                     )
+                //                 },
+                //                 gc,
+                //             )?;
+                //             return Ok(ContinuationKind::Normal);
+                //         }
+                //         false
+                //     } else {
+                //         agent.heap.caches.set_current_cache(
+                //             object,
+                //             cache,
+                //             reference.referenced_name_property_key(),
+                //             shape,
+                //         );
+                //         true
+                //     }
+                // } else {
+                //     false
+                // };
 
                 let result = try_put_value(agent, &reference, value, gc.nogc());
-                if set_current_cache {
-                    agent.heap.caches.clear_current_cache_to_populate();
-                }
+                // if set_current_cache {
+                //     agent.heap.caches.clear_current_cache_to_populate();
+                // }
 
                 if let TryResult::Continue(result) = result {
                     result.unbind()?;
@@ -1102,73 +1102,7 @@ impl Vm {
                 }
             }
             Instruction::GetValueWithCache => {
-                let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-                // 1. If V is not a Reference Record, return V.
-                let reference = vm.reference.take().unwrap().bind(gc.nogc());
-
-                assert!(reference.is_static_property_reference());
-
-                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
-                    && !object.is_proxy()
-                    && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
-                {
-                    let shape = backing_object.get_shape(agent);
-                    if let Some((offset, prototype)) = cache.find(agent, shape) {
-                        let Some(offset) = offset else {
-                            vm.result = Some(Value::Undefined);
-                            return Ok(ContinuationKind::Normal);
-                        };
-                        if let Some(prototype) = prototype {
-                            let prototype_backing_object =
-                                prototype.get_backing_object(agent).unwrap();
-                            get_value_by_offset(
-                                agent,
-                                vm,
-                                prototype_backing_object,
-                                object.unbind(),
-                                offset,
-                                gc,
-                            )?;
-                        } else {
-                            get_value_by_offset(
-                                agent,
-                                vm,
-                                backing_object.unbind(),
-                                object.unbind(),
-                                offset,
-                                gc,
-                            )?;
-                        }
-                        return Ok(ContinuationKind::Normal);
-                    }
-
-                    agent.heap.caches.set_current_cache(
-                        object,
-                        cache,
-                        reference.referenced_name_property_key(),
-                        shape,
-                    );
-                    true
-                } else {
-                    false
-                };
-
-                let result = if let TryResult::Continue(result) =
-                    try_get_value(agent, &reference, gc.nogc())
-                {
-                    if set_current_cache {
-                        agent.heap.caches.clear_current_cache_to_populate();
-                    }
-                    result.unbind()
-                } else {
-                    if set_current_cache {
-                        agent.heap.caches.clear_current_cache_to_populate();
-                    }
-                    let reference = reference.unbind();
-                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc).unbind()
-                };
-
-                vm.result = Some(result?);
+                get_value_with_cache(agent, vm, executable, instr, false, gc)?;
             }
             Instruction::GetValue => {
                 // 1. If V is not a Reference Record, return V.
@@ -1238,73 +1172,7 @@ impl Vm {
                 vm.result = Some(result.unbind());
             }
             Instruction::GetValueWithCacheKeepReference => {
-                let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-                // 1. If V is not a Reference Record, return V.
-                let reference = vm.reference.as_ref().unwrap();
-
-                assert!(reference.is_static_property_reference());
-
-                let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
-                    && !object.is_proxy()
-                    && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
-                {
-                    let shape = backing_object.get_shape(agent);
-                    if let Some((offset, prototype)) = cache.find(agent, shape) {
-                        let Some(offset) = offset else {
-                            vm.result = Some(Value::Undefined);
-                            return Ok(ContinuationKind::Normal);
-                        };
-                        if let Some(prototype) = prototype {
-                            let prototype_backing_object =
-                                prototype.get_backing_object(agent).unwrap();
-                            get_value_by_offset(
-                                agent,
-                                vm,
-                                prototype_backing_object,
-                                object.unbind(),
-                                offset,
-                                gc,
-                            )?;
-                        } else {
-                            get_value_by_offset(
-                                agent,
-                                vm,
-                                backing_object.unbind(),
-                                object.unbind(),
-                                offset,
-                                gc,
-                            )?;
-                        }
-                        return Ok(ContinuationKind::Normal);
-                    }
-
-                    agent.heap.caches.set_current_cache(
-                        object,
-                        cache,
-                        reference.referenced_name_property_key(),
-                        shape,
-                    );
-                    true
-                } else {
-                    false
-                };
-
-                let result = if let TryResult::Continue(result) =
-                    try_get_value(agent, reference, gc.nogc())
-                {
-                    if set_current_cache {
-                        agent.heap.caches.clear_current_cache_to_populate();
-                    }
-                    result.unbind()?.bind(gc.into_nogc())
-                } else {
-                    if set_current_cache {
-                        agent.heap.caches.clear_current_cache_to_populate();
-                    }
-                    let reference = reference.clone();
-                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
-                };
-
-                vm.result = Some(result.unbind());
+                get_value_with_cache(agent, vm, executable, instr, true, gc)?;
             }
             Instruction::Typeof => {
                 // 2. If val is a Reference Record, then
@@ -4020,38 +3888,6 @@ fn delete_evaluation<'a>(
     // choose to avoid the actual creation of that object.
 }
 
-fn get_value_by_offset<'a>(
-    agent: &mut Agent,
-    vm: &mut Vm,
-    backing_object: OrdinaryObject,
-    object: Object,
-    offset: u16,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    let backing_object = backing_object.bind(gc.nogc());
-    let object = object.bind(gc.nogc());
-
-    // SAFETY: I'm pretty sure this is okay.
-    match unsafe { backing_object.try_get_property_by_offset(agent, offset, gc.nogc()) } {
-        ControlFlow::Continue(result) => {
-            vm.result = Some(result.unbind());
-        }
-        ControlFlow::Break(getter) => {
-            let object = object.unbind();
-            let getter = getter.unbind();
-            let result = with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| call_function(agent, getter.unbind(), object.into_value(), None, gc),
-                gc,
-            )
-            .unbind()?;
-            vm.result = Some(result);
-        }
-    }
-    Ok(())
-}
-
 fn set_value_by_offset<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
@@ -4100,4 +3936,90 @@ fn set_value_by_offset<'a>(
             )
         }
     }
+}
+
+fn get_value_with_cache<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    executable: Scoped<Executable>,
+    instr: &Instr,
+    keep_reference: bool,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
+    // 1. If V is not a Reference Record, return V.
+    let reference = if keep_reference {
+        vm.reference.as_ref().unwrap().clone().bind(gc.nogc())
+    } else {
+        vm.reference.take().unwrap().bind(gc.nogc())
+    };
+
+    assert!(reference.is_static_property_reference());
+
+    if is_super_reference(&reference) {
+        // TODO: super references have class prototype as base_value and target
+        // object as this_value; they call [[Get]] method of base_value with
+        // this_value as the Receiver parameter. This can lead to fun hijinks.
+        // Usually it's intended to call the base_value property getter method
+        // with the this_value as `this`.
+    } else {
+        // O[[Get]](P, O)
+        let o = reference.base_value().bind(gc.nogc());
+        let p = reference.referenced_name_property_key().bind(gc.nogc());
+        let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+        match o.cached_lookup(agent, p, cache, gc.nogc()) {
+            CachedLookupResult::Found(value) => {
+                vm.result = Some(value.unbind());
+                return Ok(());
+            }
+            CachedLookupResult::FoundGetter(getter) => {
+                let getter = getter.unbind();
+                let o = o.unbind();
+                let result = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| call_function(agent, getter, o, None, gc),
+                    gc,
+                )?;
+                vm.result = Some(result.unbind());
+                return Ok(());
+            }
+            CachedLookupResult::FoundProxy(proxy) => {
+                let proxy = proxy.unbind();
+                let o = o.unbind();
+                let p = p.unbind();
+                let result = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| proxy.internal_get(agent, p, o, gc),
+                    gc,
+                )?;
+                vm.result = Some(result.unbind());
+                return Ok(());
+            }
+            CachedLookupResult::Unset | CachedLookupResult::Accessor => {
+                vm.result = Some(Value::Undefined);
+                return Ok(());
+            }
+            CachedLookupResult::NoCache => {}
+        }
+    }
+
+    // agent.heap.caches.set_current_cache(
+    //     object,
+    //     cache,
+    //     reference.referenced_name_property_key(),
+    //     shape,
+    // );
+
+    let result = try_get_value(agent, &reference, gc.nogc());
+    agent.heap.caches.clear_current_cache_to_populate();
+
+    if let TryResult::Continue(result) = result {
+        vm.result = Some(result.unbind()?)
+    } else {
+        let reference = reference.unbind();
+        vm.result =
+            Some(with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc).unbind()?);
+    }
+    Ok(())
 }
