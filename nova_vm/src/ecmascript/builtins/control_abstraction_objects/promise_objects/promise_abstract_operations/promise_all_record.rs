@@ -13,7 +13,7 @@ use crate::{
         execution::Agent,
         types::Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
@@ -37,6 +37,7 @@ impl<'a> PromiseAllRecordHeapData<'a> {
         value: Value<'a>,
         gc: NoGcScope<'a, '_>,
     ) {
+        eprintln!("Self memory address: {:p}", &self);
         // Update the result array at the specified index by reconstructing it
         let array_slice = self.result_array.as_slice(agent);
         let new_values: Vec<Value> = array_slice
@@ -51,9 +52,15 @@ impl<'a> PromiseAllRecordHeapData<'a> {
             })
             .collect();
 
+        eprintln!("Index: {:#?}", index);
         eprintln!("New values: {:#?}", new_values);
+        eprintln!(
+            "Remaining unresolved promise count: {:#?}",
+            self.remaining_unresolved_promise_count
+        );
 
         self.result_array = Array::from_slice(agent, &new_values, gc);
+        eprintln!("Result array memory address: {:p}", &self.result_array);
 
         self.remaining_unresolved_promise_count -= 1;
         if self.remaining_unresolved_promise_count == 0 {
