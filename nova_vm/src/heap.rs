@@ -80,6 +80,7 @@ use crate::{
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
+            promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecordHeapData,
             promise_objects::promise_abstract_operations::promise_finally_functions::PromiseFinallyFunctionHeapData,
             proxy::data::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
