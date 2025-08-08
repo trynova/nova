@@ -145,7 +145,7 @@ impl PromiseReactionJob {
         let Self { reaction, argument } = self;
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
-        // The following are substeps of point 1 in NewPromiseReactionJob.
+
         let (handler_result, promise_capability) = match agent[reaction].handler {
             PromiseReactionHandler::Empty => {
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
@@ -288,6 +288,37 @@ impl PromiseReactionJob {
                     }
                 }
             }
+            PromiseReactionHandler::PromiseAll { promise_all, index } => {
+                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                match agent[reaction].reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        // Take out the record to drop the vec borrow before we use `agent`/`gc`
+                        let rec = {
+                            let slot = agent
+                                .heap
+                                .promise_all_records
+                                .get_mut(promise_all.get_index())
+                                .expect("PromiseAllRecord out of bounds");
+                            slot.take().expect("PromiseAllRecord slot empty")
+                        };
+
+                        // Bind to current scope and mutate
+                        let mut rec_bound = rec.unbind().bind(gc.nogc());
+                        rec_bound.on_promise_fufilled(agent, index, argument.unbind(), gc.nogc());
+
+                        // Write back with 'static lifetime
+                        agent
+                            .heap
+                            .promise_all_records
+                            .get_mut(promise_all.get_index())
+                            .unwrap()
+                            .replace(rec_bound.unbind());
+
+                        (Ok(argument), capability)
+                    }
+                    PromiseReactionType::Reject => (Err(JsError::new(argument)), capability),
+                }
+            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -348,7 +379,8 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::AsyncFromSyncIteratorClose(_)
         | PromiseReactionHandler::AsyncModule(_)
         | PromiseReactionHandler::DynamicImport { .. }
-        | PromiseReactionHandler::DynamicImportEvaluate { .. } => None,
+        | PromiseReactionHandler::DynamicImportEvaluate { .. }
+        | PromiseReactionHandler::PromiseAll { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

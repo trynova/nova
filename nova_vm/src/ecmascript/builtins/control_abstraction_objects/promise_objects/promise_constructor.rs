@@ -2,6 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_list;
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::{PromiseAllRecordHeapData, PromiseAllRecord};
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
+use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
+use crate::ecmascript::builtins::{create_builtin_function, Array, BuiltinFunctionArgs};
+use crate::ecmascript::fundamental_objects::function_objects::function_constructor::create_dynamic_function;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -212,11 +218,144 @@ impl PromiseConstructor {
 
     fn all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.all", gc.into_nogc()))
+        // 1. Let C be the this value.
+        if this_value
+            != agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(
+                agent,
+                gc.into_nogc(),
+            ));
+        }
+
+        let first_arg = arguments.get(0).bind(gc.nogc());
+
+        let Ok(promise_array) = Array::try_from(first_arg.unbind()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected an array of promises",
+                gc.into_nogc(),
+            ));
+        };
+
+        let array_slice = promise_array.as_slice(agent);
+        if array_slice.is_empty() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Array is empty",
+                gc.into_nogc(),
+            ));
+        }
+
+        let Some(first_element) = array_slice[0] else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "First element is None",
+                gc.into_nogc(),
+            ));
+        };
+
+        let Value::Promise(promise_to_await) = first_element.unbind() else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "First element is not a Promise",
+                gc.into_nogc(),
+            ));
+        };
+
+        let Some(second_element) = array_slice[1] else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Second element is None",
+                gc.into_nogc(),
+            ));
+        };
+        let Value::Promise(second_promise) = second_element.unbind() else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Second element is not a Promise",
+                gc.into_nogc(),
+            ));
+        };
+
+        let result_capability = PromiseCapability::new(agent, gc.nogc());
+
+        let second_capability = PromiseCapability::new(agent, gc.nogc());
+        let result_promise = result_capability.promise();
+
+        // let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
+        //     &'a mut Agent,
+        //     Value<'b>,
+        //     ArgumentsList<'c, 'd>,
+        //     GcScope<'_gc, 'e>,
+        // ) -> Result<
+        //     Value<'_gc>,
+        //     JsError<'_gc>,
+        // > = |_agent, _this_value, arguments, _gc| {
+        //     let result_value = arguments.get(0);
+        //     eprintln!("Promise fulfilled with result: {:?}", result_value);
+        //     Ok(result_value.unbind())
+        // };
+
+        // let result_callback = create_builtin_function(
+        //     agent,
+        //     Behaviour::Regular(result_callback_closure),
+        //     BuiltinFunctionArgs::new(0, "Promise.all callback"),
+        //     gc.nogc(),
+        // );
+
+        // let fulfill_handler = PromiseReactionHandler::JobCallback(result_callback.into());
+        // let reject_handler = PromiseReactionHandler::Empty;
+
+        // inner_promise_then(
+        //     agent,
+        //     promise_to_await,
+        //     fulfill_handler,
+        //     reject_handler,
+        //     Some(result_capability),
+        //     gc.nogc(),
+        // );
+
+        let undefined_values = vec![Value::Undefined; 2];
+        let result_array = Array::from_slice(agent, &undefined_values, gc.nogc());
+        let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
+            remaining_unresolved_promise_count: 2,
+            result_array,
+        });
+
+        inner_promise_then(
+            agent,
+            promise_to_await,
+            PromiseReactionHandler::PromiseAll {
+                index: 0,
+                promise_all: promise_all_record,
+            },
+            PromiseReactionHandler::Empty,
+            Some(result_capability),
+            gc.nogc(),
+        );
+
+        inner_promise_then(
+            agent,
+            second_promise,
+            PromiseReactionHandler::PromiseAll {
+                index: 1,
+                promise_all: promise_all_record,
+            },
+            PromiseReactionHandler::Empty,
+            Some(second_capability),
+            gc.nogc(),
+        );
+
+        Ok(result_promise.unbind().into_value())
     }
 
     fn all_settled<'gc>(

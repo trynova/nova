@@ -7,9 +7,10 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::{
-            async_generator_objects::AsyncGenerator,
+            Array, async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
+            promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
         },
         execution::Agent,
         scripts_and_modules::module::module_semantics::{
@@ -68,6 +69,10 @@ pub(crate) enum PromiseReactionHandler<'a> {
         promise: Promise<'a>,
         module: AbstractModule<'a>,
     },
+    PromiseAll {
+        index: u32,
+        promise_all: PromiseAllRecord<'a>,
+    },
     Empty,
 }
 
@@ -85,6 +90,10 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 promise.mark_values(queues);
                 module.mark_values(queues);
             }
+            Self::PromiseAll {
+                index: _,
+                promise_all,
+            } => promise_all.mark_values(queues),
             Self::Empty => {}
         }
     }
@@ -103,6 +112,12 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             | Self::DynamicImportEvaluate { promise, module } => {
                 promise.sweep_values(compactions);
                 module.sweep_values(compactions);
+            }
+            Self::PromiseAll {
+                index: _,
+                promise_all,
+            } => {
+                promise_all.sweep_values(compactions);
             }
             Self::Empty => {}
         }
