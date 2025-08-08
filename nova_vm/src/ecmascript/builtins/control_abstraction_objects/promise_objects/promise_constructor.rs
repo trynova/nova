@@ -277,7 +277,24 @@ impl PromiseConstructor {
             ));
         };
 
+        let Some(second_element) = array_slice[1] else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Second element is None",
+                gc.into_nogc(),
+            ));
+        };
+        let Value::Promise(second_promise) = second_element.unbind() else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Second element is not a Promise",
+                gc.into_nogc(),
+            ));
+        };
+
         let result_capability = PromiseCapability::new(agent, gc.nogc());
+
+        let second_capability = PromiseCapability::new(agent, gc.nogc());
         let result_promise = result_capability.promise();
 
         // let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
@@ -313,24 +330,34 @@ impl PromiseConstructor {
         //     gc.nogc(),
         // );
 
-        let args: [Value<'gc>; 1] = [Value::Undefined; 1];
-        let result_array = Array::from_slice(agent, &args, gc.nogc());
+        let undefined_values = vec![Value::Undefined; 2];
+        let result_array = Array::from_slice(agent, &undefined_values, gc.nogc());
         let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
-            remaining_unresolved_promise_count: 1,
+            remaining_unresolved_promise_count: 2,
             result_array,
         });
-
-        let promise_all_handler = PromiseReactionHandler::PromiseAll {
-            index: 0,
-            promise_all: promise_all_record,
-        };
 
         inner_promise_then(
             agent,
             promise_to_await,
-            promise_all_handler,
+            PromiseReactionHandler::PromiseAll {
+                index: 0,
+                promise_all: promise_all_record,
+            },
             PromiseReactionHandler::Empty,
             Some(result_capability),
+            gc.nogc(),
+        );
+
+        inner_promise_then(
+            agent,
+            second_promise,
+            PromiseReactionHandler::PromiseAll {
+                index: 1,
+                promise_all: promise_all_record,
+            },
+            PromiseReactionHandler::Empty,
+            Some(second_capability),
             gc.nogc(),
         );
 

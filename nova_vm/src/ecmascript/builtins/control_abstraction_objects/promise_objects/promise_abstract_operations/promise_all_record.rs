@@ -30,15 +30,6 @@ pub struct PromiseAllRecordHeapData<'a> {
 pub struct PromiseAllRecord<'a>(pub(crate) BaseIndex<'a, PromiseAllRecordHeapData<'a>>);
 
 impl<'a> PromiseAllRecordHeapData<'a> {
-    pub(crate) fn new(agent: &mut Agent, num_promises: u32, gc: NoGcScope<'a, '_>) -> Self {
-        let undefined_values = vec![Value::Undefined; num_promises as usize];
-        let result_array = Array::from_slice(agent, &undefined_values, gc);
-        Self {
-            remaining_unresolved_promise_count: num_promises,
-            result_array,
-        }
-    }
-
     pub(crate) fn on_promise_fufilled(
         &mut self,
         agent: &mut Agent,
@@ -60,6 +51,8 @@ impl<'a> PromiseAllRecordHeapData<'a> {
             })
             .collect();
 
+        eprintln!("New values: {:#?}", new_values);
+
         self.result_array = Array::from_slice(agent, &new_values, gc);
 
         self.remaining_unresolved_promise_count -= 1;
@@ -68,6 +61,8 @@ impl<'a> PromiseAllRecordHeapData<'a> {
                 "All promises fulfilled, should resolve main promise: {:#?}",
                 self.result_array
             );
+            // self.promise_capability
+            //     .resolve(agent, self.result_array, gc.into_nogc());
         }
     }
 }
