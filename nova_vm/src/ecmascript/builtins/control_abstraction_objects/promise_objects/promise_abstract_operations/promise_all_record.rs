@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::{
-            Array,
+            Array, promise::Promise,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::Agent,
@@ -21,7 +21,6 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseAllRecordHeapData<'a> {
-    pub promise_capability: &'a PromiseCapability<'a>,
     pub remaining_unresolved_promise_count: u32,
     pub result_array: Array<'a>,
 }
@@ -31,16 +30,10 @@ pub struct PromiseAllRecordHeapData<'a> {
 pub struct PromiseAllRecord<'a>(pub(crate) BaseIndex<'a, PromiseAllRecordHeapData<'a>>);
 
 impl<'a> PromiseAllRecordHeapData<'a> {
-    pub(crate) fn new(
-        agent: &mut Agent,
-        promise_capability: &'a PromiseCapability<'a>,
-        num_promises: u32,
-        gc: NoGcScope<'a, '_>,
-    ) -> Self {
+    pub(crate) fn new(agent: &mut Agent, num_promises: u32, gc: NoGcScope<'a, '_>) -> Self {
         let undefined_values = vec![Value::Undefined; num_promises as usize];
         let result_array = Array::from_slice(agent, &undefined_values, gc);
         Self {
-            promise_capability,
             remaining_unresolved_promise_count: num_promises,
             result_array,
         }
@@ -75,8 +68,6 @@ impl<'a> PromiseAllRecordHeapData<'a> {
                 "All promises fulfilled, should resolve main promise: {:#?}",
                 self.result_array
             );
-            // self.promise_capability
-            //     .resolve(agent, self.result_array, gc.into_nogc());
         }
     }
 }
@@ -124,12 +115,10 @@ impl IndexMut<PromiseAllRecord<'_>> for Vec<Option<PromiseAllRecordHeapData<'sta
 impl HeapMarkAndSweep for PromiseAllRecordHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.result_array.mark_values(queues);
-        self.promise_capability.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.result_array.sweep_values(compactions);
-        self.promise_capability.sweep_values(compactions);
     }
 }
 
