@@ -310,7 +310,6 @@ impl PromiseConstructor {
         let args: [Value<'gc>; 1] = [Value::Undefined; 1];
         let result_array = Array::from_slice(agent, &args, gc.nogc());
         let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
-            promise_capability: &result_capability,
             remaining_unresolved_promise_count: 1,
             result_array,
         });
@@ -325,7 +324,7 @@ impl PromiseConstructor {
             promise_to_await,
             promise_all_handler,
             PromiseReactionHandler::Empty,
-            None,
+            Some(result_capability),
             gc.nogc(),
         );
 

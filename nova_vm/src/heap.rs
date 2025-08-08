@@ -79,7 +79,7 @@ use crate::{
             },
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
-            promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
+            promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecordHeapData,
             proxy::data::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
@@ -168,7 +168,7 @@ pub struct Heap {
     pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
     pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
     pub promises: Vec<Option<PromiseHeapData<'static>>>,
-    pub promise_all_records: Vec<Option<PromiseAllRecord<'static>>>,
+    pub promise_all_records: Vec<Option<PromiseAllRecordHeapData<'static>>>,
     pub proxys: Vec<Option<ProxyHeapData<'static>>>,
     pub realms: Vec<Option<RealmRecord<'static>>>,
     #[cfg(feature = "regexp")]
