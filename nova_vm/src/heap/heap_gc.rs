@@ -159,6 +159,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             promise_reaction_records,
             promise_resolving_functions,
             promises,
+            promise_all_records,
             proxys,
             realms,
             #[cfg(feature = "regexp")]
@@ -1290,6 +1291,7 @@ fn sweep(
         promise_reaction_records,
         promise_resolving_functions,
         promises,
+        promise_all_records,
         proxys,
         realms,
         #[cfg(feature = "regexp")]
@@ -1717,6 +1719,15 @@ fn sweep(
         if !promises.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(promises, &compactions, &bits.promises);
+            });
+        }
+        if !promise_all_records.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    promise_all_records,
+                    &compactions,
+                    &bits.promise_all_records,
+                );
             });
         }
         if !proxys.is_empty() {
