@@ -1219,13 +1219,15 @@ pub(crate) fn ordinary_set_at_offset<'a>(
     let receiver = receiver.bind(gc);
 
     if offset.is_unset() {
-        return SetCachedResult::NoCache;
         // 1.c.i. Set ownDesc to PropertyDescriptor {
         //   [[Value]]: undefined,
         //   [[Writable]]: true,
         //   [[Enumerable]]: true,
         //   [[Configurable]]: true
         // }.
+        if !ordinary_is_extensible(agent, bo) {
+            return SetCachedResult::Unwritable;
+        }
         if o.into_value() == receiver {
             // ## 2.e.
             // Fast path for growing an object when we know property does not
