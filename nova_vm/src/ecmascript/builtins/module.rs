@@ -16,7 +16,7 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
+            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoValue,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
             Value,
         },
@@ -763,8 +763,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: PropertyKey,
         _: PropertyLookupCache,
         _: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
-        GetCachedResult::NoCache
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+        Err(GetCachedError::NoCache)
     }
 
     #[inline(always)]
@@ -786,7 +786,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: &Agent,
         _: PropertyOffset,
         _: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         unreachable!()
     }
 }

@@ -18,7 +18,7 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::{GetCachedResult, IntoValue, SetCachedResult},
+        types::{GetCachedError, IntoValue, SetCachedResult},
     },
     engine::{
         Scoped, TryResult,
@@ -120,21 +120,19 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         let offset = offset.get_property_offset();
         let obj = self.bind(gc);
         let data = obj.get_elements_storage(agent);
         if let Some(v) = data.values[offset as usize] {
-            GetCachedResult::Value(v)
+            Ok(v)
         } else {
             let d = data
                 .descriptors
                 .and_then(|d| d.get(&(offset as u32)))
                 .unwrap();
-            d.getter_function(gc).map_or(
-                GetCachedResult::Value(Value::Undefined),
-                GetCachedResult::Get,
-            )
+            d.getter_function(gc)
+                .map_or(Ok(Value::Undefined), |g| Err(GetCachedError::Get(g)))
         }
     }
 

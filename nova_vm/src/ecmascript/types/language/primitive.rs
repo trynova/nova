@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    GetCachedResult, IntoValue, PropertyKey, SetCachedResult, String, Symbol, Value,
+    GetCachedError, IntoValue, PropertyKey, SetCachedResult, String, Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -170,9 +170,9 @@ impl Primitive<'_> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         match self {
-            Primitive::Undefined | Primitive::Null => GetCachedResult::NoCache,
+            Primitive::Undefined | Primitive::Null => Err(GetCachedError::NoCache),
             Primitive::Boolean(_)
             | Primitive::Symbol(_)
             | Primitive::Number(_)

@@ -14,7 +14,7 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
+            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoValue,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
             language::IntoObject,
         },
@@ -93,12 +93,12 @@ pub(crate) fn function_get_cached<'a, 'gc>(
     p: PropertyKey,
     cache: PropertyLookupCache,
     gc: NoGcScope<'gc, '_>,
-) -> GetCachedResult<'gc> {
+) -> Result<Value<'gc>, GetCachedError<'gc>> {
     let bo = func.get_backing_object(agent);
     if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-        GetCachedResult::Value(func.get_length(agent).into())
+        Ok(func.get_length(agent).into())
     } else if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        GetCachedResult::Value(func.get_name(agent).into_value().bind(gc))
+        Ok(func.get_name(agent).into_value().bind(gc))
     } else {
         let shape = if let Some(bo) = bo {
             bo.object_shape(agent)

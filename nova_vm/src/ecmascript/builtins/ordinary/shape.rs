@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, Number, Numeric,
+            BigInt, GetCachedError, InternalMethods, InternalSlots, IntoObject, Number, Numeric,
             Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, Symbol, Value,
         },
     },
@@ -178,13 +178,13 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                GetCachedResult::Value(Value::Undefined)
+                Ok(Value::Undefined)
             } else {
                 let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
                 o.get_own_property_at_offset(agent, offset, gc)
@@ -195,7 +195,7 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(receiver, cache, p, shape);
-            GetCachedResult::NoCache
+            Err(GetCachedError::NoCache)
         }
     }
 

@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
+            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
             String, Value,
         },
@@ -463,18 +463,18 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         let bo = self.get_backing_object(agent);
         if bo.is_none()
             && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && let Some(message) = agent[self].message
         {
-            GetCachedResult::Value(message.into_value().bind(gc))
+            Ok(message.into_value().bind(gc))
         } else if bo.is_none()
             && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
             && let Some(message) = agent[self].cause
         {
-            GetCachedResult::Value(message.into_value().bind(gc))
+            Ok(message.into_value().bind(gc))
         } else {
             let shape = if let Some(bo) = bo {
                 bo.object_shape(agent)

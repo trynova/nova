@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
+            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
             String, Value,
         },
@@ -418,13 +418,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if p == BUILTIN_STRING_MEMORY.lastIndex.into()
             && let Some(last_index) = agent[self].last_index.get_value()
         {
-            GetCachedResult::Value(last_index.into())
+            Ok(last_index.into())
         } else {
             let shape = self.object_shape(agent);
             shape.get_cached(

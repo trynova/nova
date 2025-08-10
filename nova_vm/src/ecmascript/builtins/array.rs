@@ -24,7 +24,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
+            BUILTIN_STRING_MEMORY, Function, GetCachedError, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, SetCachedResult, Value,
         },
@@ -879,19 +879,19 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         // Cached lookup of an Array should return directly from the Array's
         // internal memory if it can.
         if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
             // Length lookup: we find it always.
-            return GetCachedResult::Value(self.len(agent).into_value());
+            return Ok(self.len(agent).into_value());
         } else if let Some(index) = p.into_u32() {
             // Indexed lookup: check our slice.
             if let Some(value) = self.as_slice(agent).get(index as usize) {
                 // Found a slot in the slice, check if it contains a Value.
                 if let Some(value) = value {
                     // Slot contained value, return it.
-                    return GetCachedResult::Value(value.bind(gc));
+                    return Ok(value.bind(gc));
                 }
                 // Slot did not contain a value; this is either a hole or an
                 // accessor property.
@@ -901,9 +901,9 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     // return that. Otherwise, return undefined.
                     debug_assert!(desc.is_accessor_descriptor());
                     if let Some(getter) = desc.getter_function(gc) {
-                        return GetCachedResult::Get(getter.bind(gc));
+                        return Err(GetCachedError::Get(getter.bind(gc)));
                     } else {
-                        return GetCachedResult::Value(Value::Undefined);
+                        return Ok(Value::Undefined);
                     }
                 }
                 // This was a hole, continue into the prototype chain.

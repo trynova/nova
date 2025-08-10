@@ -12,7 +12,7 @@ use core::{
 use std::borrow::Cow;
 
 use super::{
-    GetCachedResult, IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    GetCachedError, IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
     STRING_DISCRIMINANT, SetCachedResult, Value,
 };
 use crate::{
@@ -660,9 +660,9 @@ impl<'a> String<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         if let Some(v) = self.get_property_value(agent, p) {
-            GetCachedResult::Value(v.bind(gc))
+            Ok(v.bind(gc))
         } else {
             self.object_shape(agent)
                 .get_cached(agent, p, self.into_value(), cache, gc)

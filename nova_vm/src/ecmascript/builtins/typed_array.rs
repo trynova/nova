@@ -12,7 +12,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedResult,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedError,
             INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
             InternalMethods, InternalSlots, IntoObject, IntoValue, Number, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, SetCachedResult, String, UINT_8_ARRAY_DISCRIMINANT,
@@ -893,7 +893,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         // Note: we mutate P but only if it turns into a valid integer, in
         // which case we never enter the get_cached path anyway.
         ta_canonical_numeric_index_string(agent, &mut p, gc);
@@ -901,7 +901,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // i. Return TypedArrayGetElement(O, numericIndex).
             let numeric_index = numeric_index.into_i64();
             let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
-            GetCachedResult::Value(result.map_or(Value::Undefined, |r| r.into_value()))
+            Ok(result.map_or(Value::Undefined, |r| r.into_value()))
         } else {
             let shape = self.object_shape(agent);
             shape.get_cached(agent, p, self.into_value(), cache, gc)

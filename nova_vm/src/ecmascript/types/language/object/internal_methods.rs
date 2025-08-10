@@ -507,7 +507,7 @@ where
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
@@ -547,7 +547,7 @@ where
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -623,10 +623,8 @@ where
 }
 
 #[derive(Debug)]
-pub enum GetCachedResult<'a> {
-    /// A data property was found.
-    Value(Value<'a>),
-    /// An accessor property with a getter was found.
+pub enum GetCachedError<'a> {
+    /// A getter call is needed.
     Get(Function<'a>),
     /// A Proxy trap call is needed.
     Proxy(Proxy<'a>),
@@ -635,8 +633,8 @@ pub enum GetCachedResult<'a> {
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for GetCachedResult<'_> {
-    type Of<'a> = GetCachedResult<'a>;
+unsafe impl Bindable for GetCachedError<'_> {
+    type Of<'a> = GetCachedError<'a>;
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {

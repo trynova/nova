@@ -12,7 +12,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedResult,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedError,
             InternalMethods, InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
             function_create_backing_object, function_get_cached,
@@ -299,7 +299,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         function_get_cached(self, agent, p, cache, gc)
     }
 

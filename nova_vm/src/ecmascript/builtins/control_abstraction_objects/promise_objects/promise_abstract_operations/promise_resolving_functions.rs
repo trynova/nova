@@ -12,7 +12,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, FunctionInternalProperties, GetCachedResult, InternalMethods, InternalSlots,
+            Function, FunctionInternalProperties, GetCachedError, InternalMethods, InternalSlots,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
             Value, function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
@@ -244,7 +244,7 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         function_get_cached(self, agent, p, cache, gc)
     }
 

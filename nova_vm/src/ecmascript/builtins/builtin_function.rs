@@ -15,7 +15,7 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            GetCachedResult, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue,
+            GetCachedError, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator,
             SetCachedResult, String, Value, function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
@@ -677,7 +677,7 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         function_get_cached(self, agent, p, cache, gc)
     }
 

@@ -49,7 +49,7 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedResult, InternalMethods,
+            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedError, InternalMethods,
             InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
             SetCachedResult, String, Value, get_this_value, get_value,
@@ -3880,11 +3880,7 @@ fn get_value_with_cache<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     // 1. If V is not a Reference Record, return V.
-    let reference = if keep_reference {
-        vm.reference.as_ref().unwrap().clone().bind(gc.nogc())
-    } else {
-        vm.reference.take().unwrap().bind(gc.nogc())
-    };
+    let reference = vm.reference.as_ref().unwrap();
 
     assert!(reference.is_static_property_reference());
 
@@ -3900,37 +3896,28 @@ fn get_value_with_cache<'gc>(
         let p = reference.referenced_name_property_key().bind(gc.nogc());
         let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
         match o.get_cached(agent, p, cache, gc.nogc()) {
-            GetCachedResult::Value(value) => {
+            Ok(value) => {
+                if !keep_reference {
+                    vm.reference = None;
+                }
                 vm.result = Some(value.unbind());
                 return Ok(());
             }
-            GetCachedResult::Get(getter) => {
-                let getter = getter.unbind();
-                let o = o.unbind();
-                let result = with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| call_function(agent, getter, o, None, gc),
-                    gc,
-                )?;
-                vm.result = Some(result.unbind());
-                return Ok(());
-            }
-            GetCachedResult::Proxy(proxy) => {
-                let proxy = proxy.unbind();
-                let o = o.unbind();
-                let p = p.unbind();
-                let result = with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| proxy.internal_get(agent, p, o, gc),
-                    gc,
-                )?;
-                vm.result = Some(result.unbind());
-                return Ok(());
-            }
-            GetCachedResult::NoCache => {
-                // No cached data; continue with try_get_value.
+            Err(err) => {
+                if !matches!(err, GetCachedError::NoCache) {
+                    if !keep_reference {
+                        vm.reference = None;
+                    }
+                    return handle_get_cached_error(
+                        agent,
+                        vm,
+                        o.unbind(),
+                        p.unbind(),
+                        err.unbind(),
+                        gc,
+                    );
+                }
+                // NoCache falls through to normal handling.
             }
         }
     }
@@ -3939,13 +3926,60 @@ fn get_value_with_cache<'gc>(
     agent.heap.caches.clear_current_cache_to_populate();
 
     if let TryResult::Continue(result) = result {
-        vm.result = Some(result.unbind()?)
+        if !keep_reference {
+            vm.reference = None;
+        }
+        vm.result = Some(result.unbind()?);
     } else {
-        let reference = reference.unbind();
+        let reference = if keep_reference {
+            reference.clone()
+        } else {
+            vm.reference.take().unwrap()
+        };
         vm.result =
             Some(with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc).unbind()?);
     }
     Ok(())
+}
+
+fn handle_get_cached_error<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    o: Value,
+    p: PropertyKey,
+    err: GetCachedError,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    match err {
+        GetCachedError::Get(getter) => {
+            let getter = getter.unbind();
+            let o = o.unbind();
+            let result = with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| call_function(agent, getter, o, None, gc),
+                gc,
+            )?;
+            vm.result = Some(result.unbind());
+            return Ok(());
+        }
+        GetCachedError::Proxy(proxy) => {
+            let proxy = proxy.unbind();
+            let o = o.unbind();
+            let p = p.unbind();
+            let result = with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| proxy.internal_get(agent, p, o, gc),
+                gc,
+            )?;
+            vm.result = Some(result.unbind());
+            return Ok(());
+        }
+        GetCachedError::NoCache => {
+            unreachable!()
+        }
+    }
 }
 
 fn put_value_with_cache<'gc>(

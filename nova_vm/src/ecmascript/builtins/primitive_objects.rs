@@ -14,7 +14,7 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, GetCachedResult, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
+            FLOAT_DISCRIMINANT, GetCachedError, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
             InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
             NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive, PropertyDescriptor,
             PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
@@ -556,11 +556,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> GetCachedResult<'gc> {
+    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, p)
         {
-            GetCachedResult::Value(value.bind(gc))
+            Ok(value.bind(gc))
         } else {
             let shape = self.object_shape(agent);
             shape.get_cached(agent, p, self.into_value(), cache, gc)
