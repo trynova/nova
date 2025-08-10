@@ -756,7 +756,7 @@ impl PropertyOffset {
     const OFFSET_BIT_MASK: u16 = 0x1FFF;
     /// Property lookup index indicating that the property was not set in the
     /// Object Shape or in its prototype chain.
-    const UNSET: Self = Self(0xFFFF);
+    const UNSET: Self = Self(Self::UNSET_BIT_MASK);
 
     /// Create a new property lookup offset.
     ///

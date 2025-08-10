@@ -306,7 +306,7 @@ fn array_set_length_no_value_field(agent: &mut Agent, a: Array, desc: PropertyDe
     true
 }
 
-fn array_set_length_handling(
+pub(crate) fn array_set_length_handling(
     agent: &mut Agent,
     a: Array,
     new_len: u32,

@@ -423,6 +423,59 @@ impl<'a> PropertyStorage<'a> {
         Ok(())
     }
 
+    pub fn push(
+        self,
+        agent: &mut Agent,
+        o: Object<'a>,
+        key: PropertyKey<'a>,
+        value: Option<Value<'a>>,
+        desc: Option<ElementDescriptor<'a>>,
+        gc: NoGcScope,
+    ) -> Result<(), TryReserveError> {
+        let object = self.0;
+
+        let cur_len = object.len(agent);
+        let new_len = cur_len.checked_add(1).unwrap();
+        let old_shape = object.object_shape(agent);
+        let new_shape = old_shape.get_child_shape(agent, key);
+        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
+            + if desc.is_some() {
+                core::mem::size_of::<(u32, ElementDescriptor)>()
+            } else {
+                0
+            };
+        object.reserve(agent, new_len)?;
+        agent[object].set_len(new_len);
+        let ElementStorageMut {
+            values,
+            descriptors,
+        } = object.get_elements_storage_mut(agent);
+        debug_assert!(
+            values[cur_len as usize].is_none()
+                && match &descriptors {
+                    Entry::Occupied(e) => {
+                        !e.get().contains_key(&cur_len)
+                    }
+                    Entry::Vacant(_) => true,
+                }
+        );
+        values[cur_len as usize] = value.unbind();
+        if let Some(desc) = desc {
+            let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
+            descriptors.insert(cur_len, desc.unbind());
+        }
+        if old_shape == new_shape {
+            // Intrinsic shape! Adding a new property to an intrinsic needs to
+            // invalidate any NOT_FOUND caches for the added key.
+            Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+                agent, o, old_shape, key, cur_len, gc,
+            );
+        } else {
+            agent[object].set_shape(new_shape);
+        }
+        Ok(())
+    }
+
     pub fn remove(self, agent: &mut Agent, o: Object, key: PropertyKey<'a>) {
         let object = self.0;
 

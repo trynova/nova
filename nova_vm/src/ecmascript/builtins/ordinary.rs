@@ -138,50 +138,25 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         }
     }
 
-    fn define_own_property_at_offset<'gc>(
+    fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
+        p: PropertyKey,
         offset: PropertyOffset,
         value: Value,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
-        // OrdinarySetWithOwnDescriptor
-        let offset = offset.get_property_offset();
-        let obj = self.bind(gc);
-        let data = obj.get_elements_storage_mut(agent);
-        if let Some(v) = &mut data.values[offset as usize] {
-            // 2. If IsDataDescriptor(ownDesc) is true, then
-            let writable = match data.descriptors {
-                Entry::Occupied(e) => e
-                    .get()
-                    .get(&(offset as u32))
-                    .is_none_or(|d| d.is_writable().unwrap()),
-                Entry::Vacant(_) => true,
-            };
-            if writable {
-                // b. If Receiver is not an Object, return false.
-                if Object::try_from(receiver).is_err() {
-                    return SetCachedResult::Unwritable;
-                }
-                if self.into_value() == receiver {
-                    *v = value.unbind();
-                    SetCachedResult::Done
-                } else {
-                    SetCachedResult::NoCache
-                }
-            } else {
-                SetCachedResult::Unwritable
-            }
-        } else {
-            let Entry::Occupied(e) = data.descriptors else {
-                unreachable!()
-            };
-            let d = e.get().get(&(offset as u32)).unwrap();
-            debug_assert!(d.is_accessor_descriptor());
-            d.setter_function(gc)
-                .map_or(SetCachedResult::Accessor, SetCachedResult::Set)
-        }
+        ordinary_set_at_offset(
+            agent,
+            self.into_object(),
+            self,
+            p,
+            offset,
+            value,
+            receiver,
+            gc,
+        )
     }
 }
 
@@ -1224,6 +1199,95 @@ fn ordinary_set_with_own_descriptor<'a>(
 
     // 7. Return true.
     Ok(true)
+}
+
+/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
+pub(crate) fn ordinary_set_at_offset<'a>(
+    agent: &mut Agent,
+    o: Object,
+    bo: OrdinaryObject,
+    p: PropertyKey,
+    offset: PropertyOffset,
+    v: Value,
+    receiver: Value,
+    gc: NoGcScope<'a, '_>,
+) -> SetCachedResult<'a> {
+    let o = o.bind(gc);
+    let bo = bo.bind(gc);
+    let p = p.bind(gc);
+    let v = v.bind(gc);
+    let receiver = receiver.bind(gc);
+
+    if offset.is_unset() {
+        return SetCachedResult::NoCache;
+        // 1.c.i. Set ownDesc to PropertyDescriptor {
+        //   [[Value]]: undefined,
+        //   [[Writable]]: true,
+        //   [[Enumerable]]: true,
+        //   [[Configurable]]: true
+        // }.
+        if o.into_value() == receiver {
+            // ## 2.e.
+            // Fast path for growing an object when we know property does not
+            // exist on its shape.
+            // i. Assert. Receiver does not currently have a property P.
+            // ii. Return ? CreateDataProperty(Receiver, P, V).
+            if bo
+                .property_storage()
+                .push(agent, o, p, Some(v), None, gc)
+                .is_err()
+            {
+                return SetCachedResult::NoCache;
+            }
+            return SetCachedResult::Done;
+        } else {
+            // b. If Receiver is not an Object, return false.
+            let Ok(_receiver) = Object::try_from(receiver) else {
+                return SetCachedResult::Unwritable;
+            };
+            // TODO: better handling here.
+            return SetCachedResult::NoCache;
+        }
+    }
+
+    // OrdinarySetWithOwnDescriptor
+    let offset = offset.get_property_offset();
+    let data = bo.get_elements_storage_mut(agent);
+    if let Some(slot) = &mut data.values[offset as usize] {
+        // 2. If IsDataDescriptor(ownDesc) is true, then
+        let writable = match data.descriptors {
+            Entry::Occupied(e) => e
+                .get()
+                .get(&(offset as u32))
+                .is_none_or(|d| d.is_writable().unwrap()),
+            Entry::Vacant(_) => true,
+        };
+        if !writable {
+            return SetCachedResult::Unwritable;
+        }
+        if o.into_value() == receiver {
+            // ## 2.d.
+            // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
+            // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
+            *slot = v.unbind();
+            SetCachedResult::Done
+        } else {
+            // b. If Receiver is not an Object, return false.
+            if Object::try_from(receiver).is_err() {
+                return SetCachedResult::Unwritable;
+            }
+            // TODO: better handling here.
+            SetCachedResult::NoCache
+        }
+    } else {
+        let Entry::Occupied(e) = data.descriptors else {
+            unreachable!()
+        };
+        let d = e.get().get(&(offset as u32)).unwrap();
+        debug_assert!(d.is_accessor_descriptor());
+        d.setter_function(gc)
+            .map_or(SetCachedResult::Accessor, SetCachedResult::Set)
+    }
 }
 
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)

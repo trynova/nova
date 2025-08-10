@@ -26,7 +26,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, Value,
+            PropertyKey, SetCachedResult, Value,
         },
     },
     engine::{
@@ -48,9 +48,12 @@ use crate::{
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
-use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
-    ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
+use super::{
+    array_set_length_handling,
+    ordinary::{
+        caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -913,10 +916,90 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         shape.get_cached(
             agent,
             p.bind(gc),
-            cache.bind(gc),
             self.into_value().bind(gc),
+            cache.bind(gc),
             gc,
         )
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        // Cached set of an Array should return directly mutate the Array's
+        // internal memory if it can.
+        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
+            // Length lookup: we find it always.
+            if !self.length_writable(agent) {
+                return SetCachedResult::Unwritable;
+            }
+            if let Value::Integer(value) = value
+                && let Ok(value) = u32::try_from(value.into_i64())
+            {
+                let Ok(result) = array_set_length_handling(agent, self, value, None, None, None)
+                else {
+                    // Let caller handle retry and error on TryReserveError.
+                    return SetCachedResult::NoCache;
+                };
+                return if result {
+                    SetCachedResult::Done
+                } else {
+                    SetCachedResult::Unwritable
+                };
+            } else {
+                return SetCachedResult::NoCache;
+            }
+        } else if let Some(index) = p.into_u32() {
+            // Indexed lookup: check our slice. First bounds-check.
+            if !(0..self.len(agent)).contains(&index) {
+                // We're out of bounds; this need prototype lookups.
+                return SetCachedResult::NoCache;
+            }
+            // Index within slice; let's look into that memory.
+            let storage = self.get_storage_mut(agent);
+            // First check if we have a descriptor at our index.
+            let desc = match storage.descriptors {
+                Entry::Occupied(e) => e.into_mut().get(&index),
+                Entry::Vacant(_) => None,
+            };
+            if let Some(desc) = desc {
+                // Found a descriptor; see if it's an accessor.
+                if desc.is_accessor_descriptor() {
+                    // Found an accessor indeed; see if it has a setter,
+                    // and return that if so.
+                    if let Some(setter) = desc.setter_function(gc) {
+                        return SetCachedResult::Set(setter);
+                    }
+                    // No setter on this accessor; trying to set the value
+                    // fails.
+                    return SetCachedResult::Accessor;
+                }
+                // Data descriptor; see if it's not writable.
+                if !desc.is_writable().unwrap() {
+                    // Not writable; return failure.
+                    return SetCachedResult::Unwritable;
+                }
+            }
+            // Writable data property or hole; check which one we're
+            // dealing with.
+            if let Some(slot) = &mut storage.values[index as usize] {
+                // Writable data property it is! Set its value.
+                *slot = value.unbind();
+                return SetCachedResult::Done;
+            }
+            // Hole! We'll just return NoCache to signify that we can't be
+            // arsed to implement the entire prototype lookup logic here.
+            return SetCachedResult::NoCache;
+        }
+        // If this was a non-Array index or a named property on the Array then
+        // we want to perform a normal cached set with the Array's shape.
+        let shape = self.object_shape(agent);
+        shape.set_cached(agent, p, value, receiver, cache, gc)
     }
 }
 

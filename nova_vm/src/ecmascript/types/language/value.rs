@@ -1138,15 +1138,16 @@ impl<'a> Value<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
         if let Ok(o) = Object::try_from(self) {
-            o.set_cached(agent, p, value, cache, gc)
+            o.set_cached(agent, p, value, receiver, cache, gc)
         } else {
             Primitive::try_from(self)
                 .unwrap()
-                .set_cached(agent, p, value, cache, gc)
+                .set_cached(agent, p, value, receiver, cache, gc)
         }
     }
 

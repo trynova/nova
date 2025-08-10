@@ -182,7 +182,7 @@ impl Primitive<'_> {
             | Primitive::SmallBigInt(_) => {
                 self.object_shape(agent)
                     .unwrap()
-                    .get_cached(agent, p, cache, self.into_value(), gc)
+                    .get_cached(agent, p, self.into_value(), cache, gc)
             }
             Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
                 .unwrap()
@@ -195,6 +195,7 @@ impl Primitive<'_> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
@@ -206,17 +207,13 @@ impl Primitive<'_> {
             | Primitive::Integer(_)
             | Primitive::SmallF64(_)
             | Primitive::BigInt(_)
-            | Primitive::SmallBigInt(_) => self.object_shape(agent).unwrap().set_cached(
-                agent,
-                p,
-                cache,
-                value,
-                self.into_value(),
-                gc,
-            ),
+            | Primitive::SmallBigInt(_) => self
+                .object_shape(agent)
+                .unwrap()
+                .set_cached(agent, p, value, receiver, cache, gc),
             Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
                 .unwrap()
-                .set_cached(agent, p, cache, value, gc),
+                .set_cached(agent, p, value, receiver, cache, gc),
         }
     }
 }

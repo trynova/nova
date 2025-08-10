@@ -665,7 +665,7 @@ impl<'a> String<'a> {
             GetCachedResult::Value(v.bind(gc))
         } else {
             self.object_shape(agent)
-                .get_cached(agent, p, cache, self.into_value(), gc)
+                .get_cached(agent, p, self.into_value(), cache, gc)
         }
     }
 
@@ -673,15 +673,16 @@ impl<'a> String<'a> {
         self,
         agent: &mut Agent,
         p: PropertyKey,
-        cache: PropertyLookupCache,
         value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
         if let Some(_) = self.get_property_value(agent, p) {
             SetCachedResult::Unwritable
         } else {
             self.object_shape(agent)
-                .set_cached(agent, p, cache, value, self.into_value(), gc)
+                .set_cached(agent, p, value, receiver, cache, gc)
         }
     }
 }

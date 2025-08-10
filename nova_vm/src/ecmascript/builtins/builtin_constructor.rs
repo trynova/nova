@@ -317,10 +317,11 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
-        function_set_cached(self, agent, p, value, cache, gc)
+        function_set_cached(self, agent, p, value, receiver, cache, gc)
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)

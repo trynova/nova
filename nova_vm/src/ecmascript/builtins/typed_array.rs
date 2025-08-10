@@ -904,13 +904,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             GetCachedResult::Value(result.map_or(Value::Undefined, |r| r.into_value()))
         } else {
             let shape = self.object_shape(agent);
-            shape.get_cached(
-                agent,
-                p.bind(gc),
-                cache.bind(gc),
-                self.into_value().bind(gc),
-                gc,
-            )
+            shape.get_cached(agent, p, self.into_value(), cache, gc)
         }
     }
 
@@ -919,6 +913,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         mut p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
@@ -935,14 +930,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             }
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(
-                agent,
-                p.bind(gc),
-                cache.bind(gc),
-                value,
-                self.into_value().bind(gc),
-                gc,
-            )
+            shape.set_cached(agent, p, value, receiver, cache, gc)
         }
     }
 }

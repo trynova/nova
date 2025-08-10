@@ -430,8 +430,8 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             shape.get_cached(
                 agent,
                 p.bind(gc),
-                cache.bind(gc),
                 self.into_value().bind(gc),
+                cache.bind(gc),
                 gc,
             )
         }
@@ -442,6 +442,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
@@ -489,14 +490,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             }
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(
-                agent,
-                p.bind(gc),
-                cache.bind(gc),
-                value,
-                self.into_value().bind(gc),
-                gc,
-            )
+            shape.set_cached(agent, p.bind(gc), value, receiver, cache.bind(gc), gc)
         }
     }
 }

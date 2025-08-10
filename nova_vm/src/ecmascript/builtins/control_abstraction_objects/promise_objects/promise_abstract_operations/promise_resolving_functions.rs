@@ -253,10 +253,11 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
-        function_set_cached(self, agent, p, value, cache, gc)
+        function_set_cached(self, agent, p, value, receiver, cache, gc)
     }
 
     fn internal_call<'gc>(

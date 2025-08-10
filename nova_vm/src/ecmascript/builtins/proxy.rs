@@ -1642,6 +1642,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &mut Agent,
         _: PropertyKey,
         _: Value,
+        _: Value,
         _: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
@@ -1663,9 +1664,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     }
 
     #[inline(always)]
-    fn define_own_property_at_offset<'gc>(
+    fn set_at_offset<'gc>(
         self,
         _: &mut Agent,
+        _: PropertyKey,
         _: PropertyOffset,
         _: Value,
         _: Value,

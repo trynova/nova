@@ -3972,7 +3972,7 @@ fn put_value_with_cache<'gc>(
         let o = reference.base_value().bind(gc.nogc());
         let p = reference.referenced_name_property_key().bind(gc.nogc());
         let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-        match o.set_cached(agent, p, value, cache, gc.nogc()) {
+        match o.set_cached(agent, p, value, o, cache, gc.nogc()) {
             SetCachedResult::Done => {
                 return Ok(());
             }

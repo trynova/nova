@@ -175,8 +175,8 @@ impl<'a> ObjectShape<'a> {
         self,
         agent: &mut Agent,
         p: PropertyKey,
-        cache: PropertyLookupCache,
         receiver: Value,
+        cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> GetCachedResult<'gc> {
         let shape = self;
@@ -203,9 +203,9 @@ impl<'a> ObjectShape<'a> {
         self,
         agent: &mut Agent,
         p: PropertyKey,
-        cache: PropertyLookupCache,
         value: Value,
         receiver: Value,
+        cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
         let shape = self;
@@ -213,13 +213,15 @@ impl<'a> ObjectShape<'a> {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                // TODO: we could have some sort of mechanism to call
-                // define_own_property_at_offset such that it signifies property
-                // addition.
-                SetCachedResult::NoCache
+                if let Ok(o) = Object::try_from(receiver) {
+                    o.set_at_offset(agent, p, offset, value, receiver, gc)
+                } else {
+                    // Receiver is a primitive; it cannot be written to.
+                    SetCachedResult::Unwritable
+                }
             } else {
-                let o = prototype.unwrap_or(Object::try_from(receiver).unwrap());
-                o.define_own_property_at_offset(agent, offset, value, receiver, gc)
+                let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
+                o.set_at_offset(agent, p, offset, value, receiver, gc)
             }
         } else {
             // No cache found.

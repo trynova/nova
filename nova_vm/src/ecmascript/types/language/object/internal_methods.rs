@@ -12,7 +12,7 @@ use crate::{
                 ordinary_define_own_property, ordinary_delete, ordinary_get,
                 ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
                 ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
-                ordinary_set, ordinary_set_prototype_of, ordinary_try_get,
+                ordinary_set, ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
             },
             proxy::Proxy,
@@ -511,7 +511,7 @@ where
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
-        shape.get_cached(agent, p, cache, self.into_value(), gc)
+        shape.get_cached(agent, p, self.into_value(), cache, gc)
     }
 
     /// ## \[\[Set]] method with caching.
@@ -526,13 +526,14 @@ where
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
-        shape.set_cached(agent, p, cache, value, self.into_value(), gc)
+        shape.set_cached(agent, p, value, receiver, cache, gc)
     }
 
     /// ## \[\[GetOwnProperty]] method with offset.
@@ -561,16 +562,17 @@ where
         }
     }
 
-    /// ## \[\[DefineOwnProperty]] method with offset.
+    /// ## \[\[Set]] method with offset.
     ///
-    /// This is a variant of the \[\[DefineOwnProperty]] method that attempts
-    /// to set the value of property at an offset. The method cannot call into
-    /// JavaScript or trigger garbage collection, and any such needs must be
-    /// interrupted and control returned to the caller. The method is used as
-    /// part of the \[\[Set]] method's cached variant.
-    fn define_own_property_at_offset<'gc>(
+    /// This is a variant of the \[\[Set]] method that attempts to set the
+    /// value of property at an offset. The method cannot call into JavaScript
+    /// or trigger garbage collection, and any such needs must be interrupted
+    /// and control returned to the caller. The method is used as part of the
+    /// \[\[Set]] method's cached variant.
+    fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
+        p: PropertyKey,
         offset: PropertyOffset,
         value: Value,
         receiver: Value,
@@ -583,10 +585,17 @@ where
                 core::any::type_name::<Self>()
             )
         } else {
-            // It should be impossible for us to not have a backing store.
-            self.get_backing_object(agent)
-                .unwrap()
-                .define_own_property_at_offset(agent, offset, value, receiver, gc)
+            let backing_object = self.get_or_create_backing_object(agent);
+            ordinary_set_at_offset(
+                agent,
+                self.into_object(),
+                backing_object,
+                p,
+                offset,
+                value,
+                receiver,
+                gc,
+            )
         }
     }
 
@@ -613,6 +622,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub enum GetCachedResult<'a> {
     /// A data property was found.
     Value(Value<'a>),

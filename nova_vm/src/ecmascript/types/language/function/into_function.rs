@@ -105,7 +105,7 @@ pub(crate) fn function_get_cached<'a, 'gc>(
         } else {
             func.object_shape(agent)
         };
-        shape.get_cached(agent, p, cache, func.into_value(), gc)
+        shape.get_cached(agent, p, func.into_value(), cache, gc)
     }
 }
 
@@ -114,6 +114,7 @@ pub(crate) fn function_set_cached<'a, 'gc>(
     agent: &mut Agent,
     p: PropertyKey,
     value: Value,
+    receiver: Value,
     cache: PropertyLookupCache,
     gc: NoGcScope<'gc, '_>,
 ) -> SetCachedResult<'gc> {
@@ -129,7 +130,7 @@ pub(crate) fn function_set_cached<'a, 'gc>(
         } else {
             func.object_shape(agent)
         };
-        shape.set_cached(agent, p, cache, value, func.into_value(), gc)
+        shape.set_cached(agent, p, value, receiver, cache, gc)
     }
 }
 

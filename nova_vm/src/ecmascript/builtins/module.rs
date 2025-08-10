@@ -773,6 +773,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: &mut Agent,
         _: PropertyKey,
         _: Value,
+        _: Value,
         _: PropertyLookupCache,
         _: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {

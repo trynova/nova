@@ -563,13 +563,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             GetCachedResult::Value(value.bind(gc))
         } else {
             let shape = self.object_shape(agent);
-            shape.get_cached(
-                agent,
-                p.bind(gc),
-                cache.bind(gc),
-                self.into_value().bind(gc),
-                gc,
-            )
+            shape.get_cached(agent, p, self.into_value(), cache, gc)
         }
     }
 
@@ -578,6 +572,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
@@ -587,14 +582,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             SetCachedResult::Unwritable
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(
-                agent,
-                p.bind(gc),
-                cache.bind(gc),
-                value,
-                self.into_value().bind(gc),
-                gc,
-            )
+            shape.set_cached(agent, p, value, receiver, cache, gc)
         }
     }
 }

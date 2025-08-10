@@ -13,7 +13,8 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
+            String, Value,
         },
     },
     engine::{
@@ -480,7 +481,33 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             } else {
                 self.object_shape(agent)
             };
-            shape.get_cached(agent, p, cache, self.into_value(), gc)
+            shape.get_cached(agent, p, self.into_value(), cache, gc)
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.set_cached(agent, p, value, receiver, cache, gc)
+        } else {
+            if p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+                && let Ok(value) = String::try_from(value)
+            {
+                agent[self].message = Some(value.unbind());
+                SetCachedResult::Done
+            } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                agent[self].cause = Some(value.unbind());
+                SetCachedResult::Done
+            } else {
+                SetCachedResult::NoCache
+            }
         }
     }
 }

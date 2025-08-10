@@ -574,17 +574,20 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
+        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
         match self {
-            Function::BoundFunction(f) => f.set_cached(agent, p, value, cache, gc),
-            Function::BuiltinFunction(f) => f.set_cached(agent, p, value, cache, gc),
-            Function::ECMAScriptFunction(f) => f.set_cached(agent, p, value, cache, gc),
+            Function::BoundFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
+            Function::BuiltinFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
+            Function::ECMAScriptFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(f) => f.set_cached(agent, p, value, cache, gc),
+            Function::BuiltinConstructorFunction(f) => {
+                f.set_cached(agent, p, value, receiver, cache, gc)
+            }
             Function::BuiltinPromiseResolvingFunction(f) => {
-                f.set_cached(agent, p, value, cache, gc)
+                f.set_cached(agent, p, value, receiver, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -613,30 +616,27 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn define_own_property_at_offset<'gc>(
+    fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
+        p: PropertyKey,
         offset: PropertyOffset,
         value: Value,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> SetCachedResult<'gc> {
         match self {
-            Function::BoundFunction(f) => {
-                f.define_own_property_at_offset(agent, offset, value, receiver, gc)
-            }
-            Function::BuiltinFunction(f) => {
-                f.define_own_property_at_offset(agent, offset, value, receiver, gc)
-            }
+            Function::BoundFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
+            Function::BuiltinFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
             Function::ECMAScriptFunction(f) => {
-                f.define_own_property_at_offset(agent, offset, value, receiver, gc)
+                f.set_at_offset(agent, p, offset, value, receiver, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(f) => {
-                f.define_own_property_at_offset(agent, offset, value, receiver, gc)
+                f.set_at_offset(agent, p, offset, value, receiver, gc)
             }
             Function::BuiltinPromiseResolvingFunction(f) => {
-                f.define_own_property_at_offset(agent, offset, value, receiver, gc)
+                f.set_at_offset(agent, p, offset, value, receiver, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
