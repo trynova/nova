@@ -12,13 +12,14 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BoundFunctionHeapData, CachedLookupResult, Function, FunctionInternalProperties,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedResult,
             InternalMethods, InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, function_cached_lookup,
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, function_try_get, function_try_has_property, function_try_set,
+            PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
+            function_create_backing_object, function_get_cached,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set, function_set_cached,
+            function_try_get, function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -179,16 +180,6 @@ impl<'a> InternalSlots<'a> for BoundFunction<'a> {
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
     }
-
-    fn cached_lookup<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        function_cached_lookup(self, agent, p, cache, gc)
-    }
 }
 
 impl<'a> InternalMethods<'a> for BoundFunction<'a> {
@@ -300,6 +291,27 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        function_get_cached(self, agent, p, cache, gc)
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        function_set_cached(self, agent, p, value, cache, gc)
     }
 
     /// ### [10.4.1.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-bound-function-exotic-objects-call-thisargument-argumentslist)

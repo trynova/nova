@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    CachedLookupResult, IntoValue, PropertyKey, String, Symbol, Value,
+    GetCachedResult, IntoValue, PropertyKey, SetCachedResult, String, Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -164,28 +164,59 @@ impl Primitive<'_> {
         matches!(self, Self::Undefined)
     }
 
-    pub(crate) fn cached_lookup<'gc>(
+    pub(crate) fn get_cached<'gc>(
         self,
         agent: &mut Agent,
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
+    ) -> GetCachedResult<'gc> {
         match self {
-            Primitive::Undefined | Primitive::Null => CachedLookupResult::NoCache,
+            Primitive::Undefined | Primitive::Null => GetCachedResult::NoCache,
             Primitive::Boolean(_)
             | Primitive::Symbol(_)
             | Primitive::Number(_)
             | Primitive::Integer(_)
             | Primitive::SmallF64(_)
             | Primitive::BigInt(_)
-            | Primitive::SmallBigInt(_) => self
-                .object_shape(agent)
-                .unwrap()
-                .cached_primitive_lookup(agent, p, cache, self.into_value(), gc),
+            | Primitive::SmallBigInt(_) => {
+                self.object_shape(agent)
+                    .unwrap()
+                    .get_cached(agent, p, cache, self.into_value(), gc)
+            }
             Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
                 .unwrap()
-                .cached_lookup(agent, p, cache, gc),
+                .get_cached(agent, p, cache, gc),
+        }
+    }
+
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        match self {
+            Primitive::Undefined | Primitive::Null => SetCachedResult::NoCache,
+            Primitive::Boolean(_)
+            | Primitive::Symbol(_)
+            | Primitive::Number(_)
+            | Primitive::Integer(_)
+            | Primitive::SmallF64(_)
+            | Primitive::BigInt(_)
+            | Primitive::SmallBigInt(_) => self.object_shape(agent).unwrap().set_cached(
+                agent,
+                p,
+                cache,
+                value,
+                self.into_value(),
+                gc,
+            ),
+            Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
+                .unwrap()
+                .set_cached(agent, p, cache, value, gc),
         }
     }
 }

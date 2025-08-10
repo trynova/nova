@@ -3,9 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, Function, IntoValue, Number, Numeric, OrdinaryObject, Primitive,
-    PropertyKey, String, StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber,
-    string::HeapString,
+    BigInt, BigIntHeapData, GetCachedResult, InternalMethods, IntoValue, Number, Numeric,
+    OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData, Symbol,
+    bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -1117,49 +1117,53 @@ impl<'a> Value<'a> {
         Ok(())
     }
 
-    pub(crate) fn cached_lookup<'gc>(
+    pub(crate) fn get_cached<'gc>(
         self,
         agent: &mut Agent,
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
+    ) -> GetCachedResult<'gc> {
         if let Ok(o) = Object::try_from(self) {
-            o.cached_lookup(agent, p, cache, gc)
+            o.get_cached(agent, p, cache, gc)
         } else {
             Primitive::try_from(self)
                 .unwrap()
-                .cached_lookup(agent, p, cache, gc)
+                .get_cached(agent, p, cache, gc)
         }
     }
-}
 
-pub enum CachedLookupResult<'a> {
-    /// A data property was found.
-    Found(Value<'a>),
-    /// A getter property was found.
-    FoundGetter(Function<'a>),
-    /// An accessor property with no getter was found.
-    Accessor,
-    /// A Proxy object was found.
-    FoundProxy(Proxy<'a>),
-    /// This property is not present in the object or its prototype chain.
-    Unset,
-    NoCache,
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for CachedLookupResult<'_> {
-    type Of<'a> = CachedLookupResult<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        if let Ok(o) = Object::try_from(self) {
+            o.set_cached(agent, p, value, cache, gc)
+        } else {
+            Primitive::try_from(self)
+                .unwrap()
+                .set_cached(agent, p, value, cache, gc)
+        }
     }
 
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    pub(crate) fn cached_set<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        if let Ok(o) = Object::try_from(self) {
+            o.get_cached(agent, p, cache, gc)
+        } else {
+            Primitive::try_from(self)
+                .unwrap()
+                .get_cached(agent, p, cache, gc)
+        }
     }
 }
 

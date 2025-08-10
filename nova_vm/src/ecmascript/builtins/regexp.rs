@@ -11,8 +11,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoObject,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
+            String, Value,
         },
     },
     engine::{
@@ -172,25 +173,6 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
                 .is_none()
         );
     }
-
-    fn cached_lookup<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        // Regardless of the backing object, we might have a valid value
-        // for lastIndex.
-        if p == BUILTIN_STRING_MEMORY.lastIndex.into()
-            && let Some(last_index) = agent[self].last_index.get_value()
-        {
-            CachedLookupResult::Found(last_index.into())
-        } else {
-            let shape = self.object_shape(agent);
-            shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
-        }
-    }
 }
 
 impl<'a> InternalMethods<'a> for RegExp<'a> {
@@ -203,10 +185,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             // If a backing object exists, it's the only one with correct
             // knowledge of all our properties, including lastIndex.
-            TryResult::Continue(
-                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
-                    .bind(gc),
-            )
+            TryResult::Continue(ordinary_get_own_property(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                gc,
+            ))
         } else if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If no backing object exists, we can turn lastIndex into a
             // PropertyDescriptor statically.
@@ -425,6 +410,94 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 vec![BUILTIN_STRING_MEMORY.lastIndex.into()]
             },
         )
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        // Regardless of the backing object, we might have a valid value
+        // for lastIndex.
+        if p == BUILTIN_STRING_MEMORY.lastIndex.into()
+            && let Some(last_index) = agent[self].last_index.get_value()
+        {
+            GetCachedResult::Value(last_index.into())
+        } else {
+            let shape = self.object_shape(agent);
+            shape.get_cached(
+                agent,
+                p.bind(gc),
+                cache.bind(gc),
+                self.into_value().bind(gc),
+                gc,
+            )
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        if p == BUILTIN_STRING_MEMORY.lastIndex.into() {
+            // If we're setting the last index and we have a backing object,
+            // then we set the value there first and observe the result.
+            let new_last_index = RegExpLastIndex::from_value(value);
+            if self.get_backing_object(agent).is_some() {
+                // Note: The lastIndex is an unconfigurable data property: It
+                // cannot be turned into a getter or setter and will thus never
+                // call into JavaScript.
+                let success = unwrap_try(ordinary_try_set(
+                    agent,
+                    self.into_object(),
+                    p,
+                    value,
+                    self.into_value(),
+                    gc,
+                ));
+                if success {
+                    // We successfully set the value, so set it in our direct
+                    // data as well.
+                    agent[self].last_index = new_last_index;
+                    SetCachedResult::Done
+                } else {
+                    SetCachedResult::Unwritable
+                }
+            } else {
+                // Note: lastIndex property is writable, so setting its value
+                // always succeeds. We can just set this directly here.
+                agent[self].last_index = new_last_index;
+                // If we we set a value that is not a valid index or undefined,
+                // we need to create the backing object and set the actual
+                // value there.
+                if !new_last_index.is_valid() && value.is_undefined() {
+                    unwrap_try(self.create_backing_object(agent).try_set(
+                        agent,
+                        p,
+                        value,
+                        self.into_value(),
+                        gc,
+                    ));
+                }
+                SetCachedResult::Done
+            }
+        } else {
+            let shape = self.object_shape(agent);
+            shape.set_cached(
+                agent,
+                p.bind(gc),
+                cache.bind(gc),
+                value,
+                self.into_value().bind(gc),
+                gc,
+            )
+        }
     }
 }
 

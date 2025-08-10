@@ -11,8 +11,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, CachedLookupResult, InternalSlots, IntoObject, Number, Numeric, Object,
-            OrdinaryObject, Primitive, PropertyKey, String, Symbol, Value,
+            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, Number, Numeric,
+            Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, Symbol, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -171,70 +171,63 @@ impl<'a> ObjectShape<'a> {
     ///
     /// If a match is found, it is returned. Otherwise, a request to fill this
     /// cache is prepared.
-    pub(crate) fn cached_lookup<'gc>(
+    pub(crate) fn get_cached<'gc>(
         self,
         agent: &mut Agent,
         p: PropertyKey,
         cache: PropertyLookupCache,
-        o: impl InternalSlots<'a>,
+        receiver: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
+    ) -> GetCachedResult<'gc> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                // eprintln!("Found cached UNSET");
-                CachedLookupResult::Unset
-            } else if let Some(prototype) = prototype {
-                // The property is set on a particular object in the prototype
-                // chain.
-                // eprintln!("Get by offset in prototype");
-                prototype.get_property_by_offset(agent, cache, offset, gc)
+                GetCachedResult::Value(Value::Undefined)
             } else {
-                // The property is set on the object itself.
-                // eprintln!("Get by offset in object");
-                o.get_property_by_offset(agent, cache, offset, gc)
+                let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
+                o.get_own_property_at_offset(agent, offset, gc)
             }
         } else {
-            // eprintln!("No cache, requesting caching");
+            // No cache found.
             agent
                 .heap
                 .caches
-                .set_current_cache(o.into_value(), cache, p, shape);
-            CachedLookupResult::NoCache
+                .set_current_cache(receiver, cache, p, shape);
+            GetCachedResult::NoCache
         }
     }
 
-    /// Perform a cached lookup in the given cache for this Object Shape.
-    ///
-    /// If a match is found, it is returned. Otherwise, a request to fill this
-    /// cache is prepared.
-    pub(crate) fn cached_primitive_lookup<'gc>(
+    pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
         p: PropertyKey,
         cache: PropertyLookupCache,
-        v: Value,
+        value: Value,
+        receiver: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
+    ) -> SetCachedResult<'gc> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                CachedLookupResult::Unset
-            } else if let Some(prototype) = prototype {
-                // The property is set on a particular object in the prototype
-                // chain.
-                prototype.get_property_by_offset(agent, cache, offset, gc)
+                // TODO: we could have some sort of mechanism to call
+                // define_own_property_at_offset such that it signifies property
+                // addition.
+                SetCachedResult::NoCache
             } else {
-                // Cannot find cached properties on the primitive itself.
-                unreachable!()
+                let o = prototype.unwrap_or(Object::try_from(receiver).unwrap());
+                o.define_own_property_at_offset(agent, offset, value, receiver, gc)
             }
         } else {
-            agent.heap.caches.set_current_cache(v, cache, p, shape);
-            CachedLookupResult::NoCache
+            // No cache found.
+            agent
+                .heap
+                .caches
+                .set_current_cache(receiver, cache, p, shape);
+            SetCachedResult::NoCache
         }
     }
 

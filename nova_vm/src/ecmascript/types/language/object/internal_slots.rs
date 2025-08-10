@@ -2,17 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IntoObject, Object, OrdinaryObject, PropertyKey};
-use crate::{
-    ecmascript::{
-        builtins::ordinary::{
-            caches::{PropertyLookupCache, PropertyOffset},
-            shape::ObjectShape,
-        },
-        execution::{Agent, ProtoIntrinsics},
-        types::CachedLookupResult,
-    },
-    engine::context::NoGcScope,
+use super::{IntoObject, Object, OrdinaryObject};
+use crate::ecmascript::{
+    builtins::ordinary::shape::ObjectShape,
+    execution::{Agent, ProtoIntrinsics},
 };
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
@@ -132,40 +125,5 @@ where
     fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         self.get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
-    }
-
-    fn cached_lookup<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        // A cache-based lookup on an ordinary object can fully rely on the
-        // Object Shape and caches.
-        let shape = self.object_shape(agent);
-        shape.cached_lookup(agent, p, cache, self, gc)
-    }
-
-    /// Get a property value by offset from an object.
-    fn get_property_by_offset<'gc>(
-        self,
-        agent: &Agent,
-        cache: PropertyLookupCache,
-        offset: PropertyOffset,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        if offset.is_custom_property() {
-            // We don't yet cache any of these accesses.
-            todo!(
-                "{} needs to implement custom property caching manually",
-                core::any::type_name::<Self>()
-            )
-        } else {
-            // It should be impossible for us to not have a backing store.
-            self.get_backing_object(agent)
-                .unwrap()
-                .get_property_by_offset(agent, cache, offset, gc)
-        }
     }
 }

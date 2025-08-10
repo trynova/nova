@@ -11,14 +11,14 @@ use std::{
     vec,
 };
 
-use caches::{CacheToPopulate, Caches};
+use caches::{CacheToPopulate, Caches, PropertyOffset};
 
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::IntoValue,
+        types::{GetCachedResult, IntoValue, SetCachedResult},
     },
     engine::{
         Scoped, TryResult,
@@ -114,7 +114,76 @@ impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
 }
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {}
+impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
+    fn get_own_property_at_offset<'gc>(
+        self,
+        agent: &Agent,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        let offset = offset.get_property_offset();
+        let obj = self.bind(gc);
+        let data = obj.get_elements_storage(agent);
+        if let Some(v) = data.values[offset as usize] {
+            GetCachedResult::Value(v)
+        } else {
+            let d = data
+                .descriptors
+                .and_then(|d| d.get(&(offset as u32)))
+                .unwrap();
+            d.getter_function(gc).map_or(
+                GetCachedResult::Value(Value::Undefined),
+                GetCachedResult::Get,
+            )
+        }
+    }
+
+    fn define_own_property_at_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        offset: PropertyOffset,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        // OrdinarySetWithOwnDescriptor
+        let offset = offset.get_property_offset();
+        let obj = self.bind(gc);
+        let data = obj.get_elements_storage_mut(agent);
+        if let Some(v) = &mut data.values[offset as usize] {
+            // 2. If IsDataDescriptor(ownDesc) is true, then
+            let writable = match data.descriptors {
+                Entry::Occupied(e) => e
+                    .get()
+                    .get(&(offset as u32))
+                    .is_none_or(|d| d.is_writable().unwrap()),
+                Entry::Vacant(_) => true,
+            };
+            if writable {
+                // b. If Receiver is not an Object, return false.
+                if Object::try_from(receiver).is_err() {
+                    return SetCachedResult::Unwritable;
+                }
+                if self.into_value() == receiver {
+                    *v = value.unbind();
+                    SetCachedResult::Done
+                } else {
+                    SetCachedResult::NoCache
+                }
+            } else {
+                SetCachedResult::Unwritable
+            }
+        } else {
+            let Entry::Occupied(e) = data.descriptors else {
+                unreachable!()
+            };
+            let d = e.get().get(&(offset as u32)).unwrap();
+            debug_assert!(d.is_accessor_descriptor());
+            d.setter_function(gc)
+                .map_or(SetCachedResult::Accessor, SetCachedResult::Set)
+        }
+    }
+}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of<'a>(
@@ -225,13 +294,43 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property<'a>(
     agent: &mut Agent,
-    object: Object<'a>,
-    backing_object: OrdinaryObject<'a>,
+    object: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
+    gc: NoGcScope<'a, '_>,
 ) -> Option<PropertyDescriptor<'a>> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let (x, offset) = backing_object.property_storage().get(agent, property_key)?;
+    let (value, x, offset) = backing_object.property_storage().get(agent, property_key)?;
+
+    // 2. Let D be a newly created Property Descriptor with no fields.
+    let mut descriptor = PropertyDescriptor::default();
+
+    // 4. If X is a data property, then
+    if let Some(value) = value {
+        // a. Set D.[[Value]] to the value of X's [[Value]] attribute.
+        descriptor.value = Some(value.bind(gc));
+
+        // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
+        descriptor.writable = Some(x.map_or(true, |x| x.is_writable().unwrap()));
+    } else {
+        // 5. Else,
+        // a. Assert: X is an accessor property.
+        let x = x.unwrap();
+        debug_assert!(x.is_accessor_descriptor());
+
+        // b. Set D.[[Get]] to the value of X's [[Get]] attribute.
+        descriptor.get = Some(x.getter_function(gc));
+
+        // c. Set D.[[Set]] to the value of X's [[Set]] attribute.
+        descriptor.set = Some(x.setter_function(gc));
+    }
+
+    // 6. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
+    descriptor.enumerable = Some(x.map_or(true, |x| x.is_enumerable()));
+
+    // 7. Set D.[[Configurable]] to the value of X's [[Configurable]] attribute.
+    descriptor.configurable = Some(x.map_or(true, |x| x.is_configurable()));
 
     if let Some(CacheToPopulate {
         receiver,
@@ -251,34 +350,6 @@ pub(crate) fn ordinary_get_own_property<'a>(
         }
     }
 
-    // 2. Let D be a newly created Property Descriptor with no fields.
-    let mut descriptor = PropertyDescriptor::default();
-
-    // 4. If X is a data property, then
-    if x.is_data_descriptor() {
-        // a. Set D.[[Value]] to the value of X's [[Value]] attribute.
-        descriptor.value = x.value;
-
-        // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
-        descriptor.writable = x.writable;
-    } else {
-        // 5. Else,
-        // a. Assert: X is an accessor property.
-        debug_assert!(x.is_accessor_descriptor());
-
-        // b. Set D.[[Get]] to the value of X's [[Get]] attribute.
-        descriptor.get = x.get;
-
-        // c. Set D.[[Set]] to the value of X's [[Set]] attribute.
-        descriptor.set = x.set;
-    }
-
-    // 6. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
-    descriptor.enumerable = x.enumerable;
-
-    // 7. Set D.[[Configurable]] to the value of X's [[Configurable]] attribute.
-    descriptor.configurable = x.configurable;
-
     // 8. Return D.
     Some(descriptor)
 }
@@ -295,7 +366,7 @@ pub(crate) fn ordinary_define_own_property(
     // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
     // meaning that we know that this method cannot call into JavaScript.
     // 1. Let current be ! O.[[GetOwnProperty]](P).
-    let current = ordinary_get_own_property(agent, o, backing_object, property_key);
+    let current = ordinary_get_own_property(agent, o, backing_object, property_key, gc);
 
     // 2. Let extensible be ! IsExtensible(O).
     let extensible = backing_object.internal_extensible(agent);
@@ -714,7 +785,8 @@ pub(crate) fn ordinary_try_get<'gc>(
     let receiver = receiver.bind(gc);
 
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = ordinary_get_own_property(agent, object, backing_object, property_key)
+    let Some(descriptor) =
+        ordinary_get_own_property(agent, object, backing_object, property_key, gc)
     else {
         // 2. If desc is undefined, then
 
@@ -1163,7 +1235,7 @@ pub(crate) fn ordinary_delete(
     gc: NoGcScope,
 ) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = ordinary_get_own_property(agent, o, backing_object, property_key).bind(gc);
+    let descriptor = ordinary_get_own_property(agent, o, backing_object, property_key, gc);
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {

@@ -49,13 +49,14 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, CachedLookupResult, Function, InternalMethods,
+            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedResult, InternalMethods,
             InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
-            String, Value, get_this_value, get_value, initialize_referenced_binding,
-            is_private_reference, is_property_reference, is_super_reference,
-            is_unresolvable_reference, put_value, throw_read_undefined_or_null_error,
-            try_get_value, try_initialize_referenced_binding, try_put_value,
+            SetCachedResult, String, Value, get_this_value, get_value,
+            initialize_referenced_binding, is_private_reference, is_property_reference,
+            is_super_reference, is_unresolvable_reference, put_value, throw_cannot_set_property,
+            throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
+            try_put_value,
         },
     },
     engine::{
@@ -1031,75 +1032,7 @@ impl Vm {
                 )?;
             }
             Instruction::PutValueWithCache => {
-                let _cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-                let value = vm.result.take().unwrap();
-                let reference = vm.reference.take().unwrap();
-                assert!(reference.is_static_property_reference());
-
-                // let set_current_cache = if let Ok(object) = Object::try_from(reference.base_value())
-                //     && !object.is_proxy()
-                //     && let Some(backing_object) = object.get_backing_object(agent).bind(gc.nogc())
-                // {
-                //     let shape = backing_object.get_shape(agent);
-                //     if let Some((offset, prototype)) = cache.find(agent, shape) {
-                //         if let Some(offset) = offset {
-                //             if prototype.is_none() {
-                //                 set_value_by_offset(
-                //                     agent,
-                //                     vm,
-                //                     (object.unbind(), backing_object.unbind()),
-                //                     offset,
-                //                     value.unbind(),
-                //                     reference.strict(),
-                //                     gc,
-                //                 )?;
-                //                 return Ok(ContinuationKind::Normal);
-                //             }
-                //         } else {
-                //             with_vm_gc(
-                //                 agent,
-                //                 vm,
-                //                 |agent, gc| {
-                //                     object.internal_define_own_property(
-                //                         agent,
-                //                         reference.referenced_name_property_key(),
-                //                         PropertyDescriptor::new_data_descriptor(value),
-                //                         gc,
-                //                     )
-                //                 },
-                //                 gc,
-                //             )?;
-                //             return Ok(ContinuationKind::Normal);
-                //         }
-                //         false
-                //     } else {
-                //         agent.heap.caches.set_current_cache(
-                //             object,
-                //             cache,
-                //             reference.referenced_name_property_key(),
-                //             shape,
-                //         );
-                //         true
-                //     }
-                // } else {
-                //     false
-                // };
-
-                let result = try_put_value(agent, &reference, value, gc.nogc());
-                // if set_current_cache {
-                //     agent.heap.caches.clear_current_cache_to_populate();
-                // }
-
-                if let TryResult::Continue(result) = result {
-                    result.unbind()?;
-                } else {
-                    with_vm_gc(
-                        agent,
-                        vm,
-                        |agent, gc| put_value(agent, &reference, value, gc),
-                        gc,
-                    )?;
-                }
+                put_value_with_cache(agent, vm, executable, instr, gc)?;
             }
             Instruction::GetValueWithCache => {
                 get_value_with_cache(agent, vm, executable, instr, false, gc)?;
@@ -3966,12 +3899,12 @@ fn get_value_with_cache<'gc>(
         let o = reference.base_value().bind(gc.nogc());
         let p = reference.referenced_name_property_key().bind(gc.nogc());
         let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-        match o.cached_lookup(agent, p, cache, gc.nogc()) {
-            CachedLookupResult::Found(value) => {
+        match o.get_cached(agent, p, cache, gc.nogc()) {
+            GetCachedResult::Value(value) => {
                 vm.result = Some(value.unbind());
                 return Ok(());
             }
-            CachedLookupResult::FoundGetter(getter) => {
+            GetCachedResult::Get(getter) => {
                 let getter = getter.unbind();
                 let o = o.unbind();
                 let result = with_vm_gc(
@@ -3983,7 +3916,7 @@ fn get_value_with_cache<'gc>(
                 vm.result = Some(result.unbind());
                 return Ok(());
             }
-            CachedLookupResult::FoundProxy(proxy) => {
+            GetCachedResult::Proxy(proxy) => {
                 let proxy = proxy.unbind();
                 let o = o.unbind();
                 let p = p.unbind();
@@ -3996,20 +3929,11 @@ fn get_value_with_cache<'gc>(
                 vm.result = Some(result.unbind());
                 return Ok(());
             }
-            CachedLookupResult::Unset | CachedLookupResult::Accessor => {
-                vm.result = Some(Value::Undefined);
-                return Ok(());
+            GetCachedResult::NoCache => {
+                // No cached data; continue with try_get_value.
             }
-            CachedLookupResult::NoCache => {}
         }
     }
-
-    // agent.heap.caches.set_current_cache(
-    //     object,
-    //     cache,
-    //     reference.referenced_name_property_key(),
-    //     shape,
-    // );
 
     let result = try_get_value(agent, &reference, gc.nogc());
     agent.heap.caches.clear_current_cache_to_populate();
@@ -4021,5 +3945,137 @@ fn get_value_with_cache<'gc>(
         vm.result =
             Some(with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc).unbind()?);
     }
+    Ok(())
+}
+
+fn put_value_with_cache<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    executable: Scoped<Executable>,
+    instr: &Instr,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
+    // 1. If V is not a Reference Record, return V.
+    let reference = vm.reference.take().unwrap().bind(gc.nogc());
+    let value = vm.result.take().unwrap().bind(gc.nogc());
+
+    assert!(reference.is_static_property_reference());
+
+    if is_super_reference(&reference) {
+        // TODO: super references have class prototype as base_value and target
+        // object as this_value; they call [[Set]] method of base_value with
+        // this_value as the Receiver parameter. This can lead to fun hijinks.
+        // Usually it's intended to call the base_value property getter method
+        // with the this_value as `this`.
+    } else {
+        // O[[Set]](P, V, O)
+        let o = reference.base_value().bind(gc.nogc());
+        let p = reference.referenced_name_property_key().bind(gc.nogc());
+        let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+        match o.set_cached(agent, p, value, cache, gc.nogc()) {
+            SetCachedResult::Done => {
+                return Ok(());
+            }
+            SetCachedResult::Unwritable | SetCachedResult::Accessor => {
+                if reference.strict() {
+                    return Err(throw_cannot_set_property(
+                        agent,
+                        o.unbind(),
+                        p.unbind(),
+                        gc.into_nogc(),
+                    ));
+                } else {
+                    return Ok(());
+                }
+            }
+            SetCachedResult::Set(setter) => {
+                let setter = setter.unbind();
+                let o = o.unbind();
+                let mut value = value.unbind();
+                with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| {
+                        call_function(
+                            agent,
+                            setter,
+                            o,
+                            Some(ArgumentsList::from_mut_value(&mut value)),
+                            gc,
+                        )
+                    },
+                    gc,
+                )?;
+                return Ok(());
+            }
+            SetCachedResult::Proxy(proxy) => {
+                let proxy = proxy.unbind();
+                let o = o.unbind();
+                let p = p.unbind();
+                let value = value.unbind();
+                let scoped_strict_error_data = if reference.strict() {
+                    Some((p.scope(agent, gc.nogc()), o.scope(agent, gc.nogc())))
+                } else {
+                    None
+                };
+                let succeeded = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| proxy.internal_set(agent, p, value, o, gc),
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                if !succeeded
+                    && let Some((scoped_referenced_name, scoped_base_obj)) =
+                        scoped_strict_error_data
+                {
+                    // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
+                    // SAFETY: not shared.
+                    let base_obj_repr = unsafe {
+                        scoped_base_obj
+                            .take(agent)
+                            .into_value()
+                            .string_repr(agent, gc.reborrow())
+                            .unbind()
+                            .bind(gc.nogc())
+                    };
+                    // SAFETY: not shared.
+                    let referenced_name =
+                        unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                    return Err(throw_cannot_set_property(
+                        agent,
+                        base_obj_repr.into_value().unbind(),
+                        referenced_name.unbind(),
+                        gc.into_nogc(),
+                    ));
+                }
+                if let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data {
+                    // SAFETY: not shared.
+                    let _ = unsafe { scoped_base_obj.take(agent) }.bind(gc.nogc());
+                    // SAFETY: not shared.
+                    let _ = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                };
+                return Ok(());
+            }
+            SetCachedResult::NoCache => {}
+        }
+    }
+
+    let result = try_put_value(agent, &reference, value, gc.nogc());
+    agent.heap.caches.clear_current_cache_to_populate();
+
+    if let TryResult::Continue(result) = result {
+        result.unbind()?;
+    } else {
+        let value = value.unbind();
+        let reference = reference.unbind();
+        with_vm_gc(
+            agent,
+            vm,
+            |agent, gc| put_value(agent, &reference, value, gc),
+            gc,
+        )?;
+    }
+
     Ok(())
 }

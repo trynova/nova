@@ -24,7 +24,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, CachedLookupResult, Function, InternalMethods, InternalSlots,
+            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, Value,
         },
@@ -360,49 +360,6 @@ impl<'a> InternalSlots<'a> for Array<'a> {
                 .internal_set_prototype(agent, prototype);
         }
     }
-
-    fn cached_lookup<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        // Cached lookup of an Array should return directly from the Array's
-        // internal memory if it can.
-        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
-            // Length lookup: we find it always.
-            return CachedLookupResult::Found(self.len(agent).into_value());
-        } else if let Some(index) = p.into_u32() {
-            // Indexed lookup: check our slice.
-            if let Some(value) = self.as_slice(agent).get(index as usize) {
-                // Found a slot in the slice, check if it contains a Value.
-                if let Some(value) = value {
-                    // Slot contained value, return it.
-                    return CachedLookupResult::Found(value.bind(gc));
-                }
-                // Slot did not contain a value; this is either a hole or an
-                // accessor property.
-                let ElementStorageRef { descriptors, .. } = self.get_storage(agent);
-                if let Some(desc) = descriptors.and_then(|d| d.get(&index)) {
-                    // This was an accessor property; if it has a getter,
-                    // return that. Otherwise, return undefined.
-                    debug_assert!(desc.is_accessor_descriptor());
-                    if let Some(getter) = desc.getter_function(gc) {
-                        return CachedLookupResult::FoundGetter(getter.bind(gc));
-                    } else {
-                        return CachedLookupResult::Found(Value::Undefined);
-                    }
-                }
-                // This was a hole, continue into the prototype chain.
-            }
-        }
-        // If this was an over-indexing, a hole, or a named property on the
-        // Array then we want to perform a normal cached lookup with the
-        // Array's shape.
-        let shape = self.object_shape(agent);
-        shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
-    }
 }
 
 impl<'a> InternalMethods<'a> for Array<'a> {
@@ -451,8 +408,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             }))
         } else if let Some(backing_object) = array_data.object_index {
             TryResult::Continue(
-                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
-                    .bind(gc),
+                ordinary_get_own_property(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    gc,
+                )
+                .bind(gc),
             )
         } else {
             TryResult::Continue(None)
@@ -905,6 +868,55 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         keys.extend(backing_keys);
 
         TryResult::Continue(keys)
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        // Cached lookup of an Array should return directly from the Array's
+        // internal memory if it can.
+        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
+            // Length lookup: we find it always.
+            return GetCachedResult::Value(self.len(agent).into_value());
+        } else if let Some(index) = p.into_u32() {
+            // Indexed lookup: check our slice.
+            if let Some(value) = self.as_slice(agent).get(index as usize) {
+                // Found a slot in the slice, check if it contains a Value.
+                if let Some(value) = value {
+                    // Slot contained value, return it.
+                    return GetCachedResult::Value(value.bind(gc));
+                }
+                // Slot did not contain a value; this is either a hole or an
+                // accessor property.
+                let ElementStorageRef { descriptors, .. } = self.get_storage(agent);
+                if let Some(desc) = descriptors.and_then(|d| d.get(&index)) {
+                    // This was an accessor property; if it has a getter,
+                    // return that. Otherwise, return undefined.
+                    debug_assert!(desc.is_accessor_descriptor());
+                    if let Some(getter) = desc.getter_function(gc) {
+                        return GetCachedResult::Get(getter.bind(gc));
+                    } else {
+                        return GetCachedResult::Value(Value::Undefined);
+                    }
+                }
+                // This was a hole, continue into the prototype chain.
+            }
+        }
+        // If this was an over-indexing, a hole, or a named property on the
+        // Array then we want to perform a normal cached lookup with the
+        // Array's shape.
+        let shape = self.object_shape(agent);
+        shape.get_cached(
+            agent,
+            p.bind(gc),
+            cache.bind(gc),
+            self.into_value().bind(gc),
+            gc,
+        )
     }
 }
 

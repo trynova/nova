@@ -12,8 +12,8 @@ use core::{
 use std::borrow::Cow;
 
 use super::{
-    CachedLookupResult, IntoPrimitive, IntoValue, Primitive, PropertyKey,
-    SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value,
+    GetCachedResult, IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT, SetCachedResult, Value,
 };
 use crate::{
     SmallInteger, SmallString,
@@ -654,18 +654,34 @@ impl<'a> String<'a> {
         }
     }
 
-    pub(crate) fn cached_lookup<'gc>(
+    pub(crate) fn get_cached<'gc>(
         self,
         agent: &mut Agent,
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
+    ) -> GetCachedResult<'gc> {
         if let Some(v) = self.get_property_value(agent, p) {
-            CachedLookupResult::Found(v.bind(gc))
+            GetCachedResult::Value(v.bind(gc))
         } else {
             self.object_shape(agent)
-                .cached_primitive_lookup(agent, p, cache, self.into_value(), gc)
+                .get_cached(agent, p, cache, self.into_value(), gc)
+        }
+    }
+
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        value: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        if let Some(_) = self.get_property_value(agent, p) {
+            SetCachedResult::Unwritable
+        } else {
+            self.object_shape(agent)
+                .set_cached(agent, p, cache, value, self.into_value(), gc)
         }
     }
 }

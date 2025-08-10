@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoObject,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
@@ -169,34 +169,6 @@ impl<'a> InternalSlots<'a> for Error<'a> {
             )
         }
     }
-
-    fn cached_lookup<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        let bo = self.get_backing_object(agent);
-        if bo.is_none()
-            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-            && let Some(message) = agent[self].message
-        {
-            CachedLookupResult::Found(message.into_value().bind(gc))
-        } else if bo.is_none()
-            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
-            && let Some(message) = agent[self].cause
-        {
-            CachedLookupResult::Found(message.into_value().bind(gc))
-        } else {
-            let shape = if let Some(bo) = bo {
-                bo.object_shape(agent)
-            } else {
-                self.object_shape(agent)
-            };
-            shape.cached_lookup(agent, p, cache, self, gc)
-        }
-    }
 }
 
 impl<'a> InternalMethods<'a> for Error<'a> {
@@ -208,8 +180,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(
-                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
-                    .bind(gc),
+                ordinary_get_own_property(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    gc,
+                )
+                .bind(gc),
             ),
             None => {
                 let property_value =
@@ -475,6 +453,34 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 }
                 TryResult::Continue(property_keys)
             }
+        }
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        let bo = self.get_backing_object(agent);
+        if bo.is_none()
+            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && let Some(message) = agent[self].message
+        {
+            GetCachedResult::Value(message.into_value().bind(gc))
+        } else if bo.is_none()
+            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+            && let Some(message) = agent[self].cause
+        {
+            GetCachedResult::Value(message.into_value().bind(gc))
+        } else {
+            let shape = if let Some(bo) = bo {
+                bo.object_shape(agent)
+            } else {
+                self.object_shape(agent)
+            };
+            shape.get_cached(agent, p, cache, self.into_value(), gc)
         }
     }
 }

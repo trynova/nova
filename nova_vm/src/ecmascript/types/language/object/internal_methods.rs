@@ -8,12 +8,14 @@ use crate::{
         builtins::{
             ArgumentsList,
             ordinary::{
+                caches::{PropertyLookupCache, PropertyOffset},
                 ordinary_define_own_property, ordinary_delete, ordinary_get,
                 ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
                 ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
                 ordinary_set, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
             },
+            proxy::Proxy,
         },
         execution::{Agent, JsResult},
         types::{Function, PropertyDescriptor, Value},
@@ -180,6 +182,7 @@ where
                 self.into_object().bind(gc),
                 backing_object,
                 property_key,
+                gc,
             ),
             None => None,
         })
@@ -488,6 +491,105 @@ where
         ))
     }
 
+    /// ## \[\[Get]] method with caching.
+    ///
+    /// This method is a variant of the \[\[Get]] method which can never call
+    /// into JavaScript and thus cannot trigger garbage collection. If the
+    /// method would need to call a getter function or a Proxy trap, then the
+    /// method explicit returns a result signifying that need. The caller is
+    /// thus in charge of control flow.
+    ///
+    /// > NOTE: Because the method cannot call getters, the receiver parameter
+    /// > is not part of the API.
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        let shape = self.object_shape(agent);
+        shape.get_cached(agent, p, cache, self.into_value(), gc)
+    }
+
+    /// ## \[\[Set]] method with caching.
+    ///
+    /// This method is a variant of the \[\[Set]] method which can never call
+    /// into JavaScript and thus cannot trigger garbage collection. If the
+    /// method would need to call a setter function or a Proxy trap, then the
+    /// method explicit returns a result signifying that need. The caller is
+    /// thus in charge of control flow.
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        let shape = self.object_shape(agent);
+        shape.set_cached(agent, p, cache, value, self.into_value(), gc)
+    }
+
+    /// ## \[\[GetOwnProperty]] method with offset.
+    ///
+    /// This is a variant of the \[\[GetOwnProperty]] method that reads a
+    /// property value (or getter function) at an offset based on cached data.
+    /// The method cannot call into JavaScript and is used as part of the
+    /// \[\[Get]] method's cached variant.
+    fn get_own_property_at_offset<'gc>(
+        self,
+        agent: &Agent,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        if offset.is_custom_property() {
+            // We don't yet cache any of these accesses.
+            todo!(
+                "{} needs to implement custom property caching manually",
+                core::any::type_name::<Self>()
+            )
+        } else {
+            // It should be impossible for us to not have a backing store.
+            self.get_backing_object(agent)
+                .unwrap()
+                .get_own_property_at_offset(agent, offset, gc)
+        }
+    }
+
+    /// ## \[\[DefineOwnProperty]] method with offset.
+    ///
+    /// This is a variant of the \[\[DefineOwnProperty]] method that attempts
+    /// to set the value of property at an offset. The method cannot call into
+    /// JavaScript or trigger garbage collection, and any such needs must be
+    /// interrupted and control returned to the caller. The method is used as
+    /// part of the \[\[Set]] method's cached variant.
+    fn define_own_property_at_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        offset: PropertyOffset,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        if offset.is_custom_property() {
+            // We don't yet cache any of these accesses.
+            todo!(
+                "{} needs to implement custom property caching manually",
+                core::any::type_name::<Self>()
+            )
+        } else {
+            // It should be impossible for us to not have a backing store.
+            self.get_backing_object(agent)
+                .unwrap()
+                .define_own_property_at_offset(agent, offset, value, receiver, gc)
+        }
+    }
+
     /// ## \[\[Call\]\]
     fn internal_call<'gc>(
         self,
@@ -508,5 +610,61 @@ where
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
         unreachable!()
+    }
+}
+
+pub enum GetCachedResult<'a> {
+    /// A data property was found.
+    Value(Value<'a>),
+    /// An accessor property with a getter was found.
+    Get(Function<'a>),
+    /// A Proxy trap call is needed.
+    Proxy(Proxy<'a>),
+    /// No property cache was found.
+    NoCache,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for GetCachedResult<'_> {
+    type Of<'a> = GetCachedResult<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+pub enum SetCachedResult<'a> {
+    /// Value was successfully set.
+    Done,
+    /// Value could not be set.
+    Unwritable,
+    /// An accessor without a setter was found.
+    Accessor,
+    /// An accessor property with a setter was found.
+    Set(Function<'a>),
+    /// A Proxy trap call is needed.
+    Proxy(Proxy<'a>),
+    /// No property cache was found.
+    NoCache,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SetCachedResult<'_> {
+    type Of<'a> = SetCachedResult<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }

@@ -22,8 +22,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, CachedLookupResult, Function, InternalMethods, InternalSlots,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
+            String, Value,
         },
     },
     engine::{
@@ -142,28 +143,6 @@ impl<'a> InternalSlots<'a> for Proxy<'a> {
 
     #[inline(always)]
     fn object_shape(self, _: &mut Agent) -> ObjectShape<'static> {
-        unreachable!()
-    }
-
-    #[inline(always)]
-    fn cached_lookup<'gc>(
-        self,
-        _: &mut Agent,
-        _: PropertyKey,
-        _: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        CachedLookupResult::FoundProxy(self.bind(gc))
-    }
-
-    #[inline(always)]
-    fn get_property_by_offset<'gc>(
-        self,
-        _: &Agent,
-        _: PropertyLookupCache,
-        _: PropertyOffset,
-        _: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
         unreachable!()
     }
 }
@@ -1643,6 +1622,58 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         }
         // 23. Return trapResult.
         Ok(trap_result)
+    }
+
+    #[inline(always)]
+    fn get_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        GetCachedResult::Proxy(self.bind(gc))
+    }
+
+    fn set_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        SetCachedResult::Proxy(self.bind(gc))
+    }
+
+    #[inline(always)]
+    fn get_own_property_at_offset<'gc>(
+        self,
+        _: &Agent,
+        _: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        GetCachedResult::Proxy(self.bind(gc))
+    }
+
+    #[inline(always)]
+    fn define_own_property_at_offset<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyOffset,
+        _: Value,
+        _: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        SetCachedResult::Proxy(self.bind(gc))
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)

@@ -14,11 +14,11 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            CachedLookupResult, FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
+            FLOAT_DISCRIMINANT, GetCachedResult, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
             InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
             NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive, PropertyDescriptor,
             PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, String, Symbol, Value, bigint::HeapBigInt,
+            SYMBOL_DISCRIMINANT, SetCachedResult, String, Symbol, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -226,23 +226,6 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
             }
         }
     }
-
-    fn cached_lookup<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        if let Ok(string) = String::try_from(agent[self].data)
-            && let Some(value) = string.get_property_value(agent, p)
-        {
-            CachedLookupResult::Found(value.bind(gc))
-        } else {
-            let shape = self.object_shape(agent);
-            shape.cached_lookup(agent, p.bind(gc), cache.bind(gc), self.bind(gc), gc)
-        }
-    }
 }
 
 impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
@@ -260,7 +243,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = o.get_backing_object(agent)
             && let Some(property_descriptor) =
-                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key)
+                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key, gc)
         {
             return TryResult::Continue(Some(property_descriptor));
         }
@@ -564,6 +547,54 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 TryResult::Continue(ordinary_own_property_keys(agent, backing_object, gc))
             }
             None => TryResult::Continue(vec![]),
+        }
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        if let Ok(string) = String::try_from(agent[self].data)
+            && let Some(value) = string.get_property_value(agent, p)
+        {
+            GetCachedResult::Value(value.bind(gc))
+        } else {
+            let shape = self.object_shape(agent);
+            shape.get_cached(
+                agent,
+                p.bind(gc),
+                cache.bind(gc),
+                self.into_value().bind(gc),
+                gc,
+            )
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        if String::try_from(agent[self].data)
+            .is_ok_and(|s| s.get_property_value(agent, p).is_some())
+        {
+            SetCachedResult::Unwritable
+        } else {
+            let shape = self.object_shape(agent);
+            shape.set_cached(
+                agent,
+                p.bind(gc),
+                cache.bind(gc),
+                value,
+                self.into_value().bind(gc),
+                gc,
+            )
         }
     }
 }

@@ -16,8 +16,9 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, CachedLookupResult, InternalMethods, InternalSlots, IntoValue,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
+            Value,
         },
     },
     engine::{
@@ -173,28 +174,6 @@ impl<'a> InternalSlots<'a> for Module<'a> {
 
     #[inline(always)]
     fn object_shape(self, _: &mut Agent) -> ObjectShape<'static> {
-        unreachable!()
-    }
-
-    #[inline(always)]
-    fn cached_lookup<'gc>(
-        self,
-        _: &mut Agent,
-        _: PropertyKey,
-        _: PropertyLookupCache,
-        _: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
-        CachedLookupResult::NoCache
-    }
-
-    #[inline(always)]
-    fn get_property_by_offset<'gc>(
-        self,
-        _: &Agent,
-        _: PropertyLookupCache,
-        _: PropertyOffset,
-        _: NoGcScope<'gc, '_>,
-    ) -> CachedLookupResult<'gc> {
         unreachable!()
     }
 }
@@ -775,6 +754,39 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         exports.for_each(|export_key| own_property_keys.push(export_key));
         own_property_keys.push(WellKnownSymbolIndexes::ToStringTag.into());
         TryResult::Continue(own_property_keys)
+    }
+
+    #[inline(always)]
+    fn get_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyLookupCache,
+        _: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        GetCachedResult::NoCache
+    }
+
+    #[inline(always)]
+    fn set_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: PropertyLookupCache,
+        _: NoGcScope<'gc, '_>,
+    ) -> SetCachedResult<'gc> {
+        SetCachedResult::Unwritable
+    }
+
+    #[inline(always)]
+    fn get_own_property_at_offset<'gc>(
+        self,
+        _: &Agent,
+        _: PropertyOffset,
+        _: NoGcScope<'gc, '_>,
+    ) -> GetCachedResult<'gc> {
+        unreachable!()
     }
 }
 
