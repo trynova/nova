@@ -4277,7 +4277,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => {
-                TypedArray::Float16Array(data).set_cached(agent, p, value, cache, gc)
+                TypedArray::Float16Array(data).set_cached(agent, p, value, receiver, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -4506,7 +4506,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 .set_at_offset(agent, p, offset, value, receiver, gc),
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => TypedArray::Float16Array(data)
-                .define_own_property_at_offset(agent, offset, value, receiver, gc),
+                .set_at_offset(agent, p, offset, value, receiver, gc)
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
