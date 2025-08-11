@@ -2,12 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_list;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::{PromiseAllRecordHeapData, PromiseAllRecord};
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecordHeapData;
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
 use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
-use crate::ecmascript::builtins::{create_builtin_function, Array, BuiltinFunctionArgs};
-use crate::ecmascript::fundamental_objects::function_objects::function_constructor::create_dynamic_function;
+use crate::ecmascript::builtins::Array;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -293,9 +291,12 @@ impl PromiseConstructor {
         };
 
         let result_capability = PromiseCapability::new(agent, gc.nogc());
-
         let second_capability = PromiseCapability::new(agent, gc.nogc());
-        let result_promise = result_capability.promise();
+
+        let result_promise = PromiseCapability::new(agent, gc.nogc())
+            .promise()
+            .unbind()
+            .bind(gc.nogc());
 
         // let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
         //     &'a mut Agent,
@@ -335,6 +336,7 @@ impl PromiseConstructor {
         let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
             remaining_unresolved_promise_count: 2,
             result_array,
+            promise: result_promise,
         });
 
         inner_promise_then(

@@ -304,7 +304,12 @@ impl PromiseReactionJob {
 
                         // Bind to current scope and mutate
                         let mut rec_bound = rec.unbind().bind(gc.nogc());
-                        rec_bound.on_promise_fufilled(agent, index, argument.unbind(), gc.nogc());
+                        rec_bound.on_promise_fufilled(
+                            agent,
+                            index,
+                            argument.clone(),
+                            gc.reborrow(),
+                        );
 
                         // Write back with 'static lifetime
                         agent

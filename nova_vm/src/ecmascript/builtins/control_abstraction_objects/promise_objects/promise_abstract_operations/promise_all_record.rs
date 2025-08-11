@@ -11,7 +11,7 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::Agent,
-        types::Value,
+        types::{IntoValue, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
@@ -23,6 +23,7 @@ use crate::{
 pub struct PromiseAllRecordHeapData<'a> {
     pub remaining_unresolved_promise_count: u32,
     pub result_array: Array<'a>,
+    pub promise: Promise<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,12 +36,11 @@ impl<'a> PromiseAllRecordHeapData<'a> {
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
+        mut gc: GcScope<'a, '_>,
     ) {
-        eprintln!("Self memory address: {:p}", &self);
-        // Update the result array at the specified index by reconstructing it
+        value.bind(gc.nogc());
         let array_slice = self.result_array.as_slice(agent);
-        let new_values: Vec<Value> = array_slice
+        array_slice
             .iter()
             .enumerate()
             .map(|(i, opt_val)| {
@@ -50,26 +50,20 @@ impl<'a> PromiseAllRecordHeapData<'a> {
                     opt_val.unwrap_or(Value::Undefined) // Keep existing or default
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        eprintln!("Index: {:#?}", index);
-        eprintln!("New values: {:#?}", new_values);
-        eprintln!(
-            "Remaining unresolved promise count: {:#?}",
-            self.remaining_unresolved_promise_count
-        );
-
-        self.result_array = Array::from_slice(agent, &new_values, gc);
-        eprintln!("Result array memory address: {:p}", &self.result_array);
+        // Update in place to avoid consuming the GC scope
+        let elements = self.result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(value.unbind());
 
         self.remaining_unresolved_promise_count -= 1;
         if self.remaining_unresolved_promise_count == 0 {
-            eprintln!(
-                "All promises fulfilled, should resolve main promise: {:#?}",
-                self.result_array
+            let capability = PromiseCapability::from_promise(self.promise, true);
+            capability.resolve(
+                agent,
+                self.result_array.unbind().into_value(),
+                gc.reborrow(),
             );
-            // self.promise_capability
-            //     .resolve(agent, self.result_array, gc.into_nogc());
         }
     }
 }
