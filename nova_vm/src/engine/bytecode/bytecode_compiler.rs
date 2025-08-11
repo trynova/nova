@@ -198,13 +198,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::String
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IdentifierReference<'s> {
-    type Output = ();
-    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
+    type Output = String<'gc>;
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let identifier = ctx.create_string(self.name.as_str());
         ctx.add_instruction_with_identifier(
             Instruction::ResolveBinding,
             identifier.to_property_key(),
         );
+        identifier
     }
 }
 
@@ -2630,11 +2631,7 @@ fn complex_object_pattern<'s>(
             object_pattern.properties.len(),
         );
 
-        let identifier_string = ctx.create_string(identifier.name.as_str());
-        ctx.add_instruction_with_identifier(
-            Instruction::ResolveBinding,
-            identifier_string.to_property_key(),
-        );
+        identifier.compile(ctx);
         if !has_environment {
             ctx.add_instruction(Instruction::PutValue);
         } else {
@@ -2689,11 +2686,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                     ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
                         // 1. Let bindingId be the StringValue of BindingIdentifier.
                         // 2. Let lhs be ? ResolveBinding(bindingId, environment).
-                        let binding_id = ctx.create_string(binding_identifier.name.as_str());
-                        ctx.add_instruction_with_identifier(
-                            Instruction::ResolveBinding,
-                            binding_id.to_property_key(),
-                        );
+                        let binding_id = binding_identifier.compile(ctx);
                         // Note: v is already in the result register after
                         // IteratorStepValueOrUndefined above.
                         // 3. Let v be undefined.
@@ -2807,11 +2800,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
-                    let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier.to_property_key(),
-                    );
+                    let identifier = identifier.compile(ctx);
                     let is_literal = init.is_literal();
                     if !is_literal {
                         ctx.add_instruction(Instruction::PushReference);
@@ -2856,11 +2845,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
-                    let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier.to_property_key(),
-                    );
+                    let identifier = identifier.compile(ctx);
 
                     let Some(init) = &decl.init else {
                         // LexicalBinding : BindingIdentifier

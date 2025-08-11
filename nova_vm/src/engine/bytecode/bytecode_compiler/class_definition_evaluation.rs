@@ -1041,13 +1041,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
             f.compile(ctx);
             // a. Let fn be the sole element of the BoundNames of f.
-            let f_name = ctx.create_string(&f.id.as_ref().unwrap().name);
+            f.id.as_ref().unwrap().compile(ctx);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-            ctx.add_instruction_with_identifier(
-                Instruction::ResolveBinding,
-                f_name.to_property_key(),
-            );
             ctx.add_instruction(Instruction::PutValue);
         }
 

@@ -30,12 +30,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 // happen.
                     && self.span.start == identifier.span.start
                 {
-                    let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier.to_property_key(),
-                    );
-                    named_evaluation_identifier = Some(identifier);
+                    named_evaluation_identifier = Some(identifier.compile(ctx));
                 } else {
                     identifier.compile(ctx);
                 }
