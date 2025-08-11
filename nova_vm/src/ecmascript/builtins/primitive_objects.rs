@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 use crate::{
     SmallInteger,
@@ -14,11 +15,12 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, GetCachedError, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
-            NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive, PropertyDescriptor,
-            PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, SetCachedResult, String, Symbol, Value, bigint::HeapBigInt,
+            FLOAT_DISCRIMINANT, GetCachedBreak, GetCachedNoCache, HeapNumber, HeapString,
+            INTEGER_DISCRIMINANT, InternalMethods, InternalSlots, IntoObject, IntoPrimitive,
+            IntoValue, NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
+            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedResult, String, Symbol, Value,
+            bigint::HeapBigInt,
         },
     },
     engine::{
@@ -556,11 +558,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, p)
         {
-            Ok(value.bind(gc))
+            value.into()
         } else {
             let shape = self.object_shape(agent);
             shape.get_cached(agent, p, self.into_value(), cache, gc)

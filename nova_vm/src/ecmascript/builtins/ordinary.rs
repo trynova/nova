@@ -8,6 +8,7 @@ pub mod shape;
 use core::ops::{Index, IndexMut};
 use std::{
     collections::{TryReserveError, hash_map::Entry},
+    ops::ControlFlow,
     vec,
 };
 
@@ -18,7 +19,7 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::{GetCachedError, IntoValue, SetCachedResult},
+        types::{GetCachedBreak, GetCachedNoCache, IntoValue, SetCachedResult},
     },
     engine::{
         Scoped, TryResult,
@@ -120,19 +121,20 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         let offset = offset.get_property_offset();
         let obj = self.bind(gc);
         let data = obj.get_elements_storage(agent);
         if let Some(v) = data.values[offset as usize] {
-            Ok(v)
+            v.into()
         } else {
             let d = data
                 .descriptors
                 .and_then(|d| d.get(&(offset as u32)))
                 .unwrap();
             d.getter_function(gc)
-                .map_or(Ok(Value::Undefined), |g| Err(GetCachedError::Get(g)))
+                .map_or(GetCachedBreak::Value(Value::Undefined), GetCachedBreak::Get)
+                .into()
         }
     }
 

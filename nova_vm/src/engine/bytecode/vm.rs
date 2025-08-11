@@ -49,7 +49,7 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedError, InternalMethods,
+            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedBreak, InternalMethods,
             InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
             SetCachedResult, String, Value, get_this_value, get_value,
@@ -3895,30 +3895,11 @@ fn get_value_with_cache<'gc>(
         let o = reference.base_value().bind(gc.nogc());
         let p = reference.referenced_name_property_key().bind(gc.nogc());
         let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-        match o.get_cached(agent, p, cache, gc.nogc()) {
-            Ok(value) => {
-                if !keep_reference {
-                    vm.reference = None;
-                }
-                vm.result = Some(value.unbind());
-                return Ok(());
+        if let ControlFlow::Break(b) = o.get_cached(agent, p, cache, gc.nogc()) {
+            if !keep_reference {
+                vm.reference = None;
             }
-            Err(err) => {
-                if !matches!(err, GetCachedError::NoCache) {
-                    if !keep_reference {
-                        vm.reference = None;
-                    }
-                    return handle_get_cached_error(
-                        agent,
-                        vm,
-                        o.unbind(),
-                        p.unbind(),
-                        err.unbind(),
-                        gc,
-                    );
-                }
-                // NoCache falls through to normal handling.
-            }
+            return handle_get_cached_break(agent, vm, o.unbind(), p.unbind(), b.unbind(), gc);
         }
     }
 
@@ -3942,16 +3923,19 @@ fn get_value_with_cache<'gc>(
     Ok(())
 }
 
-fn handle_get_cached_error<'a>(
+fn handle_get_cached_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
     o: Value,
     p: PropertyKey,
-    err: GetCachedError,
+    b: GetCachedBreak,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    match err {
-        GetCachedError::Get(getter) => {
+    match b {
+        GetCachedBreak::Value(value) => {
+            vm.result = Some(value.unbind());
+        }
+        GetCachedBreak::Get(getter) => {
             let getter = getter.unbind();
             let o = o.unbind();
             let result = with_vm_gc(
@@ -3961,9 +3945,8 @@ fn handle_get_cached_error<'a>(
                 gc,
             )?;
             vm.result = Some(result.unbind());
-            return Ok(());
         }
-        GetCachedError::Proxy(proxy) => {
+        GetCachedBreak::Proxy(proxy) => {
             let proxy = proxy.unbind();
             let o = o.unbind();
             let p = p.unbind();
@@ -3974,12 +3957,9 @@ fn handle_get_cached_error<'a>(
                 gc,
             )?;
             vm.result = Some(result.unbind());
-            return Ok(());
-        }
-        GetCachedError::NoCache => {
-            unreachable!()
         }
     }
+    Ok(())
 }
 
 fn put_value_with_cache<'gc>(

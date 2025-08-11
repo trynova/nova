@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
@@ -12,9 +13,9 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedError,
-            InternalMethods, InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedBreak,
+            GetCachedNoCache, InternalMethods, InternalSlots, IntoFunction, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
             function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
@@ -299,7 +300,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         function_get_cached(self, agent, p, cache, gc)
     }
 

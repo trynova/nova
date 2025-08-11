@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use small_string::SmallString;
 
 use crate::{
@@ -16,7 +18,8 @@ use crate::{
 };
 
 use super::{
-    GetCachedError, IntoValue, PropertyKey, SetCachedResult, String, Symbol, Value,
+    GetCachedBreak, GetCachedNoCache, IntoValue, PropertyKey, SetCachedResult, String, Symbol,
+    Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -170,9 +173,9 @@ impl Primitive<'_> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         match self {
-            Primitive::Undefined | Primitive::Null => Err(GetCachedError::NoCache),
+            Primitive::Undefined | Primitive::Null => ControlFlow::Continue(GetCachedNoCache),
             Primitive::Boolean(_)
             | Primitive::Symbol(_)
             | Primitive::Number(_)

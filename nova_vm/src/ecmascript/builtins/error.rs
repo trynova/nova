@@ -5,6 +5,7 @@
 mod data;
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 pub(crate) use data::ErrorHeapData;
 
@@ -12,9 +13,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
-            String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -463,18 +464,18 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         let bo = self.get_backing_object(agent);
         if bo.is_none()
             && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && let Some(message) = agent[self].message
         {
-            Ok(message.into_value().bind(gc))
+            message.into_value().bind(gc).into()
         } else if bo.is_none()
             && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
-            && let Some(message) = agent[self].cause
+            && let Some(cause) = agent[self].cause
         {
-            Ok(message.into_value().bind(gc))
+            cause.into_value().bind(gc).into()
         } else {
             let shape = if let Some(bo) = bo {
                 bo.object_shape(agent)

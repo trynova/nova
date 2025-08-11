@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::collections::TryReserveError;
+use std::{collections::TryReserveError, ops::ControlFlow};
 
 use super::Function;
 use crate::{
@@ -14,9 +14,9 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoValue,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
-            language::IntoObject,
+            BUILTIN_STRING_MEMORY, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            InternalSlots, IntoValue, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            SetCachedResult, String, Value, language::IntoObject,
         },
     },
     engine::{
@@ -93,12 +93,12 @@ pub(crate) fn function_get_cached<'a, 'gc>(
     p: PropertyKey,
     cache: PropertyLookupCache,
     gc: NoGcScope<'gc, '_>,
-) -> Result<Value<'gc>, GetCachedError<'gc>> {
+) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
     let bo = func.get_backing_object(agent);
     if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-        Ok(func.get_length(agent).into())
+        func.get_length(agent).into_value().bind(gc).into()
     } else if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        Ok(func.get_name(agent).into_value().bind(gc))
+        func.get_name(agent).into_value().bind(gc).into()
     } else {
         let shape = if let Some(bo) = bo {
             bo.object_shape(agent)

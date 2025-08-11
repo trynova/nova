@@ -5,9 +5,11 @@
 mod data;
 pub mod into_function;
 
+use std::ops::ControlFlow;
+
 use super::{
-    GetCachedError, InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey,
-    SetCachedResult, String, Value,
+    GetCachedBreak, GetCachedNoCache, InternalMethods, InternalSlots, Object, OrdinaryObject,
+    PropertyKey, SetCachedResult, String, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -556,7 +558,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         match self {
             Function::BoundFunction(f) => f.get_cached(agent, p, cache, gc),
             Function::BuiltinFunction(f) => f.get_cached(agent, p, cache, gc),
@@ -599,7 +601,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         match self {
             Function::BoundFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
             Function::BuiltinFunction(f) => f.get_own_property_at_offset(agent, offset, gc),

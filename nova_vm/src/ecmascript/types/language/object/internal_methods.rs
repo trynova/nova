@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use super::{InternalSlots, Object, PropertyKey};
 use crate::{
     ecmascript::{
@@ -507,7 +509,7 @@ where
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
@@ -547,7 +549,7 @@ where
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -622,19 +624,46 @@ where
     }
 }
 
+/// Early-return conditions for [[Get]] method's cached variant.
+///
+/// Early-return in effectively means that a cached property lookup was found
+/// and the normal \[\[Get]] method variant need not be entered.
 #[derive(Debug)]
-pub enum GetCachedError<'a> {
+pub enum GetCachedBreak<'a> {
+    /// A data property was found.
+    Value(Value<'a>),
     /// A getter call is needed.
     Get(Function<'a>),
     /// A Proxy trap call is needed.
     Proxy(Proxy<'a>),
-    /// No property cache was found.
-    NoCache,
+}
+
+impl<'a, T> From<GetCachedBreak<'a>> for ControlFlow<GetCachedBreak<'a>, T> {
+    fn from(value: GetCachedBreak<'a>) -> Self {
+        ControlFlow::Break(value)
+    }
+}
+
+impl<'a, T> From<Value<'a>> for ControlFlow<GetCachedBreak<'a>, T> {
+    fn from(value: Value<'a>) -> Self {
+        ControlFlow::Break(GetCachedBreak::Value(value))
+    }
+}
+
+/// No property cache was found.
+///
+/// The normal \[\[Get]] method variant should be entered.
+pub struct GetCachedNoCache;
+
+impl<T> From<GetCachedNoCache> for ControlFlow<T, GetCachedNoCache> {
+    fn from(value: GetCachedNoCache) -> Self {
+        ControlFlow::Continue(value)
+    }
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for GetCachedError<'_> {
-    type Of<'a> = GetCachedError<'a>;
+unsafe impl Bindable for GetCachedBreak<'_> {
+    type Of<'a> = GetCachedBreak<'a>;
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {

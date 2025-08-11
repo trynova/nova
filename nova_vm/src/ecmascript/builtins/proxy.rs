@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::ControlFlow};
 
 use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
@@ -22,9 +22,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedError, InternalMethods, InternalSlots,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
-            String, Value,
+            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -1631,10 +1631,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: PropertyKey,
         _: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        Err(GetCachedError::Proxy(self.bind(gc)))
+        GetCachedBreak::Proxy(self.bind(gc)).into()
     }
 
     fn set_cached<'gc>(
@@ -1657,10 +1657,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &Agent,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        Err(GetCachedError::Proxy(self.bind(gc)))
+        GetCachedBreak::Proxy(self.bind(gc)).into()
     }
 
     #[inline(always)]

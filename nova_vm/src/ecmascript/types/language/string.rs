@@ -9,11 +9,11 @@ use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::ControlFlow};
 
 use super::{
-    GetCachedError, IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, SetCachedResult, Value,
+    GetCachedBreak, GetCachedNoCache, IntoPrimitive, IntoValue, Primitive, PropertyKey,
+    SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SetCachedResult, Value,
 };
 use crate::{
     SmallInteger, SmallString,
@@ -660,9 +660,9 @@ impl<'a> String<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         if let Some(v) = self.get_property_value(agent, p) {
-            Ok(v.bind(gc))
+            v.bind(gc).into()
         } else {
             self.object_shape(agent)
                 .get_cached(agent, p, self.into_value(), cache, gc)

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ptr::NonNull};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ops::ControlFlow, ptr::NonNull};
 
 use ahash::AHashMap;
 use hashbrown::{HashTable, hash_table::Entry};
@@ -11,8 +11,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, GetCachedError, InternalMethods, InternalSlots, IntoObject, Number, Numeric,
-            Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, Symbol, Value,
+            BigInt, GetCachedBreak, GetCachedNoCache, InternalMethods, InternalSlots, IntoObject,
+            Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult,
+            String, Symbol, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -178,13 +179,13 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                Ok(Value::Undefined)
+                Value::Undefined.into()
             } else {
                 let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
                 o.get_own_property_at_offset(agent, offset, gc)
@@ -195,7 +196,7 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(receiver, cache, p, shape);
-            Err(GetCachedError::NoCache)
+            ControlFlow::Continue(GetCachedNoCache)
         }
     }
 

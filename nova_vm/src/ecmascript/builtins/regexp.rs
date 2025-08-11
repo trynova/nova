@@ -6,14 +6,15 @@ pub(crate) mod abstract_operations;
 pub(crate) mod data;
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedError, InternalMethods, InternalSlots, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
-            String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -418,13 +419,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if p == BUILTIN_STRING_MEMORY.lastIndex.into()
             && let Some(last_index) = agent[self].last_index.get_value()
         {
-            Ok(last_index.into())
+            last_index.into_value().into()
         } else {
             let shape = self.object_shape(agent);
             shape.get_cached(

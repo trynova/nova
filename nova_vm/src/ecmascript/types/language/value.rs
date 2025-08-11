@@ -3,9 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, GetCachedError, InternalMethods, IntoValue, Number, Numeric,
-    OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData, Symbol,
-    bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    BigInt, BigIntHeapData, GetCachedBreak, GetCachedNoCache, InternalMethods, IntoValue, Number,
+    Numeric, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData,
+    Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -70,6 +70,7 @@ use core::{
     mem::size_of,
     ops::Index,
 };
+use std::ops::ControlFlow;
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -1123,7 +1124,7 @@ impl<'a> Value<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.get_cached(agent, p, cache, gc)
         } else {
@@ -1157,7 +1158,7 @@ impl<'a> Value<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> Result<Value<'gc>, GetCachedError<'gc>> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.get_cached(agent, p, cache, gc)
         } else {
