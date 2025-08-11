@@ -34,7 +34,7 @@ use crate::{
             BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
             FunctionInternalProperties, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String, Value,
             function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
@@ -482,13 +482,10 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        function_set_cached(self, agent, p, value, receiver, cache, gc)
+        function_set_cached(self, agent, props, gc)
     }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)

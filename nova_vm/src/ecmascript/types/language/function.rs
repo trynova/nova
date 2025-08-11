@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 
 use super::{
     GetCachedResult, InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey,
-    SetCachedResult, String, Value,
+    SetCachedProps, SetCachedResult, String, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -574,23 +574,16 @@ impl<'a> InternalMethods<'a> for Function<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         match self {
-            Function::BoundFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
-            Function::BuiltinFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
-            Function::ECMAScriptFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
+            Function::BoundFunction(f) => f.set_cached(agent, props, gc),
+            Function::BuiltinFunction(f) => f.set_cached(agent, props, gc),
+            Function::ECMAScriptFunction(f) => f.set_cached(agent, props, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(f) => {
-                f.set_cached(agent, p, value, receiver, cache, gc)
-            }
-            Function::BuiltinPromiseResolvingFunction(f) => {
-                f.set_cached(agent, p, value, receiver, cache, gc)
-            }
+            Function::BuiltinConstructorFunction(f) => f.set_cached(agent, props, gc),
+            Function::BuiltinPromiseResolvingFunction(f) => f.set_cached(agent, props, gc),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
@@ -621,24 +614,18 @@ impl<'a> InternalMethods<'a> for Function<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
+        props: &SetCachedProps,
         offset: PropertyOffset,
-        value: Value,
-        receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         match self {
-            Function::BoundFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
-            Function::BuiltinFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
-            Function::ECMAScriptFunction(f) => {
-                f.set_at_offset(agent, p, offset, value, receiver, gc)
-            }
+            Function::BoundFunction(f) => f.set_at_offset(agent, props, offset, gc),
+            Function::BuiltinFunction(f) => f.set_at_offset(agent, props, offset, gc),
+            Function::ECMAScriptFunction(f) => f.set_at_offset(agent, props, offset, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(f) => {
-                f.set_at_offset(agent, p, offset, value, receiver, gc)
-            }
+            Function::BuiltinConstructorFunction(f) => f.set_at_offset(agent, props, offset, gc),
             Function::BuiltinPromiseResolvingFunction(f) => {
-                f.set_at_offset(agent, p, offset, value, receiver, gc)
+                f.set_at_offset(agent, props, offset, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

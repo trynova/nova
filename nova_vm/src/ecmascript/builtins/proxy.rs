@@ -24,7 +24,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedResult, String, Value,
+            SetCachedProps, SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -1640,10 +1640,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     fn set_cached<'gc>(
         self,
         _: &mut Agent,
-        _: PropertyKey,
-        _: Value,
-        _: Value,
-        _: PropertyLookupCache,
+        _: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
@@ -1667,10 +1664,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     fn set_at_offset<'gc>(
         self,
         _: &mut Agent,
-        _: PropertyKey,
+        _: &SetCachedProps,
         _: PropertyOffset,
-        _: Value,
-        _: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy

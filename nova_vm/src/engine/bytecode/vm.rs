@@ -52,7 +52,7 @@ use crate::{
             BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedResult, InternalMethods,
             InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
-            SetCachedResult, String, Value, get_this_value, get_value,
+            SetCachedProps, SetCachedResult, String, Value, get_this_value, get_value,
             initialize_referenced_binding, is_private_reference, is_property_reference,
             is_super_reference, is_unresolvable_reference, put_value, throw_cannot_set_property,
             throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
@@ -3517,6 +3517,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     }
 }
 
+#[inline(always)]
 fn with_vm_gc<'a, 'b, R: 'a>(
     agent: &mut Agent,
     vm: &mut Vm,
@@ -3995,7 +3996,16 @@ fn put_value_with_cache<'gc>(
     }
     let receiver = reference.this_value().bind(gc.nogc());
     let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-    if let ControlFlow::Break(b) = o.set_cached(agent, p, value, receiver, cache, gc.nogc()) {
+    if let ControlFlow::Break(b) = o.set_cached(
+        agent,
+        &SetCachedProps {
+            p,
+            receiver,
+            cache,
+            value,
+        },
+        gc.nogc(),
+    ) {
         if matches!(b, SetCachedResult::Done) {
             return Ok(());
         }

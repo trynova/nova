@@ -4,8 +4,8 @@
 
 use super::{
     BigInt, BigIntHeapData, GetCachedResult, InternalMethods, IntoValue, NoCache, Number, Numeric,
-    OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData, Symbol,
-    bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    OrdinaryObject, Primitive, PropertyKey, SetCachedProps, SetCachedResult, String,
+    StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -1137,18 +1137,15 @@ impl<'a> Value<'a> {
     pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Ok(o) = Object::try_from(self) {
-            o.set_cached(agent, p, value, receiver, cache, gc)
+            o.set_cached(agent, props, gc)
         } else {
             Primitive::try_from(self)
                 .unwrap()
-                .set_cached(agent, p, value, receiver, cache, gc)
+                .set_cached(agent, props, gc)
         }
     }
 

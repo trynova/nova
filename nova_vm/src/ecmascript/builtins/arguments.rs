@@ -26,26 +26,21 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
+use ahash::AHashMap;
+
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{
-            try_create_data_property_or_throw, try_define_property_or_throw,
-        },
-        execution::{ProtoIntrinsics, agent::Agent},
+        execution::agent::Agent,
         types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Number, Object, PropertyDescriptor,
-            PropertyKey,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Number, Object,
+            OrdinaryObject, Value,
         },
     },
-    engine::{
-        context::{Bindable, NoGcScope},
-        unwrap_try,
-    },
-    heap::WellKnownSymbolIndexes,
+    engine::context::{Bindable, NoGcScope},
+    heap::{WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
-use super::ScopedArgumentsList;
-use super::ordinary::ordinary_object_create_with_intrinsics;
+use super::{ScopedArgumentsList, ordinary::shape::ObjectShape};
 
 // 10.4.4.1 [[GetOwnProperty]] ( P )
 
@@ -132,99 +127,92 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
 ) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len(agent);
-    let len_value = Number::from_i64(agent, len as i64, gc)
-        .into_value()
-        .unbind();
+    // SAFETY: GC is not allowed in this scope, and no other scoped values are
+    // accessed during this call. The pointer is not held beyond the current call scope.
+    let arguments_non_null_slice = unsafe { arguments_list.as_non_null_slice(agent) };
+    debug_assert!(len < u32::MAX as usize);
+    let len = len as u32;
+    let len_value = Number::from(len).into_value();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
-    let obj =
-        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc);
-    let Object::Object(obj) = obj else {
-        unreachable!()
-    };
+    let prototype = agent.current_realm_record().intrinsics().object_prototype();
+    let mut shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()));
+    shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.length.to_property_key());
+    shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.callee.into());
+    shape = shape.get_child_shape(agent, WellKnownSymbolIndexes::Iterator.into());
+    for index in 0..len {
+        shape = shape.get_child_shape(agent, index.into());
+    }
+    let obj = OrdinaryObject::create_object_with_shape(agent, shape)
+        .expect("Failed to create Arguments object storage");
+    let array_prototype_values = agent
+        .current_realm_record()
+        .intrinsics()
+        .array_prototype_values()
+        .bind(gc)
+        .into_value();
+    let throw_type_error = agent
+        .current_realm_record()
+        .intrinsics()
+        .throw_type_error()
+        .into_function()
+        .bind(gc);
+    let storage = obj.get_elements_storage_uninit(agent);
+    let values = storage.values;
+    let descriptors = storage.descriptors.or_insert(AHashMap::with_capacity(3));
+
     // 3. Set obj.[[ParameterMap]] to undefined.
     // 4. Perform ! DefinePropertyOrThrow(obj, "length", PropertyDescriptor {
-    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
-    unwrap_try(try_define_property_or_throw(
-        agent,
-        obj,
-        key,
-        PropertyDescriptor {
-            // [[Value]]: 𝔽(len),
-            value: Some(len_value),
-            // [[Writable]]: true,
-            writable: Some(true),
-            // [[Enumerable]]: false,
-            enumerable: Some(false),
-            // [[Configurable]]: true }).
-            configurable: Some(true),
-            ..Default::default()
+    // [[Value]]: 𝔽(len),
+    // [[Writable]]: true,
+    // [[Enumerable]]: false,
+    // [[Configurable]]: true
+    // }).
+
+    // "length"
+    values[0] = Some(len_value.unbind());
+    // "callee"
+    values[1] = None;
+    // Iterator
+    values[2] = Some(array_prototype_values.unbind());
+    // "length"
+    descriptors.insert(0, ElementDescriptor::WritableUnenumerableConfigurableData);
+    // "callee"
+    descriptors.insert(
+        1,
+        ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
+            get: throw_type_error.unbind(),
+            set: throw_type_error.unbind(),
         },
-        gc,
-    ))
-    .unwrap();
+    );
+    // Iterator
+    descriptors.insert(2, ElementDescriptor::WritableUnenumerableConfigurableData);
     // 5. Let index be 0.
     // 6. Repeat, while index < len,
     for index in 0..len {
         // a. Let val be argumentsList[index].
         // b. Perform ! CreateDataPropertyOrThrow(obj, ! ToString(𝔽(index)), val).
-        debug_assert!(index < u32::MAX as usize);
-        let index = index as u32;
-        let key = PropertyKey::Integer(index.into());
-        let val = arguments_list.get(agent, index, gc);
-        unwrap_try(try_create_data_property_or_throw(agent, obj, key, val, gc)).unwrap();
+        // SAFETY: arguments slice valid in this call stack and we've not
+        // performed GC or touched other scoped data.
+        let val = unsafe { arguments_non_null_slice.as_ref() }
+            .get(index as usize)
+            .cloned()
+            .unwrap_or(Value::Undefined);
+        values[index as usize + 3] = Some(val);
         // c. Set index to index + 1.
     }
+    agent[obj].set_len(len + 3);
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
-    let key = PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into());
-    unwrap_try(try_define_property_or_throw(
-        agent,
-        obj,
-        key,
-        PropertyDescriptor {
-            // [[Value]]: %Array.prototype.values%,
-            value: Some(
-                agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .array_prototype_values()
-                    .into_value(),
-            ),
-            // [[Writable]]: true,
-            writable: Some(true),
-            // [[Enumerable]]: false,
-            enumerable: Some(false),
-            // [[Configurable]]: true }).
-            configurable: Some(true),
-            ..Default::default()
-        },
-        gc,
-    ))
-    .unwrap();
-    let throw_type_error = agent
-        .current_realm_record()
-        .intrinsics()
-        .throw_type_error()
-        .bind(gc);
+    // [[Value]]: %Array.prototype.values%,
+    // [[Writable]]: true,
+    // [[Enumerable]]: false,
+    // [[Configurable]]: true
+    // }).
     // 8. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor {
-    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.callee);
-    unwrap_try(try_define_property_or_throw(
-        agent,
-        obj,
-        key,
-        PropertyDescriptor {
-            // [[Get]]: %ThrowTypeError%,
-            get: Some(Some(throw_type_error.into_function())),
-            // [[Set]]: %ThrowTypeError%,
-            set: Some(Some(throw_type_error.into_function())),
-            // [[Enumerable]]: false,
-            enumerable: Some(false),
-            // [[Configurable]]: false }).
-            configurable: Some(false),
-            ..Default::default()
-        },
-        gc,
-    ))
-    .unwrap();
+    // [[Get]]: %ThrowTypeError%,
+    // [[Set]]: %ThrowTypeError%,
+    // [[Enumerable]]: false,
+    // [[Configurable]]: false
+    // }).
     // 9. Return obj.
     Object::Arguments(obj)
 }

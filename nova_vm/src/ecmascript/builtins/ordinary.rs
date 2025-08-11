@@ -19,7 +19,7 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::{GetCachedResult, IntoValue, NoCache, SetCachedResult},
+        types::{GetCachedResult, IntoValue, NoCache, SetCachedProps, SetCachedResult},
     },
     engine::{
         Scoped, TryResult,
@@ -144,20 +144,11 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
+        props: &SetCachedProps,
         offset: PropertyOffset,
-        value: Value,
-        receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        ordinary_set_at_offset(
-            agent,
-            (self.into_object(), Some(self)),
-            (p, offset),
-            value,
-            receiver,
-            gc,
-        )
+        ordinary_set_at_offset(agent, props, self.into_object(), Some(self), offset, gc)
     }
 }
 
@@ -1205,17 +1196,17 @@ fn ordinary_set_with_own_descriptor<'a>(
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set_at_offset<'a>(
     agent: &mut Agent,
-    (o, bo): (Object, Option<OrdinaryObject>),
-    (p, offset): (PropertyKey, PropertyOffset),
-    v: Value,
-    receiver: Value,
+    props: &SetCachedProps,
+    o: Object,
+    bo: Option<OrdinaryObject>,
+    offset: PropertyOffset,
     gc: NoGcScope<'a, '_>,
 ) -> ControlFlow<SetCachedResult<'a>, NoCache> {
     let o = o.bind(gc);
     let bo = bo.bind(gc);
-    let p = p.bind(gc);
-    let v = v.bind(gc);
-    let receiver = receiver.bind(gc);
+    let p = props.p.bind(gc);
+    let v = props.value.bind(gc);
+    let receiver = props.receiver.bind(gc);
 
     if offset.is_unset() {
         // 1.c.i. Set ownDesc to PropertyDescriptor {
@@ -1233,13 +1224,24 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             // exist on its shape.
             // i. Assert. Receiver does not currently have a property P.
             // ii. Return ? CreateDataProperty(Receiver, P, V).
+            let bo = bo.unwrap_or_else(|| o.get_or_create_backing_object(agent));
             if bo
-                .unwrap_or_else(|| o.get_or_create_backing_object(agent))
                 .property_storage()
                 .push(agent, o, p, Some(v), None, gc)
                 .is_err()
             {
                 return NoCache.into();
+            }
+            let shape = bo.object_shape(agent);
+            if !shape.is_intrinsic(agent) {
+                // If we added a property to a non-intrinsic shape, add a
+                // lookup cache to the newly added property for the new shape.
+                // Note that it's possible this isn't the first time we're
+                // doing this, in which case an old cache may already exist and
+                // this is a noop.
+                props
+                    .cache
+                    .insert_lookup_offset_if_not_found(agent, shape, bo.len(agent) - 1);
             }
             return SetCachedResult::Done.into();
         } else {

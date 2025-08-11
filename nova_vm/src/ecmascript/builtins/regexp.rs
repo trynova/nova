@@ -14,7 +14,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
             IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedResult, String, Value,
+            SetCachedProps, SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -37,7 +37,7 @@ use wtf8::Wtf8Buf;
 
 use super::ordinary::{
     caches::PropertyLookupCache, ordinary_get_own_property, ordinary_set, ordinary_try_get,
-    ordinary_try_set, shape::ShapeSetCachedProps,
+    ordinary_try_set,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -441,16 +441,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        if p == BUILTIN_STRING_MEMORY.lastIndex.into() {
+        if props.p == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If we're setting the last index and we have a backing object,
             // then we set the value there first and observe the result.
-            let new_last_index = RegExpLastIndex::from_value(value);
+            let new_last_index = RegExpLastIndex::from_value(props.value);
             if self.get_backing_object(agent).is_some() {
                 // Note: The lastIndex is an unconfigurable data property: It
                 // cannot be turned into a getter or setter and will thus never
@@ -458,8 +455,8 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 let success = unwrap_try(ordinary_try_set(
                     agent,
                     self.into_object(),
-                    p,
-                    value,
+                    props.p,
+                    props.value,
                     self.into_value(),
                     gc,
                 ));
@@ -478,11 +475,11 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 // If we we set a value that is not a valid index or undefined,
                 // we need to create the backing object and set the actual
                 // value there.
-                if !new_last_index.is_valid() && value.is_undefined() {
+                if !new_last_index.is_valid() && props.value.is_undefined() {
                     unwrap_try(self.create_backing_object(agent).try_set(
                         agent,
-                        p,
-                        value,
+                        props.p,
+                        props.value,
                         self.into_value(),
                         gc,
                     ));
@@ -491,17 +488,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             }
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(
-                agent,
-                ShapeSetCachedProps {
-                    o: self.into_object(),
-                    p,
-                    receiver,
-                },
-                value,
-                cache,
-                gc,
-            )
+            shape.set_cached(agent, self.into_object(), props, gc)
         }
     }
 }
