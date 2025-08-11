@@ -343,6 +343,26 @@ impl<'scope> ScopedArgumentsList<'scope> {
             unreachable!()
         }
     }
+
+    /// Get access to the backing reference slice as a pointer slice.
+    ///
+    /// ## Safety
+    ///
+    /// Garbage collection must not be called while this slice is exposed.
+    ///
+    /// Stack values must not be accessed while this slice is exposed.
+    pub(crate) unsafe fn as_non_null_slice(&self, agent: &Agent) -> NonNull<[Value<'static>]> {
+        if let HeapRootCollectionData::ArgumentsList(args) = agent
+            .stack_ref_collections
+            .borrow()
+            .get(self.index as usize)
+            .unwrap()
+        {
+            *args
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 impl core::fmt::Debug for ScopedArgumentsList<'_> {

@@ -3517,6 +3517,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     }
 }
 
+#[inline(always)]
 fn with_vm_gc<'a, 'b, R: 'a>(
     agent: &mut Agent,
     vm: &mut Vm,

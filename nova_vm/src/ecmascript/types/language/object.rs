@@ -455,6 +455,25 @@ impl<'a> OrdinaryObject<'a> {
             .create(ObjectHeapData::new(shape, values, cap, len, extensible))
     }
 
+    pub(crate) fn create_object_with_shape(
+        agent: &mut Agent,
+        shape: ObjectShape<'a>,
+    ) -> Result<Self, TryReserveError> {
+        // SAFETY: Option<Value> uses a niche in Value enum at discriminant 0.
+        let ElementsVector {
+            elements_index: values,
+            cap,
+            len,
+            len_writable: extensible,
+        } = agent
+            .heap
+            .elements
+            .allocate_elements_with_capacity(shape.get_length(agent) as usize)?;
+        Ok(agent
+            .heap
+            .create(ObjectHeapData::new(shape, values, cap, len, extensible)))
+    }
+
     /// Creates a new "intrinsic" object. An intrinsic object owns its Object
     /// Shape uniquely and thus any changes to the object properties mutate the
     /// Shape directly.
