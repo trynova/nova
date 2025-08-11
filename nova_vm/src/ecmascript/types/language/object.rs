@@ -91,6 +91,7 @@ use crate::{
             map::Map,
             module::Module,
             ordinary::{
+                caches::{PropertyLookupCache, PropertyOffset},
                 ordinary_object_create_with_intrinsics,
                 shape::{ObjectShape, ObjectShapeRecord},
             },
@@ -120,7 +121,7 @@ use crate::{
 
 use ahash::AHashMap;
 pub use data::ObjectHeapData;
-pub use internal_methods::InternalMethods;
+pub use internal_methods::{GetCachedResult, InternalMethods, NoCache, SetCachedResult};
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
@@ -257,45 +258,17 @@ impl<'a> OrdinaryObject<'a> {
         ordinary
     }
 
-    pub(crate) fn get_shape(self, agent: &Agent) -> ObjectShape<'a> {
-        agent[self].get_shape()
-    }
-
     /// Turn an OrdinaryObject's Object Shape into an intrinsic.
     ///
     /// For objects with an intrinsic shape, this is a no-op.
     pub(crate) fn make_intrinsic(self, agent: &mut Agent) {
-        let shape = self.get_shape(agent);
+        let shape = self.object_shape(agent);
         if shape.is_intrinsic(agent) {
             // Already an intrinsic shape, nothing to do.
             return;
         }
         let new_shape = shape.make_intrinsic(agent);
         agent[self].set_shape(new_shape);
-    }
-
-    pub(crate) unsafe fn try_get_property_by_offset<'gc>(
-        self,
-        agent: &Agent,
-        offset: u16,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<Function<'gc>, Value<'gc>> {
-        let obj = self.bind(gc);
-        let data = obj.get_elements_storage(agent);
-        if let Some(value) = data.values[offset as usize] {
-            ControlFlow::Continue(value)
-        } else if let Some(getter) = data
-            .descriptors
-            .and_then(|d| d.get(&(offset as u32)).unwrap().getter_function(gc))
-        {
-            ControlFlow::Break(getter)
-        } else {
-            debug_assert!(
-                data.descriptors
-                    .is_some_and(|d| d.get(&(offset as u32)).unwrap().has_setter())
-            );
-            ControlFlow::Continue(Value::Undefined)
-        }
     }
 
     pub(crate) unsafe fn try_set_property_by_offset<'gc>(
@@ -522,7 +495,7 @@ impl<'a> OrdinaryObject<'a> {
         }
         if !self.is_empty(agent)
             || source.internal_prototype(agent) != self.internal_prototype(agent)
-            || source.get_shape(agent).is_intrinsic(agent)
+            || source.object_shape(agent).is_intrinsic(agent)
         {
             // Our own object is not empty, our prototypes don't match, or the
             // source object is an intrinsic object; can't perform the copy.
@@ -655,6 +628,10 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!();
+    }
+
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        agent[self].get_shape()
     }
 
     fn internal_extensible(self, agent: &Agent) -> bool {
@@ -1131,6 +1108,82 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Generator(data) => data.get_or_create_backing_object(agent),
             Object::Module(data) => data.get_or_create_backing_object(agent),
             Object::EmbedderObject(data) => data.get_or_create_backing_object(agent),
+        }
+    }
+
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        match self {
+            Object::Object(data) => data.object_shape(agent),
+            Object::Array(data) => data.object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.object_shape(agent),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.object_shape(agent),
+            Object::Error(data) => data.object_shape(agent),
+            Object::BoundFunction(data) => data.object_shape(agent),
+            Object::BuiltinFunction(data) => data.object_shape(agent),
+            Object::ECMAScriptFunction(data) => data.object_shape(agent),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => data.object_shape(agent),
+            Object::BuiltinPromiseResolvingFunction(data) => data.object_shape(agent),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => data.object_shape(agent),
+            Object::Arguments(data) => data.object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.object_shape(agent),
+            Object::FinalizationRegistry(data) => data.object_shape(agent),
+            Object::Map(data) => data.object_shape(agent),
+            Object::Promise(data) => data.object_shape(agent),
+            Object::Proxy(data) => data.object_shape(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.object_shape(agent),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.object_shape(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => data.object_shape(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.object_shape(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.object_shape(agent),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => TypedArray::Int8Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).object_shape(agent)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => TypedArray::Int16Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => TypedArray::Uint16Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => TypedArray::Int32Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => TypedArray::Uint32Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => TypedArray::BigInt64Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => TypedArray::BigUint64Array(data).object_shape(agent),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => TypedArray::Float32Array(data).object_shape(agent),
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => TypedArray::Float64Array(data).object_shape(agent),
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.object_shape(agent),
+            Object::ArrayIterator(data) => data.object_shape(agent),
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.object_shape(agent),
+            Object::MapIterator(data) => data.object_shape(agent),
+            Object::StringIterator(data) => data.object_shape(agent),
+            Object::Generator(data) => data.object_shape(agent),
+            Object::Module(data) => data.object_shape(agent),
+            Object::EmbedderObject(data) => data.object_shape(agent),
         }
     }
 
@@ -4026,6 +4079,461 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Generator(data) => data.internal_own_property_keys(agent, gc),
             Object::Module(data) => data.internal_own_property_keys(agent, gc),
             Object::EmbedderObject(data) => data.internal_own_property_keys(agent, gc),
+        }
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        match self {
+            Object::Object(data) => data.get_cached(agent, p, cache, gc),
+            Object::Array(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.get_cached(agent, p, cache, gc),
+            Object::Error(data) => data.get_cached(agent, p, cache, gc),
+            Object::BoundFunction(data) => data.get_cached(agent, p, cache, gc),
+            Object::BuiltinFunction(data) => data.get_cached(agent, p, cache, gc),
+            Object::ECMAScriptFunction(data) => data.get_cached(agent, p, cache, gc),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => data.get_cached(agent, p, cache, gc),
+            Object::BuiltinPromiseResolvingFunction(data) => data.get_cached(agent, p, cache, gc),
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => data.get_cached(agent, p, cache, gc),
+            Object::Arguments(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.get_cached(agent, p, cache, gc),
+            Object::FinalizationRegistry(data) => data.get_cached(agent, p, cache, gc),
+            Object::Map(data) => data.get_cached(agent, p, cache, gc),
+            Object::Promise(data) => data.get_cached(agent, p, cache, gc),
+            Object::Proxy(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => TypedArray::Int8Array(data).get_cached(agent, p, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).get_cached(agent, p, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).get_cached(agent, p, cache, gc)
+            }
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.get_cached(agent, p, cache, gc),
+            Object::ArrayIterator(data) => data.get_cached(agent, p, cache, gc),
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.get_cached(agent, p, cache, gc),
+            Object::MapIterator(data) => data.get_cached(agent, p, cache, gc),
+            Object::StringIterator(data) => data.get_cached(agent, p, cache, gc),
+            Object::Generator(data) => data.get_cached(agent, p, cache, gc),
+            Object::Module(data) => data.get_cached(agent, p, cache, gc),
+            Object::EmbedderObject(data) => data.get_cached(agent, p, cache, gc),
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        match self {
+            Object::Object(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Array(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Error(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::BoundFunction(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::BuiltinFunction(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::ECMAScriptFunction(data) => {
+                data.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => {
+                data.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Object::BuiltinPromiseResolvingFunction(data) => {
+                data.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Arguments(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::FinalizationRegistry(data) => {
+                data.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Object::Map(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Promise(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Proxy(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => {
+                data.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::ArrayIterator(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::MapIterator(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::StringIterator(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Generator(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::Module(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+            Object::EmbedderObject(data) => data.set_cached(agent, p, value, receiver, cache, gc),
+        }
+    }
+
+    fn get_own_property_at_offset<'gc>(
+        self,
+        agent: &Agent,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        match self {
+            Object::Object(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Array(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Error(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::BoundFunction(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::BuiltinFunction(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::ECMAScriptFunction(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => {
+                data.get_own_property_at_offset(agent, offset, gc)
+            }
+            Object::BuiltinPromiseResolvingFunction(data) => {
+                data.get_own_property_at_offset(agent, offset, gc)
+            }
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Arguments(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::FinalizationRegistry(data) => {
+                data.get_own_property_at_offset(agent, offset, gc)
+            }
+            Object::Map(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Promise(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Proxy(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => {
+                TypedArray::Uint8ClampedArray(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => {
+                TypedArray::BigUint64Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).get_own_property_at_offset(agent, offset, gc)
+            }
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::ArrayIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::MapIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::StringIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Generator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::Module(data) => data.get_own_property_at_offset(agent, offset, gc),
+            Object::EmbedderObject(data) => data.get_own_property_at_offset(agent, offset, gc),
+        }
+    }
+
+    fn set_at_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        offset: PropertyOffset,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        match self {
+            Object::Object(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::Array(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "date")]
+            Object::Date(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::Error(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::BoundFunction(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::BuiltinFunction(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::ECMAScriptFunction(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::BuiltinGeneratorFunction => todo!(),
+            Object::BuiltinConstructorFunction(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::BuiltinPromiseResolvingFunction(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::BuiltinPromiseCollectorFunction => todo!(),
+            Object::BuiltinProxyRevokerFunction => todo!(),
+            Object::PrimitiveObject(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::Arguments(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::FinalizationRegistry(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::Map(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::Promise(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::Proxy(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "set")]
+            Object::Set(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(data) => {
+                TypedArray::Int8Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(data) => {
+                TypedArray::Uint8Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data)
+                .set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(data) => {
+                TypedArray::Int16Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(data) => {
+                TypedArray::Uint16Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(data) => {
+                TypedArray::Int32Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(data) => {
+                TypedArray::Uint32Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(data) => {
+                TypedArray::BigInt64Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
+                .set_at_offset(agent, p, offset, value, receiver, gc),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(data) => {
+                TypedArray::Float32Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(data) => {
+                TypedArray::Float64Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::AsyncFromSyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::ArrayIterator(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            #[cfg(feature = "set")]
+            Object::SetIterator(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::MapIterator(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::StringIterator(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Object::Generator(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::Module(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
+            Object::EmbedderObject(data) => {
+                data.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
         }
     }
 

@@ -2,10 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use small_string::SmallString;
 
 use crate::{
     SmallInteger,
+    ecmascript::{builtins::ordinary::caches::PropertyLookupCache, execution::Agent},
     engine::{
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -15,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    IntoValue, Symbol, Value,
+    GetCachedResult, IntoValue, NoCache, PropertyKey, SetCachedResult, String, Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -161,6 +164,60 @@ impl Primitive<'_> {
 
     pub fn is_undefined(self) -> bool {
         matches!(self, Self::Undefined)
+    }
+
+    pub(crate) fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        match self {
+            Primitive::Undefined | Primitive::Null => ControlFlow::Continue(NoCache),
+            Primitive::Boolean(_)
+            | Primitive::Symbol(_)
+            | Primitive::Number(_)
+            | Primitive::Integer(_)
+            | Primitive::SmallF64(_)
+            | Primitive::BigInt(_)
+            | Primitive::SmallBigInt(_) => {
+                self.object_shape(agent)
+                    .unwrap()
+                    .get_cached(agent, p, self.into_value(), cache, gc)
+            }
+            Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
+                .unwrap()
+                .get_cached(agent, p, cache, gc),
+        }
+    }
+
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        debug_assert_eq!(self.into_value(), receiver);
+        match self {
+            Primitive::Undefined | Primitive::Null => NoCache.into(),
+            Primitive::Boolean(_)
+            | Primitive::Symbol(_)
+            | Primitive::Number(_)
+            | Primitive::Integer(_)
+            | Primitive::SmallF64(_)
+            | Primitive::BigInt(_)
+            | Primitive::SmallBigInt(_) => self
+                .object_shape(agent)
+                .unwrap()
+                .set_cached_primitive(agent, p, value, self, cache, gc),
+            Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
+                .unwrap()
+                .set_cached(agent, p, value, cache, gc),
+        }
     }
 }
 

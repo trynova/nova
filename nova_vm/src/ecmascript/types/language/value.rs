@@ -3,8 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    BigInt, BigIntHeapData, GetCachedResult, InternalMethods, IntoValue, NoCache, Number, Numeric,
+    OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData, Symbol,
+    bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -40,6 +41,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
+            ordinary::caches::PropertyLookupCache,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -68,6 +70,7 @@ use core::{
     mem::size_of,
     ops::Index,
 };
+use std::ops::ControlFlow;
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -1113,6 +1116,56 @@ impl<'a> Value<'a> {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        if let Ok(o) = Object::try_from(self) {
+            o.get_cached(agent, p, cache, gc)
+        } else {
+            Primitive::try_from(self)
+                .unwrap()
+                .get_cached(agent, p, cache, gc)
+        }
+    }
+
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        if let Ok(o) = Object::try_from(self) {
+            o.set_cached(agent, p, value, receiver, cache, gc)
+        } else {
+            Primitive::try_from(self)
+                .unwrap()
+                .set_cached(agent, p, value, receiver, cache, gc)
+        }
+    }
+
+    pub(crate) fn cached_set<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        if let Ok(o) = Object::try_from(self) {
+            o.get_cached(agent, p, cache, gc)
+        } else {
+            Primitive::try_from(self)
+                .unwrap()
+                .get_cached(agent, p, cache, gc)
+        }
     }
 }
 

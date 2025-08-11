@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::ControlFlow};
 
 use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
@@ -22,8 +22,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
+            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -38,7 +39,11 @@ use crate::{
     },
 };
 
-use super::ordinary::is_compatible_property_descriptor;
+use super::ordinary::{
+    caches::{PropertyLookupCache, PropertyOffset},
+    is_compatible_property_descriptor,
+    shape::ObjectShape,
+};
 
 pub(crate) mod abstract_operations;
 pub mod data;
@@ -102,32 +107,43 @@ impl<'a> From<Proxy<'a>> for Object<'a> {
 
 impl<'a> InternalSlots<'a> for Proxy<'a> {
     #[inline(always)]
-    fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject<'static>> {
         unreachable!()
     }
 
-    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
+    #[inline(always)]
+    fn set_backing_object(self, _: &mut Agent, _: OrdinaryObject<'static>) {
         unreachable!()
     }
 
-    fn create_backing_object(self, _agent: &mut Agent) -> OrdinaryObject<'static> {
+    #[inline(always)]
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!()
     }
 
-    fn internal_extensible(self, _agent: &Agent) -> bool {
+    #[inline(always)]
+    fn internal_extensible(self, _: &Agent) -> bool {
         unreachable!();
     }
 
-    fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
+    #[inline(always)]
+    fn internal_set_extensible(self, _: &mut Agent, _: bool) {
         unreachable!();
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
+    #[inline(always)]
+    fn internal_prototype(self, _: &Agent) -> Option<Object<'static>> {
         unreachable!();
     }
 
-    fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+    #[inline(always)]
+    fn internal_set_prototype(self, _: &mut Agent, _prototype: Option<Object>) {
         unreachable!();
+    }
+
+    #[inline(always)]
+    fn object_shape(self, _: &mut Agent) -> ObjectShape<'static> {
+        unreachable!()
     }
 }
 
@@ -1606,6 +1622,60 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         }
         // 23. Return trapResult.
         Ok(trap_result)
+    }
+
+    #[inline(always)]
+    fn get_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        GetCachedResult::Proxy(self.bind(gc)).into()
+    }
+
+    fn set_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: Value,
+        _: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        SetCachedResult::Proxy(self.bind(gc)).into()
+    }
+
+    #[inline(always)]
+    fn get_own_property_at_offset<'gc>(
+        self,
+        _: &Agent,
+        _: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        GetCachedResult::Proxy(self.bind(gc)).into()
+    }
+
+    #[inline(always)]
+    fn set_at_offset<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyOffset,
+        _: Value,
+        _: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        // TODO: Check if self is non-revoked, try to go through the Proxy
+        // without trigger the trap.
+        SetCachedResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)

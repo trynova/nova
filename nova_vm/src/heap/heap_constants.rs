@@ -8,7 +8,13 @@
 //! are placed into the heap vectors. The order is based on the ECMAScript
 //! definition found in https://tc39.es/ecma262/
 
-use crate::ecmascript::types::{PropertyKey, Symbol, Value};
+use std::num::NonZeroU32;
+
+use crate::ecmascript::{
+    builtins::ordinary::shape::ObjectShape,
+    execution::ProtoIntrinsics,
+    types::{PropertyKey, Symbol, Value},
+};
 
 use super::indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex, SymbolIndex};
 
@@ -66,8 +72,11 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Keyed collections
     MapPrototype,
+    #[cfg(feature = "set")]
     SetPrototype,
+    #[cfg(feature = "weak-refs")]
     WeakMapPrototype,
+    #[cfg(feature = "weak-refs")]
     WeakSetPrototype,
 
     // Structured data
@@ -82,6 +91,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     JSONObject,
 
     // Managing memory
+    #[cfg(feature = "weak-refs")]
     WeakRefPrototype,
     FinalizationRegistryPrototype,
 
@@ -96,6 +106,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     // The %AsyncGeneratorPrototype% object is %AsyncGeneratorFunction.prototype.prototype%.
     // AsyncGeneratorFunctionPrototypePrototype,
     MapIteratorPrototype,
+    #[cfg(feature = "set")]
     SetIteratorPrototype,
     PromisePrototype,
     StringIteratorPrototype,
@@ -120,6 +131,7 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Others
     URIErrorPrototype,
+    #[cfg(feature = "regexp")]
     RegExpStringIteratorPrototype,
 }
 pub(crate) const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
@@ -193,8 +205,11 @@ pub(crate) enum IntrinsicConstructorIndexes {
 
     // Keyed collections
     Map,
+    #[cfg(feature = "set")]
     Set,
+    #[cfg(feature = "weak-refs")]
     WeakMap,
+    #[cfg(feature = "weak-refs")]
     WeakSet,
 
     // Structured data
@@ -206,6 +221,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     DataView,
 
     // Managing memory
+    #[cfg(feature = "weak-refs")]
     WeakRef,
     FinalizationRegistry,
 
@@ -259,6 +275,7 @@ pub(crate) enum IntrinsicFunctionIndexes {
     ParseInt,
     #[cfg(feature = "regexp")]
     RegExpPrototypeExec,
+    #[cfg(feature = "set")]
     SetPrototypeValues,
     StringPrototypeTrimEnd,
     StringPrototypeTrimStart,
@@ -348,6 +365,36 @@ pub(crate) const fn intrinsic_primitive_object_count() -> usize {
 
 pub(crate) const fn intrinsic_function_count() -> usize {
     LAST_INTRINSIC_CONSTRUCTOR_INDEX as usize + 1 + LAST_INTRINSIC_FUNCTION_INDEX as usize + 1
+}
+
+/// Most commonly needed Object Shapes; these get created as part of Realm
+/// initialisation.
+///
+/// Other shapes are created on-demand.
+#[derive(Debug, Clone, Copy)]
+#[repr(u32)]
+pub(crate) enum IntrinsicObjectShapes {
+    Object,
+    Array,
+    Number,
+    String,
+}
+
+impl IntrinsicObjectShapes {
+    pub(crate) const fn get_object_shape_index(self, base: ObjectShape) -> ObjectShape<'static> {
+        ObjectShape::from_non_zero(
+            NonZeroU32::new(self as u32 + base.get_index() as u32 + 1).unwrap(),
+        )
+    }
+
+    pub(crate) const fn get_proto_intrinsic(self) -> ProtoIntrinsics {
+        match self {
+            Self::Object => ProtoIntrinsics::Object,
+            Self::Array => ProtoIntrinsics::Array,
+            Self::Number => ProtoIntrinsics::Number,
+            Self::String => ProtoIntrinsics::String,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

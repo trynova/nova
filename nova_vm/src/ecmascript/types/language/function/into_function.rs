@@ -2,19 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::collections::TryReserveError;
+use std::{collections::TryReserveError, ops::ControlFlow};
 
 use super::Function;
 use crate::{
     ecmascript::{
         builtins::ordinary::{
-            ordinary_define_own_property, ordinary_delete, ordinary_get_own_property,
-            ordinary_own_property_keys, ordinary_set, ordinary_try_get, ordinary_try_set,
+            caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete,
+            ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_get,
+            ordinary_try_set, shape::ShapeSetCachedProps,
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
+            NoCache, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
+            Value, language::IntoObject,
         },
     },
     engine::{
@@ -85,6 +87,63 @@ pub(crate) fn function_create_backing_object<'a>(
     backing_object
 }
 
+pub(crate) fn function_get_cached<'a, 'gc>(
+    func: impl FunctionInternalProperties<'a>,
+    agent: &mut Agent,
+    p: PropertyKey,
+    cache: PropertyLookupCache,
+    gc: NoGcScope<'gc, '_>,
+) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    let bo = func.get_backing_object(agent);
+    if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+        func.get_length(agent).into_value().bind(gc).into()
+    } else if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+        func.get_name(agent).into_value().bind(gc).into()
+    } else {
+        let shape = if let Some(bo) = bo {
+            bo.object_shape(agent)
+        } else {
+            func.object_shape(agent)
+        };
+        shape.get_cached(agent, p, func.into_value(), cache, gc)
+    }
+}
+
+pub(crate) fn function_set_cached<'a, 'gc>(
+    func: impl FunctionInternalProperties<'a>,
+    agent: &mut Agent,
+    p: PropertyKey,
+    value: Value,
+    receiver: Value,
+    cache: PropertyLookupCache,
+    gc: NoGcScope<'gc, '_>,
+) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    let bo = func.get_backing_object(agent);
+    if bo.is_none()
+        && (p == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || p == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
+    {
+        SetCachedResult::Unwritable.into()
+    } else {
+        let shape = if let Some(bo) = bo {
+            bo.object_shape(agent)
+        } else {
+            func.object_shape(agent)
+        };
+        shape.set_cached(
+            agent,
+            ShapeSetCachedProps {
+                o: func.into_object(),
+                p,
+                receiver,
+            },
+            value,
+            cache,
+            gc,
+        )
+    }
+}
+
 pub(crate) fn function_internal_get_own_property<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
@@ -97,6 +156,7 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
             func.into_object().bind(gc),
             backing_object,
             property_key,
+            gc,
         )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Some(PropertyDescriptor {

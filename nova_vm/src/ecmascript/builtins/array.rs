@@ -10,7 +10,7 @@ pub(crate) mod abstract_operations;
 mod data;
 
 use core::ops::{Index, IndexMut, RangeInclusive};
-use std::collections::hash_map::Entry;
+use std::{collections::hash_map::Entry, ops::ControlFlow};
 
 use crate::{
     ecmascript::{
@@ -20,12 +20,13 @@ use crate::{
         },
         builtins::{
             array::abstract_operations::{array_set_length, array_try_set_length},
-            ordinary::ordinary_define_own_property,
+            ordinary::{caches::Caches, ordinary_define_own_property},
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
+            IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetCachedResult, Value,
         },
     },
     engine::{
@@ -47,9 +48,13 @@ use crate::{
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
 
-use super::ordinary::{
-    ordinary_delete, ordinary_get, ordinary_get_own_property, ordinary_has_property,
-    ordinary_try_get, ordinary_try_has_property,
+use super::{
+    array_set_length_handling,
+    ordinary::{
+        caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
+        shape::ShapeSetCachedProps,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -407,8 +412,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             }))
         } else if let Some(backing_object) = array_data.object_index {
             TryResult::Continue(
-                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
-                    .bind(gc),
+                ordinary_get_own_property(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    gc,
+                )
+                .bind(gc),
             )
         } else {
             TryResult::Continue(None)
@@ -478,13 +489,28 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
                 // This should've already been handled by the push.
-                debug_assert_eq!(agent[self].elements.len(), index + 1);
+                debug_assert_eq!(array_heap_data.elements.len(), index + 1);
+                if let Some(shape) = array_heap_data.object_index.map(|o| o.object_shape(agent))
+                    && shape.is_intrinsic(agent)
+                {
+                    // We set a value on an intrinsic object, we have to
+                    // invalidate caches.
+                    Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+                        agent,
+                        self.into_object(),
+                        shape,
+                        index.into(),
+                        u32::MAX,
+                        gc,
+                    );
+                }
                 // iii. Assert: succeeded is true.
                 TryResult::Continue(true)
             } else {
                 // h. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
                 TryResult::Continue(ordinary_define_own_property_for_array(
                     agent,
+                    self,
                     elements,
                     index,
                     property_descriptor,
@@ -847,6 +873,145 @@ impl<'a> InternalMethods<'a> for Array<'a> {
 
         TryResult::Continue(keys)
     }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        // Cached lookup of an Array should return directly from the Array's
+        // internal memory if it can.
+        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
+            // Length lookup: we find it always.
+            return self.len(agent).into_value().into();
+        } else if let Some(index) = p.into_u32() {
+            // Indexed lookup: check our slice.
+            if let Some(value) = self.as_slice(agent).get(index as usize) {
+                // Found a slot in the slice, check if it contains a Value.
+                if let Some(value) = value {
+                    // Slot contained value, return it.
+                    return value.bind(gc).into();
+                }
+                // Slot did not contain a value; this is either a hole or an
+                // accessor property.
+                let ElementStorageRef { descriptors, .. } = self.get_storage(agent);
+                if let Some(desc) = descriptors.and_then(|d| d.get(&index)) {
+                    // This was an accessor property; if it has a getter,
+                    // return that. Otherwise, return undefined.
+                    debug_assert!(desc.is_accessor_descriptor());
+                    if let Some(getter) = desc.getter_function(gc) {
+                        return GetCachedResult::Get(getter.bind(gc)).into();
+                    } else {
+                        return Value::Undefined.into();
+                    }
+                }
+                // This was a hole, continue into the prototype chain.
+            }
+        }
+        // If this was an over-indexing, a hole, or a named property on the
+        // Array then we want to perform a normal cached lookup with the
+        // Array's shape.
+        let shape = self.object_shape(agent);
+        shape.get_cached(
+            agent,
+            p.bind(gc),
+            self.into_value().bind(gc),
+            cache.bind(gc),
+            gc,
+        )
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        // Cached set of an Array should return directly mutate the Array's
+        // internal memory if it can.
+        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
+            // Length lookup: we find it always.
+            if !self.length_writable(agent) {
+                return SetCachedResult::Unwritable.into();
+            }
+            if let Value::Integer(value) = value
+                && let Ok(value) = u32::try_from(value.into_i64())
+            {
+                let Ok(result) = array_set_length_handling(agent, self, value, None, None, None)
+                else {
+                    // Let caller handle retry and error on TryReserveError.
+                    return NoCache.into();
+                };
+                return if result {
+                    SetCachedResult::Done.into()
+                } else {
+                    SetCachedResult::Unwritable.into()
+                };
+            } else {
+                return NoCache.into();
+            }
+        } else if let Some(index) = p.into_u32() {
+            // Indexed lookup: check our slice. First bounds-check.
+            if !(0..self.len(agent)).contains(&index) {
+                // We're out of bounds; this need prototype lookups.
+                return NoCache.into();
+            }
+            // Index within slice; let's look into that memory.
+            let storage = self.get_storage_mut(agent);
+            // First check if we have a descriptor at our index.
+            let desc = match storage.descriptors {
+                Entry::Occupied(e) => e.into_mut().get(&index),
+                Entry::Vacant(_) => None,
+            };
+            if let Some(desc) = desc {
+                // Found a descriptor; see if it's an accessor.
+                if desc.is_accessor_descriptor() {
+                    // Found an accessor indeed; see if it has a setter,
+                    // and return that if so.
+                    if let Some(setter) = desc.setter_function(gc) {
+                        return SetCachedResult::Set(setter).into();
+                    }
+                    // No setter on this accessor; trying to set the value
+                    // fails.
+                    return SetCachedResult::Accessor.into();
+                }
+                // Data descriptor; see if it's not writable.
+                if !desc.is_writable().unwrap() {
+                    // Not writable; return failure.
+                    return SetCachedResult::Unwritable.into();
+                }
+            }
+            // Writable data property or hole; check which one we're
+            // dealing with.
+            if let Some(slot) = &mut storage.values[index as usize] {
+                // Writable data property it is! Set its value.
+                *slot = value.unbind();
+                return SetCachedResult::Done.into();
+            }
+            // Hole! We'll just return NoCache to signify that we can't be
+            // arsed to implement the entire prototype lookup logic here.
+            return NoCache.into();
+        }
+        // If this was a non-Array index or a named property on the Array then
+        // we want to perform a normal cached set with the Array's shape.
+        let shape = self.object_shape(agent);
+        shape.set_cached(
+            agent,
+            ShapeSetCachedProps {
+                o: self.into_object(),
+                p,
+                receiver,
+            },
+            value,
+            cache,
+            gc,
+        )
+    }
 }
 
 impl Index<Array<'_>> for Agent {
@@ -930,8 +1095,30 @@ impl HeapSweepWeakReference for Array<'static> {
     }
 }
 
+/// Helper to invalidate property lookup caches associated with an index when
+/// an intrinsic Array is mutated.
+fn invalidate_array_index_caches(agent: &mut Agent, array: Array, index: u32, gc: NoGcScope) {
+    if let Some(shape) = array
+        .get_backing_object(agent)
+        .map(|o| o.object_shape(agent))
+        && shape.is_intrinsic(agent)
+    {
+        // We set a value on an intrinsic object, we have to
+        // invalidate caches.
+        Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+            agent,
+            array.into_object(),
+            shape,
+            index.into(),
+            u32::MAX,
+            gc,
+        );
+    }
+}
+
 fn ordinary_define_own_property_for_array(
     agent: &mut Agent,
+    array: Array,
     elements: ElementsVector,
     index: u32,
     descriptor: PropertyDescriptor,
@@ -970,6 +1157,7 @@ fn ordinary_define_own_property_for_array(
             //    value otherwise.
             let elem_descriptor = ElementDescriptor::from_accessor_descriptor(descriptor);
             insert_element_descriptor(agent, &elements, index, None, elem_descriptor);
+            invalidate_array_index_caches(agent, array, index, gc);
         }
         // d. Else,
         else {
@@ -984,6 +1172,7 @@ fn ordinary_define_own_property_for_array(
                 Some(descriptor_value.unwrap_or(Value::Undefined)),
                 ElementDescriptor::from_data_descriptor(descriptor),
             );
+            invalidate_array_index_caches(agent, array, index, gc);
         }
 
         // e. Return true.
@@ -1084,6 +1273,7 @@ fn ordinary_define_own_property_for_array(
             configurable,
         );
         insert_element_descriptor(agent, &elements, index, None, elem_descriptor);
+        invalidate_array_index_caches(agent, array, index, gc);
     }
     // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
     else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {

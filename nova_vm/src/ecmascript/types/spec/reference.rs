@@ -896,14 +896,10 @@ pub(crate) fn put_value<'a>(
                 };
                 // SAFETY: not shared.
                 let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
-                let error_message = format!(
-                    "Could not set property '{}' of {}.",
-                    referenced_name.as_display(agent),
-                    base_obj_repr.to_string_lossy(agent)
-                );
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    error_message,
+                return Err(throw_cannot_set_property(
+                    agent,
+                    base_obj_repr.into_value().unbind(),
+                    referenced_name.unbind(),
                     gc.into_nogc(),
                 ));
             }
@@ -969,14 +965,10 @@ pub(crate) fn put_value<'a>(
                 };
                 // SAFETY: not shared.
                 let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
-                let error_message = format!(
-                    "Could not set property '{}' of {}.",
-                    referenced_name.as_display(agent),
-                    base_obj_repr.to_string_lossy(agent)
-                );
-                return Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    error_message,
+                return Err(throw_cannot_set_property(
+                    agent,
+                    base_obj_repr.into_value().unbind(),
+                    referenced_name.unbind(),
                     gc.into_nogc(),
                 ));
             }
@@ -1066,17 +1058,6 @@ pub(crate) fn try_put_value<'a>(
             // d. If succeeded is false and V.[[Strict]] is true,
             if !succeeded && reference.strict() {
                 // throw a TypeError exception.
-                let base_obj_repr = base_obj.into_value().try_string_repr(agent, gc);
-                let error_message = format!(
-                    "Could not set property '{}' of {}.",
-                    referenced_name.as_display(agent),
-                    base_obj_repr.to_string_lossy(agent)
-                );
-                return TryResult::Continue(Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    error_message,
-                    gc,
-                )));
             }
             // e. Return UNUSED.
             TryResult::Continue(Ok(()))
@@ -1101,15 +1082,10 @@ pub(crate) fn try_put_value<'a>(
                 base_obj.try_set(agent, referenced_name, w, get_this_value(reference), gc)?;
             if !succeeded && reference.strict() {
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-                let base_obj_repr = base_obj.into_value().try_string_repr(agent, gc);
-                let error_message = format!(
-                    "Could not set property '{}' of {}.",
-                    referenced_name.as_display(agent),
-                    base_obj_repr.to_string_lossy(agent)
-                );
-                return TryResult::Continue(Err(agent.throw_exception(
-                    ExceptionType::TypeError,
-                    error_message,
+                return TryResult::Continue(Err(throw_cannot_set_property(
+                    agent,
+                    base_obj.into_value(),
+                    referenced_name,
                     gc,
                 )));
             }
@@ -1125,6 +1101,21 @@ pub(crate) fn try_put_value<'a>(
             base.try_set_mutable_binding(agent, v.referenced_name, w, reference.strict(), gc)
         }
     }
+}
+
+pub(crate) fn throw_cannot_set_property<'a>(
+    agent: &mut Agent,
+    base: Value,
+    property_key: PropertyKey,
+    gc: NoGcScope<'a, '_>,
+) -> JsError<'a> {
+    let base = base.try_string_repr(agent, gc);
+    let error_message = format!(
+        "Could not set property '{}' of {}.",
+        property_key.as_display(agent),
+        base.to_string_lossy(agent)
+    );
+    agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }
 
 /// ### [6.2.5.7 GetThisValue ( V )](https://tc39.es/ecma262/#sec-getthisvalue)

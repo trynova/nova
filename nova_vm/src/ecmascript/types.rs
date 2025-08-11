@@ -7,9 +7,9 @@ mod spec;
 
 pub(crate) use language::*;
 pub use language::{
-    BigInt, Function, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoFunction,
-    IntoNumeric, IntoObject, IntoPrimitive, IntoValue, Number, Numeric, Object, OrdinaryObject,
-    Primitive, PropertyKey, PropertyKeySet, String, Symbol, Value, bigint,
+    BigInt, Function, GetCachedResult, HeapNumber, HeapString, InternalMethods, InternalSlots,
+    IntoFunction, IntoNumeric, IntoObject, IntoPrimitive, IntoValue, NoCache, Number, Numeric,
+    Object, OrdinaryObject, Primitive, PropertyKey, PropertyKeySet, String, Symbol, Value, bigint,
 };
 pub use spec::PrivateName;
 pub use spec::PropertyDescriptor;

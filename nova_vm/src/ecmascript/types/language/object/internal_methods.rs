@@ -2,18 +2,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use super::{InternalSlots, Object, PropertyKey};
 use crate::{
     ecmascript::{
         builtins::{
             ArgumentsList,
             ordinary::{
+                caches::{PropertyLookupCache, PropertyOffset},
                 ordinary_define_own_property, ordinary_delete, ordinary_get,
                 ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
                 ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
-                ordinary_set, ordinary_set_prototype_of, ordinary_try_get,
+                ordinary_set, ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
+                shape::ShapeSetCachedProps,
             },
+            proxy::Proxy,
         },
         execution::{Agent, JsResult},
         types::{Function, PropertyDescriptor, Value},
@@ -180,6 +185,7 @@ where
                 self.into_object().bind(gc),
                 backing_object,
                 property_key,
+                gc,
             ),
             None => None,
         })
@@ -488,6 +494,122 @@ where
         ))
     }
 
+    /// ## \[\[Get]] method with caching.
+    ///
+    /// This method is a variant of the \[\[Get]] method which can never call
+    /// into JavaScript and thus cannot trigger garbage collection. If the
+    /// method would need to call a getter function or a Proxy trap, then the
+    /// method explicit returns a result signifying that need. The caller is
+    /// thus in charge of control flow.
+    ///
+    /// > NOTE: Because the method cannot call getters, the receiver parameter
+    /// > is not part of the API.
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        let shape = self.object_shape(agent);
+        shape.get_cached(agent, p, self.into_value(), cache, gc)
+    }
+
+    /// ## \[\[Set]] method with caching.
+    ///
+    /// This method is a variant of the \[\[Set]] method which can never call
+    /// into JavaScript and thus cannot trigger garbage collection. If the
+    /// method would need to call a setter function or a Proxy trap, then the
+    /// method explicit returns a result signifying that need. The caller is
+    /// thus in charge of control flow.
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        let shape = self.object_shape(agent);
+        shape.set_cached(
+            agent,
+            ShapeSetCachedProps {
+                o: self.into_object(),
+                p,
+                receiver,
+            },
+            value,
+            cache,
+            gc,
+        )
+    }
+
+    /// ## \[\[GetOwnProperty]] method with offset.
+    ///
+    /// This is a variant of the \[\[GetOwnProperty]] method that reads a
+    /// property value (or getter function) at an offset based on cached data.
+    /// The method cannot call into JavaScript and is used as part of the
+    /// \[\[Get]] method's cached variant.
+    fn get_own_property_at_offset<'gc>(
+        self,
+        agent: &Agent,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        if offset.is_custom_property() {
+            // We don't yet cache any of these accesses.
+            todo!(
+                "{} needs to implement custom property caching manually",
+                core::any::type_name::<Self>()
+            )
+        } else {
+            // It should be impossible for us to not have a backing store.
+            self.get_backing_object(agent)
+                .unwrap()
+                .get_own_property_at_offset(agent, offset, gc)
+        }
+    }
+
+    /// ## \[\[Set]] method with offset.
+    ///
+    /// This is a variant of the \[\[Set]] method that attempts to set the
+    /// value of property at an offset. The method cannot call into JavaScript
+    /// or trigger garbage collection, and any such needs must be interrupted
+    /// and control returned to the caller. The method is used as part of the
+    /// \[\[Set]] method's cached variant.
+    fn set_at_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        offset: PropertyOffset,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        if offset.is_custom_property() {
+            // We don't yet cache any of these accesses.
+            todo!(
+                "{} needs to implement custom property caching manually",
+                core::any::type_name::<Self>()
+            )
+        } else {
+            let backing_object = self.get_backing_object(agent);
+            ordinary_set_at_offset(
+                agent,
+                (self.into_object(), backing_object),
+                (p, offset),
+                value,
+                receiver,
+                gc,
+            )
+        }
+    }
+
     /// ## \[\[Call\]\]
     fn internal_call<'gc>(
         self,
@@ -508,5 +630,96 @@ where
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
         unreachable!()
+    }
+}
+
+/// Early-return conditions for [[Get]] method's cached variant.
+///
+/// Early-return effectively means that a cached property lookup was found
+/// and the normal \[\[Get]] method variant need not be entered.
+#[derive(Debug)]
+pub enum GetCachedResult<'a> {
+    /// A data property was found.
+    Value(Value<'a>),
+    /// A getter call is needed.
+    Get(Function<'a>),
+    /// A Proxy trap call is needed.
+    Proxy(Proxy<'a>),
+}
+
+impl<'a, T> From<GetCachedResult<'a>> for ControlFlow<GetCachedResult<'a>, T> {
+    fn from(value: GetCachedResult<'a>) -> Self {
+        ControlFlow::Break(value)
+    }
+}
+
+impl<'a, T> From<Value<'a>> for ControlFlow<GetCachedResult<'a>, T> {
+    fn from(value: Value<'a>) -> Self {
+        ControlFlow::Break(GetCachedResult::Value(value))
+    }
+}
+
+/// No property cache was found.
+///
+/// The normal \[\[Get]] or \[\[Set]] method variant should be entered.
+pub struct NoCache;
+
+impl<T> From<NoCache> for ControlFlow<T, NoCache> {
+    fn from(value: NoCache) -> Self {
+        ControlFlow::Continue(value)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for GetCachedResult<'_> {
+    type Of<'a> = GetCachedResult<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+/// Early-return conditions for [[Set]] method's cached variant.
+///
+/// Early-return effectively means that a cached property lookup was found and
+/// the normal \[\[Set]] method variant need not be entered.
+pub enum SetCachedResult<'a> {
+    /// Value was successfully set.
+    Done,
+    /// Value could not be set due to unwritable property or nonextensible
+    /// object.
+    Unwritable,
+    /// Value could not be set due to being an accessor without a setter.
+    Accessor,
+    /// A setter call is needed.
+    Set(Function<'a>),
+    /// A Proxy trap call is needed.
+    Proxy(Proxy<'a>),
+}
+
+impl<'a, T> From<SetCachedResult<'a>> for ControlFlow<SetCachedResult<'a>, T> {
+    fn from(value: SetCachedResult<'a>) -> Self {
+        ControlFlow::Break(value)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SetCachedResult<'_> {
+    type Of<'a> = SetCachedResult<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }

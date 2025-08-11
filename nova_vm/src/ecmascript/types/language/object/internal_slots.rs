@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{IntoObject, Object, OrdinaryObject};
-use crate::ecmascript::execution::{Agent, ProtoIntrinsics};
+use crate::ecmascript::{
+    builtins::ordinary::shape::ObjectShape,
+    execution::{Agent, ProtoIntrinsics},
+};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>
@@ -42,11 +45,26 @@ where
         backing_object
     }
 
-    /// Helper method that gets an existing backing object or creates it if not
-    /// yet created.
-    fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
-        self.get_backing_object(agent)
-            .unwrap_or_else(|| self.create_backing_object(agent))
+    /// ### \[\[ObjectShape]]
+    ///
+    /// This is a custom "internal slot" which defines how to find the generic
+    /// object shape of an item. For an ordinary object the object data itself
+    /// contains the shape. For exotic objects if a backing object exists, the
+    /// Object Shape is held in it. If a backing object does not exist, the
+    /// shape must be statically knowable.
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.object_shape(agent)
+        } else if let Some(shape) = agent
+            .current_realm_record()
+            .intrinsics()
+            .get_intrinsic_object_shape(Self::DEFAULT_PROTOTYPE)
+        {
+            shape
+        } else {
+            let prototype = self.internal_prototype(agent);
+            ObjectShape::get_shape_for_prototype(agent, prototype)
+        }
     }
 
     /// #### \[\[Extensible\]\]
@@ -98,5 +116,14 @@ where
             self.create_backing_object(agent)
                 .internal_set_prototype(agent, prototype)
         }
+    }
+
+    /// Helper method that gets an existing backing object or creates it if not
+    /// yet created.
+    ///
+    /// > NOTE: Do not implement this manually; it is derived for you.
+    fn get_or_create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
+        self.get_backing_object(agent)
+            .unwrap_or_else(|| self.create_backing_object(agent))
     }
 }

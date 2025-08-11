@@ -5,8 +5,11 @@
 mod data;
 pub mod into_function;
 
+use std::ops::ControlFlow;
+
 use super::{
-    InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey, String, Value,
+    GetCachedResult, InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey,
+    SetCachedResult, String, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -20,6 +23,7 @@ use crate::{
         builtins::{
             ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             bound_function::BoundFunction,
+            ordinary::caches::{PropertyLookupCache, PropertyOffset},
             promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
@@ -36,11 +40,11 @@ use crate::{
 pub(crate) use data::*;
 pub use into_function::IntoFunction;
 pub(crate) use into_function::{
-    FunctionInternalProperties, function_create_backing_object,
+    FunctionInternalProperties, function_create_backing_object, function_get_cached,
     function_internal_define_own_property, function_internal_delete, function_internal_get,
     function_internal_get_own_property, function_internal_has_property,
-    function_internal_own_property_keys, function_internal_set, function_try_get,
-    function_try_has_property, function_try_set,
+    function_internal_own_property_keys, function_internal_set, function_set_cached,
+    function_try_get, function_try_has_property, function_try_set,
 };
 
 /// https://tc39.es/ecma262/#function-object
@@ -543,6 +547,99 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_own_property_keys(agent, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        match self {
+            Function::BoundFunction(f) => f.get_cached(agent, p, cache, gc),
+            Function::BuiltinFunction(f) => f.get_cached(agent, p, cache, gc),
+            Function::ECMAScriptFunction(f) => f.get_cached(agent, p, cache, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(f) => f.get_cached(agent, p, cache, gc),
+            Function::BuiltinPromiseResolvingFunction(f) => f.get_cached(agent, p, cache, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        match self {
+            Function::BoundFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
+            Function::BuiltinFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
+            Function::ECMAScriptFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(f) => {
+                f.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(f) => {
+                f.set_cached(agent, p, value, receiver, cache, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn get_own_property_at_offset<'gc>(
+        self,
+        agent: &Agent,
+        offset: PropertyOffset,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        match self {
+            Function::BoundFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
+            Function::BuiltinFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
+            Function::ECMAScriptFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(f) => {
+                f.get_own_property_at_offset(agent, offset, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(f) => {
+                f.get_own_property_at_offset(agent, offset, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn set_at_offset<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        offset: PropertyOffset,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        match self {
+            Function::BoundFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
+            Function::BuiltinFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
+            Function::ECMAScriptFunction(f) => {
+                f.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(f) => {
+                f.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(f) => {
+                f.set_at_offset(agent, p, offset, value, receiver, gc)
+            }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }

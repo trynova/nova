@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 use crate::{
     SmallInteger,
@@ -14,11 +15,12 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
-            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, Number,
-            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
-            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, String, Symbol, Value, bigint::HeapBigInt,
+            FLOAT_DISCRIMINANT, GetCachedResult, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
+            InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
+            NUMBER_DISCRIMINANT, NoCache, Number, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
+            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedResult, String, Symbol, Value,
+            bigint::HeapBigInt,
         },
     },
     engine::{
@@ -37,7 +39,10 @@ use crate::{
 use small_string::SmallString;
 
 use super::ordinary::{
-    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
+    caches::PropertyLookupCache,
+    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property_entry,
+    ordinary_try_set,
+    shape::{ObjectShape, ShapeSetCachedProps},
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -185,6 +190,18 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         );
     }
 
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.object_shape(agent)
+        } else {
+            agent[self]
+                .data
+                .into_primitive()
+                .object_shape(agent)
+                .unwrap()
+        }
+    }
+
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         match self.get_backing_object(agent) {
             Some(obj) => obj.internal_prototype(agent),
@@ -230,7 +247,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = o.get_backing_object(agent)
             && let Some(property_descriptor) =
-                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key)
+                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key, gc)
         {
             return TryResult::Continue(Some(property_descriptor));
         }
@@ -534,6 +551,52 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 TryResult::Continue(ordinary_own_property_keys(agent, backing_object, gc))
             }
             None => TryResult::Continue(vec![]),
+        }
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        if let Ok(string) = String::try_from(agent[self].data)
+            && let Some(value) = string.get_property_value(agent, p)
+        {
+            value.into()
+        } else {
+            let shape = self.object_shape(agent);
+            shape.get_cached(agent, p, self.into_value(), cache, gc)
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        if String::try_from(agent[self].data)
+            .is_ok_and(|s| s.get_property_value(agent, p).is_some())
+        {
+            SetCachedResult::Unwritable.into()
+        } else {
+            let shape = self.object_shape(agent);
+            shape.set_cached(
+                agent,
+                ShapeSetCachedProps {
+                    o: self.into_object(),
+                    p,
+                    receiver,
+                },
+                value,
+                cache,
+                gc,
+            )
         }
     }
 }

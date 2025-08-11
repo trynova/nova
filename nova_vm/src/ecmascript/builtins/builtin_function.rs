@@ -6,7 +6,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, Index, IndexMut},
 };
-use std::{hint::unreachable_unchecked, ptr::NonNull};
+use std::{hint::unreachable_unchecked, ops::ControlFlow, ptr::NonNull};
 
 use crate::{
     ecmascript::{
@@ -15,12 +15,13 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator, String, Value,
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, function_try_get, function_try_has_property, function_try_set,
+            GetCachedResult, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue,
+            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator,
+            SetCachedResult, String, Value, function_create_backing_object, function_get_cached,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set, function_set_cached,
+            function_try_get, function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -34,6 +35,8 @@ use crate::{
         ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinFunctionIndex,
     },
 };
+
+use super::ordinary::caches::PropertyLookupCache;
 
 #[derive(Default)]
 #[repr(transparent)]
@@ -666,6 +669,28 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        function_get_cached(self, agent, p, cache, gc)
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        function_set_cached(self, agent, p, value, receiver, cache, gc)
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)

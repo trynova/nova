@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::num::NonZeroU32;
+
 use super::Realm;
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::keyed_collections::set_objects::{
@@ -145,19 +147,20 @@ use crate::{
     engine::context::NoGcScope,
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
-        IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
+        IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
         indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
 };
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
-    pub(crate) object_index_base: ObjectIndex<'static>,
-    pub(crate) primitive_object_index_base: PrimitiveObjectIndex<'static>,
+    object_index_base: ObjectIndex<'static>,
+    object_shape_base: ObjectShape<'static>,
+    primitive_object_index_base: PrimitiveObjectIndex<'static>,
     /// Array prototype object is an Array exotic object. It is the only one
     /// in the ECMAScript spec so we do not need to store the Array index base.
-    pub(crate) array_prototype: Array<'static>,
-    pub(crate) builtin_function_index_base: BuiltinFunctionIndex<'static>,
+    array_prototype: Array<'static>,
+    builtin_function_index_base: BuiltinFunctionIndex<'static>,
 }
 
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
@@ -229,7 +232,7 @@ pub enum ProtoIntrinsics {
     Uint8Array,
     #[cfg(feature = "array-buffer")]
     Uint8ClampedArray,
-    UriError,
+    URIError,
     #[cfg(feature = "weak-refs")]
     WeakMap,
     #[cfg(feature = "weak-refs")]
@@ -242,6 +245,9 @@ impl Intrinsics {
     pub(crate) fn new(agent: &mut Agent) -> Self {
         // Use from_usize to index "one over the edge", ie. where new intrinsics will be created.
         let object_index_base = ObjectIndex::from_index(agent.heap.objects.len());
+        let object_shape_base = ObjectShape::from_non_zero(
+            NonZeroU32::new((agent.heap.object_shapes.len() + 1) as u32).unwrap(),
+        );
         let primitive_object_index_base =
             PrimitiveObjectIndex::from_index(agent.heap.primitive_objects.len());
         let builtin_function_index_base =
@@ -264,6 +270,7 @@ impl Intrinsics {
 
         Self {
             object_index_base,
+            object_shape_base,
             primitive_object_index_base,
             builtin_function_index_base,
             array_prototype,
@@ -401,7 +408,7 @@ impl Intrinsics {
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
-            ProtoIntrinsics::UriError => self.uri_error_prototype().into(),
+            ProtoIntrinsics::URIError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
             ProtoIntrinsics::AsyncFunction => self.async_function_prototype().into(),
             ProtoIntrinsics::AsyncGenerator => self.async_generator_prototype().into(),
@@ -411,7 +418,7 @@ impl Intrinsics {
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::BigInt64Array => self.big_int64_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::BigUint64Array => self.big_int64_array_prototype().into(),
+            ProtoIntrinsics::BigUint64Array => self.big_uint64_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => self.data_view_prototype().into(),
             ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
@@ -448,7 +455,7 @@ impl Intrinsics {
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => self.uint8_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Uint8ClampedArray => self.uint8_clamped_array().into(),
+            ProtoIntrinsics::Uint8ClampedArray => self.uint8_clamped_array_prototype().into(),
             #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => self.weak_map_prototype().into(),
             #[cfg(feature = "weak-refs")]
@@ -458,22 +465,31 @@ impl Intrinsics {
         }
     }
 
-    pub(crate) fn intrinsic_function_index_to_builtin_function(
+    pub(crate) const fn get_intrinsic_object_shape(
+        &self,
+        intrinsic_default_proto: ProtoIntrinsics,
+    ) -> Option<ObjectShape<'static>> {
+        match intrinsic_default_proto {
+            ProtoIntrinsics::Array => Some(self.array_shape()),
+            ProtoIntrinsics::Number => Some(self.number_shape()),
+            ProtoIntrinsics::Object => Some(self.object_shape()),
+            ProtoIntrinsics::String => Some(self.string_shape()),
+            _ => None,
+        }
+    }
+
+    pub(crate) const fn intrinsic_function_index_to_builtin_function(
         &self,
         index: IntrinsicFunctionIndexes,
     ) -> BuiltinFunction<'static> {
-        index
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+        BuiltinFunction(index.get_builtin_function_index(self.builtin_function_index_base))
     }
 
-    pub(crate) fn intrinsic_constructor_index_to_builtin_function(
+    pub(crate) const fn intrinsic_constructor_index_to_builtin_function(
         &self,
         index: IntrinsicConstructorIndexes,
     ) -> BuiltinFunction<'static> {
-        index
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+        BuiltinFunction(index.get_builtin_function_index(self.builtin_function_index_base))
     }
 
     pub(crate) fn intrinsic_constructor_index_to_object_index(
@@ -484,218 +500,206 @@ impl Intrinsics {
     }
 
     /// %AggregateError.prototype%
-    pub(crate) fn aggregate_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AggregateErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn aggregate_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AggregateErrorPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %AggregateError%
-    pub(crate) fn aggregate_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::AggregateError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn aggregate_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::AggregateError.get_object_index(self.object_index_base)
+    pub(crate) const fn aggregate_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::AggregateError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Array.prototype.sort%
-    pub(crate) fn array_prototype_sort(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ArrayPrototypeSort
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn array_prototype_sort(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ArrayPrototypeSort
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Array.prototype.toString%
-    pub(crate) fn array_prototype_to_string(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ArrayPrototypeToString
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn array_prototype_to_string(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ArrayPrototypeToString
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Array.prototype.values%
-    pub(crate) fn array_prototype_values(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ArrayPrototypeValues
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn array_prototype_values(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ArrayPrototypeValues
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Array.prototype%
-    pub(crate) fn array_prototype(&self) -> Array<'static> {
+    pub(crate) const fn array_prototype(&self) -> Array<'static> {
         self.array_prototype
     }
 
     /// %Array.prototype%
-    pub(crate) fn array_prototype_base_object(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn array_prototype_base_object(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Array%
-    pub(crate) fn array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
-    pub(crate) fn array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Array.get_object_index(self.object_index_base)
+    /// Empty Array shape.
+    pub(crate) const fn array_shape(&self) -> ObjectShape<'static> {
+        IntrinsicObjectShapes::Array.get_object_shape_index(self.object_shape_base)
     }
 
     #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer.prototype%
-    pub(crate) fn array_buffer_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ArrayBufferPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn array_buffer_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ArrayBufferPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer%
-    pub(crate) fn array_buffer(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::ArrayBuffer
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn array_buffer_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::ArrayBuffer.get_object_index(self.object_index_base)
+    pub(crate) const fn array_buffer(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::ArrayBuffer
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %ArrayIteratorPrototype%
-    pub(crate) fn array_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ArrayIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn array_iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ArrayIteratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %AsyncFunction.prototype%
-    pub(crate) fn async_function_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncFunctionPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn async_function_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AsyncFunctionPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %AsyncFunction%
-    pub(crate) fn async_function(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::AsyncFunction
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn async_function_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::AsyncFunction.get_object_index(self.object_index_base)
+    pub(crate) const fn async_function(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::AsyncFunction
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %AsyncGeneratorFunction.prototype.prototype%
     ///
     /// The %AsyncGeneratorPrototype% object is %AsyncGeneratorFunction.prototype.prototype%.
-    pub(crate) fn async_generator_function_prototype_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncGeneratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn async_generator_function_prototype_prototype(
+        &self,
+    ) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AsyncGeneratorPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %AsyncGeneratorFunction.prototype%
-    pub(crate) fn async_generator_function_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncGeneratorFunctionPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn async_generator_function_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AsyncGeneratorFunctionPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %AsyncGeneratorFunction%
-    pub(crate) fn async_generator_function(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::AsyncGeneratorFunction
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn async_generator_function_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::AsyncGeneratorFunction.get_object_index(self.object_index_base)
+    pub(crate) const fn async_generator_function(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::AsyncGeneratorFunction
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %AsyncGeneratorPrototype%
-    pub(crate) fn async_generator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncGeneratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn async_generator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AsyncGeneratorPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %AsyncIteratorPrototype%
-    pub(crate) fn async_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn async_iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AsyncIteratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Atomics%
     #[cfg(feature = "atomics")]
-    pub(crate) fn atomics(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AtomicsObject
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn atomics(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::AtomicsObject.get_object_index(self.object_index_base),
+        )
     }
 
     /// %BigInt.prototype%
-    pub(crate) fn big_int_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::BigIntPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn big_int_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::BigIntPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %BigInt%
-    pub(crate) fn big_int(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::BigInt
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn big_int_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::BigInt.get_object_index(self.object_index_base)
+    pub(crate) const fn big_int(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::BigInt
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %BigInt64Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_int64_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::BigInt64ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn big_int64_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::BigInt64ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_int64_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::BigInt64Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_int64_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::BigInt64Array.get_object_index(self.object_index_base)
+    pub(crate) const fn big_int64_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::BigInt64Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %BigUint64Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_uint64_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::BigUint64ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn big_uint64_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::BigUint64ArrayPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_uint64_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::BigUint64Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_uint64_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::BigUint64Array.get_object_index(self.object_index_base)
+    pub(crate) const fn big_uint64_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::BigUint64Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Boolean.prototype%
@@ -710,418 +714,378 @@ impl Intrinsics {
     }
 
     /// %Boolean%
-    pub(crate) fn boolean(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Boolean
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn boolean_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Boolean.get_object_index(self.object_index_base)
+    pub(crate) const fn boolean(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Boolean
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %DataView.prototype%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn data_view_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::DataViewPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn data_view_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::DataViewPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %DataView%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn data_view(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::DataView
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn data_view_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::DataView.get_object_index(self.object_index_base)
+    pub(crate) const fn data_view(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::DataView
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     #[cfg(feature = "date")]
     /// %Date.prototype.toUTCString%
-    pub(crate) fn date_prototype_to_utcstring(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::DatePrototypeToUTCString
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn date_prototype_to_utcstring(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::DatePrototypeToUTCString
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     #[cfg(feature = "date")]
     /// %Date.prototype%
-    pub(crate) fn date_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::DatePrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn date_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::DatePrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "date")]
     /// %Date%
-    pub(crate) fn date(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Date
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "date")]
-    pub(crate) fn date_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Date.get_object_index(self.object_index_base)
+    pub(crate) const fn date(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Date
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %decodeURI%
-    pub(crate) fn decode_uri(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::DecodeURI
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn decode_uri(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::DecodeURI
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %decodeURIComponent%
-    pub(crate) fn decode_uri_component(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::DecodeURIComponent
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn decode_uri_component(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::DecodeURIComponent
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %encodeURI%
-    pub(crate) fn encode_uri(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::EncodeURI
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn encode_uri(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::EncodeURI
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %encodeURIComponent%
-    pub(crate) fn encode_uri_component(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::EncodeURIComponent
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn encode_uri_component(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::EncodeURIComponent
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Error.prototype%
-    pub(crate) fn error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ErrorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Error%
-    pub(crate) fn error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Error
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Error.get_object_index(self.object_index_base)
+    pub(crate) const fn error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Error
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %escape%
-    pub(crate) fn escape(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::Escape
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn escape(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::Escape
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %eval%
-    pub(crate) fn eval(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::Eval
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn eval(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::Eval
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %EvalError.prototype%
-    pub(crate) fn eval_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::EvalErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn eval_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::EvalErrorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %EvalError%
-    pub(crate) fn eval_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::EvalError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn eval_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::EvalError.get_object_index(self.object_index_base)
+    pub(crate) const fn eval_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::EvalError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %FinalizationRegistry.prototype%
-    pub(crate) fn finalization_registry_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::FinalizationRegistryPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn finalization_registry_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::FinalizationRegistryPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %FinalizationRegistry%
-    pub(crate) fn finalization_registry(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::FinalizationRegistry
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn finalization_registry_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::FinalizationRegistry.get_object_index(self.object_index_base)
+    pub(crate) const fn finalization_registry(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::FinalizationRegistry
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Float16Array%
     #[cfg(feature = "proposal-float16array")]
-    pub(crate) fn float16_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Float16ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn float16_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Float16ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "proposal-float16array")]
-    pub(crate) fn float16_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Float16Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "proposal-float16array")]
-    pub(crate) fn float16_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Float16Array.get_object_index(self.object_index_base)
+    pub(crate) const fn float16_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Float16Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Float32Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn float32_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Float32ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn float32_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Float32ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn float32_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Float32Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn float32_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Float32Array.get_object_index(self.object_index_base)
+    pub(crate) const fn float32_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Float32Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Float64Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn float64_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Float64ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn float64_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Float64ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn float64_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Float64Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn float64_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Float64Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn float64_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Float64Array.get_object_index(self.object_index_base)
-    }
-
-    pub(crate) fn function_prototype(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::FunctionPrototype
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn function_prototype_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::FunctionPrototype.get_object_index(self.object_index_base)
+    pub(crate) const fn function_prototype(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::FunctionPrototype
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Function%
-    pub(crate) fn function(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Function
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn function_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Function.get_object_index(self.object_index_base)
+    pub(crate) const fn function(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Function
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %GeneratorFunction.prototype.prototype.next%
-    pub(crate) fn generator_function_prototype_prototype_next(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::GeneratorFunctionPrototypePrototypeNext
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn generator_function_prototype_prototype_next(
+        &self,
+    ) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::GeneratorFunctionPrototypePrototypeNext
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     // %GeneratorFunction.prototype.prototype%
     //
     // The %GeneratorPrototype% object is %GeneratorFunction.prototype.prototype%.
-    pub(crate) fn generator_function_prototype_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::GeneratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn generator_function_prototype_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::GeneratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %GeneratorFunction.prototype%
-    pub(crate) fn generator_function_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::GeneratorFunctionPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn generator_function_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::GeneratorFunctionPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %GeneratorFunction%
-    pub(crate) fn generator_function(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::GeneratorFunction
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn generator_function_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::GeneratorFunction.get_object_index(self.object_index_base)
+    pub(crate) const fn generator_function(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::GeneratorFunction
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %GeneratorPrototype%
-    pub(crate) fn generator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::GeneratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn generator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::GeneratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Int16Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int16_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Int16ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn int16_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Int16ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int16_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Int16Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn int16_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Int16Array.get_object_index(self.object_index_base)
+    pub(crate) const fn int16_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Int16Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Int32Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int32_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Int32ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn int32_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Int32ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int32_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Int32Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn int32_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Int32Array.get_object_index(self.object_index_base)
+    pub(crate) const fn int32_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Int32Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Int8Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int8_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Int8ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn int8_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Int8ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int8_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Int8Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn int8_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Int8Array.get_object_index(self.object_index_base)
+    pub(crate) const fn int8_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Int8Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %isFinite%
-    pub(crate) fn is_finite(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::IsFinite
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn is_finite(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::IsFinite
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %isNaN%
-    pub(crate) fn is_nan(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::IsNaN
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn is_nan(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::IsNaN
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Iterator%
-    pub(crate) fn iterator(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Iterator
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn iterator(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Iterator
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %IteratorPrototype%
-    pub(crate) fn iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::IteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::IteratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "json")]
     /// %JSON%
-    pub(crate) fn json(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::JSONObject
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn json(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::JSONObject.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Map.prototype.entries%
-    pub(crate) fn map_prototype_entries(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::MapPrototypeEntries
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn map_prototype_entries(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::MapPrototypeEntries
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Map.prototype%
-    pub(crate) fn map_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::MapPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn map_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::MapPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Map%
-    pub(crate) fn map(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Map
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn map_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Map.get_object_index(self.object_index_base)
+    pub(crate) const fn map(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Map
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %MapIteratorPrototype%
-    pub(crate) fn map_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::MapIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn map_iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::MapIteratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Math%
     #[cfg(feature = "math")]
-    pub(crate) fn math(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::MathObject
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn math(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::MathObject.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Number.prototype%
@@ -1136,229 +1100,220 @@ impl Intrinsics {
     }
 
     /// %Number%
-    pub(crate) fn number(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Number
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn number(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Number
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
-    pub(crate) fn number_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Number.get_object_index(self.object_index_base)
+    /// Empty Number shape.
+    pub(crate) const fn number_shape(&self) -> ObjectShape<'static> {
+        IntrinsicObjectShapes::Number.get_object_shape_index(self.object_shape_base)
     }
 
     /// %Object.prototype.toString%
-    pub(crate) fn object_prototype_to_string(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ObjectPrototypeToString
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn object_prototype_to_string(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ObjectPrototypeToString
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Object.prototype%
-    pub(crate) fn object_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ObjectPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn object_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ObjectPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Object%
-    pub(crate) fn object(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Object
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn object(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Object
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
-    pub(crate) fn object_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Object.get_object_index(self.object_index_base)
+    /// Empty Object shape.
+    pub(crate) const fn object_shape(&self) -> ObjectShape<'static> {
+        IntrinsicObjectShapes::Object.get_object_shape_index(self.object_shape_base)
     }
 
     /// %parseFloat%
-    pub(crate) fn parse_float(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ParseFloat
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn parse_float(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ParseFloat
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %parseInt%
-    pub(crate) fn parse_int(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ParseInt
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn parse_int(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ParseInt
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Promise.prototype%
-    pub(crate) fn promise_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::PromisePrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn promise_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::PromisePrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Promise%
-    pub(crate) fn promise(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Promise
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn promise_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Promise.get_object_index(self.object_index_base)
+    pub(crate) const fn promise(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Promise
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Proxy%
-    pub(crate) fn proxy(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Proxy
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn proxy_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Proxy.get_object_index(self.object_index_base)
+    pub(crate) const fn proxy(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Proxy
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %RangeError.prototype%
-    pub(crate) fn range_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::RangeErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn range_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::RangeErrorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %RangeError%
-    pub(crate) fn range_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::RangeError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn range_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::RangeError.get_object_index(self.object_index_base)
+    pub(crate) const fn range_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::RangeError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %ReferenceError.prototype%
-    pub(crate) fn reference_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ReferenceErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn reference_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ReferenceErrorPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %ReferenceError%
-    pub(crate) fn reference_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::ReferenceError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn reference_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::ReferenceError.get_object_index(self.object_index_base)
+    pub(crate) const fn reference_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::ReferenceError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Reflect%
-    pub(crate) fn reflect(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::ReflectObject
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn reflect(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::ReflectObject.get_object_index(self.object_index_base),
+        )
     }
 
     /// %RegExp.prototype.exec%
     #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp_prototype_exec(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::RegExpPrototypeExec
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn reg_exp_prototype_exec(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::RegExpPrototypeExec
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %RegExp.prototype%
     #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::RegExpPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn reg_exp_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::RegExpPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %RegExp%
     #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::RegExp
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::RegExp.get_object_index(self.object_index_base)
+    pub(crate) const fn reg_exp(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::RegExp
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %RegExpStringIteratorPrototype%
     #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp_string_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::RegExpStringIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn reg_exp_string_iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::RegExpStringIteratorPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %Set.prototype.values%
-    pub(crate) fn set_prototype_values(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::SetPrototypeValues
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn set_prototype_values(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::SetPrototypeValues
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Set.prototype%
-    pub(crate) fn set_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::SetPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn set_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::SetPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Set%
-    pub(crate) fn set(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Set
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn set_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Set.get_object_index(self.object_index_base)
+    pub(crate) const fn set(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Set
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %SetIteratorPrototype%
-    pub(crate) fn set_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::SetIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn set_iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::SetIteratorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %SharedArrayBuffer.prototype%
     #[cfg(feature = "shared-array-buffer")]
-    pub(crate) fn shared_array_buffer_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::SharedArrayBufferPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn shared_array_buffer_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::SharedArrayBufferPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %SharedArrayBuffer%
     #[cfg(feature = "shared-array-buffer")]
-    pub(crate) fn shared_array_buffer(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::SharedArrayBuffer
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "shared-array-buffer")]
-    pub(crate) fn shared_array_buffer_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::SharedArrayBuffer.get_object_index(self.object_index_base)
+    pub(crate) const fn shared_array_buffer(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::SharedArrayBuffer
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %String.prototype.trimEnd%
-    pub(crate) fn string_prototype_trim_end(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::StringPrototypeTrimEnd
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn string_prototype_trim_end(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::StringPrototypeTrimEnd
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %String.prototype.trimStart%
-    pub(crate) fn string_prototype_trim_start(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::StringPrototypeTrimStart
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn string_prototype_trim_start(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::StringPrototypeTrimStart
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %String.prototype%
@@ -1373,279 +1328,242 @@ impl Intrinsics {
     }
 
     /// %String%
-    pub(crate) fn string(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::String
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn string(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::String
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
-    pub(crate) fn string_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::String.get_object_index(self.object_index_base)
+    /// Empty String shape
+    pub(crate) const fn string_shape(&self) -> ObjectShape<'static> {
+        IntrinsicObjectShapes::String.get_object_shape_index(self.object_shape_base)
     }
 
     /// %StringIteratorPrototype%
-    pub(crate) fn string_iterator_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::StringIteratorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn string_iterator_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::StringIteratorPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     /// %Symbol.prototype%
-    pub(crate) fn symbol_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::SymbolPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn symbol_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::SymbolPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %Symbol%
-    pub(crate) fn symbol(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Symbol
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn symbol_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Symbol.get_object_index(self.object_index_base)
+    pub(crate) const fn symbol(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Symbol
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %SyntaxError.prototype%
-    pub(crate) fn syntax_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::SyntaxErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn syntax_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::SyntaxErrorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %SyntaxError%
-    pub(crate) fn syntax_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::SyntaxError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn syntax_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::SyntaxError.get_object_index(self.object_index_base)
+    pub(crate) const fn syntax_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::SyntaxError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %ThrowTypeError%
-    pub(crate) fn throw_type_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::ThrowTypeError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn throw_type_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::ThrowTypeError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %TypedArray.prototype.values%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn typed_array_prototype_values(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::TypedArrayPrototypeValues
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn typed_array_prototype_values(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::TypedArrayPrototypeValues
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %TypedArray.prototype%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn typed_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::TypedArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn typed_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::TypedArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %TypedArray%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn typed_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::TypedArray
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn typed_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::TypedArray.get_object_index(self.object_index_base)
+    pub(crate) const fn typed_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::TypedArray
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %TypeError.prototype%
-    pub(crate) fn type_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::TypeErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn type_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::TypeErrorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %TypeError%
-    pub(crate) fn type_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::TypeError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn type_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::TypeError.get_object_index(self.object_index_base)
+    pub(crate) const fn type_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::TypeError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Uint16Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint16_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Uint16ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn uint16_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Uint16ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint16_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Uint16Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint16_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Uint16Array.get_object_index(self.object_index_base)
+    pub(crate) const fn uint16_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Uint16Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Uint32Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint32_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Uint32ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn uint32_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Uint32ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint32_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Uint32Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint32_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Uint32Array.get_object_index(self.object_index_base)
+    pub(crate) const fn uint32_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Uint32Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Uint8Array%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Uint8ArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn uint8_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Uint8ArrayPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Uint8Array
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Uint8Array.get_object_index(self.object_index_base)
+    pub(crate) const fn uint8_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Uint8Array
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %Uint8ClampedArray%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_clamped_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Uint8ClampedArrayPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn uint8_clamped_array_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::Uint8ClampedArrayPrototype
+                .get_object_index(self.object_index_base),
+        )
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_clamped_array(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::Uint8ClampedArray
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_clamped_array_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::Uint8ClampedArray.get_object_index(self.object_index_base)
+    pub(crate) const fn uint8_clamped_array(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::Uint8ClampedArray
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %unescape%
-    pub(crate) fn unescape(&self) -> BuiltinFunction<'static> {
-        IntrinsicFunctionIndexes::Unescape
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
+    pub(crate) const fn unescape(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicFunctionIndexes::Unescape
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %URIError.prototype%
-    pub(crate) fn uri_error_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::URIErrorPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn uri_error_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::URIErrorPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %URIError%
-    pub(crate) fn uri_error(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::URIError
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    pub(crate) fn uri_error_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::URIError.get_object_index(self.object_index_base)
+    pub(crate) const fn uri_error(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::URIError
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %WeakMap.prototype%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_map_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::WeakMapPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn weak_map_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::WeakMapPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %WeakMap%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_map(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::WeakMap
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_map_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::WeakMap.get_object_index(self.object_index_base)
+    pub(crate) const fn weak_map(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::WeakMap
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %WeakRef.prototype%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_ref_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::WeakRefPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn weak_ref_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::WeakRefPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %WeakRef%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_ref(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::WeakRef
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_ref_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::WeakRef.get_object_index(self.object_index_base)
+    pub(crate) const fn weak_ref(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::WeakRef
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 
     /// %WeakSet.prototype%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_set_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::WeakSetPrototype
-            .get_object_index(self.object_index_base)
-            .into()
+    pub(crate) const fn weak_set_prototype(&self) -> OrdinaryObject<'static> {
+        OrdinaryObject::new(
+            IntrinsicObjectIndexes::WeakSetPrototype.get_object_index(self.object_index_base),
+        )
     }
 
     /// %WeakSet%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_set(&self) -> BuiltinFunction<'static> {
-        IntrinsicConstructorIndexes::WeakSet
-            .get_builtin_function_index(self.builtin_function_index_base)
-            .into()
-    }
-
-    #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_set_base_object(&self) -> ObjectIndex<'static> {
-        IntrinsicConstructorIndexes::WeakSet.get_object_index(self.object_index_base)
+    pub(crate) const fn weak_set(&self) -> BuiltinFunction<'static> {
+        BuiltinFunction(
+            IntrinsicConstructorIndexes::WeakSet
+                .get_builtin_function_index(self.builtin_function_index_base),
+        )
     }
 }
 
@@ -1827,16 +1745,30 @@ impl HeapMarkAndSweep for Intrinsics {
         self.weak_set_prototype().mark_values(queues);
         #[cfg(feature = "weak-refs")]
         self.weak_set().mark_values(queues);
+        IntrinsicObjectShapes::Object
+            .get_object_shape_index(self.object_shape_base)
+            .mark_values(queues);
+        IntrinsicObjectShapes::Number
+            .get_object_shape_index(self.object_shape_base)
+            .mark_values(queues);
+        IntrinsicObjectShapes::String
+            .get_object_shape_index(self.object_shape_base)
+            .mark_values(queues);
+        IntrinsicObjectShapes::Array
+            .get_object_shape_index(self.object_shape_base)
+            .mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index_base,
+            object_shape_base,
             primitive_object_index_base,
             array_prototype,
             builtin_function_index_base,
         } = self;
         compactions.objects.shift_index(object_index_base);
+        object_shape_base.sweep_values(compactions);
         compactions
             .primitive_objects
             .shift_index(primitive_object_index_base);

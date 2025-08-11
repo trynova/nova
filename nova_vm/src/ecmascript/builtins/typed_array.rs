@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 use data::TypedArrayArrayLength;
 
@@ -12,10 +13,11 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
-            INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
-            IntoObject, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            String, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedResult,
+            INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache, Number, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
+            UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
             UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
@@ -45,9 +47,11 @@ use super::{
         typed_array_get_element_generic, typed_array_length, typed_array_set_element_generic,
     },
     ordinary::{
+        caches::PropertyLookupCache,
         ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
         ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
         ordinary_try_has_property_entry, ordinary_try_set,
+        shape::{ObjectShape, ShapeSetCachedProps},
     },
 };
 
@@ -346,6 +350,15 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
         );
     }
 
+    fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.object_shape(agent)
+        } else {
+            let prototype = self.internal_prototype(agent);
+            ObjectShape::get_shape_for_prototype(agent, prototype)
+        }
+    }
+
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_prototype(agent)
@@ -429,7 +442,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
             TryResult::Continue(o.get_backing_object(agent).and_then(|backing_o| {
-                ordinary_get_own_property(agent, o.into_object(), backing_o, property_key)
+                ordinary_get_own_property(agent, o.into_object(), backing_o, property_key, gc)
             }))
         }
     }
@@ -874,6 +887,63 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         }
         // 6. Return keys.
         TryResult::Continue(keys)
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        mut p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        // Note: we mutate P but only if it turns into a valid integer, in
+        // which case we never enter the get_cached path anyway.
+        ta_canonical_numeric_index_string(agent, &mut p, gc);
+        if let PropertyKey::Integer(numeric_index) = p {
+            // i. Return TypedArrayGetElement(O, numericIndex).
+            let numeric_index = numeric_index.into_i64();
+            let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
+            result.map_or(Value::Undefined, |r| r.into_value()).into()
+        } else {
+            let shape = self.object_shape(agent);
+            shape.get_cached(agent, p, self.into_value(), cache, gc)
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        mut p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        // Note: we mutate P but only if it turns into a valid integer, in
+        // which case we never enter the get_cached path anyway.
+        ta_canonical_numeric_index_string(agent, &mut p, gc);
+        if let PropertyKey::Integer(numeric_index) = p {
+            // i. Return TypedArrayGetElement(O, numericIndex).
+            let numeric_index = numeric_index.into_i64();
+            // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
+            match try_typed_array_set_element_generic(agent, self, numeric_index, value, gc) {
+                TryResult::Continue(_) => SetCachedResult::Done.into(),
+                TryResult::Break(_) => NoCache.into(),
+            }
+        } else {
+            let shape = self.object_shape(agent);
+            shape.set_cached(
+                agent,
+                ShapeSetCachedProps {
+                    o: self.into_object(),
+                    p,
+                    receiver,
+                },
+                value,
+                cache,
+                gc,
+            )
+        }
     }
 }
 

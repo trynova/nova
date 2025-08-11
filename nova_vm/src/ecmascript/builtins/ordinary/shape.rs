@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ptr::NonNull};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ops::ControlFlow, ptr::NonNull};
 
 use ahash::AHashMap;
 use hashbrown::{HashTable, hash_table::Entry};
@@ -10,21 +10,27 @@ use hashbrown::{HashTable, hash_table::Entry};
 use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
-        types::{IntoObject, Object, OrdinaryObject, PropertyKey},
+        types::{
+            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            NoCache, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
+            SetCachedResult, String, Symbol, Value,
+        },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicObjectIndexes, PropertyKeyHeap, WeakReference, WorkQueues,
+        IntrinsicObjectIndexes, IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays},
         indexes::{ObjectIndex, PropertyKeyIndex},
     },
 };
 
+use super::caches::PropertyLookupCache;
+
 /// Data structure describing the shape of an object.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
+pub struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
 impl<'a> ObjectShape<'a> {
     /// Object Shape for `{ __proto__: null }`.
@@ -32,7 +38,7 @@ impl<'a> ObjectShape<'a> {
     /// This is the root Object Shape for all null-prototype objects, hence why
     /// it can be accessed statically.
     // SAFETY: statically safe.
-    pub(crate) const NULL: Self = Self(NonZeroU32::new(1).unwrap(), PhantomData);
+    pub(crate) const NULL: Self = Self::from_non_zero(NonZeroU32::new(1).unwrap());
 
     /// Returns true if the Object Shape belongs to an intrinsic object.
     ///
@@ -69,7 +75,7 @@ impl<'a> ObjectShape<'a> {
 
     /// Get the implied usize index of the ObjectShape reference.
     #[inline(always)]
-    pub(crate) fn get_index(self) -> usize {
+    pub(crate) const fn get_index(self) -> usize {
         (self.0.get() - 1) as usize
     }
 
@@ -139,11 +145,120 @@ impl<'a> ObjectShape<'a> {
     /// Get an Object Shape pointing to the last Object Shape Record.
     pub(crate) fn last(shapes: &[ObjectShapeRecord<'static>]) -> Self {
         debug_assert!(!shapes.is_empty());
-        ObjectShape(
+
+        ObjectShape::from_non_zero(
             // SAFETY: The shapes list is not empty.
             unsafe { NonZeroU32::new_unchecked(shapes.len() as u32) },
-            PhantomData,
         )
+    }
+
+    /// Get an Object Shape containing the given NonZeroU32.
+    #[inline(always)]
+    pub(crate) const fn from_non_zero(idx: NonZeroU32) -> Self {
+        ObjectShape(idx, PhantomData)
+    }
+
+    /// Get an Object Shape containing the given NonZeroU32.
+    #[inline(always)]
+    pub(crate) const fn from_index(index: usize) -> Self {
+        let index = index as u32;
+        assert!(index != u32::MAX);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self::from_non_zero(unsafe { NonZeroU32::new_unchecked(index.wrapping_add(1)) })
+    }
+
+    /// Perform a cached lookup in the given cache for this Object Shape.
+    ///
+    /// If a match is found, it is returned. Otherwise, a request to fill this
+    /// cache is prepared.
+    pub(crate) fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        let shape = self;
+        if let Some((offset, prototype)) = cache.find(agent, shape) {
+            // A cached lookup result was found.
+            if offset.is_unset() {
+                // The property is unset.
+                Value::Undefined.into()
+            } else {
+                let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
+                o.get_own_property_at_offset(agent, offset, gc)
+            }
+        } else {
+            // No cache found.
+            agent
+                .heap
+                .caches
+                .set_current_cache(shape, p, receiver, cache);
+            ControlFlow::Continue(NoCache)
+        }
+    }
+
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        props: ShapeSetCachedProps,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        let shape = self;
+        if let Some((offset, prototype)) = cache.find(agent, shape) {
+            // A cached lookup result was found.
+            if let Some(prototype) = prototype {
+                prototype.set_at_offset(agent, props.p, offset, value, props.receiver, gc)
+            } else {
+                props
+                    .o
+                    .set_at_offset(agent, props.p, offset, value, props.receiver, gc)
+            }
+        } else {
+            // No cache found.
+            agent
+                .heap
+                .caches
+                .set_current_cache(shape, props.p, props.receiver, cache);
+            NoCache.into()
+        }
+    }
+
+    pub(crate) fn set_cached_primitive<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Primitive,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        let shape = self;
+        if let Some((offset, prototype)) = cache.find(agent, shape) {
+            // A cached lookup result was found.
+            if let Some(prototype) = prototype {
+                debug_assert!(!offset.is_unset());
+                // Property on the prototype; this may call a setter or such.
+                prototype.set_at_offset(agent, p, offset, value, receiver.into_value(), gc)
+            } else {
+                debug_assert!(offset.is_unset());
+                // Unset property (it's not possible for there to be a cached
+                // property on the primitive directly; we don't cache those).
+                // Receiver is a primitive; it cannot be written to.
+                SetCachedResult::Unwritable.into()
+            }
+        } else {
+            // No cache found.
+            agent
+                .heap
+                .caches
+                .set_current_cache(shape, p, receiver.into_value(), cache);
+            NoCache.into()
+        }
     }
 
     pub(crate) fn get_shape_for_prototype<'gc>(
@@ -631,13 +746,35 @@ impl<'a> ObjectShape<'a> {
 
     /// Create basic shapes for a new Realm's intrinsics.
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
-        let prototype = agent
-            .get_realm_record_by_id(realm)
-            .intrinsics()
-            .object_prototype()
-            .into_object();
-        agent.heap.create(ObjectShapeRecord::create_root(prototype));
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
+        let base_shape = intrinsics.object_shape();
+        fn create_intrinsic_shape(
+            agent: &mut Agent,
+            realm: Realm<'static>,
+            base_shape: ObjectShape,
+            shape_intrinsic: IntrinsicObjectShapes,
+        ) {
+            let shape = shape_intrinsic.get_object_shape_index(base_shape);
+            let proto = shape_intrinsic.get_proto_intrinsic();
+            let prototype = agent
+                .get_realm_record_by_id(realm)
+                .intrinsics()
+                .get_intrinsic_default_proto(proto);
+            let result = agent.heap.create(ObjectShapeRecord::create_root(prototype));
+            debug_assert_eq!(shape, result);
+        }
+
+        create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::Object);
+        create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::Array);
+        create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::Number);
+        create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::String);
     }
+}
+
+pub(crate) struct ShapeSetCachedProps<'a> {
+    pub(crate) o: Object<'a>,
+    pub(crate) p: PropertyKey<'a>,
+    pub(crate) receiver: Value<'a>,
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
@@ -841,7 +978,7 @@ impl<'a> ObjectShapeTransitionMap<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
+// SAFETY: Properly implemented as a lifetime transmute.
 unsafe impl Bindable for ObjectShapeTransitionMap<'_> {
     type Of<'a> = ObjectShapeTransitionMap<'a>;
 
@@ -895,6 +1032,87 @@ impl PrototypeShapeTable {
             .table
             .insert(prototype.unbind(), WeakReference(shape.unbind()));
         assert!(previous.is_none(), "Re-set prototype root Object Shape");
+    }
+}
+
+impl Value<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> Option<ObjectShape<'static>> {
+        if let Ok(primitive) = Primitive::try_from(self) {
+            primitive.object_shape(agent)
+        } else {
+            Some(Object::try_from(self).unwrap().object_shape(agent))
+        }
+    }
+}
+
+impl String<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        agent.current_realm_record().intrinsics().string_shape()
+    }
+}
+
+impl Number<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        agent.current_realm_record().intrinsics().number_shape()
+    }
+}
+
+impl Symbol<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        let prototype = agent.current_realm_record().intrinsics().symbol_prototype();
+        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+    }
+}
+
+impl BigInt<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        let prototype = agent
+            .current_realm_record()
+            .intrinsics()
+            .big_int_prototype();
+        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+    }
+}
+
+impl Primitive<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> Option<ObjectShape<'static>> {
+        let intrinsics = agent.current_realm_record().intrinsics();
+        match self {
+            // Not object-coercible.
+            Self::Undefined | Self::Null => None,
+            Self::Boolean(_) => {
+                let prototype = intrinsics.boolean_prototype();
+                Some(ObjectShape::get_shape_for_prototype(
+                    agent,
+                    Some(prototype.into_object()),
+                ))
+            }
+            Self::String(_) | Self::SmallString(_) => Some(intrinsics.string_shape()),
+            Self::Symbol(s) => Some(s.object_shape(agent)),
+            Self::Number(_) | Self::Integer(_) | Self::SmallF64(_) => {
+                Some(intrinsics.number_shape())
+            }
+            Self::BigInt(_) | Self::SmallBigInt(_) => {
+                let prototype = intrinsics.big_int_prototype();
+                Some(ObjectShape::get_shape_for_prototype(
+                    agent,
+                    Some(prototype.into_object()),
+                ))
+            }
+        }
+    }
+}
+
+impl Numeric<'_> {
+    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
+        let intrinsics = agent.current_realm_record().intrinsics();
+        match self {
+            Self::Number(_) | Self::Integer(_) | Self::SmallF64(_) => intrinsics.number_shape(),
+            Self::BigInt(_) | Self::SmallBigInt(_) => {
+                let prototype = intrinsics.big_int_prototype();
+                ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+            }
+        }
     }
 }
 

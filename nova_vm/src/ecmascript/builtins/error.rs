@@ -5,6 +5,7 @@
 mod data;
 
 use core::ops::{Index, IndexMut};
+use std::ops::ControlFlow;
 
 pub(crate) use data::ErrorHeapData;
 
@@ -12,8 +13,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
+            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -29,7 +31,8 @@ use crate::{
 };
 
 use super::ordinary::{
-    ordinary_delete, ordinary_get_own_property, ordinary_set, ordinary_try_get, ordinary_try_set,
+    caches::PropertyLookupCache, ordinary_delete, ordinary_get_own_property, ordinary_set,
+    ordinary_try_get, ordinary_try_set,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -158,7 +161,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                 ExceptionType::ReferenceError => ProtoIntrinsics::ReferenceError,
                 ExceptionType::SyntaxError => ProtoIntrinsics::SyntaxError,
                 ExceptionType::TypeError => ProtoIntrinsics::TypeError,
-                ExceptionType::UriError => ProtoIntrinsics::UriError,
+                ExceptionType::UriError => ProtoIntrinsics::URIError,
             };
             Some(
                 agent
@@ -179,8 +182,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(
-                ordinary_get_own_property(agent, self.into_object(), backing_object, property_key)
-                    .bind(gc),
+                ordinary_get_own_property(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    gc,
+                )
+                .bind(gc),
             ),
             None => {
                 let property_value =
@@ -446,6 +455,58 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 }
                 TryResult::Continue(property_keys)
             }
+        }
+    }
+
+    fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        let bo = self.get_backing_object(agent);
+        if bo.is_none()
+            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && let Some(message) = agent[self].message
+        {
+            message.into_value().bind(gc).into()
+        } else if bo.is_none()
+            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+            && let Some(cause) = agent[self].cause
+        {
+            cause.into_value().bind(gc).into()
+        } else {
+            let shape = if let Some(bo) = bo {
+                bo.object_shape(agent)
+            } else {
+                self.object_shape(agent)
+            };
+            shape.get_cached(agent, p, self.into_value(), cache, gc)
+        }
+    }
+
+    fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        if let Some(bo) = self.get_backing_object(agent) {
+            bo.set_cached(agent, p, value, receiver, cache, gc)
+        } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && let Ok(value) = String::try_from(value)
+        {
+            agent[self].message = Some(value.unbind());
+            SetCachedResult::Done.into()
+        } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+            agent[self].cause = Some(value.unbind());
+            SetCachedResult::Done.into()
+        } else {
+            NoCache.into()
         }
     }
 }

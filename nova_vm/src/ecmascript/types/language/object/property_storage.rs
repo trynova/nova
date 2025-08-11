@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-use super::{IntoObject, Object, OrdinaryObject, PropertyKey};
+use super::{InternalSlots, IntoObject, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
@@ -129,7 +129,7 @@ impl<'a> PropertyStorage<'a> {
         private_fields: NonNull<[PrivateField]>,
     ) -> Result<(), TryReserveError> {
         let original_len = object.len(agent);
-        let original_shape = object.get_shape(agent);
+        let original_shape = object.object_shape(agent);
         // SAFETY: User says so.
         let (new_shape, insertion_index) =
             unsafe { original_shape.add_private_fields(agent, private_fields) };
@@ -306,7 +306,15 @@ impl<'a> PropertyStorage<'a> {
         Some((value, descriptor))
     }
 
-    pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<(PropertyDescriptor<'a>, u32)> {
+    pub fn get<'b>(
+        self,
+        agent: &'b Agent,
+        key: PropertyKey,
+    ) -> Option<(
+        &'b Option<Value<'a>>,
+        Option<&'b ElementDescriptor<'a>>,
+        u32,
+    )> {
         let object = self.0;
         let PropertyStorageRef {
             keys,
@@ -319,11 +327,10 @@ impl<'a> PropertyStorage<'a> {
             .find(|(_, k)| **k == key)
             .map(|res| res.0);
         result.map(|index| {
-            let value = values[index].unbind();
+            let value = &values[index];
             let index = index as u32;
             let descriptor = descriptors.and_then(|d| d.get(&index));
-            let result = ElementDescriptor::to_property_descriptor(descriptor, value);
-            (result, index)
+            (value, descriptor, index)
         })
     }
 
@@ -376,7 +383,7 @@ impl<'a> PropertyStorage<'a> {
             0
         };
         let new_len = cur_len.checked_add(1).unwrap();
-        let old_shape = object.get_shape(agent);
+        let old_shape = object.object_shape(agent);
         let new_shape = old_shape.get_child_shape(agent, key);
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
             + if element_descriptor.is_some() {
@@ -403,6 +410,59 @@ impl<'a> PropertyStorage<'a> {
         if let Some(element_descriptor) = element_descriptor {
             let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
             descriptors.insert(cur_len, element_descriptor.unbind());
+        }
+        if old_shape == new_shape {
+            // Intrinsic shape! Adding a new property to an intrinsic needs to
+            // invalidate any NOT_FOUND caches for the added key.
+            Caches::invalidate_caches_on_intrinsic_shape_property_addition(
+                agent, o, old_shape, key, cur_len, gc,
+            );
+        } else {
+            agent[object].set_shape(new_shape);
+        }
+        Ok(())
+    }
+
+    pub fn push(
+        self,
+        agent: &mut Agent,
+        o: Object<'a>,
+        key: PropertyKey<'a>,
+        value: Option<Value<'a>>,
+        desc: Option<ElementDescriptor<'a>>,
+        gc: NoGcScope,
+    ) -> Result<(), TryReserveError> {
+        let object = self.0;
+
+        let cur_len = object.len(agent);
+        let new_len = cur_len.checked_add(1).unwrap();
+        let old_shape = object.object_shape(agent);
+        let new_shape = old_shape.get_child_shape(agent, key);
+        agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
+            + if desc.is_some() {
+                core::mem::size_of::<(u32, ElementDescriptor)>()
+            } else {
+                0
+            };
+        object.reserve(agent, new_len)?;
+        agent[object].set_len(new_len);
+        let ElementStorageMut {
+            values,
+            descriptors,
+        } = object.get_elements_storage_mut(agent);
+        debug_assert!(
+            values[cur_len as usize].is_none()
+                && match &descriptors {
+                    Entry::Occupied(e) => {
+                        !e.get().contains_key(&cur_len)
+                    }
+                    Entry::Vacant(_) => true,
+                }
+        );
+        values[cur_len as usize] = value.unbind();
+        if let Some(desc) = desc {
+            let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
+            descriptors.insert(cur_len, desc.unbind());
         }
         if old_shape == new_shape {
             // Intrinsic shape! Adding a new property to an intrinsic needs to
@@ -467,7 +527,7 @@ impl<'a> PropertyStorage<'a> {
                 }
             }
         }
-        let old_shape = object.get_shape(agent);
+        let old_shape = object.object_shape(agent);
         let new_shape = old_shape.get_shape_with_removal(agent, index);
         agent[object].set_len(new_len);
         if old_shape == new_shape {

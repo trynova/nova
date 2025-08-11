@@ -9,15 +9,18 @@ use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::ControlFlow};
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, Value,
+    GetCachedResult, IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey,
+    SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SetCachedResult, Value,
 };
 use crate::{
     SmallInteger, SmallString,
-    ecmascript::{execution::Agent, types::PropertyDescriptor},
+    ecmascript::{
+        builtins::ordinary::caches::PropertyLookupCache, execution::Agent,
+        types::PropertyDescriptor,
+    },
     engine::{
         Scoped,
         context::{Bindable, NoGcScope},
@@ -648,6 +651,43 @@ impl<'a> String<'a> {
             }
         } else {
             None
+        }
+    }
+
+    pub(crate) fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        if let Some(v) = self.get_property_value(agent, p) {
+            v.bind(gc).into()
+        } else {
+            self.object_shape(agent)
+                .get_cached(agent, p, self.into_value(), cache, gc)
+        }
+    }
+
+    pub(crate) fn set_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        if self.get_property_value(agent, p).is_some() {
+            SetCachedResult::Unwritable.into()
+        } else {
+            self.object_shape(agent).set_cached_primitive(
+                agent,
+                p,
+                value,
+                self.into_primitive(),
+                cache,
+                gc,
+            )
         }
     }
 }

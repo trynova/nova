@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::ControlFlow};
 
 use crate::{
     ecmascript::{
@@ -16,8 +16,9 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
+            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
+            String, Value,
         },
     },
     engine::{
@@ -33,6 +34,11 @@ use crate::{
 };
 
 use self::data::ModuleHeapData;
+
+use super::ordinary::{
+    caches::{PropertyLookupCache, PropertyOffset},
+    shape::ObjectShape,
+};
 
 pub mod data;
 
@@ -163,6 +169,11 @@ impl<'a> InternalSlots<'a> for Module<'a> {
 
     #[inline(always)]
     fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
+        unreachable!()
+    }
+
+    #[inline(always)]
+    fn object_shape(self, _: &mut Agent) -> ObjectShape<'static> {
         unreachable!()
     }
 }
@@ -743,6 +754,40 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         exports.for_each(|export_key| own_property_keys.push(export_key));
         own_property_keys.push(WellKnownSymbolIndexes::ToStringTag.into());
         TryResult::Continue(own_property_keys)
+    }
+
+    #[inline(always)]
+    fn get_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyLookupCache,
+        _: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        ControlFlow::Continue(NoCache)
+    }
+
+    #[inline(always)]
+    fn set_cached<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: Value,
+        _: PropertyLookupCache,
+        _: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        SetCachedResult::Unwritable.into()
+    }
+
+    #[inline(always)]
+    fn get_own_property_at_offset<'gc>(
+        self,
+        _: &Agent,
+        _: PropertyOffset,
+        _: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+        unreachable!()
     }
 }
 
