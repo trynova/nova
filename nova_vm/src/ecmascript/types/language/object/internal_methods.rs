@@ -587,7 +587,7 @@ where
                 core::any::type_name::<Self>()
             )
         } else {
-            let backing_object = self.get_or_create_backing_object(agent);
+            let backing_object = self.get_backing_object(agent);
             ordinary_set_at_offset(
                 agent,
                 self.into_object(),

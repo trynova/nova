@@ -153,7 +153,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         ordinary_set_at_offset(
             agent,
             self.into_object(),
-            self,
+            Some(self),
             p,
             offset,
             value,
@@ -1208,7 +1208,7 @@ fn ordinary_set_with_own_descriptor<'a>(
 pub(crate) fn ordinary_set_at_offset<'a>(
     agent: &mut Agent,
     o: Object,
-    bo: OrdinaryObject,
+    bo: Option<OrdinaryObject>,
     p: PropertyKey,
     offset: PropertyOffset,
     v: Value,
@@ -1228,7 +1228,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         //   [[Enumerable]]: true,
         //   [[Configurable]]: true
         // }.
-        if !ordinary_is_extensible(agent, bo) {
+        if bo.is_some_and(|bo| !ordinary_is_extensible(agent, bo)) {
             return SetCachedResult::Unwritable.into();
         }
         if o.into_value() == receiver {
@@ -1238,6 +1238,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             // i. Assert. Receiver does not currently have a property P.
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             if bo
+                .unwrap_or_else(|| o.get_or_create_backing_object(agent))
                 .property_storage()
                 .push(agent, o, p, Some(v), None, gc)
                 .is_err()
@@ -1257,7 +1258,9 @@ pub(crate) fn ordinary_set_at_offset<'a>(
 
     // OrdinarySetWithOwnDescriptor
     let offset = offset.get_property_offset();
-    let data = bo.get_elements_storage_mut(agent);
+    let data = bo
+        .expect("OrdinarySet at offset with valid offset but no backing object")
+        .get_elements_storage_mut(agent);
     if let Some(slot) = &mut data.values[offset as usize] {
         // 2. If IsDataDescriptor(ownDesc) is true, then
         let writable = match data.descriptors {
