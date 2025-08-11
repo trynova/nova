@@ -11,9 +11,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, GetCachedBreak, GetCachedNoCache, InternalMethods, InternalSlots, IntoObject,
-            Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult,
-            String, Symbol, Value,
+            BigInt, GetCachedBreak, InternalMethods, InternalSlots, IntoObject, NoCache, Number,
+            Numeric, Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String,
+            Symbol, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -179,7 +179,7 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
@@ -196,7 +196,7 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(receiver, cache, p, shape);
-            ControlFlow::Continue(GetCachedNoCache)
+            ControlFlow::Continue(NoCache)
         }
     }
 

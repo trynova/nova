@@ -19,7 +19,7 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::{GetCachedBreak, GetCachedNoCache, IntoValue, SetCachedResult},
+        types::{GetCachedBreak, IntoValue, NoCache, SetCachedResult},
     },
     engine::{
         Scoped, TryResult,
@@ -121,7 +121,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         let offset = offset.get_property_offset();
         let obj = self.bind(gc);
         let data = obj.get_elements_storage(agent);

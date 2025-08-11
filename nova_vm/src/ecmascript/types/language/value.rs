@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, GetCachedBreak, GetCachedNoCache, InternalMethods, IntoValue, Number,
+    BigInt, BigIntHeapData, GetCachedBreak, NoCache, InternalMethods, IntoValue, Number,
     Numeric, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData,
     Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
@@ -1124,7 +1124,7 @@ impl<'a> Value<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.get_cached(agent, p, cache, gc)
         } else {
@@ -1158,7 +1158,7 @@ impl<'a> Value<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.get_cached(agent, p, cache, gc)
         } else {

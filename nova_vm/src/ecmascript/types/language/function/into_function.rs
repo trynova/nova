@@ -14,9 +14,9 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, GetCachedNoCache, InternalMethods,
-            InternalSlots, IntoValue, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedResult, String, Value, language::IntoObject,
+            BUILTIN_STRING_MEMORY, GetCachedBreak, InternalMethods, InternalSlots, IntoValue,
+            NoCache, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
+            Value, language::IntoObject,
         },
     },
     engine::{
@@ -93,7 +93,7 @@ pub(crate) fn function_get_cached<'a, 'gc>(
     p: PropertyKey,
     cache: PropertyLookupCache,
     gc: NoGcScope<'gc, '_>,
-) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
     let bo = func.get_backing_object(agent);
     if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         func.get_length(agent).into_value().bind(gc).into()

@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            BUILTIN_STRING_MEMORY, GetCachedBreak, NoCache, InternalMethods,
             InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, SetCachedResult, String, Value,
         },
@@ -419,7 +419,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if p == BUILTIN_STRING_MEMORY.lastIndex.into()

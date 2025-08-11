@@ -24,8 +24,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, GetCachedNoCache, InternalMethods,
-            InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
+            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, InternalMethods, InternalSlots,
+            IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, SetCachedResult, Value,
         },
     },
@@ -879,7 +879,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         // Cached lookup of an Array should return directly from the Array's
         // internal memory if it can.
         if p == BUILTIN_STRING_MEMORY.length.to_property_key() {

@@ -509,7 +509,7 @@ where
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
@@ -549,7 +549,7 @@ where
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -652,11 +652,11 @@ impl<'a, T> From<Value<'a>> for ControlFlow<GetCachedBreak<'a>, T> {
 
 /// No property cache was found.
 ///
-/// The normal \[\[Get]] method variant should be entered.
-pub struct GetCachedNoCache;
+/// The normal \[\[Get]] or \[\[Set]] method variant should be entered.
+pub struct NoCache;
 
-impl<T> From<GetCachedNoCache> for ControlFlow<T, GetCachedNoCache> {
-    fn from(value: GetCachedNoCache) -> Self {
+impl<T> From<NoCache> for ControlFlow<T, NoCache> {
+    fn from(value: NoCache) -> Self {
         ControlFlow::Continue(value)
     }
 }

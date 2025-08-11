@@ -33,7 +33,7 @@ pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub(crate) use object::ScopedPropertyKey;
 pub use object::{
-    GetCachedBreak, GetCachedNoCache, InternalMethods, InternalSlots, IntoObject, Object,
+    GetCachedBreak, NoCache, InternalMethods, InternalSlots, IntoObject, Object,
     ObjectHeapData, OrdinaryObject, PropertyKey, PropertyKeySet, SetCachedResult,
 };
 pub(crate) use primitive::HeapPrimitive;

@@ -15,7 +15,7 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, GetCachedBreak, GetCachedNoCache, HeapNumber, HeapString,
+            FLOAT_DISCRIMINANT, GetCachedBreak, NoCache, HeapNumber, HeapString,
             INTEGER_DISCRIMINANT, InternalMethods, InternalSlots, IntoObject, IntoPrimitive,
             IntoValue, NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
@@ -558,7 +558,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, p)
         {

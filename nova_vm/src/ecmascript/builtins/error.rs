@@ -13,7 +13,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            BUILTIN_STRING_MEMORY, GetCachedBreak, NoCache, InternalMethods,
             InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
             PropertyKey, SetCachedResult, String, Value,
         },
@@ -464,7 +464,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         let bo = self.get_backing_object(agent);
         if bo.is_none()
             && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)

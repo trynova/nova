@@ -22,7 +22,7 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, GetCachedNoCache, InternalMethods,
+            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, NoCache, InternalMethods,
             InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
             SetCachedResult, String, Value,
         },
@@ -1631,7 +1631,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: PropertyKey,
         _: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
         GetCachedBreak::Proxy(self.bind(gc)).into()
@@ -1657,7 +1657,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &Agent,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
         GetCachedBreak::Proxy(self.bind(gc)).into()

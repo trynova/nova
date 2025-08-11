@@ -14,7 +14,7 @@ use crate::{
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedBreak,
-            GetCachedNoCache, INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
+            NoCache, INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
             INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots, IntoObject, IntoValue,
             Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
             String, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
@@ -894,7 +894,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, GetCachedNoCache> {
+    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
         // Note: we mutate P but only if it turns into a valid integer, in
         // which case we never enter the get_cached path anyway.
         ta_canonical_numeric_index_string(agent, &mut p, gc);
