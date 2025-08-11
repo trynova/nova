@@ -47,10 +47,11 @@ use super::{
         typed_array_get_element_generic, typed_array_length, typed_array_set_element_generic,
     },
     ordinary::{
-        caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete, ordinary_get,
-        ordinary_get_own_property, ordinary_has_property_entry, ordinary_prevent_extensions,
-        ordinary_set, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
-        shape::ObjectShape,
+        caches::PropertyLookupCache,
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
+        ordinary_try_has_property_entry, ordinary_try_set,
+        shape::{ObjectShape, ShapeSetCachedProps},
     },
 };
 
@@ -931,7 +932,17 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             }
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), p, value, receiver, cache, gc)
+            shape.set_cached(
+                agent,
+                ShapeSetCachedProps {
+                    o: self.into_object(),
+                    p,
+                    receiver,
+                },
+                value,
+                cache,
+                gc,
+            )
         }
     }
 }

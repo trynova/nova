@@ -497,18 +497,16 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Some(bo) = self.get_backing_object(agent) {
             bo.set_cached(agent, p, value, receiver, cache, gc)
+        } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && let Ok(value) = String::try_from(value)
+        {
+            agent[self].message = Some(value.unbind());
+            SetCachedResult::Done.into()
+        } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+            agent[self].cause = Some(value.unbind());
+            SetCachedResult::Done.into()
         } else {
-            if p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-                && let Ok(value) = String::try_from(value)
-            {
-                agent[self].message = Some(value.unbind());
-                SetCachedResult::Done.into()
-            } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                agent[self].cause = Some(value.unbind());
-                SetCachedResult::Done.into()
-            } else {
-                NoCache.into()
-            }
+            NoCache.into()
         }
     }
 }

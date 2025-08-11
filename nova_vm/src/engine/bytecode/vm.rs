@@ -3910,7 +3910,7 @@ fn get_value_with_cache<'gc>(
         return handle_get_cached_break(agent, vm, receiver.unbind(), p.unbind(), b.unbind(), gc);
     }
 
-    let result = try_get_value(agent, &reference, gc.nogc());
+    let result = try_get_value(agent, reference, gc.nogc());
     agent.heap.caches.clear_current_cache_to_populate();
 
     if let TryResult::Continue(result) = result {
@@ -4002,10 +4002,12 @@ fn put_value_with_cache<'gc>(
         return handle_set_cached_break(
             agent,
             vm,
-            o.unbind(),
-            p.unbind(),
-            value.unbind(),
-            reference.strict(),
+            SetProps {
+                receiver: o.unbind(),
+                p: p.unbind(),
+                value: value.unbind(),
+                strict: reference.strict(),
+            },
             b.unbind(),
             gc,
         );
@@ -4030,24 +4032,28 @@ fn put_value_with_cache<'gc>(
     Ok(())
 }
 
+struct SetProps<'a> {
+    receiver: Value<'a>,
+    p: PropertyKey<'a>,
+    value: Value<'a>,
+    strict: bool,
+}
+
 fn handle_set_cached_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    receiver: Value,
-    p: PropertyKey,
-    value: Value,
-    strict: bool,
+    props: SetProps,
     b: SetCachedResult,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let receiver = receiver.bind(gc.nogc());
-    let p = p.bind(gc.nogc());
-    let value = value.bind(gc.nogc());
+    let receiver = props.receiver.bind(gc.nogc());
+    let p = props.p.bind(gc.nogc());
+    let value = props.value.bind(gc.nogc());
     let b = b.bind(gc.nogc());
     match b {
         SetCachedResult::Done => {}
         SetCachedResult::Unwritable | SetCachedResult::Accessor => {
-            if strict {
+            if props.strict {
                 return Err(throw_cannot_set_property(
                     agent,
                     receiver.unbind(),
@@ -4080,7 +4086,7 @@ fn handle_set_cached_break<'a>(
             let o = receiver.unbind();
             let p = p.unbind();
             let value = value.unbind();
-            let scoped_strict_error_data = if strict {
+            let scoped_strict_error_data = if props.strict {
                 Some((p.scope(agent, gc.nogc()), o.scope(agent, gc.nogc())))
             } else {
                 None
@@ -4122,5 +4128,5 @@ fn handle_set_cached_break<'a>(
             };
         }
     }
-    return Ok(());
+    Ok(())
 }

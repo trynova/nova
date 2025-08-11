@@ -385,10 +385,10 @@ impl<'a> Caches<'a> {
 
     pub(crate) fn set_current_cache(
         &mut self,
+        shape: ObjectShape,
+        key: PropertyKey,
         receiver: Value,
         cache: PropertyLookupCache,
-        key: PropertyKey,
-        shape: ObjectShape,
     ) {
         let previous = self.current_cache_to_populate.replace(CacheToPopulate {
             receiver: receiver.unbind(),

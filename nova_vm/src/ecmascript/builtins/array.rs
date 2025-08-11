@@ -53,6 +53,7 @@ use super::{
     ordinary::{
         caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
         ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
+        shape::ShapeSetCachedProps,
     },
 };
 
@@ -999,7 +1000,17 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         // If this was a non-Array index or a named property on the Array then
         // we want to perform a normal cached set with the Array's shape.
         let shape = self.object_shape(agent);
-        shape.set_cached(agent, self.into_object(), p, value, receiver, cache, gc)
+        shape.set_cached(
+            agent,
+            ShapeSetCachedProps {
+                o: self.into_object(),
+                p,
+                receiver,
+            },
+            value,
+            cache,
+            gc,
+        )
     }
 }
 

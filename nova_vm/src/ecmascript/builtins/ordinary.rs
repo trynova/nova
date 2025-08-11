@@ -152,10 +152,8 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         ordinary_set_at_offset(
             agent,
-            self.into_object(),
-            Some(self),
-            p,
-            offset,
+            (self.into_object(), Some(self)),
+            (p, offset),
             value,
             receiver,
             gc,
@@ -290,7 +288,7 @@ pub(crate) fn ordinary_get_own_property<'a>(
         descriptor.value = Some(value.bind(gc));
 
         // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
-        descriptor.writable = Some(x.map_or(true, |x| x.is_writable().unwrap()));
+        descriptor.writable = Some(x.is_none_or(|x| x.is_writable().unwrap()));
     } else {
         // 5. Else,
         // a. Assert: X is an accessor property.
@@ -305,10 +303,10 @@ pub(crate) fn ordinary_get_own_property<'a>(
     }
 
     // 6. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
-    descriptor.enumerable = Some(x.map_or(true, |x| x.is_enumerable()));
+    descriptor.enumerable = Some(x.is_none_or(|x| x.is_enumerable()));
 
     // 7. Set D.[[Configurable]] to the value of X's [[Configurable]] attribute.
-    descriptor.configurable = Some(x.map_or(true, |x| x.is_configurable()));
+    descriptor.configurable = Some(x.is_none_or(|x| x.is_configurable()));
 
     if let Some(CacheToPopulate {
         receiver,
@@ -1207,10 +1205,8 @@ fn ordinary_set_with_own_descriptor<'a>(
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set_at_offset<'a>(
     agent: &mut Agent,
-    o: Object,
-    bo: Option<OrdinaryObject>,
-    p: PropertyKey,
-    offset: PropertyOffset,
+    (o, bo): (Object, Option<OrdinaryObject>),
+    (p, offset): (PropertyKey, PropertyOffset),
     v: Value,
     receiver: Value,
     gc: NoGcScope<'a, '_>,

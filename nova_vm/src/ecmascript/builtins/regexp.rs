@@ -37,7 +37,7 @@ use wtf8::Wtf8Buf;
 
 use super::ordinary::{
     caches::PropertyLookupCache, ordinary_get_own_property, ordinary_set, ordinary_try_get,
-    ordinary_try_set,
+    ordinary_try_set, shape::ShapeSetCachedProps,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -493,11 +493,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             let shape = self.object_shape(agent);
             shape.set_cached(
                 agent,
-                self.into_object(),
-                p.bind(gc),
+                ShapeSetCachedProps {
+                    o: self.into_object(),
+                    p,
+                    receiver,
+                },
                 value,
-                receiver,
-                cache.bind(gc),
+                cache,
                 gc,
             )
         }

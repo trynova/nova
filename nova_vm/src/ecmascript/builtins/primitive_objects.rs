@@ -39,8 +39,10 @@ use crate::{
 use small_string::SmallString;
 
 use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
-    ordinary_try_has_property_entry, ordinary_try_set, shape::ObjectShape,
+    caches::PropertyLookupCache,
+    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property_entry,
+    ordinary_try_set,
+    shape::{ObjectShape, ShapeSetCachedProps},
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -584,7 +586,17 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             SetCachedResult::Unwritable.into()
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), p, value, receiver, cache, gc)
+            shape.set_cached(
+                agent,
+                ShapeSetCachedProps {
+                    o: self.into_object(),
+                    p,
+                    receiver,
+                },
+                value,
+                cache,
+                gc,
+            )
         }
     }
 }

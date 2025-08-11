@@ -195,7 +195,7 @@ impl<'a> ObjectShape<'a> {
             agent
                 .heap
                 .caches
-                .set_current_cache(receiver, cache, p, shape);
+                .set_current_cache(shape, p, receiver, cache);
             ControlFlow::Continue(NoCache)
         }
     }
@@ -203,10 +203,8 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        o: Object,
-        p: PropertyKey,
+        props: ShapeSetCachedProps,
         value: Value,
-        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
@@ -214,16 +212,18 @@ impl<'a> ObjectShape<'a> {
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
             if let Some(prototype) = prototype {
-                prototype.set_at_offset(agent, p, offset, value, receiver, gc)
+                prototype.set_at_offset(agent, props.p, offset, value, props.receiver, gc)
             } else {
-                o.set_at_offset(agent, p, offset, value, receiver, gc)
+                props
+                    .o
+                    .set_at_offset(agent, props.p, offset, value, props.receiver, gc)
             }
         } else {
             // No cache found.
             agent
                 .heap
                 .caches
-                .set_current_cache(receiver, cache, p, shape);
+                .set_current_cache(shape, props.p, props.receiver, cache);
             NoCache.into()
         }
     }
@@ -256,7 +256,7 @@ impl<'a> ObjectShape<'a> {
             agent
                 .heap
                 .caches
-                .set_current_cache(receiver.into_value(), cache, p, shape);
+                .set_current_cache(shape, p, receiver.into_value(), cache);
             NoCache.into()
         }
     }
@@ -769,6 +769,12 @@ impl<'a> ObjectShape<'a> {
         create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::Number);
         create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::String);
     }
+}
+
+pub(crate) struct ShapeSetCachedProps<'a> {
+    pub(crate) o: Object<'a>,
+    pub(crate) p: PropertyKey<'a>,
+    pub(crate) receiver: Value<'a>,
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

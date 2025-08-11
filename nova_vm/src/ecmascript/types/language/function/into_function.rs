@@ -10,7 +10,7 @@ use crate::{
         builtins::ordinary::{
             caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete,
             ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_get,
-            ordinary_try_set,
+            ordinary_try_set, shape::ShapeSetCachedProps,
         },
         execution::{Agent, JsResult},
         types::{
@@ -130,7 +130,17 @@ pub(crate) fn function_set_cached<'a, 'gc>(
         } else {
             func.object_shape(agent)
         };
-        shape.set_cached(agent, func.into_object(), p, value, receiver, cache, gc)
+        shape.set_cached(
+            agent,
+            ShapeSetCachedProps {
+                o: func.into_object(),
+                p,
+                receiver,
+            },
+            value,
+            cache,
+            gc,
+        )
     }
 }
 

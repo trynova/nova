@@ -16,6 +16,7 @@ use crate::{
                 ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
                 ordinary_set, ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
+                shape::ShapeSetCachedProps,
             },
             proxy::Proxy,
         },
@@ -535,7 +536,17 @@ where
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
-        shape.set_cached(agent, self.into_object(), p, value, receiver, cache, gc)
+        shape.set_cached(
+            agent,
+            ShapeSetCachedProps {
+                o: self.into_object(),
+                p,
+                receiver,
+            },
+            value,
+            cache,
+            gc,
+        )
     }
 
     /// ## \[\[GetOwnProperty]] method with offset.
@@ -590,10 +601,8 @@ where
             let backing_object = self.get_backing_object(agent);
             ordinary_set_at_offset(
                 agent,
-                self.into_object(),
-                backing_object,
-                p,
-                offset,
+                (self.into_object(), backing_object),
+                (p, offset),
                 value,
                 receiver,
                 gc,
