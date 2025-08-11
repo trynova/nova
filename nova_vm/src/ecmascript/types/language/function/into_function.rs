@@ -130,7 +130,7 @@ pub(crate) fn function_set_cached<'a, 'gc>(
         } else {
             func.object_shape(agent)
         };
-        shape.set_cached(agent, p, value, receiver, cache, gc)
+        shape.set_cached(agent, func.into_object(), p, value, receiver, cache, gc)
     }
 }
 

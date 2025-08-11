@@ -491,7 +491,15 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             }
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(agent, p.bind(gc), value, receiver, cache.bind(gc), gc)
+            shape.set_cached(
+                agent,
+                self.into_object(),
+                p.bind(gc),
+                value,
+                receiver,
+                cache.bind(gc),
+                gc,
+            )
         }
     }
 }

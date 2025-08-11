@@ -201,6 +201,7 @@ impl Primitive<'_> {
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        debug_assert_eq!(self.into_value(), receiver);
         match self {
             Primitive::Undefined | Primitive::Null => NoCache.into(),
             Primitive::Boolean(_)
@@ -212,10 +213,10 @@ impl Primitive<'_> {
             | Primitive::SmallBigInt(_) => self
                 .object_shape(agent)
                 .unwrap()
-                .set_cached(agent, p, value, receiver, cache, gc),
+                .set_cached_primitive(agent, p, value, self, cache, gc),
             Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
                 .unwrap()
-                .set_cached(agent, p, value, receiver, cache, gc),
+                .set_cached(agent, p, value, cache, gc),
         }
     }
 }

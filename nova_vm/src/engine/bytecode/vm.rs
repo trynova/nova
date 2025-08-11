@@ -3886,8 +3886,18 @@ fn get_value_with_cache<'gc>(
 
     // O[[Get]](P, this)
     let o = reference.base_value().bind(gc.nogc());
-    let receiver = reference.this_value().bind(gc.nogc());
     let p = reference.referenced_name_property_key().bind(gc.nogc());
+    if o.is_null() || o.is_undefined() {
+        return Err(throw_read_undefined_or_null_error(
+            agent,
+            // SAFETY: we do not care about the property key Value representation
+            // in error logging.
+            unsafe { p.unbind().into_value_unchecked() },
+            o.unbind(),
+            gc.into_nogc(),
+        ));
+    }
+    let receiver = reference.this_value().bind(gc.nogc());
     let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
     if let ControlFlow::Break(b) = o.get_cached(agent, p, cache, gc.nogc()) {
         if !keep_reference {
@@ -3972,32 +3982,33 @@ fn put_value_with_cache<'gc>(
 
     assert!(reference.is_static_property_reference());
 
-    if is_super_reference(&reference) {
-        // TODO: super references have class prototype as base_value and target
-        // object as this_value; they call [[Set]] method of base_value with
-        // this_value as the Receiver parameter. This can lead to fun hijinks.
-        // Usually it's intended to call the base_value property getter method
-        // with the this_value as `this`.
-    } else {
-        // O[[Set]](P, V, O)
-        let o = reference.base_value().bind(gc.nogc());
-        let p = reference.referenced_name_property_key().bind(gc.nogc());
-        let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-        if let ControlFlow::Break(b) = o.set_cached(agent, p, value, o, cache, gc.nogc()) {
-            if matches!(b, SetCachedResult::Done) {
-                return Ok(());
-            }
-            return handle_set_cached_break(
-                agent,
-                vm,
-                o.unbind(),
-                p.unbind(),
-                value.unbind(),
-                reference.strict(),
-                b.unbind(),
-                gc,
-            );
+    // O[[Set]](P, V, O)
+    let o = reference.base_value().bind(gc.nogc());
+    let p = reference.referenced_name_property_key().bind(gc.nogc());
+    if o.is_null() || o.is_undefined() {
+        return Err(throw_cannot_set_property(
+            agent,
+            o.unbind(),
+            p.unbind(),
+            gc.into_nogc(),
+        ));
+    }
+    let receiver = reference.this_value().bind(gc.nogc());
+    let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+    if let ControlFlow::Break(b) = o.set_cached(agent, p, value, receiver, cache, gc.nogc()) {
+        if matches!(b, SetCachedResult::Done) {
+            return Ok(());
         }
+        return handle_set_cached_break(
+            agent,
+            vm,
+            o.unbind(),
+            p.unbind(),
+            value.unbind(),
+            reference.strict(),
+            b.unbind(),
+            gc,
+        );
     }
 
     let result = try_put_value(agent, &reference, value, gc.nogc());
@@ -4022,20 +4033,24 @@ fn put_value_with_cache<'gc>(
 fn handle_set_cached_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    o: Value,
+    receiver: Value,
     p: PropertyKey,
     value: Value,
     strict: bool,
     b: SetCachedResult,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let receiver = receiver.bind(gc.nogc());
+    let p = p.bind(gc.nogc());
+    let value = value.bind(gc.nogc());
+    let b = b.bind(gc.nogc());
     match b {
         SetCachedResult::Done => {}
         SetCachedResult::Unwritable | SetCachedResult::Accessor => {
             if strict {
                 return Err(throw_cannot_set_property(
                     agent,
-                    o.unbind(),
+                    receiver.unbind(),
                     p.unbind(),
                     gc.into_nogc(),
                 ));
@@ -4043,7 +4058,7 @@ fn handle_set_cached_break<'a>(
         }
         SetCachedResult::Set(setter) => {
             let setter = setter.unbind();
-            let o = o.unbind();
+            let o = receiver.unbind();
             let mut value = value.unbind();
             with_vm_gc(
                 agent,
@@ -4062,7 +4077,7 @@ fn handle_set_cached_break<'a>(
         }
         SetCachedResult::Proxy(proxy) => {
             let proxy = proxy.unbind();
-            let o = o.unbind();
+            let o = receiver.unbind();
             let p = p.unbind();
             let value = value.unbind();
             let scoped_strict_error_data = if strict {

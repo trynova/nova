@@ -535,7 +535,7 @@ where
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
-        shape.set_cached(agent, p, value, receiver, cache, gc)
+        shape.set_cached(agent, self.into_object(), p, value, receiver, cache, gc)
     }
 
     /// ## \[\[GetOwnProperty]] method with offset.

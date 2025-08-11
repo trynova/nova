@@ -931,7 +931,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             }
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(agent, p, value, receiver, cache, gc)
+            shape.set_cached(agent, self.into_object(), p, value, receiver, cache, gc)
         }
     }
 }

@@ -40,7 +40,7 @@ use crate::{
 
 use super::{
     operations_on_objects::{call_function, get, get_method},
-    testing_and_comparison::is_callable,
+    testing_and_comparison::{is_callable, require_object_coercible},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -1149,12 +1149,9 @@ pub(crate) fn to_object<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Object<'a>> {
     let argument = argument.bind(gc);
+    require_object_coercible(agent, argument, gc)?;
     match argument {
-        Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Argument cannot be converted into an object",
-            gc,
-        )),
+        Value::Undefined | Value::Null => unreachable!(),
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
         Value::Boolean(bool) => Ok(agent
             .heap

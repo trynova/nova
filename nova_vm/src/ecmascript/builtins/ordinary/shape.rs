@@ -11,9 +11,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, NoCache, Number,
-            Numeric, Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String,
-            Symbol, Value,
+            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            NoCache, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
+            SetCachedResult, String, Symbol, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -203,6 +203,7 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
+        o: Object,
         p: PropertyKey,
         value: Value,
         receiver: Value,
@@ -212,16 +213,9 @@ impl<'a> ObjectShape<'a> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
-            if offset.is_unset() {
-                // The property is unset.
-                if let Ok(o) = Object::try_from(receiver) {
-                    o.set_at_offset(agent, p, offset, value, receiver, gc)
-                } else {
-                    // Receiver is a primitive; it cannot be written to.
-                    SetCachedResult::Unwritable.into()
-                }
+            if let Some(prototype) = prototype {
+                prototype.set_at_offset(agent, p, offset, value, receiver, gc)
             } else {
-                let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
                 o.set_at_offset(agent, p, offset, value, receiver, gc)
             }
         } else {
@@ -230,6 +224,39 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(receiver, cache, p, shape);
+            NoCache.into()
+        }
+    }
+
+    pub(crate) fn set_cached_primitive<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        value: Value,
+        receiver: Primitive,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        let shape = self;
+        if let Some((offset, prototype)) = cache.find(agent, shape) {
+            // A cached lookup result was found.
+            if let Some(prototype) = prototype {
+                debug_assert!(!offset.is_unset());
+                // Property on the prototype; this may call a setter or such.
+                prototype.set_at_offset(agent, p, offset, value, receiver.into_value(), gc)
+            } else {
+                debug_assert!(offset.is_unset());
+                // Unset property (it's not possible for there to be a cached
+                // property on the primitive directly; we don't cache those).
+                // Receiver is a primitive; it cannot be written to.
+                SetCachedResult::Unwritable.into()
+            }
+        } else {
+            // No cache found.
+            agent
+                .heap
+                .caches
+                .set_current_cache(receiver.into_value(), cache, p, shape);
             NoCache.into()
         }
     }

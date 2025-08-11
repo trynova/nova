@@ -674,15 +674,20 @@ impl<'a> String<'a> {
         agent: &mut Agent,
         p: PropertyKey,
         value: Value,
-        receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Some(_) = self.get_property_value(agent, p) {
             SetCachedResult::Unwritable.into()
         } else {
-            self.object_shape(agent)
-                .set_cached(agent, p, value, receiver, cache, gc)
+            self.object_shape(agent).set_cached_primitive(
+                agent,
+                p,
+                value,
+                self.into_primitive(),
+                cache,
+                gc,
+            )
         }
     }
 }
