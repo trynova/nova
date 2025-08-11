@@ -15,9 +15,9 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, GetCachedBreak, NoCache, HeapNumber, HeapString,
-            INTEGER_DISCRIMINANT, InternalMethods, InternalSlots, IntoObject, IntoPrimitive,
-            IntoValue, NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive,
+            FLOAT_DISCRIMINANT, GetCachedResult, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
+            InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
+            NUMBER_DISCRIMINANT, NoCache, Number, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
             STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedResult, String, Symbol, Value,
             bigint::HeapBigInt,
@@ -558,7 +558,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, p)
         {
@@ -577,11 +577,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if String::try_from(agent[self].data)
             .is_ok_and(|s| s.get_property_value(agent, p).is_some())
         {
-            SetCachedResult::Unwritable
+            SetCachedResult::Unwritable.into()
         } else {
             let shape = self.object_shape(agent);
             shape.set_cached(agent, p, value, receiver, cache, gc)

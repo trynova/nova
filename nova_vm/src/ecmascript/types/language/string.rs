@@ -12,7 +12,7 @@ use core::{
 use std::{borrow::Cow, ops::ControlFlow};
 
 use super::{
-    GetCachedBreak, IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey,
+    GetCachedResult, IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey,
     SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SetCachedResult, Value,
 };
 use crate::{
@@ -660,7 +660,7 @@ impl<'a> String<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         if let Some(v) = self.get_property_value(agent, p) {
             v.bind(gc).into()
         } else {
@@ -677,9 +677,9 @@ impl<'a> String<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Some(_) = self.get_property_value(agent, p) {
-            SetCachedResult::Unwritable
+            SetCachedResult::Unwritable.into()
         } else {
             self.object_shape(agent)
                 .set_cached(agent, p, value, receiver, cache, gc)

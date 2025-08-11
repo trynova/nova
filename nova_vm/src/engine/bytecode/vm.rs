@@ -49,7 +49,7 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedBreak, InternalMethods,
+            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedResult, InternalMethods,
             InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
             SetCachedResult, String, Value, get_this_value, get_value,
@@ -3899,6 +3899,10 @@ fn get_value_with_cache<'gc>(
             if !keep_reference {
                 vm.reference = None;
             }
+            if let GetCachedResult::Value(value) = b {
+                vm.result = Some(value.unbind());
+                return Ok(());
+            }
             return handle_get_cached_break(agent, vm, o.unbind(), p.unbind(), b.unbind(), gc);
         }
     }
@@ -3928,14 +3932,14 @@ fn handle_get_cached_break<'a>(
     vm: &mut Vm,
     o: Value,
     p: PropertyKey,
-    b: GetCachedBreak,
+    b: GetCachedResult,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     match b {
-        GetCachedBreak::Value(value) => {
+        GetCachedResult::Value(value) => {
             vm.result = Some(value.unbind());
         }
-        GetCachedBreak::Get(getter) => {
+        GetCachedResult::Get(getter) => {
             let getter = getter.unbind();
             let o = o.unbind();
             let result = with_vm_gc(
@@ -3946,7 +3950,7 @@ fn handle_get_cached_break<'a>(
             )?;
             vm.result = Some(result.unbind());
         }
-        GetCachedBreak::Proxy(proxy) => {
+        GetCachedResult::Proxy(proxy) => {
             let proxy = proxy.unbind();
             let o = o.unbind();
             let p = p.unbind();
@@ -3967,7 +3971,7 @@ fn put_value_with_cache<'gc>(
     vm: &mut Vm,
     executable: Scoped<Executable>,
     instr: &Instr,
-    mut gc: GcScope<'gc, '_>,
+    gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     // 1. If V is not a Reference Record, return V.
     let reference = vm.reference.take().unwrap().bind(gc.nogc());
@@ -3986,92 +3990,20 @@ fn put_value_with_cache<'gc>(
         let o = reference.base_value().bind(gc.nogc());
         let p = reference.referenced_name_property_key().bind(gc.nogc());
         let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-        match o.set_cached(agent, p, value, o, cache, gc.nogc()) {
-            SetCachedResult::Done => {
+        if let ControlFlow::Break(b) = o.set_cached(agent, p, value, o, cache, gc.nogc()) {
+            if matches!(b, SetCachedResult::Done) {
                 return Ok(());
             }
-            SetCachedResult::Unwritable | SetCachedResult::Accessor => {
-                if reference.strict() {
-                    return Err(throw_cannot_set_property(
-                        agent,
-                        o.unbind(),
-                        p.unbind(),
-                        gc.into_nogc(),
-                    ));
-                } else {
-                    return Ok(());
-                }
-            }
-            SetCachedResult::Set(setter) => {
-                let setter = setter.unbind();
-                let o = o.unbind();
-                let mut value = value.unbind();
-                with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| {
-                        call_function(
-                            agent,
-                            setter,
-                            o,
-                            Some(ArgumentsList::from_mut_value(&mut value)),
-                            gc,
-                        )
-                    },
-                    gc,
-                )?;
-                return Ok(());
-            }
-            SetCachedResult::Proxy(proxy) => {
-                let proxy = proxy.unbind();
-                let o = o.unbind();
-                let p = p.unbind();
-                let value = value.unbind();
-                let scoped_strict_error_data = if reference.strict() {
-                    Some((p.scope(agent, gc.nogc()), o.scope(agent, gc.nogc())))
-                } else {
-                    None
-                };
-                let succeeded = with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| proxy.internal_set(agent, p, value, o, gc),
-                    gc.reborrow(),
-                )
-                .unbind()?;
-                if !succeeded
-                    && let Some((scoped_referenced_name, scoped_base_obj)) =
-                        scoped_strict_error_data
-                {
-                    // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-                    // SAFETY: not shared.
-                    let base_obj_repr = unsafe {
-                        scoped_base_obj
-                            .take(agent)
-                            .into_value()
-                            .string_repr(agent, gc.reborrow())
-                            .unbind()
-                            .bind(gc.nogc())
-                    };
-                    // SAFETY: not shared.
-                    let referenced_name =
-                        unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
-                    return Err(throw_cannot_set_property(
-                        agent,
-                        base_obj_repr.into_value().unbind(),
-                        referenced_name.unbind(),
-                        gc.into_nogc(),
-                    ));
-                }
-                if let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data {
-                    // SAFETY: not shared.
-                    let _ = unsafe { scoped_base_obj.take(agent) }.bind(gc.nogc());
-                    // SAFETY: not shared.
-                    let _ = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
-                };
-                return Ok(());
-            }
-            SetCachedResult::NoCache => {}
+            return handle_set_cached_break(
+                agent,
+                vm,
+                o.unbind(),
+                p.unbind(),
+                value.unbind(),
+                reference.strict(),
+                b.unbind(),
+                gc,
+            );
         }
     }
 
@@ -4092,4 +4024,95 @@ fn put_value_with_cache<'gc>(
     }
 
     Ok(())
+}
+
+fn handle_set_cached_break<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    o: Value,
+    p: PropertyKey,
+    value: Value,
+    strict: bool,
+    b: SetCachedResult,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    match b {
+        SetCachedResult::Done => {}
+        SetCachedResult::Unwritable | SetCachedResult::Accessor => {
+            if strict {
+                return Err(throw_cannot_set_property(
+                    agent,
+                    o.unbind(),
+                    p.unbind(),
+                    gc.into_nogc(),
+                ));
+            }
+        }
+        SetCachedResult::Set(setter) => {
+            let setter = setter.unbind();
+            let o = o.unbind();
+            let mut value = value.unbind();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| {
+                    call_function(
+                        agent,
+                        setter,
+                        o,
+                        Some(ArgumentsList::from_mut_value(&mut value)),
+                        gc,
+                    )
+                },
+                gc,
+            )?;
+        }
+        SetCachedResult::Proxy(proxy) => {
+            let proxy = proxy.unbind();
+            let o = o.unbind();
+            let p = p.unbind();
+            let value = value.unbind();
+            let scoped_strict_error_data = if strict {
+                Some((p.scope(agent, gc.nogc()), o.scope(agent, gc.nogc())))
+            } else {
+                None
+            };
+            let succeeded = with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| proxy.internal_set(agent, p, value, o, gc),
+                gc.reborrow(),
+            )
+            .unbind()?;
+            if !succeeded
+                && let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data
+            {
+                // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
+                // SAFETY: not shared.
+                let base_obj_repr = unsafe {
+                    scoped_base_obj
+                        .take(agent)
+                        .into_value()
+                        .string_repr(agent, gc.reborrow())
+                        .unbind()
+                        .bind(gc.nogc())
+                };
+                // SAFETY: not shared.
+                let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                return Err(throw_cannot_set_property(
+                    agent,
+                    base_obj_repr.into_value().unbind(),
+                    referenced_name.unbind(),
+                    gc.into_nogc(),
+                ));
+            }
+            if let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data {
+                // SAFETY: not shared.
+                let _ = unsafe { scoped_base_obj.take(agent) }.bind(gc.nogc());
+                // SAFETY: not shared.
+                let _ = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+            };
+        }
+    }
+    return Ok(());
 }

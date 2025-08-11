@@ -3,9 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, GetCachedBreak, NoCache, InternalMethods, IntoValue, Number,
-    Numeric, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData,
-    Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    BigInt, BigIntHeapData, GetCachedResult, InternalMethods, IntoValue, NoCache, Number, Numeric,
+    OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String, StringHeapData, Symbol,
+    bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -1124,7 +1124,7 @@ impl<'a> Value<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.get_cached(agent, p, cache, gc)
         } else {
@@ -1142,7 +1142,7 @@ impl<'a> Value<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.set_cached(agent, p, value, receiver, cache, gc)
         } else {
@@ -1158,7 +1158,7 @@ impl<'a> Value<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         if let Ok(o) = Object::try_from(self) {
             o.get_cached(agent, p, cache, gc)
         } else {

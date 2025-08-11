@@ -19,7 +19,7 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::{GetCachedBreak, IntoValue, NoCache, SetCachedResult},
+        types::{GetCachedResult, IntoValue, NoCache, SetCachedResult},
     },
     engine::{
         Scoped, TryResult,
@@ -121,7 +121,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         let offset = offset.get_property_offset();
         let obj = self.bind(gc);
         let data = obj.get_elements_storage(agent);
@@ -133,7 +133,10 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
                 .and_then(|d| d.get(&(offset as u32)))
                 .unwrap();
             d.getter_function(gc)
-                .map_or(GetCachedBreak::Value(Value::Undefined), GetCachedBreak::Get)
+                .map_or(
+                    GetCachedResult::Value(Value::Undefined),
+                    GetCachedResult::Get,
+                )
                 .into()
         }
     }
@@ -146,7 +149,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         ordinary_set_at_offset(
             agent,
             self.into_object(),
@@ -1211,7 +1214,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
     v: Value,
     receiver: Value,
     gc: NoGcScope<'a, '_>,
-) -> SetCachedResult<'a> {
+) -> ControlFlow<SetCachedResult<'a>, NoCache> {
     let o = o.bind(gc);
     let bo = bo.bind(gc);
     let p = p.bind(gc);
@@ -1226,7 +1229,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         //   [[Configurable]]: true
         // }.
         if !ordinary_is_extensible(agent, bo) {
-            return SetCachedResult::Unwritable;
+            return SetCachedResult::Unwritable.into();
         }
         if o.into_value() == receiver {
             // ## 2.e.
@@ -1239,16 +1242,16 @@ pub(crate) fn ordinary_set_at_offset<'a>(
                 .push(agent, o, p, Some(v), None, gc)
                 .is_err()
             {
-                return SetCachedResult::NoCache;
+                return NoCache.into();
             }
-            return SetCachedResult::Done;
+            return SetCachedResult::Done.into();
         } else {
             // b. If Receiver is not an Object, return false.
             let Ok(_receiver) = Object::try_from(receiver) else {
-                return SetCachedResult::Unwritable;
+                return SetCachedResult::Unwritable.into();
             };
             // TODO: better handling here.
-            return SetCachedResult::NoCache;
+            return NoCache.into();
         }
     }
 
@@ -1265,21 +1268,21 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             Entry::Vacant(_) => true,
         };
         if !writable {
-            return SetCachedResult::Unwritable;
+            return SetCachedResult::Unwritable.into();
         }
         if o.into_value() == receiver {
             // ## 2.d.
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
             *slot = v.unbind();
-            SetCachedResult::Done
+            SetCachedResult::Done.into()
         } else {
             // b. If Receiver is not an Object, return false.
             if Object::try_from(receiver).is_err() {
-                return SetCachedResult::Unwritable;
+                return SetCachedResult::Unwritable.into();
             }
             // TODO: better handling here.
-            SetCachedResult::NoCache
+            NoCache.into()
         }
     } else {
         let Entry::Occupied(e) = data.descriptors else {
@@ -1289,6 +1292,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         debug_assert!(d.is_accessor_descriptor());
         d.setter_function(gc)
             .map_or(SetCachedResult::Accessor, SetCachedResult::Set)
+            .into()
     }
 }
 

@@ -12,9 +12,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, NoCache, InternalMethods,
-            InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, SetCachedResult, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
+            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -419,7 +419,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if p == BUILTIN_STRING_MEMORY.lastIndex.into()
@@ -446,7 +446,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if p == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If we're setting the last index and we have a backing object,
             // then we set the value there first and observe the result.
@@ -467,9 +467,9 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                     // We successfully set the value, so set it in our direct
                     // data as well.
                     agent[self].last_index = new_last_index;
-                    SetCachedResult::Done
+                    SetCachedResult::Done.into()
                 } else {
-                    SetCachedResult::Unwritable
+                    SetCachedResult::Unwritable.into()
                 }
             } else {
                 // Note: lastIndex property is writable, so setting its value
@@ -487,7 +487,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                         gc,
                     ));
                 }
-                SetCachedResult::Done
+                SetCachedResult::Done.into()
             }
         } else {
             let shape = self.object_shape(agent);

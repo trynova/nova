@@ -13,11 +13,11 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedBreak,
-            NoCache, INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
-            INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
-            String, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedResult,
+            INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache, Number, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
+            UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
             UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
@@ -894,7 +894,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         // Note: we mutate P but only if it turns into a valid integer, in
         // which case we never enter the get_cached path anyway.
         ta_canonical_numeric_index_string(agent, &mut p, gc);
@@ -917,7 +917,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // Note: we mutate P but only if it turns into a valid integer, in
         // which case we never enter the get_cached path anyway.
         ta_canonical_numeric_index_string(agent, &mut p, gc);
@@ -926,8 +926,8 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let numeric_index = numeric_index.into_i64();
             // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
             match try_typed_array_set_element_generic(agent, self, numeric_index, value, gc) {
-                TryResult::Continue(_) => SetCachedResult::Done,
-                TryResult::Break(_) => SetCachedResult::NoCache,
+                TryResult::Continue(_) => SetCachedResult::Done.into(),
+                TryResult::Break(_) => NoCache.into(),
             }
         } else {
             let shape = self.object_shape(agent);

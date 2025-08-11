@@ -22,8 +22,8 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, NoCache, InternalMethods,
-            InternalSlots, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
+            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
             SetCachedResult, String, Value,
         },
     },
@@ -1631,10 +1631,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: PropertyKey,
         _: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        GetCachedBreak::Proxy(self.bind(gc)).into()
+        GetCachedResult::Proxy(self.bind(gc)).into()
     }
 
     fn set_cached<'gc>(
@@ -1645,10 +1645,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: Value,
         _: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        SetCachedResult::Proxy(self.bind(gc))
+        SetCachedResult::Proxy(self.bind(gc)).into()
     }
 
     #[inline(always)]
@@ -1657,10 +1657,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &Agent,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        GetCachedBreak::Proxy(self.bind(gc)).into()
+        GetCachedResult::Proxy(self.bind(gc)).into()
     }
 
     #[inline(always)]
@@ -1672,10 +1672,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: Value,
         _: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        SetCachedResult::Proxy(self.bind(gc))
+        SetCachedResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)

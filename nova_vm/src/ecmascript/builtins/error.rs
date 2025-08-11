@@ -13,9 +13,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, NoCache, InternalMethods,
-            InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, SetCachedResult, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
+            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -464,7 +464,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         let bo = self.get_backing_object(agent);
         if bo.is_none()
             && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
@@ -494,7 +494,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Some(bo) = self.get_backing_object(agent) {
             bo.set_cached(agent, p, value, receiver, cache, gc)
         } else {
@@ -502,12 +502,12 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 && let Ok(value) = String::try_from(value)
             {
                 agent[self].message = Some(value.unbind());
-                SetCachedResult::Done
+                SetCachedResult::Done.into()
             } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
                 agent[self].cause = Some(value.unbind());
-                SetCachedResult::Done
+                SetCachedResult::Done.into()
             } else {
-                SetCachedResult::NoCache
+                NoCache.into()
             }
         }
     }

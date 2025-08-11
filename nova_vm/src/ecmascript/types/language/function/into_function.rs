@@ -14,7 +14,7 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, InternalMethods, InternalSlots, IntoValue,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
             NoCache, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
             Value, language::IntoObject,
         },
@@ -93,7 +93,7 @@ pub(crate) fn function_get_cached<'a, 'gc>(
     p: PropertyKey,
     cache: PropertyLookupCache,
     gc: NoGcScope<'gc, '_>,
-) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
     let bo = func.get_backing_object(agent);
     if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         func.get_length(agent).into_value().bind(gc).into()
@@ -117,13 +117,13 @@ pub(crate) fn function_set_cached<'a, 'gc>(
     receiver: Value,
     cache: PropertyLookupCache,
     gc: NoGcScope<'gc, '_>,
-) -> SetCachedResult<'gc> {
+) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
     let bo = func.get_backing_object(agent);
     if bo.is_none()
         && (p == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
             || p == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
     {
-        SetCachedResult::Unwritable
+        SetCachedResult::Unwritable.into()
     } else {
         let shape = if let Some(bo) = bo {
             bo.object_shape(agent)

@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, GetCachedBreak, InternalMethods, InternalSlots, IntoObject, NoCache, Number,
+            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, NoCache, Number,
             Numeric, Object, OrdinaryObject, Primitive, PropertyKey, SetCachedResult, String,
             Symbol, Value,
         },
@@ -179,7 +179,7 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
@@ -208,7 +208,7 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find(agent, shape) {
             // A cached lookup result was found.
@@ -218,7 +218,7 @@ impl<'a> ObjectShape<'a> {
                     o.set_at_offset(agent, p, offset, value, receiver, gc)
                 } else {
                     // Receiver is a primitive; it cannot be written to.
-                    SetCachedResult::Unwritable
+                    SetCachedResult::Unwritable.into()
                 }
             } else {
                 let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
@@ -230,7 +230,7 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(receiver, cache, p, shape);
-            SetCachedResult::NoCache
+            NoCache.into()
         }
     }
 

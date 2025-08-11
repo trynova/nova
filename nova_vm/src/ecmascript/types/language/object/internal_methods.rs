@@ -509,7 +509,7 @@ where
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
@@ -531,7 +531,7 @@ where
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
@@ -549,7 +549,7 @@ where
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -579,7 +579,7 @@ where
         value: Value,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -626,10 +626,10 @@ where
 
 /// Early-return conditions for [[Get]] method's cached variant.
 ///
-/// Early-return in effectively means that a cached property lookup was found
+/// Early-return effectively means that a cached property lookup was found
 /// and the normal \[\[Get]] method variant need not be entered.
 #[derive(Debug)]
-pub enum GetCachedBreak<'a> {
+pub enum GetCachedResult<'a> {
     /// A data property was found.
     Value(Value<'a>),
     /// A getter call is needed.
@@ -638,15 +638,15 @@ pub enum GetCachedBreak<'a> {
     Proxy(Proxy<'a>),
 }
 
-impl<'a, T> From<GetCachedBreak<'a>> for ControlFlow<GetCachedBreak<'a>, T> {
-    fn from(value: GetCachedBreak<'a>) -> Self {
+impl<'a, T> From<GetCachedResult<'a>> for ControlFlow<GetCachedResult<'a>, T> {
+    fn from(value: GetCachedResult<'a>) -> Self {
         ControlFlow::Break(value)
     }
 }
 
-impl<'a, T> From<Value<'a>> for ControlFlow<GetCachedBreak<'a>, T> {
+impl<'a, T> From<Value<'a>> for ControlFlow<GetCachedResult<'a>, T> {
     fn from(value: Value<'a>) -> Self {
-        ControlFlow::Break(GetCachedBreak::Value(value))
+        ControlFlow::Break(GetCachedResult::Value(value))
     }
 }
 
@@ -662,8 +662,8 @@ impl<T> From<NoCache> for ControlFlow<T, NoCache> {
 }
 
 // SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for GetCachedBreak<'_> {
-    type Of<'a> = GetCachedBreak<'a>;
+unsafe impl Bindable for GetCachedResult<'_> {
+    type Of<'a> = GetCachedResult<'a>;
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
@@ -676,19 +676,28 @@ unsafe impl Bindable for GetCachedBreak<'_> {
     }
 }
 
+/// Early-return conditions for [[Set]] method's cached variant.
+///
+/// Early-return effectively means that a cached property lookup was found and
+/// the normal \[\[Set]] method variant need not be entered.
 pub enum SetCachedResult<'a> {
     /// Value was successfully set.
     Done,
-    /// Value could not be set.
+    /// Value could not be set due to unwritable property or nonextensible
+    /// object.
     Unwritable,
-    /// An accessor without a setter was found.
+    /// Value could not be set due to being an accessor without a setter.
     Accessor,
-    /// An accessor property with a setter was found.
+    /// A setter call is needed.
     Set(Function<'a>),
     /// A Proxy trap call is needed.
     Proxy(Proxy<'a>),
-    /// No property cache was found.
-    NoCache,
+}
+
+impl<'a, T> From<SetCachedResult<'a>> for ControlFlow<SetCachedResult<'a>, T> {
+    fn from(value: SetCachedResult<'a>) -> Self {
+        ControlFlow::Break(value)
+    }
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

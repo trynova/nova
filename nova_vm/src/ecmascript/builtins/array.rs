@@ -24,7 +24,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedBreak, InternalMethods, InternalSlots,
+            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, SetCachedResult, Value,
         },
@@ -879,7 +879,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         // Cached lookup of an Array should return directly from the Array's
         // internal memory if it can.
         if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
@@ -901,7 +901,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     // return that. Otherwise, return undefined.
                     debug_assert!(desc.is_accessor_descriptor());
                     if let Some(getter) = desc.getter_function(gc) {
-                        return GetCachedBreak::Get(getter.bind(gc)).into();
+                        return GetCachedResult::Get(getter.bind(gc)).into();
                     } else {
                         return Value::Undefined.into();
                     }
@@ -930,13 +930,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // Cached set of an Array should return directly mutate the Array's
         // internal memory if it can.
         if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
             // Length lookup: we find it always.
             if !self.length_writable(agent) {
-                return SetCachedResult::Unwritable;
+                return SetCachedResult::Unwritable.into();
             }
             if let Value::Integer(value) = value
                 && let Ok(value) = u32::try_from(value.into_i64())
@@ -944,21 +944,21 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 let Ok(result) = array_set_length_handling(agent, self, value, None, None, None)
                 else {
                     // Let caller handle retry and error on TryReserveError.
-                    return SetCachedResult::NoCache;
+                    return NoCache.into();
                 };
                 return if result {
-                    SetCachedResult::Done
+                    SetCachedResult::Done.into()
                 } else {
-                    SetCachedResult::Unwritable
+                    SetCachedResult::Unwritable.into()
                 };
             } else {
-                return SetCachedResult::NoCache;
+                return NoCache.into();
             }
         } else if let Some(index) = p.into_u32() {
             // Indexed lookup: check our slice. First bounds-check.
             if !(0..self.len(agent)).contains(&index) {
                 // We're out of bounds; this need prototype lookups.
-                return SetCachedResult::NoCache;
+                return NoCache.into();
             }
             // Index within slice; let's look into that memory.
             let storage = self.get_storage_mut(agent);
@@ -973,16 +973,16 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     // Found an accessor indeed; see if it has a setter,
                     // and return that if so.
                     if let Some(setter) = desc.setter_function(gc) {
-                        return SetCachedResult::Set(setter);
+                        return SetCachedResult::Set(setter).into();
                     }
                     // No setter on this accessor; trying to set the value
                     // fails.
-                    return SetCachedResult::Accessor;
+                    return SetCachedResult::Accessor.into();
                 }
                 // Data descriptor; see if it's not writable.
                 if !desc.is_writable().unwrap() {
                     // Not writable; return failure.
-                    return SetCachedResult::Unwritable;
+                    return SetCachedResult::Unwritable.into();
                 }
             }
             // Writable data property or hole; check which one we're
@@ -990,11 +990,11 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(slot) = &mut storage.values[index as usize] {
                 // Writable data property it is! Set its value.
                 *slot = value.unbind();
-                return SetCachedResult::Done;
+                return SetCachedResult::Done.into();
             }
             // Hole! We'll just return NoCache to signify that we can't be
             // arsed to implement the entire prototype lookup logic here.
-            return SetCachedResult::NoCache;
+            return NoCache.into();
         }
         // If this was a non-Array index or a named property on the Array then
         // we want to perform a normal cached set with the Array's shape.

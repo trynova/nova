@@ -8,8 +8,8 @@ pub mod into_function;
 use std::ops::ControlFlow;
 
 use super::{
-    GetCachedBreak, NoCache, InternalMethods, InternalSlots, Object, OrdinaryObject,
-    PropertyKey, SetCachedResult, String, Value,
+    GetCachedResult, InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey,
+    SetCachedResult, String, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -558,7 +558,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         match self {
             Function::BoundFunction(f) => f.get_cached(agent, p, cache, gc),
             Function::BuiltinFunction(f) => f.get_cached(agent, p, cache, gc),
@@ -579,7 +579,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         match self {
             Function::BoundFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
             Function::BuiltinFunction(f) => f.set_cached(agent, p, value, receiver, cache, gc),
@@ -601,7 +601,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         match self {
             Function::BoundFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
             Function::BuiltinFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
@@ -626,7 +626,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         match self {
             Function::BoundFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),
             Function::BuiltinFunction(f) => f.set_at_offset(agent, p, offset, value, receiver, gc),

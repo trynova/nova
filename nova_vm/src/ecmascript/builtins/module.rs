@@ -16,7 +16,7 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedBreak, InternalMethods, InternalSlots, IntoValue,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
             NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
             String, Value,
         },
@@ -763,7 +763,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: PropertyKey,
         _: PropertyLookupCache,
         _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         ControlFlow::Continue(NoCache)
     }
 
@@ -776,8 +776,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: Value,
         _: PropertyLookupCache,
         _: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
-        SetCachedResult::Unwritable
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+        SetCachedResult::Unwritable.into()
     }
 
     #[inline(always)]
@@ -786,7 +786,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: &Agent,
         _: PropertyOffset,
         _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         unreachable!()
     }
 }

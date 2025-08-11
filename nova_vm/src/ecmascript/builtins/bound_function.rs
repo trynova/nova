@@ -13,8 +13,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedBreak,
-            NoCache, InternalMethods, InternalSlots, IntoFunction, IntoValue, Object,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedResult,
+            InternalMethods, InternalSlots, IntoFunction, IntoValue, NoCache, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String, Value,
             function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
@@ -300,7 +300,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         function_get_cached(self, agent, p, cache, gc)
     }
 
@@ -312,7 +312,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         function_set_cached(self, agent, p, value, receiver, cache, gc)
     }
 

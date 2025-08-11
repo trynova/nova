@@ -121,7 +121,7 @@ use crate::{
 
 use ahash::AHashMap;
 pub use data::ObjectHeapData;
-pub use internal_methods::{GetCachedBreak, InternalMethods, NoCache, SetCachedResult};
+pub use internal_methods::{GetCachedResult, InternalMethods, NoCache, SetCachedResult};
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
@@ -4088,7 +4088,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         match self {
             Object::Object(data) => data.get_cached(agent, p, cache, gc),
             Object::Array(data) => data.get_cached(agent, p, cache, gc),
@@ -4192,7 +4192,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         match self {
             Object::Object(data) => data.set_cached(agent, p, value, receiver, cache, gc),
             Object::Array(data) => data.set_cached(agent, p, value, receiver, cache, gc),
@@ -4305,7 +4305,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedBreak<'gc>, NoCache> {
+    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
         match self {
             Object::Object(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::Array(data) => data.get_own_property_at_offset(agent, offset, gc),
@@ -4417,7 +4417,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'gc, '_>,
-    ) -> SetCachedResult<'gc> {
+    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         match self {
             Object::Object(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
             Object::Array(data) => data.set_at_offset(agent, p, offset, value, receiver, gc),
