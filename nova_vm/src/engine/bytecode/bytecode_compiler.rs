@@ -1934,15 +1934,13 @@ pub(super) fn compile_expression_get_value<'s, 'gc>(
 pub(super) fn compile_expression_get_value_keep_reference<'s, 'gc>(
     expr: &'s ast::Expression<'s>,
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) -> Option<ExpressionOutput<'gc>> {
+) {
     let output = expr.compile(ctx);
     if let Some(ExpressionOutput::Place(property_key)) = output {
-        let cache = ctx.create_property_lookup_cache(property_key);
-        ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
+        compile_get_value_keep_reference(ctx, Some(property_key));
     } else if is_reference(expr) {
-        ctx.add_instruction(Instruction::GetValueKeepReference);
+        compile_get_value_keep_reference(ctx, None);
     }
-    output
 }
 
 pub(super) fn compile_put_value<'gc>(
