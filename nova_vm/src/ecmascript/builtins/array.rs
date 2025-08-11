@@ -26,7 +26,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedResult, Value,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, Value,
         },
     },
     engine::{
@@ -53,7 +53,6 @@ use super::{
     ordinary::{
         caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
         ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
-        shape::ShapeSetCachedProps,
     },
 };
 
@@ -926,20 +925,17 @@ impl<'a> InternalMethods<'a> for Array<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // Cached set of an Array should return directly mutate the Array's
         // internal memory if it can.
-        if p == BUILTIN_STRING_MEMORY.length.to_property_key() {
+        if props.p == BUILTIN_STRING_MEMORY.length.to_property_key() {
             // Length lookup: we find it always.
             if !self.length_writable(agent) {
                 return SetCachedResult::Unwritable.into();
             }
-            if let Value::Integer(value) = value
+            if let Value::Integer(value) = props.value
                 && let Ok(value) = u32::try_from(value.into_i64())
             {
                 let Ok(result) = array_set_length_handling(agent, self, value, None, None, None)
@@ -955,7 +951,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             } else {
                 return NoCache.into();
             }
-        } else if let Some(index) = p.into_u32() {
+        } else if let Some(index) = props.p.into_u32() {
             // Indexed lookup: check our slice. First bounds-check.
             if !(0..self.len(agent)).contains(&index) {
                 // We're out of bounds; this need prototype lookups.
@@ -990,7 +986,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             // dealing with.
             if let Some(slot) = &mut storage.values[index as usize] {
                 // Writable data property it is! Set its value.
-                *slot = value.unbind();
+                *slot = props.value.unbind();
                 return SetCachedResult::Done.into();
             }
             // Hole! We'll just return NoCache to signify that we can't be
@@ -1000,17 +996,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         // If this was a non-Array index or a named property on the Array then
         // we want to perform a normal cached set with the Array's shape.
         let shape = self.object_shape(agent);
-        shape.set_cached(
-            agent,
-            ShapeSetCachedProps {
-                o: self.into_object(),
-                p,
-                receiver,
-            },
-            value,
-            cache,
-            gc,
-        )
+        shape.set_cached(agent, self.into_object(), props, gc)
     }
 }
 

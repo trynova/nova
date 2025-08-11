@@ -11,8 +11,8 @@ use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            NoCache, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
+            BigInt, GetCachedResult, InternalMethods, InternalSlots, IntoObject, NoCache, Number,
+            Numeric, Object, OrdinaryObject, Primitive, PropertyKey, SetCachedProps,
             SetCachedResult, String, Symbol, Value,
         },
     },
@@ -203,27 +203,24 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        props: ShapeSetCachedProps,
-        value: Value,
-        cache: PropertyLookupCache,
+        o: Object,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         let shape = self;
-        if let Some((offset, prototype)) = cache.find(agent, shape) {
+        if let Some((offset, prototype)) = props.cache.find(agent, shape) {
             // A cached lookup result was found.
             if let Some(prototype) = prototype {
-                prototype.set_at_offset(agent, props.p, offset, value, props.receiver, gc)
+                prototype.set_at_offset(agent, props, offset, gc)
             } else {
-                props
-                    .o
-                    .set_at_offset(agent, props.p, offset, value, props.receiver, gc)
+                o.set_at_offset(agent, props, offset, gc)
             }
         } else {
             // No cache found.
             agent
                 .heap
                 .caches
-                .set_current_cache(shape, props.p, props.receiver, cache);
+                .set_current_cache(shape, props.p, props.receiver, props.cache);
             NoCache.into()
         }
     }
@@ -231,19 +228,16 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn set_cached_primitive<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Primitive,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         let shape = self;
-        if let Some((offset, prototype)) = cache.find(agent, shape) {
+        if let Some((offset, prototype)) = props.cache.find(agent, shape) {
             // A cached lookup result was found.
             if let Some(prototype) = prototype {
                 debug_assert!(!offset.is_unset());
                 // Property on the prototype; this may call a setter or such.
-                prototype.set_at_offset(agent, p, offset, value, receiver.into_value(), gc)
+                prototype.set_at_offset(agent, props, offset, gc)
             } else {
                 debug_assert!(offset.is_unset());
                 // Unset property (it's not possible for there to be a cached
@@ -256,7 +250,7 @@ impl<'a> ObjectShape<'a> {
             agent
                 .heap
                 .caches
-                .set_current_cache(shape, p, receiver.into_value(), cache);
+                .set_current_cache(shape, props.p, props.receiver, props.cache);
             NoCache.into()
         }
     }
@@ -769,12 +763,6 @@ impl<'a> ObjectShape<'a> {
         create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::Number);
         create_intrinsic_shape(agent, realm, base_shape, IntrinsicObjectShapes::String);
     }
-}
-
-pub(crate) struct ShapeSetCachedProps<'a> {
-    pub(crate) o: Object<'a>,
-    pub(crate) p: PropertyKey<'a>,
-    pub(crate) receiver: Value<'a>,
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

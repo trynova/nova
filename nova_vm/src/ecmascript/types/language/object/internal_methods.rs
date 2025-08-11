@@ -16,7 +16,6 @@ use crate::{
                 ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
                 ordinary_set, ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
-                shape::ShapeSetCachedProps,
             },
             proxy::Proxy,
         },
@@ -527,26 +526,13 @@ where
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
-        shape.set_cached(
-            agent,
-            ShapeSetCachedProps {
-                o: self.into_object(),
-                p,
-                receiver,
-            },
-            value,
-            cache,
-            gc,
-        )
+        shape.set_cached(agent, self.into_object(), props, gc)
     }
 
     /// ## \[\[GetOwnProperty]] method with offset.
@@ -585,10 +571,8 @@ where
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
+        props: &SetCachedProps,
         offset: PropertyOffset,
-        value: Value,
-        receiver: Value,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if offset.is_custom_property() {
@@ -598,13 +582,12 @@ where
                 core::any::type_name::<Self>()
             )
         } else {
-            let backing_object = self.get_backing_object(agent);
             ordinary_set_at_offset(
                 agent,
-                (self.into_object(), backing_object),
-                (p, offset),
-                value,
-                receiver,
+                props,
+                self.into_object(),
+                self.get_backing_object(agent),
+                offset,
                 gc,
             )
         }
@@ -683,6 +666,13 @@ unsafe impl Bindable for GetCachedResult<'_> {
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
+}
+
+pub struct SetCachedProps<'a> {
+    pub p: PropertyKey<'a>,
+    pub receiver: Value<'a>,
+    pub cache: PropertyLookupCache<'a>,
+    pub value: Value<'a>,
 }
 
 /// Early-return conditions for [[Set]] method's cached variant.

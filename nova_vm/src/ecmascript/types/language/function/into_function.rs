@@ -10,13 +10,13 @@ use crate::{
         builtins::ordinary::{
             caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete,
             ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_get,
-            ordinary_try_set, shape::ShapeSetCachedProps,
+            ordinary_try_set,
         },
         execution::{Agent, JsResult},
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
-            NoCache, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult, String,
-            Value, language::IntoObject,
+            NoCache, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, Value, language::IntoObject,
         },
     },
     engine::{
@@ -112,16 +112,13 @@ pub(crate) fn function_get_cached<'a, 'gc>(
 pub(crate) fn function_set_cached<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
-    p: PropertyKey,
-    value: Value,
-    receiver: Value,
-    cache: PropertyLookupCache,
+    props: &SetCachedProps,
     gc: NoGcScope<'gc, '_>,
 ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
     let bo = func.get_backing_object(agent);
     if bo.is_none()
-        && (p == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-            || p == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
+        && (props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
     {
         SetCachedResult::Unwritable.into()
     } else {
@@ -130,17 +127,7 @@ pub(crate) fn function_set_cached<'a, 'gc>(
         } else {
             func.object_shape(agent)
         };
-        shape.set_cached(
-            agent,
-            ShapeSetCachedProps {
-                o: func.into_object(),
-                p,
-                receiver,
-            },
-            value,
-            cache,
-            gc,
-        )
+        shape.set_cached(agent, func.into_object(), props, gc)
     }
 }
 

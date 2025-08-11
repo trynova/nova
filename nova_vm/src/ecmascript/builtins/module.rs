@@ -17,8 +17,8 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
-            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
-            String, Value,
+            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -771,10 +771,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     fn set_cached<'gc>(
         self,
         _: &mut Agent,
-        _: PropertyKey,
-        _: Value,
-        _: Value,
-        _: PropertyLookupCache,
+        _: &SetCachedProps,
         _: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         SetCachedResult::Unwritable.into()

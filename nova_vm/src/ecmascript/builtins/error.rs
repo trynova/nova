@@ -15,7 +15,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
             IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedResult, String, Value,
+            SetCachedProps, SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -489,21 +489,18 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if let Some(bo) = self.get_backing_object(agent) {
-            bo.set_cached(agent, p, value, receiver, cache, gc)
-        } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-            && let Ok(value) = String::try_from(value)
+            bo.set_cached(agent, props, gc)
+        } else if props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && let Ok(value) = String::try_from(props.value)
         {
             agent[self].message = Some(value.unbind());
             SetCachedResult::Done.into()
-        } else if p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            agent[self].cause = Some(value.unbind());
+        } else if props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+            agent[self].cause = Some(props.value.unbind());
             SetCachedResult::Done.into()
         } else {
             NoCache.into()

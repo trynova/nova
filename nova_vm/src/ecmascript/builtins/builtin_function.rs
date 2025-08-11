@@ -17,11 +17,12 @@ use crate::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
             GetCachedResult, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue,
             NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator,
-            SetCachedResult, String, Value, function_create_backing_object, function_get_cached,
-            function_internal_define_own_property, function_internal_delete, function_internal_get,
-            function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_set_cached,
-            function_try_get, function_try_has_property, function_try_set,
+            SetCachedProps, SetCachedResult, String, Value, function_create_backing_object,
+            function_get_cached, function_internal_define_own_property, function_internal_delete,
+            function_internal_get, function_internal_get_own_property,
+            function_internal_has_property, function_internal_own_property_keys,
+            function_internal_set, function_set_cached, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -684,13 +685,10 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        function_set_cached(self, agent, p, value, receiver, cache, gc)
+        function_set_cached(self, agent, props, gc)
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)

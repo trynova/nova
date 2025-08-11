@@ -531,6 +531,14 @@ impl<'a> PropertyLookupCache<'a> {
         }
     }
 
+    /// Insert a new lookup offset for a shape.
+    ///
+    /// There should be no lookup offset for this shape in the cache.
+    ///
+    /// ## Panics
+    ///
+    /// If there is an existing lookup offset for this shape in the cache
+    /// (debug mode only).
     pub(crate) fn insert_lookup_offset(
         self,
         agent: &mut Agent,
@@ -547,6 +555,43 @@ impl<'a> PropertyLookupCache<'a> {
         loop {
             let (record, _) = cache.get_mut(caches);
             if record.insert(shape, offset).is_some() {
+                return;
+            }
+            if let Some(next) = record.next {
+                cache = next;
+                continue;
+            }
+            record.next = Some(next_to_create);
+            caches
+                .property_lookup_caches
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+            caches
+                .property_lookup_cache_prototypes
+                .push(PropertyLookupCacheRecordPrototypes::new());
+            let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
+            debug_assert_eq!(cache, next_to_create);
+            break;
+        }
+    }
+
+    /// Insert a new lookup offset for a shape.
+    ///
+    /// This is a no-op if the offset is already present in the cache.
+    pub(crate) fn insert_lookup_offset_if_not_found(
+        self,
+        agent: &mut Agent,
+        shape: ObjectShape<'a>,
+        index: u32,
+    ) {
+        let Some(offset) = PropertyOffset::new(index) else {
+            return;
+        };
+        let caches = &mut agent.heap.caches;
+        let mut cache = self;
+        let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
+        loop {
+            let (record, _) = cache.get_mut(caches);
+            if record.insert_if_not_found(shape, offset).is_some() {
                 return;
             }
             if let Some(next) = record.next {
@@ -719,6 +764,28 @@ impl<'a> PropertyLookupCacheRecord<'a> {
             .enumerate()
             .find(|(_, s)| s.is_none())
         {
+            *slot = Some(shape.unbind());
+            self.offsets[i] = offset;
+            Some(i as u8)
+        } else {
+            None
+        }
+    }
+
+    /// Insert the given Object Shape and lookup cache index into the property
+    /// lookup cache record. Returns false if the record is full.
+    fn insert_if_not_found(&mut self, shape: ObjectShape, offset: PropertyOffset) -> Option<u8> {
+        if let Some((i, slot)) = self
+            .shapes
+            .iter_mut()
+            .enumerate()
+            .find(|(_, s)| s.is_none_or(|s| s == shape))
+        {
+            if slot == &Some(shape.unbind()) {
+                // Duplicate found.
+                debug_assert_eq!(self.offsets[i], offset);
+                return Some(i as u8);
+            }
             *slot = Some(shape.unbind());
             self.offsets[i] = offset;
             Some(i as u8)

@@ -18,7 +18,8 @@ use crate::{
 };
 
 use super::{
-    GetCachedResult, IntoValue, NoCache, PropertyKey, SetCachedResult, String, Symbol, Value,
+    GetCachedResult, IntoValue, NoCache, PropertyKey, SetCachedProps, SetCachedResult, String,
+    Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -195,13 +196,10 @@ impl Primitive<'_> {
     pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        debug_assert_eq!(self.into_value(), receiver);
+        debug_assert_eq!(self.into_value(), props.receiver);
         match self {
             Primitive::Undefined | Primitive::Null => NoCache.into(),
             Primitive::Boolean(_)
@@ -213,10 +211,10 @@ impl Primitive<'_> {
             | Primitive::SmallBigInt(_) => self
                 .object_shape(agent)
                 .unwrap()
-                .set_cached_primitive(agent, p, value, self, cache, gc),
-            Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
-                .unwrap()
-                .set_cached(agent, p, value, cache, gc),
+                .set_cached_primitive(agent, props, gc),
+            Primitive::String(_) | Primitive::SmallString(_) => {
+                String::try_from(self).unwrap().set_cached(agent, props, gc)
+            }
         }
     }
 }

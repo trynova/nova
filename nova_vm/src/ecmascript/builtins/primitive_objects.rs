@@ -19,8 +19,8 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
             NUMBER_DISCRIMINANT, NoCache, Number, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedResult, String, Symbol, Value,
-            bigint::HeapBigInt,
+            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String,
+            Symbol, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -39,10 +39,8 @@ use crate::{
 use small_string::SmallString;
 
 use super::ordinary::{
-    caches::PropertyLookupCache,
-    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property_entry,
-    ordinary_try_set,
-    shape::{ObjectShape, ShapeSetCachedProps},
+    caches::PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
+    ordinary_try_has_property_entry, ordinary_try_set, shape::ObjectShape,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -574,29 +572,16 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         if String::try_from(agent[self].data)
-            .is_ok_and(|s| s.get_property_value(agent, p).is_some())
+            .is_ok_and(|s| s.get_property_value(agent, props.p).is_some())
         {
             SetCachedResult::Unwritable.into()
         } else {
             let shape = self.object_shape(agent);
-            shape.set_cached(
-                agent,
-                ShapeSetCachedProps {
-                    o: self.into_object(),
-                    p,
-                    receiver,
-                },
-                value,
-                cache,
-                gc,
-            )
+            shape.set_cached(agent, self.into_object(), props, gc)
         }
     }
 }

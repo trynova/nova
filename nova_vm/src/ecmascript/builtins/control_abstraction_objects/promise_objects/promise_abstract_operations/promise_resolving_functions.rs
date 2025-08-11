@@ -14,8 +14,8 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             Function, FunctionInternalProperties, GetCachedResult, InternalMethods, InternalSlots,
-            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedResult,
-            String, Value, function_create_backing_object, function_get_cached,
+            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, Value, function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
             function_internal_own_property_keys, function_internal_set, function_set_cached,
@@ -252,13 +252,10 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
     fn set_cached<'gc>(
         self,
         agent: &mut Agent,
-        p: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: PropertyLookupCache,
+        props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        function_set_cached(self, agent, p, value, receiver, cache, gc)
+        function_set_cached(self, agent, props, gc)
     }
 
     fn internal_call<'gc>(
