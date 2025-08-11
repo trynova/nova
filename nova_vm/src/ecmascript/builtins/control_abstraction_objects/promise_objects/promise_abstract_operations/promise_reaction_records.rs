@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::{
-            Array, async_generator_objects::AsyncGenerator,
+            async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
