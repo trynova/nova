@@ -3884,27 +3884,20 @@ fn get_value_with_cache<'gc>(
 
     assert!(reference.is_static_property_reference());
 
-    if is_super_reference(&reference) {
-        // TODO: super references have class prototype as base_value and target
-        // object as this_value; they call [[Get]] method of base_value with
-        // this_value as the Receiver parameter. This can lead to fun hijinks.
-        // Usually it's intended to call the base_value property getter method
-        // with the this_value as `this`.
-    } else {
-        // O[[Get]](P, O)
-        let o = reference.base_value().bind(gc.nogc());
-        let p = reference.referenced_name_property_key().bind(gc.nogc());
-        let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-        if let ControlFlow::Break(b) = o.get_cached(agent, p, cache, gc.nogc()) {
-            if !keep_reference {
-                vm.reference = None;
-            }
-            if let GetCachedResult::Value(value) = b {
-                vm.result = Some(value.unbind());
-                return Ok(());
-            }
-            return handle_get_cached_break(agent, vm, o.unbind(), p.unbind(), b.unbind(), gc);
+    // O[[Get]](P, this)
+    let o = reference.base_value().bind(gc.nogc());
+    let receiver = reference.this_value().bind(gc.nogc());
+    let p = reference.referenced_name_property_key().bind(gc.nogc());
+    let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
+    if let ControlFlow::Break(b) = o.get_cached(agent, p, cache, gc.nogc()) {
+        if !keep_reference {
+            vm.reference = None;
         }
+        if let GetCachedResult::Value(value) = b {
+            vm.result = Some(value.unbind());
+            return Ok(());
+        }
+        return handle_get_cached_break(agent, vm, receiver.unbind(), p.unbind(), b.unbind(), gc);
     }
 
     let result = try_get_value(agent, &reference, gc.nogc());
@@ -3930,7 +3923,7 @@ fn get_value_with_cache<'gc>(
 fn handle_get_cached_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    o: Value,
+    receiver: Value,
     p: PropertyKey,
     b: GetCachedResult,
     gc: GcScope<'a, '_>,
@@ -3941,18 +3934,18 @@ fn handle_get_cached_break<'a>(
         }
         GetCachedResult::Get(getter) => {
             let getter = getter.unbind();
-            let o = o.unbind();
+            let receiver = receiver.unbind();
             let result = with_vm_gc(
                 agent,
                 vm,
-                |agent, gc| call_function(agent, getter, o, None, gc),
+                |agent, gc| call_function(agent, getter, receiver, None, gc),
                 gc,
             )?;
             vm.result = Some(result.unbind());
         }
         GetCachedResult::Proxy(proxy) => {
             let proxy = proxy.unbind();
-            let o = o.unbind();
+            let o = receiver.unbind();
             let p = p.unbind();
             let result = with_vm_gc(
                 agent,
