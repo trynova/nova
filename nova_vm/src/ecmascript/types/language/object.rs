@@ -4505,8 +4505,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
                 .set_at_offset(agent, p, offset, value, receiver, gc),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(data) => TypedArray::Float16Array(data)
-                .set_at_offset(agent, p, offset, value, receiver, gc)
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).set_at_offset(agent, p, offset, value, receiver, gc)
