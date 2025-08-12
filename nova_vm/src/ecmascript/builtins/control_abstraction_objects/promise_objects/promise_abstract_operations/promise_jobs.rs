@@ -308,8 +308,7 @@ impl PromiseReactionJob {
                             agent,
                             index,
                             argument.clone().unbind(),
-                            // gc.reborrow(),
-                            gc.nogc(),
+                            gc.reborrow(),
                         );
 
                         // Write back with 'static lifetime
