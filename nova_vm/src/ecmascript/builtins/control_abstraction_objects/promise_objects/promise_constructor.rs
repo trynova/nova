@@ -331,35 +331,36 @@ impl PromiseConstructor {
         //     gc.nogc(),
         // );
 
-        let undefined_values = vec![Value::Undefined; 2];
-        let result_array = Array::from_slice(agent, &undefined_values, gc.nogc());
+        let undefined_values = (vec![Value::Undefined.bind(gc.nogc()); 2]).bind(gc.nogc());
+        let result_array =
+            Array::from_slice(agent, &undefined_values.unbind(), gc.nogc()).bind(gc.nogc());
         let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
             remaining_unresolved_promise_count: 2,
-            result_array,
-            promise: result_promise,
+            result_array: result_array.unbind(),
+            promise: result_promise.unbind(),
         });
 
         inner_promise_then(
             agent,
-            promise_to_await,
+            promise_to_await.unbind(),
             PromiseReactionHandler::PromiseAll {
                 index: 0,
                 promise_all: promise_all_record,
             },
             PromiseReactionHandler::Empty,
-            Some(result_capability),
+            Some(result_capability.unbind()),
             gc.nogc(),
         );
 
         inner_promise_then(
             agent,
-            second_promise,
+            second_promise.unbind(),
             PromiseReactionHandler::PromiseAll {
                 index: 1,
                 promise_all: promise_all_record,
             },
             PromiseReactionHandler::Empty,
-            Some(second_capability),
+            Some(second_capability.unbind()),
             gc.nogc(),
         );
 

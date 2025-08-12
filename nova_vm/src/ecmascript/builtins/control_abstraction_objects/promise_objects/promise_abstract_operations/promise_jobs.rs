@@ -307,7 +307,7 @@ impl PromiseReactionJob {
                         rec_bound.on_promise_fufilled(
                             agent,
                             index,
-                            argument.clone(),
+                            argument.clone().unbind(),
                             gc.reborrow(),
                         );
 
