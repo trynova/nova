@@ -36,21 +36,21 @@ impl<'a> PromiseAllRecordHeapData<'a> {
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
+        mut gc: GcScope<'a, '_>,
     ) {
-        value.bind(gc);
+        value.bind(gc.nogc());
         let elements = self.result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
 
         self.remaining_unresolved_promise_count -= 1;
         if self.remaining_unresolved_promise_count == 0 {
             eprintln!("Promise fulfilled: {:#?}", elements);
-            // let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
-            // capability.resolve(
-            //     agent,
-            //     self.result_array.unbind().into_value(),
-            //     gc.reborrow(),
-            // );
+            let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
+            capability.resolve(
+                agent,
+                self.result_array.unbind().into_value(),
+                gc.reborrow(),
+            );
         }
     }
 }
