@@ -299,6 +299,16 @@ impl<'a> SourceCode<'a> {
         unsafe { agent[agent[self].source].as_str().unwrap_unchecked() }
     }
 
+    /// Access the Scoping information of the SourceCode.
+    pub(crate) fn get_scoping(self, agent: &Agent) -> &Scoping {
+        &agent[self].scoping
+    }
+
+    /// Access the AstNodes information of the SourceCode.
+    pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
+        &agent[self].nodes
+    }
+
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
     }
