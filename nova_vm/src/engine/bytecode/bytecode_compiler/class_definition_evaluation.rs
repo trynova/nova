@@ -569,8 +569,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         // 28. Set F.[[PrivateMethods]] to instancePrivateMethods.
         // 29. Set F.[[Fields]] to instanceFields.
         if has_instance_private_fields_or_methods || !instance_fields.is_empty() {
+            let source_code = ctx.get_source_code();
             let (agent, gc) = ctx.get_agent_and_gc();
-            let mut constructor_ctx = CompileContext::new(agent, gc);
+            let mut constructor_ctx = CompileContext::new(agent, source_code, gc);
             // Resolve 'this' into the stack.
             constructor_ctx.add_instruction(Instruction::ResolveThisBinding);
             constructor_ctx.add_instruction(Instruction::Load);
@@ -598,10 +599,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             }
             // Pop the `this` value off the stack.
             constructor_ctx.add_instruction(Instruction::Store);
+            let source_code = constructor_ctx.get_source_code();
             if let Some(constructor) = constructor {
                 let constructor_data = CompileFunctionBodyData {
                     body: constructor.value.body.as_ref().unwrap(),
                     params: &constructor.value.params,
+                    source_code,
                     is_concise_body: false,
                     is_lexical: false,
                     // Class code is always strict.

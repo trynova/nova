@@ -78,6 +78,15 @@ impl Script<'_> {
         }
     }
 
+    /// Get the script SourceCode.
+    pub(crate) fn get_source_code<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> SourceCode<'a> {
+        agent[self].source_code.bind(gc)
+    }
+
     /// Creates a script identififer from a usize.
     ///
     /// ## Panics

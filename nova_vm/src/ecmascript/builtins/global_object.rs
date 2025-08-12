@@ -386,8 +386,15 @@ pub fn perform_eval<'gc>(
         // 29. If result is a normal completion, then
         match result {
             Ok(_) => {
-                let exe =
-                    Executable::compile_eval_body(agent, body, gc.nogc()).scope(agent, gc.nogc());
+                let source_code = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .source_code
+                    .bind(gc.nogc());
+                let exe = Executable::compile_eval_body(agent, body, source_code, gc.nogc())
+                    .scope(agent, gc.nogc());
                 // a. Set result to Completion(Evaluation of body).
                 // 30. If result is a normal completion and result.[[Value]] is empty, then
                 // a. Set result to NormalCompletion(undefined).

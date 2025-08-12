@@ -155,6 +155,15 @@ impl core::fmt::Debug for SourceTextModule<'_> {
 }
 
 impl<'m> SourceTextModule<'m> {
+    /// Get the script SourceCode.
+    pub(crate) fn get_source_code<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> SourceCode<'a> {
+        self.get(agent).source_code.bind(gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(0, PhantomData)
     }
