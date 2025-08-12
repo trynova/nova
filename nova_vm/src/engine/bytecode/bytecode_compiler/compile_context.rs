@@ -978,6 +978,19 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .add_instruction_with_cache(instruction, cache);
     }
 
+    pub(super) fn add_instruction_with_identifier_and_cache(
+        &mut self,
+        instruction: Instruction,
+        identifier: String<'gc>,
+        cache: PropertyLookupCache<'gc>,
+    ) {
+        self.executable.add_instruction_with_identifier_and_cache(
+            instruction,
+            identifier.to_property_key(),
+            cache,
+        );
+    }
+
     pub(super) fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,

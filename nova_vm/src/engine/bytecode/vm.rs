@@ -571,7 +571,7 @@ impl Vm {
                     executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
 
                 let reference = if let TryResult::Continue(reference) =
-                    try_resolve_binding(agent, identifier, gc.nogc())
+                    try_resolve_binding(agent, identifier, None, gc.nogc())
                 {
                     reference
                 } else {
@@ -579,7 +579,29 @@ impl Vm {
                     with_vm_gc(
                         agent,
                         vm,
-                        |agent, gc| resolve_binding(agent, identifier, None, gc),
+                        |agent, gc| resolve_binding(agent, identifier, None, None, gc),
+                        gc,
+                    )?
+                };
+
+                vm.reference = Some(reference.unbind());
+            }
+            Instruction::ResolveBindingWithCache => {
+                let identifier =
+                    executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
+                let cache = executable.fetch_cache(agent, instr.get_second_index(), gc.nogc());
+
+                let reference = if let TryResult::Continue(reference) =
+                    try_resolve_binding(agent, identifier, Some(cache), gc.nogc())
+                {
+                    reference
+                } else {
+                    let identifier = identifier.unbind();
+                    let cache = cache.unbind();
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| resolve_binding(agent, identifier, Some(cache), None, gc),
                         gc,
                     )?
                 };
@@ -1401,6 +1423,7 @@ impl Vm {
                     unwrap_try(env.try_initialize_binding(
                         agent,
                         name,
+                        None,
                         function.into_value(),
                         gc.nogc(),
                     ))
@@ -1732,10 +1755,15 @@ impl Vm {
                     agent,
                     vm,
                     |agent, mut gc| {
-                        let func_ref =
-                            resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None, gc.reborrow())
-                                .unbind()?
-                                .bind(gc.nogc());
+                        let func_ref = resolve_binding(
+                            agent,
+                            BUILTIN_STRING_MEMORY.eval,
+                            None,
+                            None,
+                            gc.reborrow(),
+                        )
+                        .unbind()?
+                        .bind(gc.nogc());
                         get_value(agent, &func_ref.unbind(), gc)
                     },
                     gc.reborrow(),
@@ -3940,6 +3968,9 @@ fn handle_get_cached_break<'a>(
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     match b {
+        GetCachedResult::Unset => {
+            vm.result = Some(Value::Undefined);
+        }
         GetCachedResult::Value(value) => {
             vm.result = Some(value.unbind());
         }

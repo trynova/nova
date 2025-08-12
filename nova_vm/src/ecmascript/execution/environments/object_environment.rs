@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -11,15 +13,15 @@ use crate::{
             },
             type_conversion::to_boolean,
         },
-        builtins::ordinary::{try_get_ordinary_object_value, try_set_ordinary_object_value},
+        builtins::ordinary::{caches::PropertyLookupCache, try_get_ordinary_object_value},
         execution::{
             Agent, JsResult,
             agent::{ExceptionType, JsError},
             environments::{Environment, ObjectEnvironment, OuterEnv},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, IntoValue, Object,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String, Value,
         },
     },
     engine::{
@@ -129,6 +131,7 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
@@ -138,16 +141,18 @@ impl<'e> ObjectEnvironment<'e> {
         let name = PropertyKey::from(n).bind(gc);
 
         if !is_with_environment
-            && let Object::Object(binding_object) = binding_object
-            && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
+            && let Some(cache) = cache
+            && let ControlFlow::Break(b) = binding_object.get_cached(agent, name, cache, gc)
         {
-            // We either found a value or checked each property in the
-            // prototype chain and found nothing.
-            return TryResult::Continue(value.is_some());
+            return TryResult::Continue(!matches!(b, GetCachedResult::Unset));
         }
 
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
         let found_binding = try_has_property(agent, binding_object, name, gc)?;
+
+        if cache.is_some() {
+            agent.heap.caches.clear_current_cache_to_populate();
+        }
         // 3. If foundBinding is false, return false.
         if !found_binding {
             return TryResult::Continue(false);
@@ -351,12 +356,13 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         v: Value,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
-        self.try_set_mutable_binding(agent, n, v, false, gc)
+        self.try_set_mutable_binding(agent, n, cache, v, false, gc)
         // NOTE
         // In this specification, all uses of CreateMutableBinding for Object
         // Environment Records are immediately followed by a call to
@@ -376,11 +382,12 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         v: Value,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
-        self.set_mutable_binding(agent, n, v, false, gc)?;
+        self.set_mutable_binding(agent, n, cache, v, false, gc)?;
         // 2. Return UNUSED.
         Ok(())
         // NOTE
@@ -405,6 +412,7 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         v: Value,
         s: bool,
         gc: NoGcScope<'a, '_>,
@@ -414,21 +422,39 @@ impl<'e> ObjectEnvironment<'e> {
         let binding_object = env_rec.binding_object.bind(gc);
         let n = PropertyKey::from(n).bind(gc);
 
-        if let Object::Object(binding_object) = binding_object
-            && let Some(set_value) = try_set_ordinary_object_value(agent, binding_object, n, v)
+        if let Some(cache) = cache
+            && let ControlFlow::Break(b) = binding_object.set_cached(
+                agent,
+                &SetCachedProps {
+                    p: n,
+                    receiver: binding_object.into_value(),
+                    cache,
+                    value: v,
+                },
+                gc,
+            )
         {
-            // Key was found on binding object directly and contained a
-            // data property.
-            if !set_value && s {
-                // The key was unwritable and we're in strict mode;
-                // need to throw an error.
-                return TryResult::Continue(throw_set_error(agent, n, gc));
+            match b {
+                SetCachedResult::Done => {}
+                SetCachedResult::Unwritable | SetCachedResult::Accessor => {
+                    if s {
+                        // The key was unwritable and we're in strict mode;
+                        // need to throw an error.
+                        return TryResult::Continue(throw_set_error(agent, n, gc));
+                    }
+                }
+                SetCachedResult::Set(_) | SetCachedResult::Proxy(_) => return TryResult::Break(()),
             }
             return TryResult::Continue(Ok(()));
         }
 
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let still_exists = try_has_property(agent, binding_object, n, gc)?;
+
+        if cache.is_some() {
+            agent.heap.caches.clear_current_cache_to_populate();
+        }
+
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
             TryResult::Continue(Err(Self::throw_property_doesnt_exist_error(
@@ -458,34 +484,60 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         v: Value,
         s: bool,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let env_rec = &agent[self];
+        let env = self.bind(gc.nogc());
+        let env_rec = &agent[env];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let n = PropertyKey::from(n).bind(gc.nogc());
+        let cache = cache.bind(gc.nogc());
+        let v = v.bind(gc.nogc());
 
-        if let Object::Object(binding_object) = binding_object
-            && let Some(set_value) = try_set_ordinary_object_value(agent, binding_object, n, v)
+        if let Some(cache) = cache
+            && let ControlFlow::Break(b) = binding_object.set_cached(
+                agent,
+                &SetCachedProps {
+                    p: n,
+                    receiver: binding_object.into_value(),
+                    cache,
+                    value: v,
+                },
+                gc.nogc(),
+            )
         {
-            // Key was found on binding object directly and contained a
-            // data property.
-            if !set_value && s {
-                // The key was unwritable and we're in strict mode;
-                // need to throw an error.
-                return throw_set_error(agent, n.unbind(), gc.into_nogc());
+            match b {
+                SetCachedResult::Done => {}
+                SetCachedResult::Unwritable | SetCachedResult::Accessor => {
+                    if s {
+                        // The key was unwritable and we're in strict mode;
+                        // need to throw an error.
+                        return throw_set_error(agent, n.unbind(), gc.into_nogc());
+                    }
+                }
+                SetCachedResult::Set(_setter) => todo!(),
+                SetCachedResult::Proxy(_proxy) => todo!(),
             }
             return Ok(());
         }
 
         let scoped_binding_object = binding_object.scope(agent, gc.nogc());
         let scoped_n = n.scope(agent, gc.nogc());
+        let scoped_v = v.scope(agent, gc.nogc());
+
+        let cache_is_some = cache.is_some();
 
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let still_exists =
             has_property(agent, binding_object.unbind(), n.unbind(), gc.reborrow()).unbind()?;
+
+        if cache_is_some {
+            agent.heap.caches.clear_current_cache_to_populate();
+        }
+
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
             let binding_object_repr = scoped_binding_object
@@ -504,7 +556,7 @@ impl<'e> ObjectEnvironment<'e> {
                 agent,
                 scoped_binding_object.get(agent),
                 scoped_n.get(agent),
-                v,
+                scoped_v.get(agent),
                 s,
                 gc,
             )?;
@@ -539,6 +591,7 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         s: bool,
         gc: NoGcScope<'e, '_>,
     ) -> TryResult<JsResult<'e, Value<'e>>> {
@@ -547,25 +600,49 @@ impl<'e> ObjectEnvironment<'e> {
         let binding_object = env_rec.binding_object.bind(gc);
         let name = PropertyKey::from(n).bind(gc);
 
-        if let Object::Object(binding_object) = binding_object
-            && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
+        if let Some(cache) = cache
+            && let ControlFlow::Break(b) = binding_object.get_cached(agent, name, cache, gc)
         {
-            return if let Some(value) = value {
-                // Found the property value.
-                TryResult::Continue(Ok(value))
-            } else {
-                // Property did not exist.
-                TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
+            return match b {
+                GetCachedResult::Unset => {
+                    // Property did not exist.
+                    TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
+                }
+                GetCachedResult::Value(value) => {
+                    // Found the property value.
+                    TryResult::Continue(Ok(value))
+                }
+                GetCachedResult::Get(_) | GetCachedResult::Proxy(_) => TryResult::Break(()),
             };
         }
 
         // 2. Let value be ? HasProperty(bindingObject, N).
         let value = try_has_property(agent, binding_object, name, gc)?;
+
+        if cache.is_some() {
+            agent.heap.caches.clear_current_cache_to_populate();
+        }
+
         // 3. If value is false, then
         if !value {
             TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
         } else {
             // 4. Return ? Get(bindingObject, N).
+            if let Some(cache) = cache
+                && let ControlFlow::Break(b) = binding_object.get_cached(agent, name, cache, gc)
+            {
+                return match b {
+                    GetCachedResult::Unset => {
+                        // Property did not exist.
+                        TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
+                    }
+                    GetCachedResult::Value(value) => {
+                        // Found the property value.
+                        TryResult::Continue(Ok(value))
+                    }
+                    GetCachedResult::Get(_) | GetCachedResult::Proxy(_) => TryResult::Break(()),
+                };
+            }
             TryResult::Continue(Ok(try_get(agent, binding_object, name, gc)?))
         }
     }

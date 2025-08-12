@@ -14,6 +14,7 @@ use crate::{
     engine::{
         TryResult,
         context::{Bindable, GcToken, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, PropertyKeyHeap, WeakReference,
@@ -712,6 +713,29 @@ unsafe impl Bindable for PropertyLookupCache<'_> {
 
     fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> Rootable for PropertyLookupCache<'a> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::PropertyLookupCache(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::PropertyLookupCache(object) => Some(object),
+            _ => None,
+        }
     }
 }
 

@@ -4956,7 +4956,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
             | HeapRootData::GlobalEnvironment(_)
             | HeapRootData::ModuleEnvironment(_)
             | HeapRootData::ObjectEnvironment(_)
-            | HeapRootData::PrivateEnvironment(_) => Err(()),
+            | HeapRootData::PrivateEnvironment(_)
+            | HeapRootData::PropertyLookupCache(_) => Err(()),
         }
     }
 }

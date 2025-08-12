@@ -14,6 +14,7 @@ use crate::{
         abstract_operations::type_conversion::to_string,
         builtins::{
             error::ErrorHeapData,
+            ordinary::caches::PropertyLookupCache,
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_jobs::{
                 PromiseReactionJob, PromiseResolveThenableJob,
@@ -1015,6 +1016,7 @@ pub(crate) fn get_active_script_or_module<'a>(
 pub(crate) fn try_resolve_binding<'a>(
     agent: &mut Agent,
     name: String<'a>,
+    cache: Option<PropertyLookupCache<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
     // 1. If env is not present or env is undefined, then
@@ -1032,7 +1034,7 @@ pub(crate) fn try_resolve_binding<'a>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    try_get_identifier_reference(agent, env, name, strict, gc)
+    try_get_identifier_reference(agent, env, name, cache, strict, gc)
 }
 
 /// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)
@@ -1046,6 +1048,7 @@ pub(crate) fn try_resolve_binding<'a>(
 pub(crate) fn resolve_binding<'a, 'b>(
     agent: &mut Agent,
     name: String<'b>,
+    cache: Option<PropertyLookupCache<'a>>,
     env: Option<Environment>,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, Reference<'a>> {
@@ -1057,6 +1060,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
             agent.current_lexical_environment(gc.nogc())
         })
         .bind(gc.nogc());
+    let cache = cache.bind(gc.nogc());
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
@@ -1069,7 +1073,14 @@ pub(crate) fn resolve_binding<'a, 'b>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    get_identifier_reference(agent, Some(env.unbind()), name.unbind(), strict, gc)
+    get_identifier_reference(
+        agent,
+        Some(env.unbind()),
+        name.unbind(),
+        cache.unbind(),
+        strict,
+        gc,
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

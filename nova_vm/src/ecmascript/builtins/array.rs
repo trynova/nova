@@ -595,7 +595,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(backing_object) = self.get_backing_object(agent) {
                 // Note: this looks up in the prototype chain as well, so we
                 // don't need to fall-through if this returns false or such.
-                return ordinary_try_has_property(agent, backing_object, property_key, gc);
+                return ordinary_try_has_property(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    gc,
+                );
             }
         }
         // Data is not found in the array or its backing object (or one does
@@ -654,7 +660,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(backing_object) = self.get_backing_object(agent) {
                 // Note: this looks up in the prototype chain as well, so we
                 // don't need to fall-through if this returns false or such.
-                return ordinary_has_property(agent, backing_object, property_key, gc);
+                return ordinary_has_property(
+                    agent,
+                    self.into_object(),
+                    backing_object,
+                    property_key,
+                    gc,
+                );
             }
         }
         // Data is not found in the array or its backing object (or one does

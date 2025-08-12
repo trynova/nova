@@ -9,8 +9,8 @@ use crate::{
     ecmascript::{
         builtins::ordinary::{
             caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete,
-            ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_get,
-            ordinary_try_set,
+            ordinary_get_own_property, ordinary_has_property, ordinary_own_property_keys,
+            ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
         },
         execution::{Agent, JsResult},
         types::{
@@ -193,7 +193,7 @@ pub(crate) fn function_try_has_property<'a>(
     gc: NoGcScope,
 ) -> TryResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.try_has_property(agent, property_key, gc)
+        ordinary_try_has_property(agent, func.into_object(), backing_object, property_key, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
@@ -214,7 +214,13 @@ pub(crate) fn function_internal_has_property<'a, 'gc>(
 ) -> JsResult<'gc, bool> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_has_property(agent, property_key.unbind(), gc)
+        ordinary_has_property(
+            agent,
+            func.into_object(),
+            backing_object,
+            property_key.unbind(),
+            gc,
+        )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {

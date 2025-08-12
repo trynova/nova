@@ -267,9 +267,13 @@ where
     ) -> TryResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_try_has_property(agent, backing_object, property_key, gc)
-            }
+            Some(backing_object) => ordinary_try_has_property(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                gc,
+            ),
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 let parent = self.try_get_prototype_of(agent, gc)?;
@@ -296,9 +300,13 @@ where
         let property_key = property_key.bind(gc.nogc());
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
-            }
+            Some(backing_object) => ordinary_has_property(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key.unbind(),
+                gc,
+            ),
             None => {
                 let property_key = property_key.scope(agent, gc.nogc());
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
@@ -622,6 +630,8 @@ where
 /// and the normal \[\[Get]] method variant need not be entered.
 #[derive(Debug)]
 pub enum GetCachedResult<'a> {
+    /// No property exists in the object or its prototype chain.
+    Unset,
     /// A data property was found.
     Value(Value<'a>),
     /// A getter call is needed.

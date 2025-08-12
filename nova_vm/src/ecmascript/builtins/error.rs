@@ -31,8 +31,8 @@ use crate::{
 };
 
 use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_delete, ordinary_get_own_property, ordinary_set,
-    ordinary_try_get, ordinary_try_set,
+    caches::PropertyLookupCache, ordinary_delete, ordinary_get_own_property, ordinary_has_property,
+    ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -219,7 +219,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.try_has_property(agent, property_key, gc),
+            Some(backing_object) => ordinary_try_has_property(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key,
+                gc,
+            ),
             None => {
                 let found_direct =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -250,9 +256,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                backing_object.internal_has_property(agent, property_key.unbind(), gc)
-            }
+            Some(backing_object) => ordinary_has_property(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key.unbind(),
+                gc,
+            ),
             None => {
                 let found_direct =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {

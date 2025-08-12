@@ -259,6 +259,9 @@ pub enum Instruction {
     PutValueWithCache,
     /// Store ResolveBinding() in the reference register.
     ResolveBinding,
+    /// Store ResolveBinding() in the reference register using a property
+    /// lookup cache.
+    ResolveBindingWithCache,
     /// Store ResolveThisBinding() in the result register.
     ResolveThisBinding,
     /// Stop bytecode execution, indicating a return from the current function.
@@ -520,7 +523,8 @@ impl Instruction {
             | Self::ObjectDefineGetter
             | Self::ObjectDefineMethod
             | Self::ObjectDefineSetter
-            | Self::PushExceptionJumpTarget => 2,
+            | Self::PushExceptionJumpTarget
+            | Self::ResolveBindingWithCache => 2,
             Self::ArrayCreate
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
@@ -573,6 +577,7 @@ impl Instruction {
             Self::GetValueWithCache
                 | Self::GetValueWithCacheKeepReference
                 | Self::PutValueWithCache
+                | Self::ResolveBindingWithCache
         )
     }
 
@@ -604,6 +609,7 @@ impl Instruction {
                 | Self::MakePrivateReference
                 | Self::MakeSuperPropertyReferenceWithIdentifierKey
                 | Self::ResolveBinding
+                | Self::ResolveBindingWithCache
                 | Self::VerifyIsObject
         );
 
@@ -968,6 +974,7 @@ impl Instr {
             Instruction::ObjectDefineGetter => "get function() {}".to_string(),
             Instruction::ObjectDefineMethod => "function() {}".to_string(),
             Instruction::ObjectDefineSetter => "set function() {}".to_string(),
+            Instruction::ResolveBindingWithCache => "ResolveBindingWithCache {}".to_string(),
             _ => unreachable!("{kind:?}"),
         }
     }
@@ -1233,6 +1240,7 @@ impl TryFrom<u8> for Instruction {
         const PUTVALUE: u8 = Instruction::PutValue.as_u8();
         const PUTVALUEWITHCACHE: u8 = Instruction::PutValueWithCache.as_u8();
         const RESOLVEBINDING: u8 = Instruction::ResolveBinding.as_u8();
+        const RESOLVEBINDINGWITHCACHE: u8 = Instruction::ResolveBindingWithCache.as_u8();
         const RESOLVETHISBINDING: u8 = Instruction::ResolveThisBinding.as_u8();
         const RETURN: u8 = Instruction::Return.as_u8();
         const STORE: u8 = Instruction::Store.as_u8();
@@ -1443,6 +1451,7 @@ impl TryFrom<u8> for Instruction {
             PUTVALUE => Ok(Instruction::PutValue),
             PUTVALUEWITHCACHE => Ok(Instruction::PutValueWithCache),
             RESOLVEBINDING => Ok(Instruction::ResolveBinding),
+            RESOLVEBINDINGWITHCACHE => Ok(Instruction::ResolveBindingWithCache),
             RESOLVETHISBINDING => Ok(Instruction::ResolveThisBinding),
             RETURN => Ok(Instruction::Return),
             STORE => Ok(Instruction::Store),

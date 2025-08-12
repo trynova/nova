@@ -13,6 +13,7 @@ use crate::{
             },
             testing_and_comparison::{is_extensible, try_is_extensible},
         },
+        builtins::ordinary::caches::PropertyLookupCache,
         execution::{
             Agent, JsResult,
             agent::ExceptionType,
@@ -165,6 +166,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         let env = self.bind(gc);
@@ -178,7 +180,7 @@ impl<'e> GlobalEnvironment<'e> {
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 4. Return ? ObjRec.HasBinding(N).
-        obj_rec.try_has_binding(agent, name, gc)
+        obj_rec.try_has_binding(agent, name, cache, gc)
     }
 
     /// ### [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
@@ -288,6 +290,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
@@ -305,7 +308,7 @@ impl<'e> GlobalEnvironment<'e> {
             // 4. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 5. Return ? ObjRec.InitializeBinding(N, V).
-            obj_rec.try_initialize_binding(agent, name, value, gc)
+            obj_rec.try_initialize_binding(agent, name, cache, value, gc)
         }
     }
 
@@ -321,12 +324,14 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
         let env = self.bind(nogc);
         let name = name.bind(nogc);
+        let cache = cache.bind(nogc);
         let value = value.bind(nogc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -341,7 +346,7 @@ impl<'e> GlobalEnvironment<'e> {
             // 4. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 5. Return ? ObjRec.InitializeBinding(N, V).
-            obj_rec.initialize_binding(agent, name.unbind(), value.unbind(), gc)
+            obj_rec.initialize_binding(agent, name.unbind(), cache.unbind(), value.unbind(), gc)
         }
     }
 
@@ -359,6 +364,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
@@ -375,7 +381,7 @@ impl<'e> GlobalEnvironment<'e> {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.SetMutableBinding(N, V, S).
-            obj_rec.try_set_mutable_binding(agent, name, value, is_strict, gc)
+            obj_rec.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
         }
     }
 
@@ -393,6 +399,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
         gc: GcScope<'a, '_>,
@@ -400,6 +407,7 @@ impl<'e> GlobalEnvironment<'e> {
         let nogc = gc.nogc();
         let env = self.bind(nogc);
         let name = name.bind(nogc);
+        let cache = cache.bind(nogc);
         let value = value.bind(nogc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -418,7 +426,14 @@ impl<'e> GlobalEnvironment<'e> {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.SetMutableBinding(N, V, S).
-            obj_rec.set_mutable_binding(agent, name.unbind(), value.unbind(), is_strict, gc)
+            obj_rec.set_mutable_binding(
+                agent,
+                name.unbind(),
+                cache.unbind(),
+                value.unbind(),
+                is_strict,
+                gc,
+            )
         }
     }
 
@@ -436,6 +451,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
+        cache: Option<PropertyLookupCache>,
         s: bool,
         gc: NoGcScope<'e, '_>,
     ) -> TryResult<JsResult<'e, Value<'e>>> {
@@ -451,7 +467,7 @@ impl<'e> GlobalEnvironment<'e> {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.GetBindingValue(N, S).
-            obj_rec.try_get_binding_value(agent, n, s, gc)
+            obj_rec.try_get_binding_value(agent, n, cache, s, gc)
         }
     }
 
@@ -901,6 +917,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: PropertyLookupCache,
         is_deletable: bool,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
@@ -922,7 +939,9 @@ impl<'e> GlobalEnvironment<'e> {
                 return TryResult::Continue(Err(err));
             }
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            if let Err(err) = obj_rec.try_initialize_binding(agent, name, Value::Undefined, gc)? {
+            if let Err(err) =
+                obj_rec.try_initialize_binding(agent, name, Some(cache), Value::Undefined, gc)?
+            {
                 return TryResult::Continue(Err(err));
             }
         }
@@ -949,12 +968,14 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: PropertyLookupCache,
         is_deletable: bool,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let nogc = gc.nogc();
         let env = self.bind(nogc);
         let name = name.bind(nogc);
+        let cache = cache.bind(nogc);
         let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc.nogc());
@@ -964,6 +985,7 @@ impl<'e> GlobalEnvironment<'e> {
         let n = PropertyKey::from(name);
         let name = name.scope(agent, nogc);
         let env = env.scope(agent, nogc);
+        let cache = cache.scope(agent, nogc);
         let obj_rec = obj_rec.scope(agent, nogc);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let has_property =
@@ -984,6 +1006,7 @@ impl<'e> GlobalEnvironment<'e> {
             unsafe { obj_rec.take(agent) }.initialize_binding(
                 agent,
                 name.get(agent),
+                Some(cache.get(agent)),
                 Value::Undefined,
                 gc,
             )?;
@@ -992,6 +1015,8 @@ impl<'e> GlobalEnvironment<'e> {
             let _ = unsafe { obj_rec.take(agent) };
         }
 
+        // SAFETY: cache is not shared.
+        let _ = unsafe { cache.take(agent) };
         // SAFETY: env is not shared.
         let env = unsafe { env.take(agent) };
         // SAFETY: name is not shared.
