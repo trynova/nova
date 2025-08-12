@@ -36,34 +36,21 @@ impl<'a> PromiseAllRecordHeapData<'a> {
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
+        gc: NoGcScope<'a, '_>,
     ) {
-        value.bind(gc.nogc());
-        let array_slice = self.result_array.as_slice(agent);
-        array_slice
-            .iter()
-            .enumerate()
-            .map(|(i, opt_val)| {
-                if i == index as usize {
-                    value // Use the new value at this index
-                } else {
-                    opt_val.unwrap_or(Value::Undefined) // Keep existing or default
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // Update in place to avoid consuming the GC scope
+        value.bind(gc);
         let elements = self.result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
 
         self.remaining_unresolved_promise_count -= 1;
         if self.remaining_unresolved_promise_count == 0 {
-            let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
-            capability.resolve(
-                agent,
-                self.result_array.unbind().into_value(),
-                gc.reborrow(),
-            );
+            eprintln!("Promise fulfilled: {:#?}", elements);
+            // let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
+            // capability.resolve(
+            //     agent,
+            //     self.result_array.unbind().into_value(),
+            //     gc.reborrow(),
+            // );
         }
     }
 }
