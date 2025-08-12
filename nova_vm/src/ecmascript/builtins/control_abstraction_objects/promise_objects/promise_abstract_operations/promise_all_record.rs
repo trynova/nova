@@ -58,7 +58,7 @@ impl<'a> PromiseAllRecordHeapData<'a> {
 
         self.remaining_unresolved_promise_count -= 1;
         if self.remaining_unresolved_promise_count == 0 {
-            let capability = PromiseCapability::from_promise(self.promise, true);
+            let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
             capability.resolve(
                 agent,
                 self.result_array.unbind().into_value(),
