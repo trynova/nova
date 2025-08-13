@@ -9,6 +9,7 @@ use crate::{
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
+        builtins::ordinary::caches::PropertyLookupCache,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject, Value,
@@ -497,77 +498,60 @@ impl<'a> PropertyDescriptor<'a> {
         // fields.
         let mut desc = PropertyDescriptor::default();
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
-        let has_enumerable =
-            try_has_property(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.enumerable.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_enumerable = try_has_property(agent, obj, key, cache, gc)?;
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
-            let enumerable = map_try_get_into_try_result(try_get(
-                agent,
-                obj,
-                BUILTIN_STRING_MEMORY.enumerable.into(),
-                gc,
-            ))?;
+            let enumerable = map_try_get_into_try_result(try_get(agent, obj, key, cache, gc))?;
             let enumerable = to_boolean(agent, enumerable);
             // b. Set desc.[[Enumerable]] to enumerable.
             desc.enumerable = Some(enumerable);
         }
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
-        let has_configurable =
-            try_has_property(agent, obj, BUILTIN_STRING_MEMORY.configurable.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.configurable.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_configurable = try_has_property(agent, obj, key, cache, gc)?;
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
-            let configurable = map_try_get_into_try_result(try_get(
-                agent,
-                obj,
-                BUILTIN_STRING_MEMORY.configurable.into(),
-                gc,
-            ))?;
+            let configurable = map_try_get_into_try_result(try_get(agent, obj, key, cache, gc))?;
             let configurable = to_boolean(agent, configurable);
             // b. Set desc.[[Configurable]] to configurable.
             desc.configurable = Some(configurable);
         }
         // 7. Let hasValue be ? HasProperty(Obj, "value").
-        let has_value = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.value.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.value.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_value = try_has_property(agent, obj, key, cache, gc)?;
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
-            let value = map_try_get_into_try_result(try_get(
-                agent,
-                obj,
-                BUILTIN_STRING_MEMORY.value.into(),
-                gc,
-            ))?;
+            let value = map_try_get_into_try_result(try_get(agent, obj, key, cache, gc))?;
             // b. Set desc.[[Value]] to value.
             desc.value = Some(value.unbind());
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
-        let has_writable = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.writable.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.writable.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_writable = try_has_property(agent, obj, key, cache, gc)?;
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
-            let writable = map_try_get_into_try_result(try_get(
-                agent,
-                obj,
-                BUILTIN_STRING_MEMORY.writable.into(),
-                gc,
-            ))?;
+            let writable = map_try_get_into_try_result(try_get(agent, obj, key, cache, gc))?;
             let writable = to_boolean(agent, writable);
             // b. Set desc.[[Writable]] to writable.
             desc.writable = Some(writable);
         }
         // 11. Let hasGet be ? HasProperty(Obj, "get").
-        let has_get = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.get.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_get = try_has_property(agent, obj, key, cache, gc)?;
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = map_try_get_into_try_result(try_get(
-                agent,
-                obj,
-                BUILTIN_STRING_MEMORY.get.into(),
-                gc,
-            ))?;
+            let getter = map_try_get_into_try_result(try_get(agent, obj, key, cache, gc))?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
@@ -585,16 +569,13 @@ impl<'a> PropertyDescriptor<'a> {
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
-        let has_set = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.set.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_set = try_has_property(agent, obj, key, cache, gc)?;
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = map_try_get_into_try_result(try_get(
-                agent,
-                obj,
-                BUILTIN_STRING_MEMORY.set.into(),
-                gc,
-            ))?;
+            let setter = map_try_get_into_try_result(try_get(agent, obj, key, cache, gc))?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {

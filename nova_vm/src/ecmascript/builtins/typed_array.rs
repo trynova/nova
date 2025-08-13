@@ -50,7 +50,7 @@ use super::{
     ordinary::{
         caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete, ordinary_get,
         ordinary_get_own_property, ordinary_has_property_entry, ordinary_prevent_extensions,
-        ordinary_set, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
+        ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
         shape::ObjectShape,
     },
 };
@@ -452,6 +452,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         // 1. If P is a String, then
@@ -464,7 +465,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             TryResult::Continue(result.is_some())
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
-            ordinary_try_has_property_entry(agent, self, property_key, gc)
+            ordinary_try_has_property(
+                agent,
+                self.into_object(),
+                self.get_backing_object(agent),
+                property_key,
+                cache,
+                gc,
+            )
         }
     }
 
@@ -479,6 +487,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             Ok(unwrap_try(self.try_has_property(
                 agent,
                 property_key,
+                None,
                 gc.into_nogc(),
             )))
         } else {
@@ -882,27 +891,6 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         }
         // 6. Return keys.
         TryResult::Continue(keys)
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        mut p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        // Note: we mutate P but only if it turns into a valid integer, in
-        // which case we never enter the get_cached path anyway.
-        ta_canonical_numeric_index_string(agent, &mut p, gc);
-        if let PropertyKey::Integer(numeric_index) = p {
-            // i. Return TypedArrayGetElement(O, numericIndex).
-            let numeric_index = numeric_index.into_i64();
-            let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
-            result.map_or(Value::Undefined, |r| r.into_value()).into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.get_cached(agent, p, self.into_value(), cache, gc)
-        }
     }
 
     fn set_cached<'gc>(

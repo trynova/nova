@@ -477,6 +477,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        _cache: Option<PropertyLookupCache>,
         _gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
@@ -512,7 +513,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let gc = gc.into_nogc();
-        Ok(unwrap_try(self.try_has_property(agent, property_key, gc)))
+        Ok(unwrap_try(self.try_has_property(
+            agent,
+            property_key,
+            None,
+            gc,
+        )))
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
@@ -764,17 +770,6 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         exports.for_each(|export_key| own_property_keys.push(export_key));
         own_property_keys.push(WellKnownSymbolIndexes::ToStringTag.into());
         TryResult::Continue(own_property_keys)
-    }
-
-    #[inline(always)]
-    fn get_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: PropertyKey,
-        _: PropertyLookupCache,
-        _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        ControlFlow::Continue(NoCache)
     }
 
     #[inline(always)]

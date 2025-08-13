@@ -292,7 +292,13 @@ impl<'a> PromiseCapability<'a> {
         // a. Perform RejectPromise(promise, then.[[Value]]).
         // b. Return undefined.
         // 11. Let thenAction be then.[[Value]].
-        let then_action = match try_get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc) {
+        let then_action = match try_get(
+            agent,
+            resolution,
+            BUILTIN_STRING_MEMORY.then.into(),
+            None,
+            gc,
+        ) {
             ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
             ControlFlow::Continue(TryGetContinue::Value(v)) => v,
             _ => return TryResult::Break(()),

@@ -1071,6 +1071,7 @@ mod test {
         assert!(unwrap_try(result.try_has_property(
             &mut agent,
             key,
+            None,
             gc.nogc()
         )));
         assert_eq!(
@@ -1136,6 +1137,7 @@ mod test {
         assert!(unwrap_try(result.try_has_property(
             &mut agent,
             key,
+            None,
             gc.nogc()
         )));
         assert_eq!(
@@ -1148,6 +1150,7 @@ mod test {
         assert!(unwrap_try(result.unbind().try_has_property(
             &mut agent,
             key,
+            None,
             gc.nogc()
         )));
         assert_eq!(

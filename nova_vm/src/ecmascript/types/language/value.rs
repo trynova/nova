@@ -4,8 +4,8 @@
 
 use super::{
     BigInt, BigIntHeapData, InternalMethods, IntoValue, NoCache, Number, Numeric, OrdinaryObject,
-    Primitive, PropertyKey, SetCachedProps, SetCachedResult, String, StringHeapData, Symbol,
-    TryGetContinue, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    Primitive, SetCachedProps, SetCachedResult, String, StringHeapData, Symbol, bigint::HeapBigInt,
+    number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -41,7 +41,6 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
-            ordinary::caches::PropertyLookupCache,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
@@ -1118,22 +1117,6 @@ impl<'a> Value<'a> {
         Ok(())
     }
 
-    pub(crate) fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        if let Ok(o) = Object::try_from(self) {
-            o.get_cached(agent, p, cache, gc)
-        } else {
-            Primitive::try_from(self)
-                .unwrap()
-                .get_cached(agent, p, cache, gc)
-        }
-    }
-
     pub(crate) fn set_cached<'gc>(
         self,
         agent: &mut Agent,
@@ -1146,22 +1129,6 @@ impl<'a> Value<'a> {
             Primitive::try_from(self)
                 .unwrap()
                 .set_cached(agent, props, gc)
-        }
-    }
-
-    pub(crate) fn cached_set<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        if let Ok(o) = Object::try_from(self) {
-            o.get_cached(agent, p, cache, gc)
-        } else {
-            Primitive::try_from(self)
-                .unwrap()
-                .get_cached(agent, p, cache, gc)
         }
     }
 }

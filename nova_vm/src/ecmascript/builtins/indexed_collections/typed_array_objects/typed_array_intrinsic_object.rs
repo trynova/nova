@@ -683,6 +683,7 @@ impl TypedArrayPrototype {
             agent,
             o.unbind(),
             PropertyKey::Integer(k.try_into().unwrap()),
+            None,
             gc.into_nogc(),
         )))
     }
@@ -859,7 +860,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try_get_value_or_unset(try_get(agent, o, pk, gc.nogc()));
+            let k_value = unwrap_try_get_value_or_unset(try_get(agent, o, pk, None, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
@@ -1122,7 +1123,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk: PropertyKey = k.try_into().unwrap();
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try_get_value_or_unset(try_get(agent, o, pk, gc.nogc()));
+            let k_value = unwrap_try_get_value_or_unset(try_get(agent, o, pk, None, gc.nogc()));
             // c. Perform ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
             // // SAFETY: pk is Integer, which is what we want for fk as well.
             let fk = unsafe { pk.into_value_unchecked() };
@@ -1225,6 +1226,7 @@ impl TypedArrayPrototype {
                 agent,
                 o,
                 PropertyKey::Integer(k.try_into().unwrap()),
+                None,
                 gc,
             ));
             // b. If SameValueZero(searchElement, elementK) is true, return true.
@@ -1661,7 +1663,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
             // b. Set accumulator to ! Get(O, Pk).
-            let result = unwrap_try_get_value(try_get(agent, o, pk, gc.nogc()));
+            let result = unwrap_try_get_value(try_get(agent, o, pk, None, gc.nogc()));
             // c. Set k to k + 1.
             k += 1;
             result.scope(agent, gc.nogc())
@@ -1674,8 +1676,13 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k_int);
             // b. Let kValue be ! Get(O, Pk).
-            let k_value =
-                unwrap_try_get_value_or_unset(try_get(agent, scoped_o.get(agent), pk, gc.nogc()));
+            let k_value = unwrap_try_get_value_or_unset(try_get(
+                agent,
+                scoped_o.get(agent),
+                pk,
+                None,
+                gc.nogc(),
+            ));
             // c. Set accumulator to ? Call(callback, undefined, « accumulator, kValue, 𝔽(k), O »).
             let result = call_function(
                 agent,
@@ -1755,7 +1762,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
             // b. Set accumulator to ! Get(O, Pk).
-            let result = unwrap_try_get_value_or_unset(try_get(agent, o, pk, gc.nogc()));
+            let result = unwrap_try_get_value_or_unset(try_get(agent, o, pk, None, gc.nogc()));
             // c. Set k to k - 1.
             k -= 1;
             result.scope(agent, gc.nogc())
@@ -1768,8 +1775,13 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k_int);
             // b. Let kValue be ! Get(O, Pk).
-            let k_value =
-                unwrap_try_get_value_or_unset(try_get(agent, scoped_o.get(agent), pk, gc.nogc()));
+            let k_value = unwrap_try_get_value_or_unset(try_get(
+                agent,
+                scoped_o.get(agent),
+                pk,
+                None,
+                gc.nogc(),
+            ));
             // c. Set accumulator to ? Call(callback, undefined, « accumulator, kValue, 𝔽(k), O »).
             let result = call_function(
                 agent,
@@ -1913,7 +1925,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try_get_value_or_unset(try_get(agent, o, pk, gc.nogc()));
+            let k_value = unwrap_try_get_value_or_unset(try_get(agent, o, pk, None, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
@@ -2564,7 +2576,8 @@ fn map_typed_array<'a, T: Viewable>(
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::try_from(k).unwrap();
         // b. Let kValue be ! Get(O, Pk).
-        let k_value = unwrap_try_get_value_or_unset(try_get(agent, o.get(agent), pk, gc.nogc()));
+        let k_value =
+            unwrap_try_get_value_or_unset(try_get(agent, o.get(agent), pk, None, gc.nogc()));
         // c. Let mappedValue be ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
         let mapped_value = call_function(
             agent,

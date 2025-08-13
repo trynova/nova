@@ -264,31 +264,18 @@ where
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_try_has_property(
-                agent,
-                self.into_object(),
-                backing_object,
-                property_key,
-                gc,
-            ),
-            None => {
-                // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = self.try_get_prototype_of(agent, gc)?;
-
-                // 4. If parent is not null, then
-                if let Some(parent) = parent {
-                    // a. Return ? parent.[[HasProperty]](P).
-                    parent.try_has_property(agent, property_key, gc)
-                } else {
-                    // 5. Return false.
-                    TryResult::Continue(false)
-                }
-            }
-        }
+        ordinary_try_has_property(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            cache,
+            gc,
+        )
     }
 
     /// ## \[\[HasProperty\]\]
@@ -489,29 +476,6 @@ where
         Ok(unwrap_try(
             self.try_own_property_keys(agent, gc.into_nogc()),
         ))
-    }
-
-    /// ## \[\[Get]] method with caching.
-    ///
-    /// This method is a variant of the \[\[Get]] method which can never call
-    /// into JavaScript and thus cannot trigger garbage collection. If the
-    /// method would need to call a getter function or a Proxy trap, then the
-    /// method explicit returns a result signifying that need. The caller is
-    /// thus in charge of control flow.
-    ///
-    /// > NOTE: Because the method cannot call getters, the receiver parameter
-    /// > is not part of the API.
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        // A cache-based lookup on an ordinary object can fully rely on the
-        // Object Shape and caches.
-        let shape = self.object_shape(agent);
-        shape.get_cached(agent, p, self.into_value(), cache, gc)
     }
 
     /// ## \[\[Set]] method with caching.

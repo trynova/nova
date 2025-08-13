@@ -134,6 +134,7 @@ impl MapConstructor {
             agent,
             map,
             BUILTIN_STRING_MEMORY.set.to_property_key(),
+            None,
             gc.nogc(),
         );
         let adder = match adder {

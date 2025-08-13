@@ -910,7 +910,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(true)
     }
 
-    fn try_has_property(self, _: &mut Agent, _: PropertyKey, _: NoGcScope) -> TryResult<bool> {
+    fn try_has_property(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Option<PropertyLookupCache>,
+        _: NoGcScope,
+    ) -> TryResult<bool> {
         TryResult::Break(())
     }
 
@@ -1626,17 +1632,6 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     }
 
     #[inline(always)]
-    fn get_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: PropertyKey,
-        _: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        // TODO: Check if self is non-revoked, try to go through the Proxy
-        // without trigger the trap.
-        TryGetContinue::Proxy(self.bind(gc)).into()
-    }
 
     fn set_cached<'gc>(
         self,

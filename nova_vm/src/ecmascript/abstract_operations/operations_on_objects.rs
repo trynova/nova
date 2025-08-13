@@ -23,6 +23,7 @@ use crate::{
         builtins::{
             ArgumentsList, Array, BuiltinConstructorFunction, array_create,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
+            ordinary::caches::PropertyLookupCache,
             proxy::abstract_operations::{
                 try_validate_non_revoked_proxy, validate_non_revoked_proxy,
             },
@@ -82,10 +83,11 @@ pub(crate) fn try_get<'a, 'gc>(
     agent: &mut Agent,
     o: impl InternalMethods<'a>,
     p: PropertyKey,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryGetResult<'gc> {
     // 1. Return ? O.[[Get]](P, O).
-    o.try_get(agent, p, o.into_value(), None, gc)
+    o.try_get(agent, p, o.into_value(), cache, gc)
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -641,10 +643,11 @@ pub(crate) fn try_has_property(
     agent: &mut Agent,
     o: Object,
     p: PropertyKey,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope,
 ) -> TryResult<bool> {
     // 1. Return ? O.[[HasProperty]](P).
-    o.try_has_property(agent, p, gc)
+    o.try_has_property(agent, p, cache, gc)
 }
 
 /// ### [7.3.12 HasProperty ( O, P )](https://tc39.es/ecma262/#sec-hasproperty)
@@ -1109,6 +1112,7 @@ pub(crate) fn try_length_of_array_like<'a>(
         agent,
         obj,
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+        None,
         gc,
     )));
     try_to_length(agent, property, gc)
@@ -1645,7 +1649,7 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
         // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
         // shouldn't need to call [[Get]] except if the object is a Proxy.
         let value = if desc.value.is_none() || matches!(o, Object::Proxy(_)) {
-            match try_get(agent, o, key, gc.nogc()) {
+            match try_get(agent, o, key, None, gc.nogc()) {
                 ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
                 ControlFlow::Continue(TryGetContinue::Value(value)) => value,
                 _ => {
@@ -2083,7 +2087,7 @@ pub(crate) fn copy_data_properties<'a>(
             && desc.enumerable.unwrap()
         {
             // 1. Let propValue be ? Get(from, nextKey).
-            let prop_value = match try_get(agent, from, next_key, gc.nogc()) {
+            let prop_value = match try_get(agent, from, next_key, None, gc.nogc()) {
                 ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
                 ControlFlow::Continue(TryGetContinue::Value(value)) => value,
                 _ => {
@@ -2190,7 +2194,7 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
             let prop_value = if let Some(prop_value) = dest.value {
                 prop_value
             } else {
-                match try_get(agent, from, next_key, gc) {
+                match try_get(agent, from, next_key, None, gc) {
                     ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
                     ControlFlow::Continue(TryGetContinue::Value(value)) => value,
                     _ => {
@@ -2268,7 +2272,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
             && desc.enumerable.unwrap()
         {
             // 1. Let propValue be ? Get(from, nextKey).
-            let prop_value = match try_get(agent, from, next_key, gc.nogc()) {
+            let prop_value = match try_get(agent, from, next_key, None, gc.nogc()) {
                 ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
                 ControlFlow::Continue(TryGetContinue::Value(value)) => value,
                 _ => {

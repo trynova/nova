@@ -13,6 +13,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic, array_create,
+            ordinary::caches::PropertyLookupCache,
             regexp::{
                 advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
                 reg_exp_test, require_internal_slot_reg_exp,
@@ -678,10 +679,12 @@ impl RegExpPrototype {
         // 1. Let R be the this value.
         let r = this_value.bind(gc.nogc());
         if let (Ok(s), Value::RegExp(r)) = (String::try_from(s), r) {
+            let key = BUILTIN_STRING_MEMORY.exec.to_property_key();
             let exec = try_get(
                 agent,
                 r,
-                BUILTIN_STRING_MEMORY.exec.to_property_key(),
+                key,
+                PropertyLookupCache::get(agent, key),
                 gc.nogc(),
             );
             if exec

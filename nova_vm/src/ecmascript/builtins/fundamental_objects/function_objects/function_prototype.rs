@@ -228,6 +228,7 @@ impl FunctionPrototype {
                 agent,
                 target,
                 BUILTIN_STRING_MEMORY.length.to_property_key(),
+                None,
                 gc.nogc(),
             );
             let target_len = match target_len {
@@ -295,6 +296,7 @@ impl FunctionPrototype {
             agent,
             target,
             BUILTIN_STRING_MEMORY.name.to_property_key(),
+            None,
             gc.nogc(),
         );
         let target_name = match target_name {

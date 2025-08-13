@@ -2222,7 +2222,7 @@ impl Vm {
                     property_key
                 };
                 let result = if let TryResult::Continue(result) =
-                    try_has_property(agent, rval, property_key, gc.nogc())
+                    try_has_property(agent, rval, property_key, None, gc.nogc())
                 {
                     result
                 } else {
@@ -3809,7 +3809,7 @@ fn execute_get_value<'gc>(
                 .unbind()?
                 .bind(gc.nogc())
         } else {
-            vm.reference.as_ref().unwrap().clone().bind(gc.nogc())
+            reference.clone().bind(gc.nogc())
         }
     } else {
         vm.reference.take().unwrap()

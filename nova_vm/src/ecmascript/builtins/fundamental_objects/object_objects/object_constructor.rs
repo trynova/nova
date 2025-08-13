@@ -1298,7 +1298,7 @@ fn try_object_define_properties<'a, 'gc, T: InternalMethods<'a>>(
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = match try_get(agent, props, next_key, gc) {
+        let desc_obj = match try_get(agent, props, next_key, None, gc) {
             ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
             ControlFlow::Continue(TryGetContinue::Value(v)) => v,
             ControlFlow::Break(TryBreak::Error(err)) => return TryResult::Continue(Err(err)),

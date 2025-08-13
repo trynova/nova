@@ -17,7 +17,10 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, array_create,
-            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+            ordinary::{
+                caches::PropertyLookupCache, ordinary_create_from_constructor,
+                ordinary_object_create_with_intrinsics,
+            },
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
@@ -337,10 +340,12 @@ fn reg_exp_exec_prepare<'a>(
     let mut s = s.bind(gc.nogc());
     let mut r = r.bind(gc.nogc());
     // 1. Let exec be ? Get(R, "exec").
+    let key = BUILTIN_STRING_MEMORY.exec.to_property_key();
     let exec = try_get(
         agent,
         r,
-        BUILTIN_STRING_MEMORY.exec.to_property_key(),
+        key,
+        PropertyLookupCache::get(agent, key),
         gc.nogc(),
     );
     let exec = match exec {
@@ -495,6 +500,7 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
             agent,
             r,
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            None,
             gc.nogc(),
         ));
         if let TryResult::Continue(last_index) = try_to_length(agent, last_index, gc.nogc()) {

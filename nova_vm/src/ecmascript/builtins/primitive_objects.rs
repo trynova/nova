@@ -40,7 +40,7 @@ use small_string::SmallString;
 
 use super::ordinary::{
     caches::PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
-    ordinary_try_has_property_entry, ordinary_try_set, shape::ObjectShape,
+    ordinary_try_has_property, ordinary_try_set, shape::ObjectShape,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -306,6 +306,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data)
@@ -315,7 +316,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
-        ordinary_try_has_property_entry(agent, self, property_key, gc)
+        ordinary_try_has_property(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            cache,
+            gc,
+        )
     }
 
     fn internal_has_property<'gc>(
@@ -542,23 +550,6 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 TryResult::Continue(ordinary_own_property_keys(agent, backing_object, gc))
             }
             None => TryResult::Continue(vec![]),
-        }
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        if let Ok(string) = String::try_from(agent[self].data)
-            && let Some(value) = string.get_property_value(agent, p)
-        {
-            value.into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.get_cached(agent, p, self.into_value(), cache, gc)
         }
     }
 

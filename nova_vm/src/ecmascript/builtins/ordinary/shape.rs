@@ -181,7 +181,7 @@ impl<'a> ObjectShape<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         let shape = self;
-        if let Some((offset, prototype)) = cache.find(agent, shape) {
+        if let Some((offset, prototype)) = cache.find_cached_property_offset(agent, shape) {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
@@ -208,7 +208,7 @@ impl<'a> ObjectShape<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         let shape = self;
-        if let Some((offset, prototype)) = props.cache.find(agent, shape) {
+        if let Some((offset, prototype)) = props.cache.find_cached_property_offset(agent, shape) {
             // A cached lookup result was found.
             if let Some(prototype) = prototype {
                 prototype.set_at_offset(agent, props, offset, gc)
@@ -232,7 +232,7 @@ impl<'a> ObjectShape<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
         let shape = self;
-        if let Some((offset, prototype)) = props.cache.find(agent, shape) {
+        if let Some((offset, prototype)) = props.cache.find_cached_property_offset(agent, shape) {
             // A cached lookup result was found.
             if let Some(prototype) = prototype {
                 debug_assert!(!offset.is_unset());

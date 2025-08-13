@@ -450,6 +450,18 @@ pub(crate) struct PropertyLookupCacheResult<'a> {
 }
 
 impl<'a> PropertyLookupCache<'a> {
+    /// Get a property lookup cache entry for this key if one exists.
+    pub(crate) fn get(agent: &Agent, key: PropertyKey<'a>) -> Option<PropertyLookupCache<'a>> {
+        let hash = key.heap_hash(agent);
+        agent
+            .heap
+            .caches
+            .property_lookup_cache_lookup_table
+            .find(hash, |(k, _)| *k == key)
+            .map(|(_, c)| c.0)
+    }
+
+    /// Get or create a property lookup cache entry for this key.
     pub(crate) fn new(agent: &mut Agent, key: PropertyKey<'a>) -> PropertyLookupCache<'a> {
         let hash = key.heap_hash(agent);
         let caches = &mut agent.heap.caches;
@@ -475,7 +487,9 @@ impl<'a> PropertyLookupCache<'a> {
         }
     }
 
-    pub(crate) fn find(
+    /// Find a cached property offset (possibly in a prototype) in this
+    /// property lookup cache for the given Object Shape.
+    pub(crate) fn find_cached_property_offset(
         self,
         agent: &Agent,
         shape: ObjectShape<'a>,
@@ -498,20 +512,20 @@ impl<'a> PropertyLookupCache<'a> {
             };
             Some((offset, prototype))
         } else if let Some(next) = record.next {
-            next.find(agent, shape)
+            next.find_cached_property_offset(agent, shape)
         } else {
             None
         }
     }
 
     pub(crate) fn insert_unset(self, agent: &mut Agent, shape: ObjectShape<'a>) {
-        debug_assert!(self.find(agent, shape).is_none());
+        debug_assert!(self.find_cached_property_offset(agent, shape).is_none());
         let offset = PropertyOffset::UNSET;
         let caches = &mut agent.heap.caches;
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, _) = cache.get_mut(caches);
+            let (record, _) = cache.get_record_mut(caches);
             if record.insert(shape, offset).is_some() {
                 return;
             }
@@ -546,7 +560,7 @@ impl<'a> PropertyLookupCache<'a> {
         shape: ObjectShape<'a>,
         index: u32,
     ) {
-        debug_assert!(self.find(agent, shape).is_none());
+        debug_assert!(self.find_cached_property_offset(agent, shape).is_none());
         let Some(offset) = PropertyOffset::new(index) else {
             return;
         };
@@ -554,7 +568,7 @@ impl<'a> PropertyLookupCache<'a> {
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, _) = cache.get_mut(caches);
+            let (record, _) = cache.get_record_mut(caches);
             if record.insert(shape, offset).is_some() {
                 return;
             }
@@ -591,7 +605,7 @@ impl<'a> PropertyLookupCache<'a> {
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, _) = cache.get_mut(caches);
+            let (record, _) = cache.get_record_mut(caches);
             if record.insert_if_not_found(shape, offset).is_some() {
                 return;
             }
@@ -619,7 +633,7 @@ impl<'a> PropertyLookupCache<'a> {
         index: u32,
         prototype: Object<'a>,
     ) {
-        debug_assert!(self.find(agent, shape).is_none());
+        debug_assert!(self.find_cached_property_offset(agent, shape).is_none());
         let Some(offset) = PropertyOffset::new_prototype(index) else {
             return;
         };
@@ -627,7 +641,7 @@ impl<'a> PropertyLookupCache<'a> {
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, prototypes) = cache.get_mut(caches);
+            let (record, prototypes) = cache.get_record_mut(caches);
             if let Some(i) = record.insert(shape, offset) {
                 debug_assert!(offset.is_prototype_property());
                 let previous = prototypes.prototypes[i as usize].replace(prototype.unbind());
@@ -673,7 +687,7 @@ impl<'a> PropertyLookupCache<'a> {
     }
 
     #[inline(always)]
-    fn get<'c>(
+    fn get_record<'c>(
         self,
         caches: &'c Caches<'a>,
     ) -> (
@@ -688,7 +702,7 @@ impl<'a> PropertyLookupCache<'a> {
     }
 
     #[inline(always)]
-    fn get_mut<'c>(
+    fn get_record_mut<'c>(
         self,
         caches: &'c mut Caches<'static>,
     ) -> (

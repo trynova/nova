@@ -40,7 +40,7 @@ use crate::{
 pub(crate) use data::*;
 pub use into_function::IntoFunction;
 pub(crate) use into_function::{
-    FunctionInternalProperties, function_create_backing_object, function_get_cached,
+    FunctionInternalProperties, function_create_backing_object,
     function_internal_define_own_property, function_internal_delete, function_internal_get,
     function_internal_get_own_property, function_internal_has_property,
     function_internal_own_property_keys, function_internal_set, function_set_cached,
@@ -383,16 +383,19 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
-            Function::BoundFunction(x) => x.try_has_property(agent, property_key, gc),
-            Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, gc),
-            Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BoundFunction(x) => x.try_has_property(agent, property_key, cache, gc),
+            Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, cache, gc),
+            Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, cache, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_has_property(agent, property_key, cache, gc)
+            }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_has_property(agent, property_key, gc)
+                x.try_has_property(agent, property_key, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -550,25 +553,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_own_property_keys(agent, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-        }
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        match self {
-            Function::BoundFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::ECMAScriptFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinPromiseResolvingFunction(f) => f.get_cached(agent, p, cache, gc),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }

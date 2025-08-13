@@ -17,8 +17,7 @@ use crate::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
             InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, NoCache, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
-            function_create_backing_object, function_get_cached,
+            SetCachedResult, String, TryGetResult, Value, function_create_backing_object,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
             function_internal_own_property_keys, function_internal_set, function_set_cached,
@@ -619,9 +618,10 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
-        function_try_has_property(self, agent, property_key, gc)
+        function_try_has_property(self, agent, property_key, cache, gc)
     }
 
     fn internal_has_property<'gc>(
@@ -691,16 +691,6 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        function_get_cached(self, agent, p, cache, gc)
     }
 
     fn set_cached<'gc>(

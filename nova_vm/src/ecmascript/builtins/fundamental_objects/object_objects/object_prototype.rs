@@ -14,7 +14,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
-            primitive_objects::PrimitiveObjectData,
+            ordinary::caches::PropertyLookupCache, primitive_objects::PrimitiveObjectData,
         },
         execution::{Agent, JsResult, Realm},
         types::{
@@ -258,10 +258,12 @@ impl ObjectPrototype {
             }
         };
         // 15. Let tag be ? Get(O, @@toStringTag).
+        let key = WellKnownSymbolIndexes::ToStringTag.into();
         let tag = try_get(
             agent,
             o_or_prototype,
-            WellKnownSymbolIndexes::ToStringTag.into(),
+            key,
+            PropertyLookupCache::get(agent, key),
             gc.nogc(),
         );
         let tag = match tag {

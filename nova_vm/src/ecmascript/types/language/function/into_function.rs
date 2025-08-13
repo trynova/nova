@@ -87,28 +87,6 @@ pub(crate) fn function_create_backing_object<'a>(
     backing_object
 }
 
-pub(crate) fn function_get_cached<'a, 'gc>(
-    func: impl FunctionInternalProperties<'a>,
-    agent: &mut Agent,
-    p: PropertyKey,
-    cache: PropertyLookupCache,
-    gc: NoGcScope<'gc, '_>,
-) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-    let bo = func.get_backing_object(agent);
-    if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-        func.get_length(agent).into_value().bind(gc).into()
-    } else if bo.is_none() && p == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        func.get_name(agent).into_value().bind(gc).into()
-    } else {
-        let shape = if let Some(bo) = bo {
-            bo.object_shape(agent)
-        } else {
-            func.object_shape(agent)
-        };
-        shape.get_cached(agent, p, func.into_value(), cache, gc)
-    }
-}
-
 pub(crate) fn function_set_cached<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
@@ -190,19 +168,25 @@ pub(crate) fn function_try_has_property<'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope,
 ) -> TryResult<bool> {
-    if let Some(backing_object) = func.get_backing_object(agent) {
-        ordinary_try_has_property(agent, func.into_object(), backing_object, property_key, gc)
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-        || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+    let backing_object = func.get_backing_object(agent);
+
+    if backing_object.is_none()
+        && (property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
+            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
     {
         TryResult::Continue(true)
     } else {
-        let parent = unwrap_try(func.try_get_prototype_of(agent, gc));
-        parent.map_or(TryResult::Continue(false), |parent| {
-            parent.try_has_property(agent, property_key, gc)
-        })
+        ordinary_try_has_property(
+            agent,
+            func.into_object(),
+            backing_object,
+            property_key,
+            cache,
+            gc,
+        )
     }
 }
 

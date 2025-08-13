@@ -206,23 +206,21 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
             TryResult::Continue(true)
-        } else if let Some(backing_object) = self.get_backing_object(agent) {
-            ordinary_try_has_property(agent, self.into_object(), backing_object, property_key, gc)
         } else {
-            // a. Let parent be ? O.[[GetPrototypeOf]]().
-            // Note: We know statically what this ends up doing.
-            let parent = agent
-                .current_realm_record()
-                .intrinsics()
-                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
-
-            // a. Return ? parent.[[HasProperty]](P).
-            parent.try_has_property(agent, property_key, gc)
+            ordinary_try_has_property(
+                agent,
+                self.into_object(),
+                self.get_backing_object(agent),
+                property_key,
+                cache,
+                gc,
+            )
         }
     }
 
@@ -401,31 +399,6 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 vec![BUILTIN_STRING_MEMORY.lastIndex.into()]
             },
         )
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
-        // Regardless of the backing object, we might have a valid value
-        // for lastIndex.
-        if p == BUILTIN_STRING_MEMORY.lastIndex.into()
-            && let Some(last_index) = agent[self].last_index.get_value()
-        {
-            last_index.into_value().into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.get_cached(
-                agent,
-                p.bind(gc),
-                self.into_value().bind(gc),
-                cache.bind(gc),
-                gc,
-            )
-        }
     }
 
     fn set_cached<'gc>(
