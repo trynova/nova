@@ -35,7 +35,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
-            PropertyKey, PropertyKeySet, String, TryGetContinue, TryGetResult, Value,
+            PropertyKey, PropertyKeySet, String, TryBreak, TryGetContinue, TryGetResult, Value,
             map_try_get_into_try_result_or_error, rethrow_try_get_result, rethrow_try_js_result,
         },
     },
@@ -2467,10 +2467,10 @@ pub(crate) fn try_private_get<'a>(
     o: Object,
     p: PrivateName,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<'a, Value<'a>>> {
+) -> TryGetResult<'a> {
     let o = o.bind(gc);
     if o.is_proxy() {
-        return TryResult::Continue(Err(throw_no_proxy_private_names(agent, gc)));
+        return TryBreak::Error(throw_no_proxy_private_names(agent, gc)).into();
     }
     // 1. Let entry be PrivateElementFind(O, P).
     match private_element_find(agent, o, p) {
@@ -2487,22 +2487,23 @@ pub(crate) fn try_private_get<'a>(
                         && !d.is_writable().unwrap()
                         && !d.is_enumerable())
             );
-            TryResult::Continue(Ok(value.bind(gc)))
+            TryGetContinue::Value(value.bind(gc)).into()
         }
         Some((None, Some(descriptor))) => {
             // 4. Assert: entry.[[Kind]] is accessor.
             assert!(descriptor.is_accessor_descriptor());
             // 5. If entry.[[Get]] is undefined, throw a TypeError exception.
             // 6. Let getter be entry.[[Get]].
-            let Some(_getter) = descriptor.getter_function(gc) else {
-                return TryResult::Continue(Err(throw_no_private_name_getter_error(agent, gc)));
-            };
-            // 7. Return ? Call(getter, O).
-            // Note: can't call getters in try-methods.
-            TryResult::Break(())
+            if let Some(getter) = descriptor.getter_function(gc) {
+                // 7. Return ? Call(getter, O).
+                // Note: can't call getters in try-methods.
+                TryGetContinue::Get(getter).into()
+            } else {
+                TryBreak::Error(throw_no_private_name_getter_error(agent, gc)).into()
+            }
         }
         // 2. If entry is empty, throw a TypeError exception.
-        _ => TryResult::Continue(Err(throw_no_private_name_error(agent, gc))),
+        _ => TryBreak::Error(throw_no_private_name_error(agent, gc)).into(),
     }
 }
 

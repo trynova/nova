@@ -52,11 +52,12 @@ use crate::{
             BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, SetCachedProps,
-            SetCachedResult, SetProps, String, TryGetContinue, Value, call_proxy_set,
-            get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
-            throw_cannot_set_property, throw_read_undefined_or_null_error, try_get_value,
-            try_initialize_referenced_binding, try_put_value,
+            SetCachedResult, SetProps, String, TryBreak, TryGetValueContinue, Value,
+            call_proxy_set, get_this_value, get_value, initialize_referenced_binding,
+            is_private_reference, is_property_reference, is_super_reference,
+            is_unresolvable_reference, put_value, throw_cannot_set_property,
+            throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
+            try_put_value,
         },
     },
     engine::{
@@ -1057,77 +1058,16 @@ impl Vm {
                 put_value_with_cache(agent, vm, executable, instr, gc)?;
             }
             Instruction::GetValueWithCache => {
-                get_value_with_cache(agent, vm, executable, instr, false, gc)?;
+                execute_get_value(agent, vm, executable, instr, true, false, gc)?;
             }
             Instruction::GetValue => {
-                // 1. If V is not a Reference Record, return V.
-                let reference = vm.reference.take().unwrap();
-
-                let result = if let TryResult::Continue(result) =
-                    try_get_value(agent, &reference, gc.nogc())
-                {
-                    result.unbind()?.bind(gc.into_nogc())
-                } else {
-                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
-                };
-
-                vm.result = Some(result.unbind());
+                execute_get_value(agent, vm, executable, instr, false, false, gc)?;
             }
             Instruction::GetValueKeepReference => {
-                // 1. If V is not a Reference Record, return V.
-                let reference = vm.reference.as_ref().unwrap();
-
-                let reference = if is_property_reference(reference)
-                    && !reference.is_static_property_reference()
-                {
-                    // Expression reference; we need to convert to PropertyKey
-                    // first.
-                    let referenced_name = reference.referenced_name_value();
-                    let referenced_name = if let TryResult::Continue(referenced_name) =
-                        to_property_key_simple(agent, referenced_name, gc.nogc())
-                    {
-                        referenced_name
-                    } else {
-                        let base = reference.base_value();
-                        if base.is_undefined() || base.is_null() {
-                            // Undefined and null should throw an error from
-                            // ToObject before ToPropertyKey gets called.
-                            return Err(throw_read_undefined_or_null_error(
-                                agent,
-                                referenced_name,
-                                base,
-                                gc.into_nogc(),
-                            ));
-                        }
-                        let referenced_name = referenced_name.unbind();
-                        with_vm_gc(
-                            agent,
-                            vm,
-                            |agent, gc| to_property_key_complex(agent, referenced_name, gc),
-                            gc.reborrow(),
-                        )
-                        .unbind()?
-                        .bind(gc.nogc())
-                    };
-                    let reference = vm.reference.as_mut().unwrap();
-                    reference.set_referenced_name_to_property_key(referenced_name);
-                    reference.clone()
-                } else {
-                    reference.clone()
-                };
-
-                let result = if let TryResult::Continue(result) =
-                    try_get_value(agent, &reference, gc.nogc())
-                {
-                    result.unbind()?.bind(gc.into_nogc())
-                } else {
-                    with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
-                };
-
-                vm.result = Some(result.unbind());
+                execute_get_value(agent, vm, executable, instr, false, true, gc)?;
             }
             Instruction::GetValueWithCacheKeepReference => {
-                get_value_with_cache(agent, vm, executable, instr, true, gc)?;
+                execute_get_value(agent, vm, executable, instr, true, true, gc)?;
             }
             Instruction::Typeof => {
                 // 2. If val is a Reference Record, then
@@ -1138,19 +1078,21 @@ impl Vm {
                         Value::Undefined
                     } else {
                         // 3. Set val to ? GetValue(val).
-                        if let TryResult::Continue(result) =
-                            try_get_value(agent, &reference, gc.nogc())
-                        {
-                            result.unbind()?.bind(gc.nogc())
-                        } else {
-                            with_vm_gc(
+                        let result = try_get_value(agent, &reference, None, gc.nogc());
+                        match result {
+                            ControlFlow::Continue(TryGetValueContinue::Unset) => Value::Undefined,
+                            ControlFlow::Continue(TryGetValueContinue::Value(value)) => value,
+                            ControlFlow::Break(TryBreak::Error(err)) => {
+                                return Err(err.unbind().bind(gc.into_nogc()));
+                            }
+                            _ => with_vm_gc(
                                 agent,
                                 vm,
                                 |agent, gc| get_value(agent, &reference, gc),
                                 gc.reborrow(),
                             )
                             .unbind()?
-                            .bind(gc.nogc())
+                            .bind(gc.nogc()),
                         }
                     }
                 } else {
@@ -3850,155 +3792,119 @@ fn delete_evaluation<'a>(
     // choose to avoid the actual creation of that object.
 }
 
-fn set_value_by_offset<'a>(
-    agent: &mut Agent,
-    vm: &mut Vm,
-    o: (Object, OrdinaryObject),
-    offset: u16,
-    value: Value,
-    strict: bool,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    let object = o.0.bind(gc.nogc());
-    let backing_object = o.1.bind(gc.nogc());
-    let value = value.bind(gc.nogc());
-
-    // SAFETY: I'm pretty sure this is okay.
-    match unsafe { backing_object.try_set_property_by_offset(agent, offset, value, gc.nogc()) } {
-        ControlFlow::Continue(succeeded) => {
-            if !succeeded && strict {
-                // Failed to set.
-                Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "failed to set property",
-                    gc.into_nogc(),
-                ))
-            } else {
-                Ok(())
-            }
-        }
-        ControlFlow::Break(setter) => {
-            let setter = setter.unbind();
-            let object = object.unbind();
-            let mut value = value.unbind();
-            with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| {
-                    call_function(
-                        agent,
-                        setter,
-                        object.into_value(),
-                        Some(ArgumentsList::from_mut_value(&mut value)),
-                        gc,
-                    )
-                    .map(|_| ())
-                },
-                gc,
-            )
-        }
-    }
-}
-
-fn get_value_with_cache<'gc>(
+fn execute_get_value<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
     executable: Scoped<Executable>,
     instr: &Instr,
+    cache: bool,
     keep_reference: bool,
-    gc: GcScope<'gc, '_>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     // 1. If V is not a Reference Record, return V.
-    let reference = vm.reference.as_ref().unwrap();
-
-    assert!(reference.is_static_property_reference());
-
-    // O[[Get]](P, this)
-    let o = reference.base_value().bind(gc.nogc());
-    let p = reference.referenced_name_property_key().bind(gc.nogc());
-    if o.is_null() || o.is_undefined() {
-        return Err(throw_read_undefined_or_null_error(
-            agent,
-            // SAFETY: we do not care about the property key Value representation
-            // in error logging.
-            unsafe { p.unbind().into_value_unchecked() },
-            o.unbind(),
-            gc.into_nogc(),
-        ));
-    }
-    let receiver = reference.this_value().bind(gc.nogc());
-    let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-    if let ControlFlow::Break(b) = o.get_cached(agent, p, cache, gc.nogc()) {
-        if !keep_reference {
-            vm.reference = None;
-        }
-        if let TryGetContinue::Value(value) = b {
-            vm.result = Some(value.unbind());
-            return Ok(());
-        }
-        return handle_get_cached_break(agent, vm, receiver.unbind(), p.unbind(), b.unbind(), gc);
-    }
-
-    let result = try_get_value(agent, reference, gc.nogc());
-    agent.heap.caches.clear_current_cache_to_populate();
-
-    if let TryResult::Continue(result) = result {
-        if !keep_reference {
-            vm.reference = None;
-        }
-        vm.result = Some(result.unbind()?);
-    } else {
-        let reference = if keep_reference {
-            reference.clone()
+    let reference = if keep_reference {
+        let reference = vm.reference.as_ref().unwrap();
+        if is_property_reference(reference) && !reference.is_static_property_reference() {
+            mutate_reference_property_key(agent, vm, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
         } else {
-            vm.reference.take().unwrap()
-        };
-        vm.result =
-            Some(with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc).unbind()?);
-    }
+            vm.reference.as_ref().unwrap().clone().bind(gc.nogc())
+        }
+    } else {
+        vm.reference.take().unwrap()
+    };
+
+    let cache = if cache {
+        Some(executable.fetch_cache(agent, instr.get_first_index(), gc.nogc()))
+    } else {
+        None
+    };
+
+    let result = try_get_value(agent, &reference, cache, gc.nogc());
+    let result = match result {
+        ControlFlow::Continue(TryGetValueContinue::Unset) => Value::Undefined,
+        ControlFlow::Continue(TryGetValueContinue::Value(value)) => value,
+        ControlFlow::Break(TryBreak::Error(err)) => {
+            return Err(err.unbind().bind(gc.into_nogc()));
+        }
+        _ => handle_get_value_break(agent, vm, &reference.unbind(), result.unbind(), gc)?,
+    };
+    vm.result = Some(result.unbind());
     Ok(())
 }
 
-fn handle_get_cached_break<'a>(
+fn mutate_reference_property_key<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    receiver: Value,
-    p: PropertyKey,
-    b: TryGetContinue,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Reference<'a>> {
+    let reference = vm.reference.as_ref().unwrap();
+    // Expression reference; we need to convert to PropertyKey
+    // first.
+    let referenced_name = reference.referenced_name_value();
+    let referenced_name = if let TryResult::Continue(referenced_name) =
+        to_property_key_simple(agent, referenced_name, gc.nogc())
+    {
+        referenced_name
+    } else {
+        let base = reference.base_value();
+        if base.is_undefined() || base.is_null() {
+            // Undefined and null should throw an error from
+            // ToObject before ToPropertyKey gets called.
+            return Err(throw_read_undefined_or_null_error(
+                agent,
+                referenced_name,
+                base,
+                gc.into_nogc(),
+            ));
+        }
+        let referenced_name = referenced_name.unbind();
+        with_vm_gc(
+            agent,
+            vm,
+            |agent, gc| to_property_key_complex(agent, referenced_name, gc),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc())
+    };
+    let reference = vm.reference.as_mut().unwrap();
+    reference.set_referenced_name_to_property_key(referenced_name);
+    Ok(reference.clone())
+}
+
+#[inline(never)]
+fn handle_get_value_break<'a>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    reference: &Reference,
+    result: ControlFlow<TryBreak, TryGetValueContinue>,
     gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    match b {
-        TryGetContinue::Unset => {
-            vm.result = Some(Value::Undefined);
-        }
-        TryGetContinue::Value(value) => {
-            vm.result = Some(value.unbind());
-        }
-        TryGetContinue::Get(getter) => {
-            let getter = getter.unbind();
-            let receiver = receiver.unbind();
-            let result = with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| call_function(agent, getter, receiver, None, gc),
-                gc,
-            )?;
-            vm.result = Some(result.unbind());
-        }
-        TryGetContinue::Proxy(proxy) => {
-            let proxy = proxy.unbind();
-            let o = receiver.unbind();
-            let p = p.unbind();
-            let result = with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| proxy.internal_get(agent, p, o, gc),
-                gc,
-            )?;
-            vm.result = Some(result.unbind());
-        }
-    }
-    Ok(())
+) -> JsResult<'a, Value<'a>> {
+    let result = result.unbind();
+    with_vm_gc(
+        agent,
+        vm,
+        |agent, mut gc| match result {
+            ControlFlow::Continue(TryGetValueContinue::Get { getter, receiver }) => {
+                call_function(agent, getter, receiver, None, gc)
+            }
+            ControlFlow::Continue(TryGetValueContinue::Proxy {
+                proxy,
+                receiver,
+                property_key,
+            }) => proxy.internal_get(agent, property_key, receiver, gc),
+            ControlFlow::Break(b) => {
+                if matches!(b, TryBreak::FailedToAllocate) {
+                    agent.gc(gc.reborrow());
+                }
+                get_value(agent, &reference, gc)
+            }
+            _ => unreachable!(),
+        },
+        gc,
+    )
 }
 
 fn put_value_with_cache<'gc>(
