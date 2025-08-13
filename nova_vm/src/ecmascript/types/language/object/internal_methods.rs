@@ -20,7 +20,7 @@ use crate::{
             proxy::Proxy,
         },
         execution::{Agent, JsResult},
-        types::{Function, PropertyDescriptor, Value},
+        types::{Function, IntoValue, PropertyDescriptor, Value, throw_cannot_set_property},
     },
     engine::{
         TryResult,
@@ -722,4 +722,68 @@ unsafe impl Bindable for SetCachedResult<'_> {
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
+}
+
+pub struct SetProps<'a> {
+    pub receiver: Value<'a>,
+    pub p: PropertyKey<'a>,
+    pub value: Value<'a>,
+    pub strict: bool,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SetProps<'_> {
+    type Of<'a> = SetProps<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+/// Helper function for calling a Proxy [[Set]] trap when triggered by finding
+/// a Proxy used as a prototype.
+pub fn call_proxy_set<'a>(
+    agent: &mut Agent,
+    proxy: Proxy,
+    props: &SetProps,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    let proxy = proxy.unbind();
+    let receiver = props.receiver.unbind();
+    let p = props.p.unbind();
+    let value = props.value.unbind();
+    if props.strict {
+        let scoped_p = p.scope(agent, gc.nogc());
+        let scoped_o = receiver.scope(agent, gc.nogc());
+        let succeeded = proxy.internal_set(agent, p, value, receiver.into_value(), gc.reborrow());
+        // SAFETY: not shared.
+        let o = unsafe { scoped_o.take(agent) };
+        let succeeded = succeeded.unbind()?;
+        if !succeeded {
+            // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
+            let o = o
+                .into_value()
+                .string_repr(agent, gc.reborrow())
+                .unbind()
+                .bind(gc.nogc());
+            // SAFETY: not shared.
+            let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
+            return Err(throw_cannot_set_property(
+                agent,
+                o.into_value().unbind(),
+                p.unbind(),
+                gc.into_nogc(),
+            ));
+        }
+    } else {
+        // In sloppy mode we don't care about the result.
+        let _ = proxy.internal_set(agent, p, value, receiver.into_value(), gc)?;
+    }
+    Ok(())
 }

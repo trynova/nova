@@ -122,7 +122,8 @@ use crate::{
 use ahash::AHashMap;
 pub use data::ObjectHeapData;
 pub use internal_methods::{
-    GetCachedResult, InternalMethods, NoCache, SetCachedProps, SetCachedResult,
+    GetCachedResult, InternalMethods, NoCache, SetCachedProps, SetCachedResult, SetProps,
+    call_proxy_set,
 };
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;

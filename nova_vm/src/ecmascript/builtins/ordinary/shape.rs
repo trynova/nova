@@ -185,7 +185,7 @@ impl<'a> ObjectShape<'a> {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                Value::Undefined.into()
+                GetCachedResult::Unset.into()
             } else {
                 let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
                 o.get_own_property_at_offset(agent, offset, gc)

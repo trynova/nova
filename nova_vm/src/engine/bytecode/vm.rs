@@ -52,11 +52,11 @@ use crate::{
             BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedResult, InternalMethods,
             InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
-            SetCachedProps, SetCachedResult, String, Value, get_this_value, get_value,
-            initialize_referenced_binding, is_private_reference, is_property_reference,
-            is_super_reference, is_unresolvable_reference, put_value, throw_cannot_set_property,
-            throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
-            try_put_value,
+            SetCachedProps, SetCachedResult, SetProps, String, Value, call_proxy_set,
+            get_this_value, get_value, initialize_referenced_binding, is_private_reference,
+            is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
+            throw_cannot_set_property, throw_read_undefined_or_null_error, try_get_value,
+            try_initialize_referenced_binding, try_put_value,
         },
     },
     engine::{
@@ -4043,7 +4043,7 @@ fn put_value_with_cache<'gc>(
         return handle_set_cached_break(
             agent,
             vm,
-            SetProps {
+            &SetProps {
                 receiver: o.unbind(),
                 p: p.unbind(),
                 value: value.unbind(),
@@ -4073,40 +4073,27 @@ fn put_value_with_cache<'gc>(
     Ok(())
 }
 
-struct SetProps<'a> {
-    receiver: Value<'a>,
-    p: PropertyKey<'a>,
-    value: Value<'a>,
-    strict: bool,
-}
-
 fn handle_set_cached_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
-    props: SetProps,
+    props: &SetProps,
     b: SetCachedResult,
-    mut gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let receiver = props.receiver.bind(gc.nogc());
-    let p = props.p.bind(gc.nogc());
-    let value = props.value.bind(gc.nogc());
-    let b = b.bind(gc.nogc());
     match b {
         SetCachedResult::Done => {}
         SetCachedResult::Unwritable | SetCachedResult::Accessor => {
             if props.strict {
                 return Err(throw_cannot_set_property(
                     agent,
-                    receiver.unbind(),
-                    p.unbind(),
+                    props.receiver,
+                    props.p,
                     gc.into_nogc(),
                 ));
             }
         }
         SetCachedResult::Set(setter) => {
-            let setter = setter.unbind();
-            let o = receiver.unbind();
-            let mut value = value.unbind();
+            let mut value = props.value;
             with_vm_gc(
                 agent,
                 vm,
@@ -4114,7 +4101,7 @@ fn handle_set_cached_break<'a>(
                     call_function(
                         agent,
                         setter,
-                        o,
+                        props.receiver,
                         Some(ArgumentsList::from_mut_value(&mut value)),
                         gc,
                     )
@@ -4122,52 +4109,12 @@ fn handle_set_cached_break<'a>(
                 gc,
             )?;
         }
-        SetCachedResult::Proxy(proxy) => {
-            let proxy = proxy.unbind();
-            let o = receiver.unbind();
-            let p = p.unbind();
-            let value = value.unbind();
-            let scoped_strict_error_data = if props.strict {
-                Some((p.scope(agent, gc.nogc()), o.scope(agent, gc.nogc())))
-            } else {
-                None
-            };
-            let succeeded = with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| proxy.internal_set(agent, p, value, o, gc),
-                gc.reborrow(),
-            )
-            .unbind()?;
-            if !succeeded
-                && let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data
-            {
-                // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-                // SAFETY: not shared.
-                let base_obj_repr = unsafe {
-                    scoped_base_obj
-                        .take(agent)
-                        .into_value()
-                        .string_repr(agent, gc.reborrow())
-                        .unbind()
-                        .bind(gc.nogc())
-                };
-                // SAFETY: not shared.
-                let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
-                return Err(throw_cannot_set_property(
-                    agent,
-                    base_obj_repr.into_value().unbind(),
-                    referenced_name.unbind(),
-                    gc.into_nogc(),
-                ));
-            }
-            if let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data {
-                // SAFETY: not shared.
-                let _ = unsafe { scoped_base_obj.take(agent) }.bind(gc.nogc());
-                // SAFETY: not shared.
-                let _ = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
-            };
-        }
+        SetCachedResult::Proxy(proxy) => with_vm_gc(
+            agent,
+            vm,
+            |agent, gc| call_proxy_set(agent, proxy, props, gc),
+            gc,
+        )?,
     }
     Ok(())
 }
