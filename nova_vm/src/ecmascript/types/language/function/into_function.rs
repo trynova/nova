@@ -242,6 +242,7 @@ pub(crate) fn function_try_get<'gc, 'a>(
     agent: &mut Agent,
     property_key: PropertyKey,
     receiver: Value,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<Value<'gc>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
@@ -260,7 +261,7 @@ pub(crate) fn function_try_get<'gc, 'a>(
     } else {
         let parent = unwrap_try(func.try_get_prototype_of(agent, gc));
         parent.map_or(TryResult::Continue(Value::Undefined), |parent| {
-            parent.try_get(agent, property_key, receiver, gc)
+            parent.try_get(agent, property_key, receiver, None, gc)
         })
     }
 }

@@ -288,6 +288,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         match self.get_backing_object(agent) {
@@ -316,6 +317,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                         agent,
                         property_key,
                         receiver,
+                        None,
                         gc,
                     )
                 }

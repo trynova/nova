@@ -682,7 +682,7 @@ fn try_handle_primitive_get_value<'a>(
             .current_realm_record()
             .intrinsics()
             .boolean_prototype()
-            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
         Value::String(_) | Value::SmallString(_) => {
             let string = String::try_from(value).unwrap();
             if let Some(prop_desc) = string.get_property_descriptor(agent, referenced_name) {
@@ -692,24 +692,24 @@ fn try_handle_primitive_get_value<'a>(
                     .current_realm_record()
                     .intrinsics()
                     .string_prototype()
-                    .try_get(agent, referenced_name.unbind(), value, gc)?))
+                    .try_get(agent, referenced_name.unbind(), value, None, gc)?))
             }
         }
         Value::Symbol(_) => TryResult::Continue(Ok(agent
             .current_realm_record()
             .intrinsics()
             .symbol_prototype()
-            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => TryResult::Continue(Ok(agent
             .current_realm_record()
             .intrinsics()
             .number_prototype()
-            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
         Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
             .current_realm_record()
             .intrinsics()
             .big_int_prototype()
-            .try_get(agent, referenced_name.unbind(), value, gc)?)),
+            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
         _ => unreachable!(),
     }
 }
@@ -766,6 +766,7 @@ pub(crate) fn try_get_value<'gc>(
                     agent,
                     referenced_name,
                     this_value,
+                    None,
                     gc,
                 )?))
             } else {
@@ -795,6 +796,7 @@ pub(crate) fn try_get_value<'gc>(
                     agent,
                     referenced_name,
                     get_this_value(reference),
+                    None,
                     gc,
                 )?))
             } else {

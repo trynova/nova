@@ -1031,6 +1031,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &mut Agent,
         _: PropertyKey,
         _: Value,
+        _: Option<PropertyLookupCache>,
         _: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         TryResult::Break(())

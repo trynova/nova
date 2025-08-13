@@ -868,7 +868,7 @@ pub(crate) fn ordinary_try_get<'gc>(
             return TryResult::Continue(Value::Undefined);
         };
         // c. Return ? parent.[[Get]](P, Receiver).
-        return parent.try_get(agent, property_key, receiver, gc);
+        return parent.try_get(agent, property_key, receiver, None, gc);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].

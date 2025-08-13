@@ -207,7 +207,7 @@ impl<'a> Array<'a> {
             // properties in the prototype.
             self.internal_prototype(agent)
                 .unwrap()
-                .try_get(agent, property_key, receiver, gc)
+                .try_get(agent, property_key, receiver, None, gc)
         }
     }
 
@@ -690,6 +690,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         let array = self.bind(gc);
@@ -745,7 +746,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         // 4. If parent is not null, then
         if let Some(parent) = parent {
             // a. Return ? parent.[[HasProperty]](P).
-            return parent.try_get(agent, property_key, receiver, gc);
+            return parent.try_get(agent, property_key, receiver, None, gc);
         }
         TryResult::Continue(Value::Undefined)
     }

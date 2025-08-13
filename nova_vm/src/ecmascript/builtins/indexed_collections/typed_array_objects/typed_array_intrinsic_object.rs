@@ -3807,7 +3807,7 @@ fn slice_typed_array_same_buffer_different_type(
     while k < end_index {
         // 1. Let Pk be ! ToString(𝔽(k)).
         // 2. Let kValue be ! Get(O, Pk).
-        let k_value = unwrap_try(o.try_get(agent, k.try_into().unwrap(), o.into_value(), gc));
+        let k_value = unwrap_try(o.try_get(agent, k.try_into().unwrap(), o.into_value(), None, gc));
         // 3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
         debug_assert!(unwrap_try(a.try_set(
             agent,

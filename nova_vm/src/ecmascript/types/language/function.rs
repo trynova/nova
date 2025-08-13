@@ -426,16 +426,19 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         match self {
-            Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
-            Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, gc),
-            Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
+            Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
+            Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_get(agent, property_key, receiver, cache, gc)
+            }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_get(agent, property_key, receiver, gc)
+                x.try_get(agent, property_key, receiver, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

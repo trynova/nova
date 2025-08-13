@@ -638,9 +638,10 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
-        function_try_get(self, agent, property_key, receiver, gc)
+        function_try_get(self, agent, property_key, receiver, cache, gc)
     }
 
     fn internal_get<'gc>(

@@ -82,7 +82,7 @@ pub(crate) fn try_get<'a, 'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<Value<'gc>> {
     // 1. Return ? O.[[Get]](P, O).
-    o.try_get(agent, p, o.into_value(), gc)
+    o.try_get(agent, p, o.into_value(), None, gc)
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -206,7 +206,7 @@ pub(crate) fn try_get_v<'gc>(
         _ => Object::try_from(v).unwrap(),
     };
     // 2. Return ? O.[[Get]](P, V).
-    TryResult::Continue(Ok(o.try_get(agent, p, v, gc)?))
+    TryResult::Continue(Ok(o.try_get(agent, p, v, None, gc)?))
 }
 
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
@@ -556,7 +556,7 @@ pub(crate) fn try_get_object_method<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<JsResult<'a, Option<Function<'a>>>> {
     // 1. Let func be ? GetV(V, P).
-    let func = o.try_get(agent, p, o.into_value(), gc)?;
+    let func = o.try_get(agent, p, o.into_value(), None, gc)?;
     TryResult::Continue(get_method_internal(agent, func, gc))
 }
 

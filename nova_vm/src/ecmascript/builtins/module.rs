@@ -250,7 +250,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
                     let value = self
-                        .try_get(agent, property_key, self.into_value(), gc)?
+                        .try_get(agent, property_key, self.into_value(), None, gc)?
                         .unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     TryResult::Continue(Some(PropertyDescriptor {
@@ -518,6 +518,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         _receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation

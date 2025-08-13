@@ -630,6 +630,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         mut property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         // 1. 1. If P is a String, then
@@ -660,7 +661,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                     };
 
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.try_get(agent, property_key, receiver, gc)
+                    parent.try_get(agent, property_key, receiver, None, gc)
                 }
             }
         }
@@ -687,6 +688,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 agent,
                 property_key.unbind(),
                 receiver.unbind(),
+                None,
                 gc.into_nogc(),
             )))
         } else {

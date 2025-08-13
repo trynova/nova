@@ -255,6 +255,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         // Regardless of the backing object, we might have a valid value
@@ -282,7 +283,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
             // c. Return ? parent.[[Get]](P, Receiver).
-            parent.try_get(agent, property_key, receiver, gc)
+            parent.try_get(agent, property_key, receiver, None, gc)
         }
     }
 

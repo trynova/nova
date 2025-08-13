@@ -268,6 +268,7 @@ impl<'a> VmIteratorRecord<'a> {
                     agent,
                     BUILTIN_STRING_MEMORY.throw.into(),
                     array_iterator_prototype.into_value(),
+                    None,
                     gc,
                 ) {
                     TryResult::Continue(return_method) => {
@@ -286,6 +287,7 @@ impl<'a> VmIteratorRecord<'a> {
                     agent,
                     BUILTIN_STRING_MEMORY.throw.into(),
                     iterator.into_value(),
+                    None,
                     gc,
                 ) {
                     TryResult::Continue(return_method) => {
@@ -1084,6 +1086,7 @@ fn array_iterator_record_requires_return_call(agent: &mut Agent, gc: NoGcScope) 
         agent,
         BUILTIN_STRING_MEMORY.r#return.into(),
         array_iterator_prototype.into_value(),
+        None,
         gc,
     ) {
         TryResult::Continue(return_method) => {
@@ -1105,6 +1108,7 @@ fn generic_iterator_record_requires_return_call(
         agent,
         BUILTIN_STRING_MEMORY.r#return.into(),
         iterator.into_value(),
+        None,
         gc,
     ) {
         TryResult::Continue(return_method) => {

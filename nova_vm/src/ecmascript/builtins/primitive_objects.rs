@@ -364,6 +364,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
@@ -390,7 +391,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.try_get(agent, property_key, receiver, gc)
+                parent.try_get(agent, property_key, receiver, None, gc)
             }
         }
     }

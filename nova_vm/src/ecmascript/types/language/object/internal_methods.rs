@@ -341,6 +341,7 @@ where
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<Value<'gc>> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
@@ -361,7 +362,7 @@ where
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.try_get(agent, property_key, receiver, gc)
+                parent.try_get(agent, property_key, receiver, cache, gc)
             }
         }
     }
