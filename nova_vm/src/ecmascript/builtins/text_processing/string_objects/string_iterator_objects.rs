@@ -9,7 +9,7 @@ use crate::{
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
             OrdinaryObject, String, Value,
         },
     },

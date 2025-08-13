@@ -372,7 +372,6 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         {
             return TryGetContinue::Value(value.bind(gc)).into();
         }
-
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
             agent,
@@ -380,6 +379,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             self.get_backing_object(agent),
             property_key,
             receiver,
+            cache,
             gc,
         )
     }

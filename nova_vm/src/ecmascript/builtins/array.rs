@@ -698,24 +698,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // Hole! We must look into the prototype chain!
             }
         }
-        if let Some(cache) = cache {
-            // If this was an over-indexing, a hole, or a named property on the
-            // Array then we want to perform a normal cached lookup with the
-            // Array's shape.
-            let shape = array.object_shape(agent);
-            if let ControlFlow::Break(result) =
-                shape.get_cached(agent, property_key, self.into_value(), cache, gc)
-            {
-                // Found a cached result.
-                return result.into();
-            }
-        }
         ordinary_try_get(
             agent,
             self.into_object(),
             self.get_backing_object(agent),
             property_key,
             receiver,
+            cache,
             gc,
         )
     }

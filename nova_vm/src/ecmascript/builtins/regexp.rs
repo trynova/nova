@@ -271,6 +271,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             self.get_backing_object(agent),
             property_key,
             receiver,
+            cache,
             gc,
         )
     }

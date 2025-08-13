@@ -245,24 +245,24 @@ pub(crate) fn function_try_get<'gc, 'a>(
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryGetResult<'gc> {
-    if let Some(backing_object) = func.get_backing_object(agent) {
+    let backing_object = func.get_backing_object(agent);
+    // if let Some(backing_object) = func.get_backing_object(agent) {
+    if backing_object.is_none() && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+        TryGetContinue::Value(func.get_length(agent).into()).into()
+    } else if backing_object.is_none()
+        && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+    {
+        TryGetContinue::Value(func.get_name(agent).into_value()).into()
+    } else {
         ordinary_try_get(
             agent,
             func.into_object(),
-            Some(backing_object),
+            backing_object,
             property_key,
             receiver,
+            cache,
             gc,
         )
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-        TryGetContinue::Value(func.get_length(agent).into()).into()
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        TryGetContinue::Value(func.get_name(agent).into_value()).into()
-    } else {
-        let parent = unwrap_try(func.try_get_prototype_of(agent, gc));
-        parent.map_or(TryGetContinue::Unset.into(), |parent| {
-            parent.try_get(agent, property_key, receiver, None, gc)
-        })
     }
 }
 

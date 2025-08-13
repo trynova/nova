@@ -291,38 +291,30 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryGetResult<'gc> {
-        match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_try_get(
-                agent,
-                self.into_object(),
-                Some(backing_object),
-                property_key,
-                receiver,
-                gc,
-            ),
-            None => {
-                let property_value =
-                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.map(|message| message.into_value())
-                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                        agent[self].cause
-                    } else {
-                        None
-                    };
-                if let Some(property_value) = property_value {
-                    TryGetContinue::Value(property_value).into()
-                } else {
-                    // c. Return ? parent.[[Get]](P, Receiver).
-                    self.internal_prototype(agent).unwrap().try_get(
-                        agent,
-                        property_key,
-                        receiver,
-                        None,
-                        gc,
-                    )
-                }
-            }
+        let backing_object = self.get_backing_object(agent);
+        let property_value = if backing_object.is_none()
+            && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+        {
+            agent[self].message.map(|message| message.into_value())
+        } else if backing_object.is_none()
+            && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+        {
+            agent[self].cause
+        } else {
+            None
+        };
+        if let Some(property_value) = property_value {
+            return TryGetContinue::Value(property_value).into();
         }
+        ordinary_try_get(
+            agent,
+            self.into_object(),
+            backing_object,
+            property_key,
+            receiver,
+            cache,
+            gc,
+        )
     }
 
     fn internal_get<'gc>(

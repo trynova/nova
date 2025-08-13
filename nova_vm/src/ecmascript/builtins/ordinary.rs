@@ -12,7 +12,7 @@ use std::{
     vec,
 };
 
-use caches::{CacheToPopulate, Caches, PropertyOffset};
+use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
 use crate::{
     ecmascript::{
@@ -119,17 +119,6 @@ impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
-    fn try_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        cache: Option<caches::PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
-        ordinary_try_get(agent, self.into(), Some(self), property_key, receiver, gc)
-    }
-
     fn get_own_property_at_offset<'gc>(
         self,
         agent: &Agent,
@@ -846,12 +835,29 @@ pub(crate) fn ordinary_try_get<'gc>(
     backing_object: Option<OrdinaryObject>,
     property_key: PropertyKey,
     receiver: Value,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryGetResult<'gc> {
     let object = object.bind(gc);
     let backing_object = backing_object.bind(gc);
     let property_key = property_key.bind(gc);
     let receiver = receiver.bind(gc);
+
+    if let Some(cache) = cache {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        let shape = if let Some(bo) = backing_object {
+            bo.object_shape(agent)
+        } else {
+            object.object_shape(agent)
+        };
+        if let ControlFlow::Break(result) =
+            shape.get_cached(agent, property_key, object.into_value(), cache, gc)
+        {
+            // Found a cached result.
+            return result.into();
+        }
+    }
 
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = backing_object

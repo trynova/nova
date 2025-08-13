@@ -521,7 +521,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         _receiver: Value,
-        cache: Option<PropertyLookupCache>,
+        _cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryGetResult<'gc> {
         // NOTE: ResolveExport is side-effect free. Each time this operation

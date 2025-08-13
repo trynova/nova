@@ -344,17 +344,6 @@ where
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryGetResult<'gc> {
-        if let Some(cache) = cache {
-            // A cache-based lookup on an ordinary object can fully rely on the
-            // Object Shape and caches.
-            let shape = self.object_shape(agent);
-            if let ControlFlow::Break(result) =
-                shape.get_cached(agent, property_key, self.into_value(), cache, gc)
-            {
-                // Found a cached result.
-                return result.into();
-            }
-        }
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
             agent,
@@ -362,6 +351,7 @@ where
             self.get_backing_object(agent),
             property_key,
             receiver,
+            cache,
             gc,
         )
     }
