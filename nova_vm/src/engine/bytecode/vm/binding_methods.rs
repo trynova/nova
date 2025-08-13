@@ -144,6 +144,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                         let lhs = resolve_binding(
                             agent,
                             binding_id.unbind(),
+                            None,
                             environment.as_ref().map(|v| v.get(agent)),
                             gc.reborrow(),
                         )
@@ -272,6 +273,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                         let lhs = resolve_binding(
                             agent,
                             binding_id.unbind(),
+                            None,
                             environment.as_ref().map(|v| v.get(agent)),
                             gc.reborrow(),
                         )
@@ -338,10 +340,10 @@ pub(super) fn execute_simple_object_binding<'a>(
                         // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
                         let binding_id =
                             executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
-                        // TODO: Properly handle potential GC.
                         let lhs = resolve_binding(
                             agent,
                             binding_id.unbind(),
+                            None,
                             environment.as_ref().map(|v| v.get(agent)),
                             gc.reborrow(),
                         )

@@ -45,6 +45,7 @@ pub(crate) use compile_context::{
 use num_traits::Num;
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
+use oxc_semantic::{ScopeFlags, SymbolFlags};
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use template_literals::get_template_object;
 use wtf8::{CodePoint, Wtf8Buf};
@@ -198,13 +199,41 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::String
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IdentifierReference<'s> {
-    type Output = ();
-    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
+    type Output = String<'gc>;
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
+        let maybe_global = if let Some(id) = self.reference_id.get() {
+            let source_code = ctx.get_source_code();
+            let scoping = source_code.get_scoping(ctx.get_agent());
+            let reference = scoping.get_reference(id);
+            reference.symbol_id().is_none_or(|s| {
+                let scope_id = scoping.symbol_scope_id(s);
+                let scope_flags = scoping.scope_flags(scope_id);
+                let symbol_flags = scoping.symbol_flags(s);
+                // Functions declarations and variables defined at the top
+                // level scope end up in the globalThis; we want a property
+                // lookup cache for those.
+                scope_flags.contains(ScopeFlags::Top)
+                    && (symbol_flags.contains(SymbolFlags::FunctionScopedVariable)
+                        | symbol_flags.contains(SymbolFlags::Function))
+            })
+        } else {
+            true
+        };
         let identifier = ctx.create_string(self.name.as_str());
-        ctx.add_instruction_with_identifier(
-            Instruction::ResolveBinding,
-            identifier.to_property_key(),
-        );
+        if maybe_global {
+            let cache = ctx.create_property_lookup_cache(identifier.to_property_key());
+            ctx.add_instruction_with_identifier_and_cache(
+                Instruction::ResolveBindingWithCache,
+                identifier,
+                cache,
+            );
+        } else {
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                identifier.to_property_key(),
+            );
+        }
+        identifier
     }
 }
 
@@ -212,11 +241,34 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
     type Output = String<'gc>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
+        let maybe_global = {
+            let source_code = ctx.get_source_code();
+            let scoping = source_code.get_scoping(ctx.get_agent());
+            let s = self.symbol_id();
+            let scope_id = scoping.symbol_scope_id(s);
+            let scope_flags = scoping.scope_flags(scope_id);
+            let symbol_flags = scoping.symbol_flags(s);
+            // Functions declarations and variables defined at the top
+            // level scope end up in the globalThis; we want a property
+            // lookup cache for those.
+            scope_flags.contains(ScopeFlags::Top)
+                && (symbol_flags.contains(SymbolFlags::FunctionScopedVariable)
+                    | symbol_flags.contains(SymbolFlags::Function))
+        };
         let identifier = ctx.create_string(self.name.as_str());
-        ctx.add_instruction_with_identifier(
-            Instruction::ResolveBinding,
-            identifier.to_property_key(),
-        );
+        if maybe_global {
+            let cache = ctx.create_property_lookup_cache(identifier.to_property_key());
+            ctx.add_instruction_with_identifier_and_cache(
+                Instruction::ResolveBindingWithCache,
+                identifier,
+                cache,
+            );
+        } else {
+            ctx.add_instruction_with_identifier(
+                Instruction::ResolveBinding,
+                identifier.to_property_key(),
+            );
+        }
         identifier
     }
 }
@@ -1933,15 +1985,13 @@ pub(super) fn compile_expression_get_value<'s, 'gc>(
 pub(super) fn compile_expression_get_value_keep_reference<'s, 'gc>(
     expr: &'s ast::Expression<'s>,
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) -> Option<ExpressionOutput<'gc>> {
+) {
     let output = expr.compile(ctx);
     if let Some(ExpressionOutput::Place(property_key)) = output {
-        let cache = ctx.create_property_lookup_cache(property_key);
-        ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
+        compile_get_value_keep_reference(ctx, Some(property_key));
     } else if is_reference(expr) {
-        ctx.add_instruction(Instruction::GetValueKeepReference);
+        compile_get_value_keep_reference(ctx, None);
     }
-    output
 }
 
 pub(super) fn compile_put_value<'gc>(
@@ -2630,11 +2680,7 @@ fn complex_object_pattern<'s>(
             object_pattern.properties.len(),
         );
 
-        let identifier_string = ctx.create_string(identifier.name.as_str());
-        ctx.add_instruction_with_identifier(
-            Instruction::ResolveBinding,
-            identifier_string.to_property_key(),
-        );
+        identifier.compile(ctx);
         if !has_environment {
             ctx.add_instruction(Instruction::PutValue);
         } else {
@@ -2689,11 +2735,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                     ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
                         // 1. Let bindingId be the StringValue of BindingIdentifier.
                         // 2. Let lhs be ? ResolveBinding(bindingId, environment).
-                        let binding_id = ctx.create_string(binding_identifier.name.as_str());
-                        ctx.add_instruction_with_identifier(
-                            Instruction::ResolveBinding,
-                            binding_id.to_property_key(),
-                        );
+                        let binding_id = binding_identifier.compile(ctx);
                         // Note: v is already in the result register after
                         // IteratorStepValueOrUndefined above.
                         // 3. Let v be undefined.
@@ -2807,11 +2849,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
-                    let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier.to_property_key(),
-                    );
+                    let identifier = identifier.compile(ctx);
                     let is_literal = init.is_literal();
                     if !is_literal {
                         ctx.add_instruction(Instruction::PushReference);
@@ -2856,11 +2894,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     };
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
-                    let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier.to_property_key(),
-                    );
+                    let identifier = identifier.compile(ctx);
 
                     let Some(init) = &decl.init else {
                         // LexicalBinding : BindingIdentifier

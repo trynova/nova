@@ -62,6 +62,7 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
+            ordinary::caches::PropertyLookupCache,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             promise_objects::promise_abstract_operations::{
@@ -132,6 +133,7 @@ pub mod private {
                 keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
                 map::Map,
                 module::Module,
+                ordinary::caches::PropertyLookupCache,
                 primitive_objects::PrimitiveObject,
                 promise::Promise,
                 promise_objects::promise_abstract_operations::{
@@ -243,6 +245,8 @@ pub mod private {
     impl RootableSealed for InnerCyclicModule<'_> {}
     impl RootableSealed for Referrer<'_> {}
     impl RootableSealed for InnerReferrer<'_> {}
+    // Cache references.
+    impl RootableSealed for PropertyLookupCache<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {
@@ -543,6 +547,7 @@ pub enum HeapRootData {
     ModuleEnvironment(ModuleEnvironment<'static>),
     ObjectEnvironment(ObjectEnvironment<'static>),
     PrivateEnvironment(PrivateEnvironment<'static>),
+    PropertyLookupCache(PropertyLookupCache<'static>),
 }
 
 impl From<Object<'static>> for HeapRootData {
@@ -729,7 +734,6 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
             HeapRootData::AsyncFromSyncIterator => todo!(),
             HeapRootData::AsyncGenerator(r#gen) => r#gen.mark_values(queues),
-
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.mark_values(queues),
@@ -762,6 +766,9 @@ impl HeapMarkAndSweep for HeapRootData {
             }
             HeapRootData::PrivateEnvironment(private_environment_index) => {
                 private_environment_index.mark_values(queues)
+            }
+            HeapRootData::PropertyLookupCache(property_lookup_cache) => {
+                property_lookup_cache.mark_values(queues);
             }
         }
     }
@@ -884,6 +891,9 @@ impl HeapMarkAndSweep for HeapRootData {
             }
             HeapRootData::PrivateEnvironment(private_environment_index) => {
                 private_environment_index.sweep_values(compactions)
+            }
+            HeapRootData::PropertyLookupCache(property_lookup_cache) => {
+                property_lookup_cache.sweep_values(compactions)
             }
         }
     }

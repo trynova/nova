@@ -29,6 +29,7 @@ use crate::{
             set_function_name,
         },
         execution::{Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics},
+        scripts_and_modules::source_code::SourceCode,
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
             PropertyKey, String, Value,
@@ -247,6 +248,7 @@ pub(crate) fn instantiate_ordinary_function_expression<'a>(
 pub(crate) struct CompileFunctionBodyData<'a> {
     pub(crate) params: &'a oxc_ast::ast::FormalParameters<'a>,
     pub(crate) body: &'a oxc_ast::ast::FunctionBody<'a>,
+    pub(crate) source_code: SourceCode<'a>,
     pub(crate) is_strict: bool,
     pub(crate) is_lexical: bool,
     pub(crate) is_concise_body: bool,
@@ -267,6 +269,7 @@ impl CompileFunctionBodyData<'_> {
         CompileFunctionBodyData {
             params,
             body,
+            source_code: ecmascript_function.source_code,
             is_strict: ecmascript_function.strict,
             is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
             is_concise_body: ecmascript_function.is_concise_arrow_function,

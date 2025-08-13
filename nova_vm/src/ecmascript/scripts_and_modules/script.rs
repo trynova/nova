@@ -4,6 +4,7 @@
 
 use crate::{
     ecmascript::{
+        builtins::ordinary::caches::PropertyLookupCache,
         execution::{
             Agent, ECMAScriptCode, Environment, ExecutionContext, GlobalEnvironment, JsResult,
             Realm, agent::ExceptionType,
@@ -76,6 +77,15 @@ impl Script<'_> {
                 agent[self].ecmascript_code.as_ref(),
             )
         }
+    }
+
+    /// Get the script SourceCode.
+    pub(crate) fn get_source_code<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> SourceCode<'a> {
+        agent[self].source_code.bind(gc)
     }
 
     /// Creates a script identififer from a usize.
@@ -740,9 +750,10 @@ unsafe fn global_declaration_instantiation<'a>(
     // 17. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. Perform ? env.CreateGlobalVarBinding(vn, false).
+        let cache = PropertyLookupCache::new(agent, vn.to_property_key());
         scoped_env
             .get(agent)
-            .create_global_var_binding(agent, vn, false, gc.reborrow())
+            .create_global_var_binding(agent, vn, cache, false, gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
     }
@@ -1086,6 +1097,7 @@ mod test {
         let foo = unwrap_try(agent.current_global_env(gc.nogc()).try_get_binding_value(
             &mut agent,
             foo_key,
+            None,
             true,
             gc.nogc(),
         ))
@@ -1113,6 +1125,7 @@ mod test {
         let foo = unwrap_try(agent.current_global_env(gc.nogc()).try_get_binding_value(
             &mut agent,
             foo_key,
+            None,
             true,
             gc.nogc(),
         ))
@@ -1168,12 +1181,19 @@ mod test {
         assert!(unwrap_try(global_env.try_has_binding(
             &mut agent,
             foo_key,
+            None,
             gc.nogc()
         )));
         assert!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, foo_key, true, gc.nogc()))
-                .unwrap()
-                .is_function(),
+            unwrap_try(global_env.try_get_binding_value(
+                &mut agent,
+                foo_key,
+                None,
+                true,
+                gc.nogc()
+            ))
+            .unwrap()
+            .is_function(),
         );
     }
 
@@ -1443,20 +1463,22 @@ mod test {
         assert!(unwrap_try(global_env.try_has_binding(
             &mut agent,
             a_key,
+            None,
             gc.nogc()
         )));
         assert!(unwrap_try(global_env.try_has_binding(
             &mut agent,
             i_key,
+            None,
             gc.nogc()
         )));
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, true, gc.nogc()))
+            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc()))
                 .unwrap(),
             String::from_small_string("foo").into_value()
         );
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, true, gc.nogc()))
+            unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, None, true, gc.nogc()))
                 .unwrap(),
             Value::from(3)
         );
@@ -1987,17 +2009,17 @@ mod test {
         assert!(global_env.has_lexical_declaration(&agent, b_key));
         assert!(global_env.has_lexical_declaration(&agent, c_key));
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, true, gc.nogc()))
+            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc()))
                 .unwrap(),
             1.into()
         );
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, b_key, true, gc.nogc()))
+            unwrap_try(global_env.try_get_binding_value(&mut agent, b_key, None, true, gc.nogc()))
                 .unwrap(),
             2.into()
         );
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, c_key, true, gc.nogc()))
+            unwrap_try(global_env.try_get_binding_value(&mut agent, c_key, None, true, gc.nogc()))
                 .unwrap(),
             4.into()
         );
@@ -2030,6 +2052,7 @@ mod test {
             unwrap_try(global_env.try_get_binding_value(
                 &mut agent,
                 i_key.unbind(),
+                None,
                 true,
                 gc.nogc()
             ))

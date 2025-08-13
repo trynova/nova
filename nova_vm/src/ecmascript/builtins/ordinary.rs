@@ -617,24 +617,46 @@ fn validate_and_apply_property_descriptor(
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_try_has_property(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    object: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     gc: NoGcScope,
 ) -> TryResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
-    // Note: ? means that if we'd call a Proxy's GetOwnProperty trap then we'll
-    // instead return None.
-    let has_own = object.try_get_own_property(agent, property_key, gc)?;
+    let has_own = backing_object
+        .object_shape(agent)
+        .keys(&agent.heap.object_shapes, &agent.heap.elements)
+        .iter()
+        .enumerate()
+        .find(|(_, p)| *p == &property_key)
+        .map(|(i, _)| i as u32);
 
     // 2. If hasOwn is not undefined, return true.
-    if has_own.is_some() {
+    if let Some(offset) = has_own {
+        if let Some(CacheToPopulate {
+            receiver,
+            cache,
+            key: _,
+            shape,
+        }) = agent
+            .heap
+            .caches
+            .take_current_cache_to_populate(property_key)
+        {
+            let is_receiver = object.into_value() == receiver;
+            if is_receiver {
+                cache.insert_lookup_offset(agent, shape, offset);
+            } else {
+                cache.insert_prototype_lookup_offset(agent, shape, offset, object);
+            }
+        }
         return TryResult::Continue(true);
-    }
+    };
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
     // Note: ? means that if we'd call a Proxy's GetPrototypeOf trap then we'll
     // instead return None.
-    let parent = object.try_get_prototype_of(agent, gc)?;
+    let parent = backing_object.try_get_prototype_of(agent, gc)?;
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
@@ -642,6 +664,19 @@ pub(crate) fn ordinary_try_has_property(
         // Note: Here too, if we would call a Proxy's HasProperty trap then
         // we'll instead return None.
         return parent.try_has_property(agent, property_key, gc);
+    }
+
+    if let Some(CacheToPopulate {
+        receiver: _,
+        cache,
+        key: _,
+        shape,
+    }) = agent
+        .heap
+        .caches
+        .take_current_cache_to_populate(property_key)
+    {
+        cache.insert_unset(agent, shape);
     }
 
     // 5. Return false.
@@ -655,7 +690,13 @@ pub(crate) fn ordinary_try_has_property_entry<'a>(
     gc: NoGcScope,
 ) -> TryResult<bool> {
     match object.get_backing_object(agent) {
-        Some(backing_object) => ordinary_try_has_property(agent, backing_object, property_key, gc),
+        Some(backing_object) => ordinary_try_has_property(
+            agent,
+            object.into_object(),
+            backing_object,
+            property_key,
+            gc,
+        ),
         None => {
             // 3. Let parent be ? O.[[GetPrototypeOf]]().
             let parent = unwrap_try(object.try_get_prototype_of(agent, gc));
@@ -665,6 +706,18 @@ pub(crate) fn ordinary_try_has_property_entry<'a>(
                 // a. Return ? parent.[[HasProperty]](P).
                 parent.try_has_property(agent, property_key, gc)
             } else {
+                if let Some(CacheToPopulate {
+                    receiver: _,
+                    cache,
+                    key: _,
+                    shape,
+                }) = agent
+                    .heap
+                    .caches
+                    .take_current_cache_to_populate(property_key)
+                {
+                    cache.insert_unset(agent, shape);
+                }
                 // 5. Return false.
                 TryResult::Continue(false)
             }
@@ -675,26 +728,47 @@ pub(crate) fn ordinary_try_has_property_entry<'a>(
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_has_property<'a>(
     agent: &mut Agent,
-    object: OrdinaryObject,
+    object: Object,
+    backing_object: OrdinaryObject,
     property_key: PropertyKey,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
-    let object = object.bind(gc.nogc());
+    let backing_object = backing_object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
 
-    let has_own = object
+    let has_own = backing_object
         .object_shape(agent)
         .keys(&agent.heap.object_shapes, &agent.heap.elements)
-        .contains(&property_key);
+        .iter()
+        .enumerate()
+        .find(|(_, p)| *p == &property_key)
+        .map(|(i, _)| i as u32);
 
     // 2. If hasOwn is not undefined, return true.
-    if has_own {
+    if let Some(offset) = has_own {
+        if let Some(CacheToPopulate {
+            receiver,
+            cache,
+            key: _,
+            shape,
+        }) = agent
+            .heap
+            .caches
+            .take_current_cache_to_populate(property_key)
+        {
+            let is_receiver = object.into_value() == receiver;
+            if is_receiver {
+                cache.insert_lookup_offset(agent, shape, offset);
+            } else {
+                cache.insert_prototype_lookup_offset(agent, shape, offset, object);
+            }
+        }
         return Ok(true);
-    }
+    };
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let parent = object.internal_prototype(agent).bind(gc.nogc());
+    let parent = backing_object.internal_prototype(agent).bind(gc.nogc());
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
@@ -702,6 +776,19 @@ pub(crate) fn ordinary_has_property<'a>(
         return parent
             .unbind()
             .internal_has_property(agent, property_key.unbind(), gc);
+    }
+
+    if let Some(CacheToPopulate {
+        receiver: _,
+        cache,
+        key: _,
+        shape,
+    }) = agent
+        .heap
+        .caches
+        .take_current_cache_to_populate(property_key)
+    {
+        cache.insert_unset(agent, shape);
     }
 
     // 5. Return false.
@@ -716,9 +803,13 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
 ) -> JsResult<'gc, bool> {
     let property_key = property_key.bind(gc.nogc());
     match object.get_backing_object(agent) {
-        Some(backing_object) => {
-            ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
-        }
+        Some(backing_object) => ordinary_has_property(
+            agent,
+            object.into_object(),
+            backing_object,
+            property_key.unbind(),
+            gc,
+        ),
         None => {
             // 3. Let parent be ? O.[[GetPrototypeOf]]().
             let parent = unwrap_try(object.try_get_prototype_of(agent, gc.nogc()));

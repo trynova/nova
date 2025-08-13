@@ -285,6 +285,21 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.add_index(cache);
     }
 
+    pub(super) fn add_instruction_with_identifier_and_cache(
+        &mut self,
+        instruction: Instruction,
+        identifier: PropertyKey<'gc>,
+        cache: PropertyLookupCache<'gc>,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_identifier_index() && instruction.has_cache_index());
+        self.push_instruction(instruction);
+        let identifier = self.add_identifier(identifier);
+        self.add_index(identifier);
+        let cache = self.add_cache(cache);
+        self.add_index(cache);
+    }
+
     pub(super) fn add_instruction_with_identifier_and_constant(
         &mut self,
         instruction: Instruction,

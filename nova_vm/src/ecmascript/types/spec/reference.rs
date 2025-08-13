@@ -11,6 +11,7 @@ use crate::{
             },
             type_conversion::{to_object, to_property_key, to_property_key_simple},
         },
+        builtins::ordinary::caches::PropertyLookupCache,
         execution::{
             Environment,
             agent::{self, ExceptionType, JsError},
@@ -39,6 +40,8 @@ pub(crate) struct VariableReference<'a> {
     ///
     /// The name of the binding.
     referenced_name: String<'a>,
+    /// Property lookup cache for the variable reference.
+    cache: Option<PropertyLookupCache<'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -162,11 +165,13 @@ impl<'a> Reference<'a> {
     pub(crate) fn new_variable_reference(
         base: Environment<'a>,
         referenced_name: String<'a>,
+        cache: Option<PropertyLookupCache<'a>>,
         strict: bool,
     ) -> Self {
         let reference = VariableReference {
             base,
             referenced_name,
+            cache,
         };
         if strict {
             Self::VariableStrict(reference)
@@ -803,7 +808,7 @@ pub(crate) fn try_get_value<'gc>(
             let base = v.base;
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
-            base.try_get_binding_value(agent, v.referenced_name, reference.strict(), gc)
+            base.try_get_binding_value(agent, v.referenced_name, v.cache, reference.strict(), gc)
         }
     }
 }
@@ -987,7 +992,14 @@ pub(crate) fn put_value<'a>(
             let base = v.base;
             // b. Assert: base is an Environment Record.
             // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
-            base.set_mutable_binding(agent, v.referenced_name, w.unbind(), reference.strict(), gc)
+            base.set_mutable_binding(
+                agent,
+                v.referenced_name,
+                v.cache,
+                w.unbind(),
+                reference.strict(),
+                gc,
+            )
         }
     }
     // NOTE
@@ -1098,7 +1110,14 @@ pub(crate) fn try_put_value<'a>(
             let base = v.base;
             // b. Assert: base is an Environment Record.
             // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
-            base.try_set_mutable_binding(agent, v.referenced_name, w, reference.strict(), gc)
+            base.try_set_mutable_binding(
+                agent,
+                v.referenced_name,
+                v.cache,
+                w,
+                reference.strict(),
+                gc,
+            )
         }
     }
 }
@@ -1164,7 +1183,8 @@ pub(crate) fn initialize_referenced_binding<'a>(
     match v {
         Reference::Variable(v) | Reference::VariableStrict(v) => {
             // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
-            v.base.initialize_binding(agent, v.referenced_name, w, gc)
+            v.base
+                .initialize_binding(agent, v.referenced_name, v.cache, w, gc)
         }
         _ => unreachable!(),
     }
@@ -1188,7 +1208,7 @@ pub(crate) fn try_initialize_referenced_binding<'a>(
         Reference::Variable(v) | Reference::VariableStrict(v) => {
             // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
             v.base
-                .try_initialize_binding(agent, v.referenced_name, w, gc)
+                .try_initialize_binding(agent, v.referenced_name, v.cache, w, gc)
         }
         _ => unreachable!(),
     }
@@ -1233,18 +1253,22 @@ impl HeapMarkAndSweep for VariableReference<'static> {
         let Self {
             base,
             referenced_name,
+            cache,
         } = self;
         base.mark_values(queues);
         referenced_name.mark_values(queues);
+        cache.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             base,
             referenced_name,
+            cache,
         } = self;
         base.sweep_values(compactions);
         referenced_name.sweep_values(compactions);
+        cache.sweep_values(compactions);
     }
 }
 

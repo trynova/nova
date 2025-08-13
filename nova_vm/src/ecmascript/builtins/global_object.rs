@@ -41,7 +41,9 @@ use crate::{
     heap::IntrinsicFunctionIndexes,
 };
 
-use super::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic};
+use super::{
+    ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, ordinary::caches::PropertyLookupCache,
+};
 
 pub(crate) struct GlobalObject;
 
@@ -386,8 +388,15 @@ pub fn perform_eval<'gc>(
         // 29. If result is a normal completion, then
         match result {
             Ok(_) => {
-                let exe =
-                    Executable::compile_eval_body(agent, body, gc.nogc()).scope(agent, gc.nogc());
+                let source_code = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .source_code
+                    .bind(gc.nogc());
+                let exe = Executable::compile_eval_body(agent, body, source_code, gc.nogc())
+                    .scope(agent, gc.nogc());
                 // a. Set result to Completion(Evaluation of body).
                 // 30. If result is a normal completion and result.[[Value]] is empty, then
                 // a. Set result to NormalCompletion(undefined).
@@ -750,16 +759,25 @@ fn eval_declaration_instantiation<'a>(
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 scoped_var_env
                     .get(agent)
-                    .initialize_binding(agent, function_name.get(agent).unbind(), fo, gc.reborrow())
+                    .initialize_binding(
+                        agent,
+                        function_name.get(agent).unbind(),
+                        None,
+                        fo,
+                        gc.reborrow(),
+                    )
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
+                let function_name = function_name.get(agent).bind(gc.nogc());
+                let cache = PropertyLookupCache::new(agent, function_name.to_property_key());
                 scoped_var_env
                     .get(agent)
                     .set_mutable_binding(
                         agent,
-                        function_name.get(agent).unbind(),
+                        function_name.unbind(),
+                        Some(cache.unbind()),
                         fo,
                         false,
                         gc.reborrow(),
@@ -773,9 +791,10 @@ fn eval_declaration_instantiation<'a>(
         // a. If varEnv is a Global Environment Record, then
         if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
+            let cache = PropertyLookupCache::new(agent, vn.get(agent).to_property_key());
             var_env
                 .unbind()
-                .create_global_var_binding(agent, vn.get(agent), true, gc.reborrow())
+                .create_global_var_binding(agent, vn.get(agent), cache, true, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
         } else {
@@ -797,7 +816,7 @@ fn eval_declaration_instantiation<'a>(
                 // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
                 scoped_var_env
                     .get(agent)
-                    .initialize_binding(agent, vn.get(agent), Value::Undefined, gc.reborrow())
+                    .initialize_binding(agent, vn.get(agent), None, Value::Undefined, gc.reborrow())
                     .unwrap();
             }
         }

@@ -12,6 +12,7 @@ use crate::{
             regexp::RegExp,
         },
         execution::Agent,
+        scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{BigInt, Number, PropertyKey, String, Value},
     },
@@ -100,6 +101,7 @@ pub(crate) enum GeneratorKind {
 ///   tracks it.
 pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     executable: ExecutableContext<'agent, 'gc, 'scope>,
+    source_code: SourceCode<'gc>,
     /// NamedEvaluation name parameter
     pub(super) name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -122,10 +124,12 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
 impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(crate) fn new(
         agent: &'agent mut Agent,
+        source_code: SourceCode<'gc>,
         gc: NoGcScope<'gc, 'scope>,
     ) -> CompileContext<'agent, 'script, 'gc, 'scope> {
         CompileContext {
             executable: ExecutableContext::new(agent, gc),
+            source_code,
             name_identifier: None,
             lexical_binding_state: false,
             optional_chains: None,
@@ -160,6 +164,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Get shared access to the Agent through the context.
     pub(crate) fn get_agent(&self) -> &Agent {
         self.executable.get_agent()
+    }
+
+    /// Get the SourceCode being compiled.
+    pub(crate) fn get_source_code(&self) -> SourceCode<'gc> {
+        self.source_code
     }
 
     /// Get exclusive access to the Agent through the context as mutable.
@@ -967,6 +976,19 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     ) {
         self.executable
             .add_instruction_with_cache(instruction, cache);
+    }
+
+    pub(super) fn add_instruction_with_identifier_and_cache(
+        &mut self,
+        instruction: Instruction,
+        identifier: String<'gc>,
+        cache: PropertyLookupCache<'gc>,
+    ) {
+        self.executable.add_instruction_with_identifier_and_cache(
+            instruction,
+            identifier.to_property_key(),
+            cache,
+        );
     }
 
     pub(super) fn add_instruction_with_identifier_and_constant(

@@ -53,7 +53,10 @@ pub(crate) use private_environment::{
 };
 
 use crate::{
-    ecmascript::types::{IntoValue, Object, Reference, String, Value},
+    ecmascript::{
+        builtins::ordinary::caches::PropertyLookupCache,
+        types::{IntoValue, Object, Reference, String, Value},
+    },
     engine::{
         TryResult,
         context::{Bindable, GcScope, GcToken, NoGcScope},
@@ -285,14 +288,15 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             Environment::Declarative(e) => TryResult::Continue(e.has_binding(agent, name)),
             Environment::Function(e) => TryResult::Continue(e.has_binding(agent, name)),
-            Environment::Global(e) => e.try_has_binding(agent, name, gc),
+            Environment::Global(e) => e.try_has_binding(agent, name, cache, gc),
             Environment::Module(e) => TryResult::Continue(e.has_binding(agent, name)),
-            Environment::Object(e) => e.try_has_binding(agent, name, gc),
+            Environment::Object(e) => e.try_has_binding(agent, name, cache, gc),
         }
     }
 
@@ -425,6 +429,7 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<JsResult<'a, ()>> {
@@ -437,12 +442,12 @@ impl<'e> Environment<'e> {
                 e.initialize_binding(agent, name, value);
                 TryResult::Continue(Ok(()))
             }
-            Environment::Global(e) => e.try_initialize_binding(agent, name, value, gc),
+            Environment::Global(e) => e.try_initialize_binding(agent, name, cache, value, gc),
             Environment::Module(e) => {
                 e.initialize_binding(agent, name, value);
                 TryResult::Continue(Ok(()))
             }
-            Environment::Object(e) => e.try_initialize_binding(agent, name, value, gc),
+            Environment::Object(e) => e.try_initialize_binding(agent, name, cache, value, gc),
         }
     }
 
@@ -456,6 +461,7 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
@@ -468,12 +474,12 @@ impl<'e> Environment<'e> {
                 e.initialize_binding(agent, name, value);
                 Ok(())
             }
-            Environment::Global(e) => e.initialize_binding(agent, name, value, gc),
+            Environment::Global(e) => e.initialize_binding(agent, name, cache, value, gc),
             Environment::Module(e) => {
                 e.initialize_binding(agent, name, value);
                 Ok(())
             }
-            Environment::Object(e) => e.initialize_binding(agent, name, value, gc),
+            Environment::Object(e) => e.initialize_binding(agent, name, cache, value, gc),
         }
     }
 
@@ -488,6 +494,7 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
@@ -499,12 +506,16 @@ impl<'e> Environment<'e> {
             Environment::Function(e) => {
                 TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
             }
-            Environment::Global(e) => e.try_set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Global(e) => {
+                e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
+            }
             Environment::Module(e) => {
                 debug_assert!(is_strict);
                 TryResult::Continue(e.set_mutable_binding(agent, name, value, gc))
             }
-            Environment::Object(e) => e.try_set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Object(e) => {
+                e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
+            }
         }
     }
 
@@ -519,6 +530,7 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
         gc: GcScope<'a, '_>,
@@ -530,9 +542,13 @@ impl<'e> Environment<'e> {
             Environment::Function(e) => {
                 e.set_mutable_binding(agent, name, value, is_strict, gc.into_nogc())
             }
-            Environment::Global(e) => e.set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Global(e) => {
+                e.set_mutable_binding(agent, name, cache, value, is_strict, gc)
+            }
             Environment::Module(e) => e.set_mutable_binding(agent, name, value, gc.into_nogc()),
-            Environment::Object(e) => e.set_mutable_binding(agent, name, value, is_strict, gc),
+            Environment::Object(e) => {
+                e.set_mutable_binding(agent, name, cache, value, is_strict, gc)
+            }
         }
     }
 
@@ -549,6 +565,7 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         is_strict: bool,
         gc: NoGcScope<'e, '_>,
     ) -> TryResult<JsResult<'e, Value<'e>>> {
@@ -559,14 +576,14 @@ impl<'e> Environment<'e> {
             Environment::Function(e) => {
                 TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
             }
-            Environment::Global(e) => e.try_get_binding_value(agent, name, is_strict, gc),
+            Environment::Global(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
             Environment::Module(e) => {
                 let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
                     return TryResult::Continue(Err(throw_uninitialized_binding(agent, name, gc)));
                 };
                 TryResult::Continue(Ok(value))
             }
-            Environment::Object(e) => e.try_get_binding_value(agent, name, is_strict, gc),
+            Environment::Object(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
         }
     }
 
@@ -832,14 +849,16 @@ pub(crate) fn try_get_identifier_reference<'a>(
     agent: &mut Agent,
     env: Environment,
     name: String,
+    cache: Option<PropertyLookupCache>,
     strict: bool,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
     let env = env.bind(gc);
     let name = name.bind(gc);
+    let cache = cache.bind(gc);
     // 1. If env is null, then
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = env.try_has_binding(agent, name, gc)?;
+    let exists = env.try_has_binding(agent, name, cache, gc)?;
 
     // 3. If exists is true, then
     if exists {
@@ -847,7 +866,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
         // [[ReferencedName]]: name,
         // [[Base]]: env,
         // [[Strict]]: strict,
-        TryResult::Continue(Reference::new_variable_reference(env, name, strict))
+        TryResult::Continue(Reference::new_variable_reference(env, name, cache, strict))
         // [[ThisValue]]: EMPTY
         // }.
     }
@@ -867,7 +886,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
         };
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
-        try_get_identifier_reference(agent, outer, name, strict, gc)
+        try_get_identifier_reference(agent, outer, name, cache, strict, gc)
     }
 }
 
@@ -880,12 +899,14 @@ pub(crate) fn try_get_identifier_reference<'a>(
 pub(crate) fn get_identifier_reference<'a, 'b>(
     agent: &mut Agent,
     env: Option<Environment>,
-    name: String<'b>,
+    name: String,
+    cache: Option<PropertyLookupCache>,
     strict: bool,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, Reference<'a>> {
     let env = env.bind(gc.nogc());
     let mut name = name.bind(gc.nogc());
+    let mut cache = cache.bind(gc.nogc());
 
     // 1. If env is null, then
     let Some(mut env) = env else {
@@ -900,20 +921,26 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = if let TryResult::Continue(result) = env.try_has_binding(agent, name, gc.nogc()) {
-        result
-    } else {
-        let env_scoped = env.scope(agent, gc.nogc());
-        let name_scoped = name.scope(agent, gc.nogc());
-        let result = env
-            .unbind()
-            .has_binding(agent, name.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        env = env_scoped.get(agent);
-        name = name_scoped.get(agent);
-        result
-    };
+    let exists =
+        if let TryResult::Continue(result) = env.try_has_binding(agent, name, cache, gc.nogc()) {
+            result
+        } else {
+            let env_scoped = env.scope(agent, gc.nogc());
+            let name_scoped = name.scope(agent, gc.nogc());
+            let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
+            let result = env
+                .unbind()
+                .has_binding(agent, name.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // SAFETY: not shared.
+            unsafe {
+                cache = cache_scoped.map(|c| c.take(agent));
+                name = name_scoped.take(agent);
+                env = env_scoped.take(agent);
+            }
+            result
+        };
 
     // 3. If exists is true, then
     if exists {
@@ -921,7 +948,7 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         // [[Base]]: env,
         // [[ReferencedName]]: name,
         // [[Strict]]: strict,
-        Ok(Reference::new_variable_reference(env, name, strict).unbind())
+        Ok(Reference::new_variable_reference(env, name, cache, strict).unbind())
         // [[ThisValue]]: EMPTY
         // }.
     }
@@ -931,7 +958,14 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         let outer = env.get_outer_env(agent);
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
-        get_identifier_reference(agent, outer.unbind(), name.unbind(), strict, gc)
+        get_identifier_reference(
+            agent,
+            outer.unbind(),
+            name.unbind(),
+            cache.unbind(),
+            strict,
+            gc,
+        )
     }
 }
 

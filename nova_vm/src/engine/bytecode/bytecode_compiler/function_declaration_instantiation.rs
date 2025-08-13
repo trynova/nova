@@ -427,10 +427,9 @@ pub(crate) fn instantiation<'s>(
         //    and privateEnv.
         f.compile(ctx);
         // a. Let fn be the sole element of the BoundNames of f.
-        let f_name = ctx.create_string(&f.id.as_ref().unwrap().name);
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name.to_property_key());
+        f.id.as_ref().unwrap().compile(ctx);
         ctx.add_instruction(Instruction::PutValue);
     }
 }

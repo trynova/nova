@@ -23,6 +23,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         let lref = match &self.left {
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
+                let name = identifier.compile(ctx);
                 if is_anonymous_function_definition(&self.right)
                 // NOTE: If the left hand side does not constitute the start of
                 // the assignment expression span, then it means that the left
@@ -30,14 +31,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 // happen.
                     && self.span.start == identifier.span.start
                 {
-                    let identifier = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier.to_property_key(),
-                    );
-                    named_evaluation_identifier = Some(identifier);
-                } else {
-                    identifier.compile(ctx);
+                    named_evaluation_identifier = Some(name);
                 }
                 None
             }

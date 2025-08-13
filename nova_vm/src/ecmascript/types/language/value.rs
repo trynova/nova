@@ -1527,7 +1527,8 @@ impl Rootable for Value<'_> {
             | HeapRootData::GlobalEnvironment(_)
             | HeapRootData::ModuleEnvironment(_)
             | HeapRootData::ObjectEnvironment(_)
-            | HeapRootData::PrivateEnvironment(_) => None,
+            | HeapRootData::PrivateEnvironment(_)
+            | HeapRootData::PropertyLookupCache(_) => None,
             // Note: Do not use _ => Err(()) to make sure any added
             // HeapRootData Value variants cause compile errors if not handled.
         }

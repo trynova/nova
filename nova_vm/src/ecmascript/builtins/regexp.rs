@@ -36,8 +36,8 @@ use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
 use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_get_own_property, ordinary_set, ordinary_try_get,
-    ordinary_try_set,
+    caches::PropertyLookupCache, ordinary_get_own_property, ordinary_has_property, ordinary_set,
+    ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -212,7 +212,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // lastIndex always exists
             TryResult::Continue(true)
         } else if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.try_has_property(agent, property_key, gc)
+            ordinary_try_has_property(agent, self.into_object(), backing_object, property_key, gc)
         } else {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
@@ -236,7 +236,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // lastIndex always exists
             Ok(true)
         } else if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.internal_has_property(agent, property_key, gc)
+            ordinary_has_property(agent, self.into_object(), backing_object, property_key, gc)
         } else {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.

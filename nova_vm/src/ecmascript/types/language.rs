@@ -34,7 +34,8 @@ pub use numeric::Numeric;
 pub(crate) use object::ScopedPropertyKey;
 pub use object::{
     GetCachedResult, InternalMethods, InternalSlots, IntoObject, NoCache, Object, ObjectHeapData,
-    OrdinaryObject, PropertyKey, PropertyKeySet, SetCachedProps, SetCachedResult,
+    OrdinaryObject, PropertyKey, PropertyKeySet, SetCachedProps, SetCachedResult, SetProps,
+    call_proxy_set,
 };
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;

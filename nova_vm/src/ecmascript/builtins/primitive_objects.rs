@@ -333,9 +333,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
 
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
-            }
+            Some(backing_object) => ordinary_has_property(
+                agent,
+                self.into_object(),
+                backing_object,
+                property_key.unbind(),
+                gc,
+            ),
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 // Note: Primitive objects never call into JS from GetPrototypeOf.

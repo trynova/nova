@@ -14,6 +14,7 @@ use crate::{
         execution::Agent,
         scripts_and_modules::{
             module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
+            source_code::SourceCode,
         },
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{PropertyKey, String, Value},
@@ -153,8 +154,9 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Script ===");
             eprintln!();
         }
+        let source_code = script.get_source_code(agent, gc);
         let body = script.get_statements(agent, gc);
-        let mut ctx = CompileContext::new(agent, gc);
+        let mut ctx = CompileContext::new(agent, source_code, gc);
 
         ctx.compile_statements(body);
         ctx.do_implicit_return();
@@ -171,8 +173,9 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Module ===");
             eprintln!();
         }
+        let source_code = module.get_source_code(agent, gc);
         let body = module.get_statements(agent, gc);
-        let mut ctx = CompileContext::new(agent, gc);
+        let mut ctx = CompileContext::new(agent, source_code, gc);
 
         ctx.compile_statements(body);
         ctx.do_implicit_return();
@@ -181,10 +184,10 @@ impl<'gc> Executable<'gc> {
 
     pub(crate) fn compile_function_body(
         agent: &mut Agent,
-        data: CompileFunctionBodyData<'_>,
+        data: CompileFunctionBodyData<'gc>,
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
-        let mut ctx = CompileContext::new(agent, gc);
+        let mut ctx = CompileContext::new(agent, data.source_code, gc);
         if data.is_generator {
             ctx.set_generator_kind(if data.is_async {
                 GeneratorKind::Async
@@ -207,6 +210,7 @@ impl<'gc> Executable<'gc> {
     pub(crate) fn compile_eval_body(
         agent: &mut Agent,
         body: &[ast::Statement],
+        source_code: SourceCode<'gc>,
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         if agent.options.print_internals {
@@ -214,7 +218,7 @@ impl<'gc> Executable<'gc> {
             eprintln!("=== Compiling Eval Body ===");
             eprintln!();
         }
-        let mut ctx = CompileContext::new(agent, gc);
+        let mut ctx = CompileContext::new(agent, source_code, gc);
 
         ctx.compile_statements(body);
         ctx.do_implicit_return();

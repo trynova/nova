@@ -13,7 +13,7 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_parser::{Parser, ParserReturn};
-use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
+use oxc_semantic::{AstNodes, Scoping, SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
@@ -139,7 +139,7 @@ impl<'a> SourceCode<'a> {
             }
         };
 
-        let allocator = Allocator::new();
+        let mut allocator = Allocator::new();
 
         let parser_result = match source_type {
             SourceCodeType::Script => {
@@ -152,24 +152,10 @@ impl<'a> SourceCode<'a> {
                 Parser::new(&allocator, source_text, source_type).parse()
             }
             SourceCodeType::StrictScript => {
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::mjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
-
-                // Strict script! We first parse this as a module, which makes
-                // the script parsing strict but allows module declarations. If
-                // that works, then we parse it as a normal script and check
-                // that it works as well: this will catch module declarations
-                // and TLA.
-                let parser_result = Parser::new(&allocator, source_text, source_type).parse();
-                if parser_result.panicked {
-                    let errors = parser_result.errors;
-                    return Err(errors);
-                }
-
+                // Strict script! We first parse and syntax check this as a
+                // normal script, which checks that the code contains no module
+                // declarations or TLA. If that passes, then we parse the
+                // script as a module, which sets strict mode on.
                 #[allow(unused_mut)]
                 let mut source_type = SourceType::cjs();
                 #[cfg(feature = "typescript")]
@@ -196,6 +182,32 @@ impl<'a> SourceCode<'a> {
                 if !sloppy_errors.is_empty() {
                     return Err(sloppy_errors);
                 }
+
+                let old_capacity = allocator.capacity();
+                // Reset the allocator; we don't need the sloppy program
+                // anymore.
+                allocator.reset();
+                if (old_capacity / 2) > allocator.capacity() {
+                    // If we more than halved the capacity of the allocator by
+                    // resetting it, we'll reallocate the whole thing to
+                    // old capacity.
+                    let _ =
+                        core::mem::replace(&mut allocator, Allocator::with_capacity(old_capacity));
+                }
+
+                #[allow(unused_mut)]
+                let mut source_type = SourceType::mjs();
+                #[cfg(feature = "typescript")]
+                if typescript {
+                    source_type = source_type.with_typescript(true);
+                }
+
+                let parser_result = Parser::new(&allocator, source_text, source_type).parse();
+                if parser_result.panicked {
+                    let errors = parser_result.errors;
+                    return Err(errors);
+                }
+
                 parser_result
             }
             SourceCodeType::Module => {
@@ -217,13 +229,14 @@ impl<'a> SourceCode<'a> {
             return Err(errors);
         }
 
-        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new()
+        let SemanticBuilderReturn { errors, semantic } = SemanticBuilder::new()
             .with_check_syntax_error(true)
             .build(&program);
 
         if !errors.is_empty() {
             return Err(errors);
         }
+        let (scoping, nodes) = semantic.into_scoping_and_nodes();
         let is_strict = source_type != SourceCodeType::Script || program.has_use_strict_directive();
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
@@ -237,8 +250,16 @@ impl<'a> SourceCode<'a> {
                 ),
             )
         };
+        // SAFETY: AstNodes refers to the bump heap allocations of allocator.
+        // We move allocator onto the heap together with nodes, making this
+        // self-referential. The bump allocations are never moved or
+        // dellocated until dropping the entire struct, at which point the
+        // "allocator" field is dropped last.
+        let nodes = unsafe { core::mem::transmute::<AstNodes, AstNodes<'static>>(nodes) };
         let source_code = agent.heap.create(SourceCodeHeapData {
             source: source.unbind(),
+            scoping,
+            nodes,
             allocator,
         });
 
@@ -278,6 +299,16 @@ impl<'a> SourceCode<'a> {
         unsafe { agent[agent[self].source].as_str().unwrap_unchecked() }
     }
 
+    /// Access the Scoping information of the SourceCode.
+    pub(crate) fn get_scoping(self, agent: &Agent) -> &Scoping {
+        &agent[self].scoping
+    }
+
+    /// Access the AstNodes information of the SourceCode.
+    pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
+        &agent[self].nodes
+    }
+
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
     }
@@ -290,6 +321,8 @@ pub struct SourceCodeHeapData<'a> {
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
     source: HeapString<'a>,
+    scoping: Scoping,
+    nodes: AstNodes<'static>,
     /// The arena that contains the parsed data of the eval source.
     allocator: Allocator,
 }
@@ -392,6 +425,8 @@ impl HeapMarkAndSweep for SourceCodeHeapData<'static> {
         let Self {
             source,
             allocator: _,
+            scoping: _,
+            nodes: _,
         } = self;
         source.mark_values(queues);
     }
@@ -400,6 +435,8 @@ impl HeapMarkAndSweep for SourceCodeHeapData<'static> {
         let Self {
             source,
             allocator: _,
+            scoping: _,
+            nodes: _,
         } = self;
         source.sweep_values(compactions);
     }
