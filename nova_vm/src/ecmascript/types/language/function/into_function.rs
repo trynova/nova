@@ -249,7 +249,7 @@ pub(crate) fn function_try_get<'gc, 'a>(
         ordinary_try_get(
             agent,
             func.into_object(),
-            backing_object,
+            Some(backing_object),
             property_key,
             receiver,
             gc,

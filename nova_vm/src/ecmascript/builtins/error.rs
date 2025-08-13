@@ -295,7 +295,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             Some(backing_object) => ordinary_try_get(
                 agent,
                 self.into_object(),
-                backing_object,
+                Some(backing_object),
                 property_key,
                 receiver,
                 gc,

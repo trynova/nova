@@ -265,26 +265,14 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         {
             return TryGetContinue::Value(last_index.into()).into();
         }
-        if let Some(backing_object) = self.get_backing_object(agent) {
-            ordinary_try_get(
-                agent,
-                self.into_object(),
-                backing_object,
-                property_key,
-                receiver,
-                gc,
-            )
-        } else {
-            // a. Let parent be ? O.[[GetPrototypeOf]]().
-            // Note: We know statically what this ends up doing.
-            let parent = agent
-                .current_realm_record()
-                .intrinsics()
-                .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
-
-            // c. Return ? parent.[[Get]](P, Receiver).
-            parent.try_get(agent, property_key, receiver, None, gc)
-        }
+        ordinary_try_get(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            receiver,
+            gc,
+        )
     }
 
     fn internal_get<'gc>(

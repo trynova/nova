@@ -356,30 +356,14 @@ where
             }
         }
         // 1. Return ? OrdinaryGet(O, P, Receiver).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_try_get(
-                agent,
-                self.into_object(),
-                backing_object,
-                property_key,
-                receiver,
-                gc,
-            ),
-            None => {
-                // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = match self.try_get_prototype_of(agent, gc) {
-                    ControlFlow::Continue(parent) => parent,
-                    ControlFlow::Break(_) => return TryGetResult::Break(TryBreak::CannotContinue),
-                };
-                let Some(parent) = parent else {
-                    // b. If parent is null, return undefined.
-                    return TryGetContinue::Unset.into();
-                };
-
-                // c. Return ? parent.[[Get]](P, Receiver).
-                parent.try_get(agent, property_key, receiver, cache, gc)
-            }
-        }
+        ordinary_try_get(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            receiver,
+            gc,
+        )
     }
 
     /// ## \[\[Get\]\]

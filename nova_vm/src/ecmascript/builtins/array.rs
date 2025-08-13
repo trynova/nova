@@ -710,27 +710,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 return result.into();
             }
         }
-        if let Some(backing_object) = self.get_backing_object(agent) {
-            // Note: this looks up in the prototype chain as well, so we
-            // don't need to fall-through if this returns false or such.
-            return ordinary_try_get(
-                agent,
-                array.into_object(),
-                backing_object,
-                property_key,
-                receiver,
-                gc,
-            );
-        }
-        // 3. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = array.internal_prototype(agent);
-
-        // 4. If parent is not null, then
-        if let Some(parent) = parent {
-            // a. Return ? parent.[[HasProperty]](P).
-            return parent.try_get(agent, property_key, receiver, None, gc);
-        }
-        TryGetContinue::Unset.into()
+        ordinary_try_get(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            receiver,
+            gc,
+        )
     }
 
     fn internal_get<'gc>(

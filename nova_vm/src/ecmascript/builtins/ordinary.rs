@@ -119,6 +119,17 @@ impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
+    fn try_get<'gc>(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+        cache: Option<caches::PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryGetResult<'gc> {
+        ordinary_try_get(agent, self.into(), Some(self), property_key, receiver, gc)
+    }
+
     fn get_own_property_at_offset<'gc>(
         self,
         agent: &Agent,
@@ -832,7 +843,7 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
 pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
     object: Object,
-    backing_object: OrdinaryObject,
+    backing_object: Option<OrdinaryObject>,
     property_key: PropertyKey,
     receiver: Value,
     gc: NoGcScope<'gc, '_>,
@@ -843,13 +854,13 @@ pub(crate) fn ordinary_try_get<'gc>(
     let receiver = receiver.bind(gc);
 
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) =
-        ordinary_get_own_property(agent, object, backing_object, property_key, gc)
+    let Some(descriptor) = backing_object
+        .and_then(|bo| ordinary_get_own_property(agent, object, bo, property_key, gc))
     else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = backing_object.internal_prototype(agent);
+        let parent = object.internal_prototype(agent);
 
         // b. If parent is null, return undefined.
         let Some(parent) = parent else {

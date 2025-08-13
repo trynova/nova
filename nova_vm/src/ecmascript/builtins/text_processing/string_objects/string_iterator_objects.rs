@@ -75,7 +75,7 @@ impl<'a> StringIterator<'a> {
 
 impl<'a> From<StringIterator<'a>> for Object<'a> {
     fn from(iter: StringIterator<'a>) -> Self {
-        iter.into_object()
+        Object::StringIterator(iter)
     }
 }
 

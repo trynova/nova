@@ -649,26 +649,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 .into()
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
-            match self.get_backing_object(agent) {
-                Some(backing_object) => ordinary_try_get(
-                    agent,
-                    self.into_object(),
-                    backing_object,
-                    property_key,
-                    receiver,
-                    gc,
-                ),
-                None => {
-                    // a. Let parent be ? O.[[GetPrototypeOf]]().
-                    let Some(parent) = self.internal_prototype(agent) else {
-                        // b. If parent is null, return undefined.
-                        return TryGetContinue::Unset.into();
-                    };
-
-                    // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.try_get(agent, property_key, receiver, None, gc)
-                }
-            }
+            ordinary_try_get(
+                agent,
+                self.into_object(),
+                self.get_backing_object(agent),
+                property_key,
+                receiver,
+                gc,
+            )
         }
     }
 
