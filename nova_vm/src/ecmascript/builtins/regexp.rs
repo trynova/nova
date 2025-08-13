@@ -14,7 +14,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
             IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, Value,
+            SetCachedProps, SetCachedResult, String, TryGetContinue, TryGetResult, Value,
         },
     },
     engine::{
@@ -257,13 +257,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into()
             && let Some(last_index) = agent[self].last_index.get_value()
         {
-            return TryResult::Continue(last_index.into());
+            return TryGetContinue::Value(last_index.into()).into();
         }
         if let Some(backing_object) = self.get_backing_object(agent) {
             ordinary_try_get(

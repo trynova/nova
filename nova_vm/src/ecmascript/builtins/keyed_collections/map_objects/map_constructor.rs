@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::hash::Hasher;
+use core::ops::ControlFlow;
 
 use ahash::AHasher;
 
@@ -35,11 +36,10 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            PropertyKey, String, Value,
+            PropertyKey, String, TryBreak, TryGetContinue, Value, handle_try_get_result,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
@@ -130,26 +130,34 @@ impl MapConstructor {
         // key.
 
         // 5. Let adder be ? Get(map, "set").
-        let adder = if let TryResult::Continue(adder) = try_get(
+        let adder = try_get(
             agent,
-            map.into_object().unbind(),
+            map,
             BUILTIN_STRING_MEMORY.set.to_property_key(),
             gc.nogc(),
-        ) {
-            adder
-        } else {
-            let scoped_map = map.scope(agent, gc.nogc());
-            let adder = get(
-                agent,
-                map.into_object().unbind(),
-                BUILTIN_STRING_MEMORY.set.to_property_key(),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-            let gc = gc.nogc();
-            map = scoped_map.get(agent).bind(gc);
-            adder.bind(gc)
+        );
+        let adder = match adder {
+            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+            ControlFlow::Break(TryBreak::Error(e)) => {
+                return Err(e.unbind().bind(gc.into_nogc()));
+            }
+            _ => {
+                let scoped_map = map.scope(agent, gc.nogc());
+                let adder = handle_try_get_result(
+                    agent,
+                    map.unbind(),
+                    BUILTIN_STRING_MEMORY.set.to_property_key(),
+                    adder.unbind(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let gc = gc.nogc();
+                // SAFETY: not shared.
+                map = unsafe { scoped_map.take(agent).bind(gc) };
+                adder
+            }
         };
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder, gc.nogc()) else {

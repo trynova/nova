@@ -26,7 +26,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, Value,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, TryGetContinue,
+            TryGetResult, Value,
         },
     },
     engine::{
@@ -182,33 +183,6 @@ impl<'a> Array<'a> {
             elements: cloned_elements,
         };
         agent.heap.create(data)
-    }
-
-    #[inline]
-    fn try_get_backing<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
-        if let Some(backing_object) = self.get_backing_object(agent) {
-            // If backing object exists, then we might have properties there
-            ordinary_try_get(
-                agent,
-                self.into_object(),
-                backing_object,
-                property_key,
-                receiver,
-                gc,
-            )
-        } else {
-            // If backing object doesn't exist, then we might still have
-            // properties in the prototype.
-            self.internal_prototype(agent)
-                .unwrap()
-                .try_get(agent, property_key, receiver, None, gc)
-        }
     }
 
     #[inline]
@@ -692,12 +666,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         let array = self.bind(gc);
         let property_key = property_key.bind(gc);
         let receiver = receiver.bind(gc);
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            return TryResult::Continue(array.len(agent).into());
+            return TryGetContinue::Value(array.len(agent).into()).into();
         } else if let Some(index) = property_key.into_u32() {
             let values = array.as_slice(agent);
             if index < values.len() as u32 {
@@ -705,21 +679,21 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // indexing should never fail.
                 let element = values[index as usize];
                 if let Some(element) = element {
-                    return TryResult::Continue(element);
+                    return TryGetContinue::Value(element).into();
                 }
                 // No value at this index; this might be a getter or setter.
                 let ElementStorageRef { descriptors, .. } = array.get_storage(agent);
                 if let Some(descriptors) = descriptors
                     && let Some(descriptor) = descriptors.get(&index)
                 {
-                    return if descriptor.has_getter() {
+                    return if let Some(getter) = descriptor.getter_function(gc) {
                         // 7. Return ? Call(getter, Receiver).
                         // return call_function(agent, getter, receiver, None, gc);
-                        TryResult::Break(())
+                        TryGetContinue::Get(getter).into()
                     } else {
                         // Accessor with no getter.
                         debug_assert!(descriptor.is_accessor_descriptor());
-                        TryResult::Continue(Value::Undefined)
+                        TryGetContinue::Value(Value::Undefined).into()
                     };
                 }
                 // Hole! We must look into the prototype chain!
@@ -748,7 +722,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             // a. Return ? parent.[[HasProperty]](P).
             return parent.try_get(agent, property_key, receiver, None, gc);
         }
-        TryResult::Continue(Value::Undefined)
+        TryGetContinue::Unset.into()
     }
 
     fn internal_get<'gc>(

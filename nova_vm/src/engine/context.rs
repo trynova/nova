@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::marker::PhantomData;
+use std::ops::ControlFlow;
 
 use wtf8::CodePoint;
 
@@ -371,6 +372,26 @@ pub unsafe trait Bindable: Sized {
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a>;
 }
 
+macro_rules! bindable_handle {
+    ($self:ident) => {
+        // SAFETY: Bindable handle.
+        unsafe impl Bindable for $self<'_> {
+            type Of<'a> = $self<'a>;
+
+            #[inline(always)]
+            fn unbind(self) -> Self::Of<'static> {
+                unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+            }
+
+            #[inline(always)]
+            fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+                unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+            }
+        }
+    };
+}
+pub(crate) use bindable_handle;
+
 macro_rules! trivially_bindable {
     ($self:ty) => {
         // SAFETY: Trivially safe.
@@ -489,6 +510,35 @@ unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
         }
         self.map(|t| t.bind(gc)).map_err(|e| e.bind(gc))
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<T: Bindable, E: Bindable> Bindable for ControlFlow<T, E> {
+    type Of<'a> = ControlFlow<T::Of<'a>, E::Of<'a>>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        match self {
+            ControlFlow::Continue(c) => ControlFlow::Continue(c.unbind()),
+            ControlFlow::Break(b) => ControlFlow::Break(b.unbind()),
+        }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        match self {
+            ControlFlow::Continue(c) => ControlFlow::Continue(c.bind(gc)),
+            ControlFlow::Break(b) => ControlFlow::Break(b.bind(gc)),
+        }
     }
 }
 

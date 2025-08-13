@@ -25,7 +25,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, IntoValue, NoCache, Object,
             PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, SetProps, String,
-            Value, call_proxy_set,
+            Value, call_proxy_set, map_try_get_into_try_result,
         },
     },
     engine::{
@@ -169,16 +169,16 @@ impl<'e> ObjectEnvironment<'e> {
             return TryResult::Continue(true);
         }
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
-        let unscopables = try_get(
+        let unscopables = map_try_get_into_try_result(try_get(
             agent,
             binding_object,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
             gc,
-        )?;
+        ))?;
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = try_get(agent, unscopables, name, gc)?;
+            let blocked = map_try_get_into_try_result(try_get(agent, unscopables, name, gc))?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             TryResult::Continue(!blocked)
@@ -772,7 +772,7 @@ impl<'e> ObjectEnvironment<'e> {
             if cache.is_some() {
                 agent.heap.caches.clear_current_cache_to_populate();
             }
-            TryResult::Continue(Ok(result?))
+            TryResult::Continue(Ok(map_try_get_into_try_result(result)?))
         }
     }
 

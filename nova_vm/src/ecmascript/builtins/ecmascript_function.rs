@@ -34,8 +34,8 @@ use crate::{
             BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
             FunctionInternalProperties, GetCachedResult, InternalMethods, InternalSlots,
             IntoFunction, IntoObject, IntoValue, NoCache, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String, Value,
-            function_create_backing_object, function_get_cached,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String, TryGetResult,
+            Value, function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
             function_internal_own_property_keys, function_internal_set, function_set_cached,
@@ -417,7 +417,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         function_try_get(self, agent, property_key, receiver, cache, gc)
     }
 

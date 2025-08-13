@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -28,7 +30,8 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, TryBreak, TryGetContinue,
+            Value,
         },
     },
     engine::{
@@ -1295,7 +1298,12 @@ fn try_object_define_properties<'a, 'gc, T: InternalMethods<'a>>(
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = try_get(agent, props, next_key, gc)?;
+        let desc_obj = match try_get(agent, props, next_key, gc) {
+            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+            ControlFlow::Break(TryBreak::Error(err)) => return TryResult::Continue(Err(err)),
+            _ => return TryResult::Break(()),
+        };
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
         let desc = PropertyDescriptor::try_to_property_descriptor(agent, desc_obj, gc)?;
         let desc = match desc {

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::ops::ControlFlow;
 use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
@@ -30,11 +31,11 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, PropertyKeySet, Value,
+            PropertyKey, PropertyKeySet, TryBreak, TryGetContinue, Value,
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope, ScopeToken},
         rootable::Scopable,
     },
@@ -271,13 +272,12 @@ impl<'a> VmIteratorRecord<'a> {
                     None,
                     gc,
                 ) {
-                    TryResult::Continue(return_method) => {
-                        !return_method.is_undefined() && !return_method.is_null()
+                    ControlFlow::Continue(TryGetContinue::Unset) => false,
+                    ControlFlow::Continue(TryGetContinue::Value(v)) => {
+                        !v.is_undefined() && !v.is_null()
                     }
-                    // Note: here it's still possible that we won't actually
-                    // call a return method but this break already means that
-                    // the user can observe the ArrayIterator object.
-                    TryResult::Break(_) => true,
+                    ControlFlow::Break(TryBreak::Error(_)) => todo!(),
+                    _ => true,
                 }
             }
             VmIteratorRecord::InvalidIterator { iterator }
@@ -290,13 +290,12 @@ impl<'a> VmIteratorRecord<'a> {
                     None,
                     gc,
                 ) {
-                    TryResult::Continue(return_method) => {
-                        !return_method.is_undefined() && !return_method.is_null()
+                    ControlFlow::Continue(TryGetContinue::Unset) => false,
+                    ControlFlow::Continue(TryGetContinue::Value(v)) => {
+                        !v.is_undefined() && !v.is_null()
                     }
-                    // Note: here it's still possible that we won't actually
-                    // call a return method but this break already means that
-                    // we'll need garbage collection.
-                    TryResult::Break(_) => true,
+                    ControlFlow::Break(TryBreak::Error(_)) => todo!(),
+                    _ => true,
                 }
             }
         }
@@ -1089,13 +1088,10 @@ fn array_iterator_record_requires_return_call(agent: &mut Agent, gc: NoGcScope) 
         None,
         gc,
     ) {
-        TryResult::Continue(return_method) => {
-            !return_method.is_undefined() && !return_method.is_null()
-        }
-        // Note: here it's still possible that we won't actually
-        // call a return method but this break already means that
-        // the user can observe the ArrayIterator object.
-        TryResult::Break(_) => true,
+        ControlFlow::Continue(TryGetContinue::Unset) => false,
+        ControlFlow::Continue(TryGetContinue::Value(v)) => !v.is_undefined() && !v.is_null(),
+        ControlFlow::Break(TryBreak::Error(_)) => todo!(),
+        _ => true,
     }
 }
 
@@ -1111,13 +1107,12 @@ fn generic_iterator_record_requires_return_call(
         None,
         gc,
     ) {
-        TryResult::Continue(return_method) => {
-            !return_method.is_undefined() && !return_method.is_null()
-        }
-        // Note: here it's still possible that we won't actually
-        // call a return method but this break already means that
-        // we'll need garbage collection.
-        TryResult::Break(_) => true,
+        ControlFlow::Continue(TryGetContinue::Unset) => false,
+        ControlFlow::Continue(TryGetContinue::Value(v)) => !v.is_undefined() && !v.is_null(),
+        // TODO: consider passing the error on here; not sure if this is
+        // possible though.
+        ControlFlow::Break(TryBreak::Error(_)) => unreachable!(),
+        _ => true,
     }
 }
 

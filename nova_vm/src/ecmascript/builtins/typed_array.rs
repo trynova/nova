@@ -15,10 +15,11 @@ use crate::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedResult,
             INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache, Number, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache, Number, Numeric,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, TryGetContinue, TryGetResult, UINT_8_ARRAY_DISCRIMINANT,
+            UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+            UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
     engine::{
@@ -632,7 +633,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -641,7 +642,11 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // i. Return TypedArrayGetElement(O, numericIndex).
             let numeric_index = numeric_index.into_i64();
             let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
-            TryResult::Continue(result.map_or(Value::Undefined, |v| v.into_value()))
+            result
+                .map_or(TryGetContinue::Unset, |v| {
+                    TryGetContinue::Value(v.into_value())
+                })
+                .into()
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
@@ -655,9 +660,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 ),
                 None => {
                     // a. Let parent be ? O.[[GetPrototypeOf]]().
-                    let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
+                    let Some(parent) = self.internal_prototype(agent) else {
                         // b. If parent is null, return undefined.
-                        return TryResult::Continue(Value::Undefined);
+                        return TryGetContinue::Unset.into();
                     };
 
                     // c. Return ? parent.[[Get]](P, Receiver).
@@ -683,14 +688,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc.nogc());
         // b. If numericIndex is not undefined, then
-        if property_key.is_array_index() {
-            Ok(unwrap_try(self.try_get(
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            Ok(typed_array_get_element_generic(
                 agent,
-                property_key.unbind(),
-                receiver.unbind(),
-                None,
+                self,
+                numeric_index.into_i64(),
                 gc.into_nogc(),
-            )))
+            )
+            .map_or(Value::Undefined, Numeric::into_value))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {

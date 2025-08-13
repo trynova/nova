@@ -24,11 +24,10 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            Value,
+            TryGetContinue, Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
         unwrap_try,
@@ -686,13 +685,14 @@ impl RegExpPrototype {
                 gc.nogc(),
             );
             if exec
-                == TryResult::Continue(
+                == TryGetContinue::Value(
                     agent
                         .current_realm_record()
                         .intrinsics()
                         .reg_exp_prototype_exec()
                         .into_value(),
                 )
+                .into()
             {
                 return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into_value());
             }

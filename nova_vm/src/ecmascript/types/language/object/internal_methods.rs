@@ -7,6 +7,7 @@ use std::ops::ControlFlow;
 use super::{InternalSlots, Object, PropertyKey};
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::call_function,
         builtins::{
             ArgumentsList,
             ordinary::{
@@ -19,12 +20,12 @@ use crate::{
             },
             proxy::Proxy,
         },
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, agent::JsError},
         types::{Function, IntoValue, PropertyDescriptor, Value, throw_cannot_set_property},
     },
     engine::{
         TryResult,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
         unwrap_try,
     },
@@ -329,13 +330,12 @@ where
         }
     }
 
-    /// ## Infallible \[\[Get\]\]
+    /// ## Try \[\[Get\]\]
     ///
-    /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
-    /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// This is a variant of the method that does not allow calling into
+    /// JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then `TryBreak` is
+    /// returned.
     fn try_get<'gc>(
         self,
         agent: &mut Agent,
@@ -343,7 +343,7 @@ where
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_try_get(
@@ -356,9 +356,13 @@ where
             ),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
+                let parent = match self.try_get_prototype_of(agent, gc) {
+                    ControlFlow::Continue(parent) => parent,
+                    ControlFlow::Break(_) => return TryGetResult::Break(TryBreak::CannotContinue),
+                };
+                let Some(parent) = parent else {
                     // b. If parent is null, return undefined.
-                    return TryResult::Continue(Value::Undefined);
+                    return TryGetContinue::Unset.into();
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
@@ -625,7 +629,173 @@ where
     }
 }
 
-/// Early-return conditions for [[Get]] method's cached variant.
+/// Break conditions for internal method's Try variants.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TryBreak<'a> {
+    /// The method cannot run to completion without calling into JavaScript.
+    ///
+    /// > Note: the method can and is encouraged to delegate any JavaScript
+    /// > tail calls to the caller (such as getter, setter, or Proxy trap call
+    /// > at the end of a \[\[Get]] or \[\[Set]] method). This variant should
+    /// > be used when the method would need to perform additional work after
+    /// > the JavaScript call is done.
+    CannotContinue,
+    /// The method cannot run to completion due to allocation failure.
+    ///
+    /// This should be used to indicate that the heap is likely full and the
+    /// caller should explicitly trigger garbage collection before calling the
+    /// normal method variant.
+    ///
+    /// > Note: the caller should not call the method's Try variant in a loop
+    /// > with explicit garbage collection, as it is possible that the heap is
+    /// > not full and allocation failure is related to method arguments.
+    FailedToAllocate,
+    /// The method threw an error.
+    Error(JsError<'a>),
+}
+bindable_handle!(TryBreak);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Continue results for the \[\[Get]] method's Try variant.
+pub enum TryGetContinue<'a> {
+    /// No property exists in the object or its prototype chain.
+    Unset,
+    /// A data property was found.
+    Value(Value<'a>),
+    /// A getter call is needed.
+    ///
+    /// This means that the method ran to completion but could not call the
+    /// getter itself.
+    Get(Function<'a>),
+    /// A Proxy trap call is needed.
+    ///
+    /// This means that the method ran to completion but could not call the
+    /// Proxy trap itself.
+    Proxy(Proxy<'a>),
+}
+bindable_handle!(TryGetContinue);
+
+/// Result type for the \[\[Get]] method's Try variant.
+pub type TryGetResult<'a> = ControlFlow<TryBreak<'a>, TryGetContinue<'a>>;
+
+/// Handle TryGetResult within a GC scope.
+///
+/// It is recommended to handle at least `TryGetContinue::Unset` and
+/// `TryGetContinue::Value`, and possibly `TryBreak::Error` outside of this
+/// function as fast paths.
+#[inline(never)]
+pub fn handle_try_get_result<'a>(
+    agent: &mut Agent,
+    o: impl InternalMethods<'a>,
+    p: PropertyKey,
+    result: TryGetResult,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
+    let p = p.bind(gc.nogc());
+    let result = result.bind(gc.nogc());
+    match result {
+        ControlFlow::Continue(c) => match c {
+            TryGetContinue::Unset => Ok(Value::Undefined),
+            TryGetContinue::Value(value) => Ok(value.unbind().bind(gc.into_nogc())),
+            TryGetContinue::Get(getter) => {
+                call_function(agent, getter.unbind(), o.into_value().unbind(), None, gc)
+            }
+            TryGetContinue::Proxy(proxy) => {
+                proxy
+                    .unbind()
+                    .internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
+            }
+        },
+        ControlFlow::Break(b) => match b {
+            TryBreak::Error(err) => Err(err.unbind().bind(gc.into_nogc())),
+            TryBreak::CannotContinue => {
+                o.internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
+            }
+            TryBreak::FailedToAllocate => {
+                let o = o.into_object().scope(agent, gc.nogc());
+                let p = p.scope(agent, gc.nogc());
+                agent.gc(gc.reborrow());
+                // SAFETY: not shared.
+                let p = unsafe { p.take(agent) }.bind(gc.nogc());
+                // SAFETY: not shared.
+                let o = unsafe { o.take(agent) }.bind(gc.nogc());
+                o.unbind()
+                    .internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
+            }
+        },
+    }
+}
+
+pub fn map_try_get_into_try_result<'a>(v: TryGetResult<'a>) -> TryResult<Value<'a>> {
+    match v {
+        ControlFlow::Continue(TryGetContinue::Unset) => TryResult::Continue(Value::Undefined),
+        ControlFlow::Continue(TryGetContinue::Value(value)) => TryResult::Continue(value),
+        _ => TryResult::Break(()),
+    }
+}
+
+pub fn map_try_get_into_try_result_or_error<'a>(
+    v: TryGetResult<'a>,
+) -> TryResult<JsResult<'a, Value<'a>>> {
+    match v {
+        ControlFlow::Continue(TryGetContinue::Unset) => TryResult::Continue(Ok(Value::Undefined)),
+        ControlFlow::Continue(TryGetContinue::Value(value)) => TryResult::Continue(Ok(value)),
+        ControlFlow::Break(TryBreak::Error(err)) => TryResult::Continue(Err(err)),
+        _ => TryResult::Break(()),
+    }
+}
+
+#[inline(always)]
+pub(crate) fn unwrap_try_get_value<'a>(v: TryGetResult<'a>) -> Value<'a> {
+    match v {
+        ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+        _ => unreachable!(),
+    }
+}
+
+#[inline(always)]
+pub(crate) fn unwrap_try_get_value_or_unset<'a>(v: TryGetResult<'a>) -> Value<'a> {
+    match v {
+        ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+        ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+        _ => unreachable!(),
+    }
+}
+
+macro_rules! rethrow_try_get_result {
+    ($self:expr) => {
+        match crate::ecmascript::types::map_try_get_into_try_result_or_error($self)? {
+            Ok(r) => r,
+            Err(e) => return TryResult::Continue(Err(e)),
+        }
+    };
+}
+
+macro_rules! rethrow_try_js_result {
+    ($self:expr) => {
+        match $self? {
+            Ok(r) => r,
+            Err(e) => return TryResult::Continue(Err(e)),
+        }
+    };
+}
+
+pub(crate) use rethrow_try_get_result;
+pub(crate) use rethrow_try_js_result;
+
+impl<'a> From<TryGetContinue<'a>> for TryGetResult<'a> {
+    fn from(value: TryGetContinue<'a>) -> Self {
+        Self::Continue(value)
+    }
+}
+
+impl<'a> From<TryBreak<'a>> for TryGetResult<'a> {
+    fn from(value: TryBreak<'a>) -> Self {
+        Self::Break(value)
+    }
+}
+
+/// Early-return conditions for \[\[Get]] method's cached variant.
 ///
 /// Early-return effectively means that a cached property lookup was found
 /// and the normal \[\[Get]] method variant need not be entered.
@@ -640,6 +810,7 @@ pub enum GetCachedResult<'a> {
     /// A Proxy trap call is needed.
     Proxy(Proxy<'a>),
 }
+bindable_handle!(GetCachedResult);
 
 impl<'a, T> From<GetCachedResult<'a>> for ControlFlow<GetCachedResult<'a>, T> {
     fn from(value: GetCachedResult<'a>) -> Self {
@@ -661,21 +832,6 @@ pub struct NoCache;
 impl<T> From<NoCache> for ControlFlow<T, NoCache> {
     fn from(value: NoCache) -> Self {
         ControlFlow::Continue(value)
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for GetCachedResult<'_> {
-    type Of<'a> = GetCachedResult<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

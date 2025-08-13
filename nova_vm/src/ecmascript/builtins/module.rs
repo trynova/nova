@@ -18,7 +18,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
             NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, Value,
+            SetCachedResult, String, TryBreak, TryGetContinue, TryGetResult, Value,
         },
     },
     engine::{
@@ -249,9 +249,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self
-                        .try_get(agent, property_key, self.into_value(), None, gc)?
-                        .unbind();
+                    let value = match self.try_get(agent, property_key, self.into_value(), None, gc)
+                    {
+                        ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+                        ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+                        _ => return TryResult::Break(()),
+                    };
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     TryResult::Continue(Some(PropertyDescriptor {
                         value: Some(value),
@@ -520,7 +523,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
         // it must return the same result. An implementation might choose to
@@ -532,9 +535,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    TryResult::Continue(BUILTIN_STRING_MEMORY.Module.into_value())
+                    TryGetContinue::Value(BUILTIN_STRING_MEMORY.Module.into_value()).into()
                 } else {
-                    TryResult::Continue(Value::Undefined)
+                    TryGetContinue::Unset.into()
                 }
             }
             PropertyKey::PrivateName(_) => unreachable!(),
@@ -550,7 +553,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
-                    TryResult::Continue(Value::Undefined)
+                    TryGetContinue::Unset.into()
                 } else {
                     // 4. Let m be O.[[Module]].
                     let m = &agent[self].module;
@@ -569,22 +572,28 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
-                        return TryResult::Continue(
+                        return TryGetContinue::Value(
                             get_module_namespace(agent, target_module.unbind(), gc).into_value(),
-                        );
+                        )
+                        .into();
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
                     let target_env = target_module.environment(agent, gc);
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     let Some(target_env) = target_env else {
-                        return TryResult::Break(());
+                        return TryBreak::Error(agent.throw_exception_with_static_message(
+                            ExceptionType::ReferenceError,
+                            "Attempted to access unlinked module's environment",
+                            gc,
+                        ))
+                        .into();
                     };
                     // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
                     if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
                     {
-                        TryResult::Continue(value)
+                        TryGetContinue::Value(value).into()
                     } else {
-                        TryResult::Break(())
+                        TryBreak::Error(throw_uninitialized_binding(agent, binding_name, gc)).into()
                     }
                 }
             }

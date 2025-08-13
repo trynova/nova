@@ -20,7 +20,7 @@ use crate::{
             NUMBER_DISCRIMINANT, NoCache, Number, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
             STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String,
-            Symbol, Value, bigint::HeapBigInt,
+            Symbol, TryGetContinue, TryGetResult, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -366,11 +366,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
-            return TryResult::Continue(value.bind(gc));
+            return TryGetContinue::Value(value.bind(gc)).into();
         }
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
@@ -387,7 +387,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc)) else {
                     // b. If parent is null, return undefined.
-                    return TryResult::Continue(Value::Undefined);
+                    return TryGetContinue::Unset.into();
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).

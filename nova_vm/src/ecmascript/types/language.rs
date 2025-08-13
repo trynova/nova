@@ -32,11 +32,7 @@ pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub(crate) use object::ScopedPropertyKey;
-pub use object::{
-    GetCachedResult, InternalMethods, InternalSlots, IntoObject, NoCache, Object, ObjectHeapData,
-    OrdinaryObject, PropertyKey, PropertyKeySet, SetCachedProps, SetCachedResult, SetProps,
-    call_proxy_set,
-};
+pub use object::*;
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
 pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringHeapData};

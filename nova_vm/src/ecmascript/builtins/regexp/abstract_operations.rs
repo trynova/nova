@@ -11,9 +11,7 @@ use oxc_regular_expression::{LiteralParser, Options};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{
-                call_function, get, try_create_data_property_or_throw, try_get,
-            },
+            operations_on_objects::{call_function, try_create_data_property_or_throw, try_get},
             testing_and_comparison::is_callable,
             type_conversion::{to_length, to_string, try_to_length},
         },
@@ -24,7 +22,7 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, Value,
+            String, TryBreak, TryGetContinue, Value, handle_try_get_result, unwrap_try_get_value,
         },
     },
     engine::{
@@ -339,34 +337,42 @@ fn reg_exp_exec_prepare<'a>(
     let mut s = s.bind(gc.nogc());
     let mut r = r.bind(gc.nogc());
     // 1. Let exec be ? Get(R, "exec").
-    let exec = if let TryResult::Continue(exec) = try_get(
+    let exec = try_get(
         agent,
         r,
         BUILTIN_STRING_MEMORY.exec.to_property_key(),
         gc.nogc(),
-    ) {
-        exec
-    } else {
-        let scoped_r = r.scope(agent, gc.nogc());
-        let scoped_s = s.scope(agent, gc.nogc());
-        let exec = get(
-            agent,
-            r.unbind(),
-            BUILTIN_STRING_MEMORY.exec.to_property_key(),
-            gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
-        let exec = match exec {
-            Ok(e) => e,
-            Err(err) => return ControlFlow::Break(Err(err.unbind())),
-        };
-        // SAFETY: Not shared.
-        unsafe {
-            s = scoped_s.take(agent).bind(gc.nogc());
-            r = scoped_r.take(agent).bind(gc.nogc());
+    );
+    let exec = match exec {
+        ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+        ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+        ControlFlow::Break(TryBreak::Error(e)) => {
+            return ControlFlow::Break(Err(e.unbind().bind(gc.into_nogc())));
         }
-        exec
+        _ => {
+            let scoped_r = r.scope(agent, gc.nogc());
+            let scoped_s = s.scope(agent, gc.nogc());
+            let exec = handle_try_get_result(
+                agent,
+                r.unbind(),
+                BUILTIN_STRING_MEMORY.exec.to_property_key(),
+                exec.unbind(),
+                gc.reborrow(),
+            )
+            .unbind()
+            .bind(gc.nogc());
+            let exec = match exec {
+                Ok(e) => e,
+                Err(err) => return ControlFlow::Break(Err(err.unbind())),
+            };
+            let gc = gc.nogc();
+            // SAFETY: Not shared.
+            unsafe {
+                s = scoped_s.take(agent).bind(gc);
+                r = scoped_r.take(agent).bind(gc);
+            }
+            exec
+        }
     };
 
     // Fast path: native RegExp object and intrinsic exec function.
@@ -485,7 +491,7 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
         // Note: calling Get(R, "lastIndex") cannot trigger JavaScript
         // execution, as the "lastIndex" property is always an unconfigurable
         // data property of every RegExp object.
-        let last_index = unwrap_try(try_get(
+        let last_index = unwrap_try_get_value(try_get(
             agent,
             r,
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),

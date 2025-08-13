@@ -2,10 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, has_own_property, invoke, is_prototype_of_loop, try_get},
+            operations_on_objects::{has_own_property, invoke, is_prototype_of_loop, try_get},
             testing_and_comparison::is_array,
             type_conversion::{to_object, to_property_key},
         },
@@ -17,13 +19,10 @@ use crate::{
         execution::{Agent, JsResult, Realm},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
-            String, Value,
+            String, TryBreak, TryGetContinue, Value, handle_try_get_result,
         },
     },
-    engine::{
-        TryResult,
-        context::{Bindable, GcScope},
-    },
+    engine::context::{Bindable, GcScope},
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
@@ -259,28 +258,35 @@ impl ObjectPrototype {
             }
         };
         // 15. Let tag be ? Get(O, @@toStringTag).
-        let tag = if let TryResult::Continue(tag) = try_get(
+        let tag = try_get(
             agent,
             o_or_prototype,
             WellKnownSymbolIndexes::ToStringTag.into(),
             gc.nogc(),
-        ) {
+        );
+        let tag = match tag {
             // We got a result without creating a primitive object! Good!
-            tag
-        } else {
-            // No such luck: Getting @@toStringTag would call a getter, someone
-            // wants to observe the engine at work. We'll have to make pretend for
-            // their sake.
-            // 3. Let O be ! ToObject(this value).
-            let o = to_object(agent, this_value, gc.nogc()).unwrap();
-            get(
-                agent,
-                o.unbind(),
-                WellKnownSymbolIndexes::ToStringTag.into(),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+            ControlFlow::Break(TryBreak::Error(e)) => {
+                return Err(e.unbind().bind(gc.into_nogc()));
+            }
+            _ => {
+                // No such luck: Getting @@toStringTag would call a getter,
+                // someone wants to observe the engine at work. We'll have to
+                // make pretend for their sake.
+                // 3. Let O be ! ToObject(this value).
+                let o = to_object(agent, this_value, gc.nogc()).unwrap();
+                handle_try_get_result(
+                    agent,
+                    o.unbind(),
+                    WellKnownSymbolIndexes::ToStringTag.into(),
+                    tag.unbind(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc())
+            }
         };
         if let Ok(tag) = String::try_from(tag) {
             // 17. Return the string-concatenation of "[object ", tag, and "]".

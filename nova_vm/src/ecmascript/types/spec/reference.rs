@@ -17,7 +17,10 @@ use crate::{
             agent::{self, ExceptionType, JsError},
             get_global_object,
         },
-        types::{InternalMethods, IntoValue, Object, PropertyKey, String, Value},
+        types::{
+            InternalMethods, IntoObject, IntoValue, Object, PropertyKey, String, Value,
+            rethrow_try_get_result,
+        },
     },
     engine::{
         TryResult,
@@ -667,51 +670,57 @@ fn try_handle_primitive_get_value<'a>(
         return TryResult::Continue(Err(throw_no_private_name_error(agent, gc)));
     }
     // Primitive value. annoying stuff.
-    match value {
+    let prototype = match value {
         Value::Undefined | Value::Null => {
-            TryResult::Continue(Err(throw_read_undefined_or_null_error(
+            return TryResult::Continue(Err(throw_read_undefined_or_null_error(
                 agent,
                 // SAFETY: We do not care about the conversion validity in
                 // error message logging.
                 unsafe { referenced_name.into_value_unchecked() },
                 value,
                 gc,
-            )))
+            )));
         }
-        Value::Boolean(_) => TryResult::Continue(Ok(agent
+        Value::Boolean(_) => agent
             .current_realm_record()
             .intrinsics()
             .boolean_prototype()
-            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
+            .into_object(),
         Value::String(_) | Value::SmallString(_) => {
             let string = String::try_from(value).unwrap();
             if let Some(prop_desc) = string.get_property_descriptor(agent, referenced_name) {
-                TryResult::Continue(Ok(prop_desc.value.unwrap()))
-            } else {
-                TryResult::Continue(Ok(agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .string_prototype()
-                    .try_get(agent, referenced_name.unbind(), value, None, gc)?))
+                return TryResult::Continue(Ok(prop_desc.value.unwrap()));
             }
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .string_prototype()
+                .into_object()
         }
-        Value::Symbol(_) => TryResult::Continue(Ok(agent
+        Value::Symbol(_) => agent
             .current_realm_record()
             .intrinsics()
             .symbol_prototype()
-            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
-        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => TryResult::Continue(Ok(agent
+            .into_object(),
+        Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
             .current_realm_record()
             .intrinsics()
             .number_prototype()
-            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
-        Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
+            .into_object(),
+        Value::BigInt(_) | Value::SmallBigInt(_) => agent
             .current_realm_record()
             .intrinsics()
             .big_int_prototype()
-            .try_get(agent, referenced_name.unbind(), value, None, gc)?)),
+            .into_object(),
         _ => unreachable!(),
-    }
+    };
+    TryResult::Continue(Ok(rethrow_try_get_result!(prototype.try_get(
+        agent,
+        referenced_name.unbind(),
+        value,
+        None,
+        gc
+    ))))
 }
 
 /// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
@@ -762,13 +771,13 @@ pub(crate) fn try_get_value<'gc>(
             let referenced_name = to_property_key_simple(agent, referenced_name, gc)?;
             if let Ok(base_obj) = Object::try_from(base) {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                TryResult::Continue(Ok(base_obj.try_get(
+                TryResult::Continue(Ok(rethrow_try_get_result!(base_obj.try_get(
                     agent,
                     referenced_name,
                     this_value,
                     None,
                     gc,
-                )?))
+                ))))
             } else {
                 // base is not an object; we handle primitives separately.
                 try_handle_primitive_get_value(agent, referenced_name, base, gc)
@@ -792,13 +801,13 @@ pub(crate) fn try_get_value<'gc>(
                 }
             } else if let Ok(base_obj) = base_obj {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                TryResult::Continue(Ok(base_obj.try_get(
+                TryResult::Continue(Ok(rethrow_try_get_result!(base_obj.try_get(
                     agent,
                     referenced_name,
                     get_this_value(reference),
                     None,
                     gc,
-                )?))
+                ))))
             } else {
                 // base is not an object; we handle primitives separately.
                 try_handle_primitive_get_value(agent, referenced_name, base, gc)

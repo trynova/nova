@@ -24,7 +24,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
             IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, Value,
+            SetCachedProps, SetCachedResult, String, TryGetContinue, TryGetResult, Value,
         },
     },
     engine::{
@@ -1032,9 +1032,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: PropertyKey,
         _: Value,
         _: Option<PropertyLookupCache>,
-        _: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
-        TryResult::Break(())
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryGetResult<'gc> {
+        TryGetContinue::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.8 [[Get]] ( P, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver)

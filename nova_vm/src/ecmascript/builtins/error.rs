@@ -15,7 +15,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
             IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, Value,
+            SetCachedProps, SetCachedResult, String, TryGetContinue, TryGetResult, Value,
         },
     },
     engine::{
@@ -290,7 +290,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_try_get(
                 agent,
@@ -310,7 +310,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                         None
                     };
                 if let Some(property_value) = property_value {
-                    TryResult::Continue(property_value)
+                    TryGetContinue::Value(property_value).into()
                 } else {
                     // c. Return ? parent.[[Get]](P, Receiver).
                     self.internal_prototype(agent).unwrap().try_get(

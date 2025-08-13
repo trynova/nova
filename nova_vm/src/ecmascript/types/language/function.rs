@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 
 use super::{
     GetCachedResult, InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey,
-    SetCachedProps, SetCachedResult, String, Value,
+    SetCachedProps, SetCachedResult, String, TryGetResult, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -48,7 +48,7 @@ pub(crate) use into_function::{
 };
 
 /// https://tc39.es/ecma262/#function-object
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Function<'a> {
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
@@ -428,7 +428,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         match self {
             Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
             Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),

@@ -12,10 +12,8 @@ mod property_key_vec;
 mod property_storage;
 
 use core::hash::Hash;
-use std::{
-    collections::{TryReserveError, hash_map::Entry},
-    ops::ControlFlow,
-};
+use core::ops::ControlFlow;
+use std::collections::{TryReserveError, hash_map::Entry};
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
@@ -121,10 +119,7 @@ use crate::{
 
 use ahash::AHashMap;
 pub use data::ObjectHeapData;
-pub use internal_methods::{
-    GetCachedResult, InternalMethods, NoCache, SetCachedProps, SetCachedResult, SetProps,
-    call_proxy_set,
-};
+pub use internal_methods::*;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
@@ -3197,7 +3192,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryGetResult<'gc> {
         match self {
             Object::Object(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::Array(data) => data.try_get(agent, property_key, receiver, cache, gc),

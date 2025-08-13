@@ -16,7 +16,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
             NoCache, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, Value, language::IntoObject,
+            SetCachedResult, String, TryGetContinue, TryGetResult, Value, language::IntoObject,
         },
     },
     engine::{
@@ -244,7 +244,7 @@ pub(crate) fn function_try_get<'gc, 'a>(
     receiver: Value,
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<Value<'gc>> {
+) -> TryGetResult<'gc> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         ordinary_try_get(
             agent,
@@ -255,12 +255,12 @@ pub(crate) fn function_try_get<'gc, 'a>(
             gc,
         )
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-        TryResult::Continue(func.get_length(agent).into())
+        TryGetContinue::Value(func.get_length(agent).into()).into()
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        TryResult::Continue(func.get_name(agent).into_value())
+        TryGetContinue::Value(func.get_name(agent).into_value()).into()
     } else {
         let parent = unwrap_try(func.try_get_prototype_of(agent, gc));
-        parent.map_or(TryResult::Continue(Value::Undefined), |parent| {
+        parent.map_or(TryGetContinue::Unset.into(), |parent| {
             parent.try_get(agent, property_key, receiver, None, gc)
         })
     }

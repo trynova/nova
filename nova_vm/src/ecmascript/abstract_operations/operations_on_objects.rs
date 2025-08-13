@@ -4,6 +4,8 @@
 
 //! ## [7.3 Operations on Objects](https://tc39.es/ecma262/#sec-operations-on-objects)
 
+use core::ops::ControlFlow;
+
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -33,7 +35,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
-            PropertyKey, PropertyKeySet, String, Value,
+            PropertyKey, PropertyKeySet, String, TryGetContinue, TryGetResult, Value,
+            map_try_get_into_try_result_or_error, rethrow_try_get_result, rethrow_try_js_result,
         },
     },
     engine::{
@@ -80,7 +83,7 @@ pub(crate) fn try_get<'a, 'gc>(
     o: impl InternalMethods<'a>,
     p: PropertyKey,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<Value<'gc>> {
+) -> TryGetResult<'gc> {
     // 1. Return ? O.[[Get]](P, O).
     o.try_get(agent, p, o.into_value(), None, gc)
 }
@@ -206,7 +209,7 @@ pub(crate) fn try_get_v<'gc>(
         _ => Object::try_from(v).unwrap(),
     };
     // 2. Return ? O.[[Get]](P, V).
-    TryResult::Continue(Ok(o.try_get(agent, p, v, None, gc)?))
+    map_try_get_into_try_result_or_error(o.try_get(agent, p, v, None, gc))
 }
 
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
@@ -556,7 +559,7 @@ pub(crate) fn try_get_object_method<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<JsResult<'a, Option<Function<'a>>>> {
     // 1. Let func be ? GetV(V, P).
-    let func = o.try_get(agent, p, o.into_value(), None, gc)?;
+    let func = rethrow_try_get_result!(o.try_get(agent, p, o.into_value(), None, gc));
     TryResult::Continue(get_method_internal(agent, func, gc))
 }
 
@@ -1102,12 +1105,12 @@ pub(crate) fn try_length_of_array_like<'a>(
     }
 
     // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
-    let property = try_get(
+    let property = rethrow_try_js_result!(map_try_get_into_try_result_or_error(try_get(
         agent,
         obj,
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
         gc,
-    )?;
+    )));
     try_to_length(agent, property, gc)
 }
 
@@ -1642,11 +1645,13 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
         // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
         // shouldn't need to call [[Get]] except if the object is a Proxy.
         let value = if desc.value.is_none() || matches!(o, Object::Proxy(_)) {
-            if let TryResult::Continue(value) = try_get(agent, o, key, gc.nogc()) {
-                value
-            } else {
-                broke = true;
-                break;
+            match try_get(agent, o, key, gc.nogc()) {
+                ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+                ControlFlow::Continue(TryGetContinue::Value(value)) => value,
+                _ => {
+                    broke = true;
+                    break;
+                }
             }
         } else {
             desc.value.unwrap()
@@ -2078,9 +2083,13 @@ pub(crate) fn copy_data_properties<'a>(
             && desc.enumerable.unwrap()
         {
             // 1. Let propValue be ? Get(from, nextKey).
-            let TryResult::Continue(prop_value) = try_get(agent, from, next_key, gc.nogc()) else {
-                broke = true;
-                break;
+            let prop_value = match try_get(agent, from, next_key, gc.nogc()) {
+                ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+                ControlFlow::Continue(TryGetContinue::Value(value)) => value,
+                _ => {
+                    broke = true;
+                    break;
+                }
             };
             // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
             assert!(
@@ -2181,7 +2190,13 @@ pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
             let prop_value = if let Some(prop_value) = dest.value {
                 prop_value
             } else {
-                try_get(agent, from, next_key, gc)?
+                match try_get(agent, from, next_key, gc) {
+                    ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+                    ControlFlow::Continue(TryGetContinue::Value(value)) => value,
+                    _ => {
+                        return TryResult::Break(());
+                    }
+                }
             };
             // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
             entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
@@ -2253,11 +2268,13 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
             && desc.enumerable.unwrap()
         {
             // 1. Let propValue be ? Get(from, nextKey).
-            let TryResult::Continue(prop_value) =
-                try_get(agent, from.unbind(), next_key, gc.nogc())
-            else {
-                broke = true;
-                break;
+            let prop_value = match try_get(agent, from, next_key, gc.nogc()) {
+                ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+                ControlFlow::Continue(TryGetContinue::Value(value)) => value,
+                _ => {
+                    broke = true;
+                    break;
+                }
             };
             // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
             entries.push(ObjectEntry::new_data_entry(next_key, prop_value));

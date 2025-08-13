@@ -19,7 +19,10 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        types::{GetCachedResult, IntoValue, NoCache, SetCachedProps, SetCachedResult},
+        types::{
+            GetCachedResult, IntoValue, NoCache, SetCachedProps, SetCachedResult, TryBreak,
+            TryGetContinue, TryGetResult, handle_try_get_result,
+        },
     },
     engine::{
         Scoped, TryResult,
@@ -35,7 +38,7 @@ use crate::{
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, create_data_property, get, get_function_realm},
+            operations_on_objects::{call_function, create_data_property, get_function_realm},
             testing_and_comparison::same_value,
         },
         builtins::ArgumentsList,
@@ -836,7 +839,7 @@ pub(crate) fn ordinary_try_get<'gc>(
     property_key: PropertyKey,
     receiver: Value,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<Value<'gc>> {
+) -> TryGetResult<'gc> {
     let object = object.bind(gc);
     let backing_object = backing_object.bind(gc);
     let property_key = property_key.bind(gc);
@@ -849,7 +852,7 @@ pub(crate) fn ordinary_try_get<'gc>(
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = backing_object.try_get_prototype_of(agent, gc)?;
+        let parent = backing_object.internal_prototype(agent);
 
         // b. If parent is null, return undefined.
         let Some(parent) = parent else {
@@ -865,7 +868,7 @@ pub(crate) fn ordinary_try_get<'gc>(
             {
                 cache.insert_unset(agent, shape);
             }
-            return TryResult::Continue(Value::Undefined);
+            return TryGetContinue::Unset.into();
         };
         // c. Return ? parent.[[Get]](P, Receiver).
         return parent.try_get(agent, property_key, receiver, None, gc);
@@ -874,7 +877,7 @@ pub(crate) fn ordinary_try_get<'gc>(
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
     if let Some(value) = descriptor.value {
         debug_assert!(descriptor.is_data_descriptor());
-        return TryResult::Continue(value);
+        return TryGetContinue::Value(value).into();
     }
 
     // 4. Assert: IsAccessorDescriptor(desc) is true.
@@ -882,8 +885,8 @@ pub(crate) fn ordinary_try_get<'gc>(
 
     // 5. Let getter be desc.[[Get]].
     // 6. If getter is undefined, return undefined.
-    let Some(_getter) = descriptor.get else {
-        return TryResult::Continue(Value::Undefined);
+    let Some(Some(getter)) = descriptor.get else {
+        return TryGetContinue::Unset.into();
     };
 
     // 7. Return ? Call(getter, Receiver).
@@ -894,7 +897,7 @@ pub(crate) fn ordinary_try_get<'gc>(
     // 2. Return a special value that tells which getter to call. Note that the
     //    receiver is statically known, so just returning the getter function
     //    should be enough.
-    TryResult::Break(())
+    TryGetContinue::Get(getter).into()
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
@@ -1894,22 +1897,38 @@ pub(crate) fn get_prototype_from_constructor<'a>(
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
-    let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
-    let proto =
-        if let TryResult::Continue(proto) = try_get(agent, constructor, prototype_key, gc.nogc()) {
-            proto
-        } else {
+    let proto = try_get(
+        agent,
+        constructor,
+        BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+        gc.nogc(),
+    );
+    let proto = match proto {
+        ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+        ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+        ControlFlow::Break(TryBreak::Error(e)) => {
+            return Err(e.unbind().bind(gc.into_nogc()));
+        }
+        _ => {
             let scoped_realm = function_realm.map(|r| r.scope(agent, gc.nogc()));
             let scoped_constructor = constructor.scope(agent, gc.nogc());
-            let proto = get(agent, constructor.unbind(), prototype_key, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            // SAFETY: scoped_constructor is not shared.
-            constructor = unsafe { scoped_constructor.take(agent) }.bind(gc.nogc());
-            // SAFETY: scoped_realm is not shared.
-            function_realm = scoped_realm.map(|r| unsafe { r.take(agent) }.bind(gc.nogc()));
+            let proto = handle_try_get_result(
+                agent,
+                constructor.unbind(),
+                BUILTIN_STRING_MEMORY.prototype.to_property_key(),
+                proto.unbind(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            let gc = gc.nogc();
+            // SAFETY: not shared.
+            constructor = unsafe { scoped_constructor.take(agent) }.bind(gc);
+            // SAFETY: not shared.
+            function_realm = scoped_realm.map(|r| unsafe { r.take(agent) }.bind(gc));
             proto
-        };
+        }
+    };
     match Object::try_from(proto) {
         // 3. If proto is not an Object, then
         Err(_) => {

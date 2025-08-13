@@ -4,6 +4,8 @@
 
 //! ## [27.2.1.1 PromiseCapability Records]()
 
+use core::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{get, try_get},
@@ -15,7 +17,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetContinue, Value},
     },
     engine::{
         TryResult,
@@ -290,7 +292,11 @@ impl<'a> PromiseCapability<'a> {
         // a. Perform RejectPromise(promise, then.[[Value]]).
         // b. Return undefined.
         // 11. Let thenAction be then.[[Value]].
-        let then_action = try_get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc)?;
+        let then_action = match try_get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc) {
+            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
+            _ => return TryResult::Break(()),
+        };
 
         // 12. If IsCallable(thenAction) is false, then
         // TODO: Callable proxies
