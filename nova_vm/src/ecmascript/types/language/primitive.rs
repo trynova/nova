@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    GetCachedResult, IntoValue, NoCache, PropertyKey, SetCachedProps, SetCachedResult, String,
-    Symbol, Value,
+    IntoValue, NoCache, PropertyKey, SetCachedProps, SetCachedResult, String, Symbol,
+    TryGetContinue, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -173,7 +173,7 @@ impl Primitive<'_> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         match self {
             Primitive::Undefined | Primitive::Null => ControlFlow::Continue(NoCache),
             Primitive::Boolean(_)

@@ -13,11 +13,11 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedResult,
-            INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache, Number, Numeric,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, UINT_8_ARRAY_DISCRIMINANT,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+            INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
+            IntoObject, IntoValue, NoCache, Number, Numeric, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String,
+            TryGetContinue, TryGetResult, UINT_8_ARRAY_DISCRIMINANT,
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
             UINT_32_ARRAY_DISCRIMINANT, Value,
         },
@@ -901,7 +901,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         // Note: we mutate P but only if it turns into a valid integer, in
         // which case we never enter the get_cached path anyway.
         ta_canonical_numeric_index_string(agent, &mut p, gc);

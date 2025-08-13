@@ -4116,7 +4116,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         match self {
             Object::Object(data) => data.get_cached(agent, p, cache, gc),
             Object::Array(data) => data.get_cached(agent, p, cache, gc),
@@ -4308,7 +4308,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetContinue<'gc> {
         match self {
             Object::Object(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::Array(data) => data.get_own_property_at_offset(agent, offset, gc),

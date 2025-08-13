@@ -13,14 +13,15 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedResult,
-            InternalMethods, InternalSlots, IntoFunction, IntoValue, NoCache, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryGetResult, Value, function_create_backing_object, function_get_cached,
-            function_internal_define_own_property, function_internal_delete, function_internal_get,
-            function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_set_cached,
-            function_try_get, function_try_has_property, function_try_set,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
+            InternalSlots, IntoFunction, IntoValue, NoCache, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String,
+            TryGetContinue, TryGetResult, Value, function_create_backing_object,
+            function_get_cached, function_internal_define_own_property, function_internal_delete,
+            function_internal_get, function_internal_get_own_property,
+            function_internal_has_property, function_internal_own_property_keys,
+            function_internal_set, function_set_cached, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -301,7 +302,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         function_get_cached(self, agent, p, cache, gc)
     }
 

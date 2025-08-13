@@ -12,8 +12,8 @@ use core::{
 use std::{borrow::Cow, ops::ControlFlow};
 
 use super::{
-    GetCachedResult, IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey,
-    SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SetCachedProps, SetCachedResult, Value,
+    IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT, SetCachedProps, SetCachedResult, TryGetContinue, Value,
 };
 use crate::{
     SmallInteger, SmallString,
@@ -660,7 +660,7 @@ impl<'a> String<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         if let Some(v) = self.get_property_value(agent, p) {
             v.bind(gc).into()
         } else {

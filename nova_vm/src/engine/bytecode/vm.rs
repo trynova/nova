@@ -49,10 +49,10 @@ use crate::{
         },
         scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, GetCachedResult, InternalMethods,
-            InternalSlots, IntoFunction, IntoObject, IntoValue, Number, Numeric, Object,
-            OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, PropertyKeySet, Reference,
-            SetCachedProps, SetCachedResult, SetProps, String, Value, call_proxy_set,
+            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, SetCachedProps,
+            SetCachedResult, SetProps, String, TryGetContinue, Value, call_proxy_set,
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_property_reference, is_super_reference, is_unresolvable_reference, put_value,
             throw_cannot_set_property, throw_read_undefined_or_null_error, try_get_value,
@@ -3932,7 +3932,7 @@ fn get_value_with_cache<'gc>(
         if !keep_reference {
             vm.reference = None;
         }
-        if let GetCachedResult::Value(value) = b {
+        if let TryGetContinue::Value(value) = b {
             vm.result = Some(value.unbind());
             return Ok(());
         }
@@ -3964,17 +3964,17 @@ fn handle_get_cached_break<'a>(
     vm: &mut Vm,
     receiver: Value,
     p: PropertyKey,
-    b: GetCachedResult,
+    b: TryGetContinue,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     match b {
-        GetCachedResult::Unset => {
+        TryGetContinue::Unset => {
             vm.result = Some(Value::Undefined);
         }
-        GetCachedResult::Value(value) => {
+        TryGetContinue::Value(value) => {
             vm.result = Some(value.unbind());
         }
-        GetCachedResult::Get(getter) => {
+        TryGetContinue::Get(getter) => {
             let getter = getter.unbind();
             let receiver = receiver.unbind();
             let result = with_vm_gc(
@@ -3985,7 +3985,7 @@ fn handle_get_cached_break<'a>(
             )?;
             vm.result = Some(result.unbind());
         }
-        GetCachedResult::Proxy(proxy) => {
+        TryGetContinue::Proxy(proxy) => {
             let proxy = proxy.unbind();
             let o = receiver.unbind();
             let p = p.unbind();

@@ -22,9 +22,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
-            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, TryGetContinue, TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, NoCache,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
         },
     },
     engine::{
@@ -1632,10 +1632,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: PropertyKey,
         _: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        GetCachedResult::Proxy(self.bind(gc)).into()
+        TryGetContinue::Proxy(self.bind(gc)).into()
     }
 
     fn set_cached<'gc>(
@@ -1655,10 +1655,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &Agent,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetContinue<'gc> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        GetCachedResult::Proxy(self.bind(gc)).into()
+        TryGetContinue::Proxy(self.bind(gc))
     }
 
     #[inline(always)]

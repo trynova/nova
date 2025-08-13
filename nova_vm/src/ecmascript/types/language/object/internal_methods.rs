@@ -344,6 +344,17 @@ where
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryGetResult<'gc> {
+        if let Some(cache) = cache {
+            // A cache-based lookup on an ordinary object can fully rely on the
+            // Object Shape and caches.
+            let shape = self.object_shape(agent);
+            if let ControlFlow::Break(result) =
+                shape.get_cached(agent, property_key, self.into_value(), cache, gc)
+            {
+                // Found a cached result.
+                return result.into();
+            }
+        }
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_try_get(
@@ -522,7 +533,7 @@ where
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
         let shape = self.object_shape(agent);
@@ -559,7 +570,7 @@ where
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetContinue<'gc> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -795,32 +806,21 @@ impl<'a> From<TryBreak<'a>> for TryGetResult<'a> {
     }
 }
 
-/// Early-return conditions for \[\[Get]] method's cached variant.
-///
-/// Early-return effectively means that a cached property lookup was found
-/// and the normal \[\[Get]] method variant need not be entered.
-#[derive(Debug)]
-pub enum GetCachedResult<'a> {
-    /// No property exists in the object or its prototype chain.
-    Unset,
-    /// A data property was found.
-    Value(Value<'a>),
-    /// A getter call is needed.
-    Get(Function<'a>),
-    /// A Proxy trap call is needed.
-    Proxy(Proxy<'a>),
-}
-bindable_handle!(GetCachedResult);
-
-impl<'a, T> From<GetCachedResult<'a>> for ControlFlow<GetCachedResult<'a>, T> {
-    fn from(value: GetCachedResult<'a>) -> Self {
-        ControlFlow::Break(value)
+impl<'a> From<Value<'a>> for TryGetContinue<'a> {
+    fn from(value: Value<'a>) -> Self {
+        Self::Value(value)
     }
 }
 
-impl<'a, T> From<Value<'a>> for ControlFlow<GetCachedResult<'a>, T> {
+impl<'a, T> From<Value<'a>> for ControlFlow<TryGetContinue<'a>, T> {
     fn from(value: Value<'a>) -> Self {
-        ControlFlow::Break(GetCachedResult::Value(value))
+        Self::Break(TryGetContinue::Value(value))
+    }
+}
+
+impl<'a> From<TryGetContinue<'a>> for ControlFlow<TryGetContinue<'a>, NoCache> {
+    fn from(value: TryGetContinue<'a>) -> Self {
+        Self::Break(value)
     }
 }
 

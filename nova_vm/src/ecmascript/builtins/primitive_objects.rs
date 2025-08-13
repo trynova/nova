@@ -15,12 +15,12 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, GetCachedResult, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
-            NUMBER_DISCRIMINANT, NoCache, Number, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String,
-            Symbol, TryGetContinue, TryGetResult, Value, bigint::HeapBigInt,
+            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
+            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, NoCache,
+            Number, Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
+            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String, Symbol, TryGetContinue,
+            TryGetResult, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -563,7 +563,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, p)
         {

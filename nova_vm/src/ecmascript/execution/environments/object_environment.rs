@@ -23,9 +23,9 @@ use crate::{
             environments::{Environment, ObjectEnvironment, OuterEnv},
         },
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, IntoValue, NoCache, Object,
-            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, SetProps, String,
-            Value, call_proxy_set, map_try_get_into_try_result,
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, NoCache, Object, PropertyDescriptor,
+            PropertyKey, SetCachedProps, SetCachedResult, SetProps, String, TryGetContinue, Value,
+            call_proxy_set, map_try_get_into_try_result,
         },
     },
     engine::{
@@ -148,7 +148,7 @@ impl<'e> ObjectEnvironment<'e> {
             && let Some(cache) = cache
             && let ControlFlow::Break(b) = binding_object.get_cached(agent, name, cache, gc)
         {
-            return TryResult::Continue(!matches!(b, GetCachedResult::Unset));
+            return TryResult::Continue(!matches!(b, TryGetContinue::Unset));
         }
 
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
@@ -599,7 +599,7 @@ impl<'e> ObjectEnvironment<'e> {
                 // have to continue on our normal merry way.
                 return ControlFlow::Continue(NoCache);
             };
-            if matches!(still_exists, GetCachedResult::Unset) {
+            if matches!(still_exists, TryGetContinue::Unset) {
                 // throw a ReferenceError exception.
                 let binding_object_repr = binding_object.into_value().try_string_repr(agent, gc);
                 return ControlFlow::Break(Err(Self::throw_property_doesnt_exist_error(
@@ -727,15 +727,15 @@ impl<'e> ObjectEnvironment<'e> {
             && let ControlFlow::Break(b) = binding_object.get_cached(agent, name, cache, gc)
         {
             return match b {
-                GetCachedResult::Unset => {
+                TryGetContinue::Unset => {
                     // Property did not exist.
                     TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
                 }
-                GetCachedResult::Value(value) => {
+                TryGetContinue::Value(value) => {
                     // Found the property value.
                     TryResult::Continue(Ok(value))
                 }
-                GetCachedResult::Get(_) | GetCachedResult::Proxy(_) => TryResult::Break(()),
+                TryGetContinue::Get(_) | TryGetContinue::Proxy(_) => TryResult::Break(()),
             };
         }
 
@@ -757,15 +757,15 @@ impl<'e> ObjectEnvironment<'e> {
                 && let ControlFlow::Break(b) = binding_object.get_cached(agent, name, cache, gc)
             {
                 return match b {
-                    GetCachedResult::Unset => {
+                    TryGetContinue::Unset => {
                         // Property did not exist.
                         TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
                     }
-                    GetCachedResult::Value(value) => {
+                    TryGetContinue::Value(value) => {
                         // Found the property value.
                         TryResult::Continue(Ok(value))
                     }
-                    GetCachedResult::Get(_) | GetCachedResult::Proxy(_) => TryResult::Break(()),
+                    TryGetContinue::Get(_) | TryGetContinue::Proxy(_) => TryResult::Break(()),
                 };
             }
             let result = try_get(agent, binding_object, name, gc);

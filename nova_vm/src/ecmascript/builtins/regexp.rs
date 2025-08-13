@@ -12,9 +12,9 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
-            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, TryGetContinue, TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
         },
     },
     engine::{
@@ -420,7 +420,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if p == BUILTIN_STRING_MEMORY.lastIndex.into()

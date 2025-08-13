@@ -20,8 +20,8 @@ use crate::{
             try_create_data_property, try_get, try_get_function_realm,
         },
         types::{
-            GetCachedResult, IntoValue, NoCache, SetCachedProps, SetCachedResult, TryBreak,
-            TryGetContinue, TryGetResult, handle_try_get_result,
+            IntoValue, NoCache, SetCachedProps, SetCachedResult, TryBreak, TryGetContinue,
+            TryGetResult, handle_try_get_result,
         },
     },
     engine::{
@@ -124,7 +124,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetContinue<'gc> {
         let offset = offset.get_property_offset();
         let obj = self.bind(gc);
         let data = obj.get_elements_storage(agent);
@@ -136,10 +136,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
                 .and_then(|d| d.get(&(offset as u32)))
                 .unwrap();
             d.getter_function(gc)
-                .map_or(
-                    GetCachedResult::Value(Value::Undefined),
-                    GetCachedResult::Get,
-                )
+                .map_or(TryGetContinue::Value(Value::Undefined), TryGetContinue::Get)
                 .into()
         }
     }

@@ -15,9 +15,9 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            GetCachedResult, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue,
-            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator,
-            SetCachedProps, SetCachedResult, String, TryGetResult, Value,
+            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, NoCache, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, ScopedValuesIterator, SetCachedProps,
+            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
             function_create_backing_object, function_get_cached,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
@@ -699,7 +699,7 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
         function_get_cached(self, agent, p, cache, gc)
     }
 
