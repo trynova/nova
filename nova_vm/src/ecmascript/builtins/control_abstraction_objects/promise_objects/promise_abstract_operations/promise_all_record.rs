@@ -46,11 +46,7 @@ impl<'a> PromiseAllRecordHeapData<'a> {
         if self.remaining_unresolved_promise_count == 0 {
             eprintln!("Promise fulfilled: {:#?}", elements);
             let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
-            capability.resolve(
-                agent,
-                self.result_array.unbind().into_value(),
-                gc.reborrow(),
-            );
+            capability.resolve(agent, self.result_array.into_value().unbind(), gc);
         }
     }
 }
