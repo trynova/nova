@@ -10,7 +10,7 @@ use crate::{
             async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord,
+            promise_objects::promise_abstract_operations::promise_all_record::PromiseAll,
         },
         execution::Agent,
         scripts_and_modules::module::module_semantics::{
@@ -71,7 +71,7 @@ pub(crate) enum PromiseReactionHandler<'a> {
     },
     PromiseAll {
         index: u32,
-        promise_all: PromiseAllRecord<'a>,
+        promise_all: PromiseAll<'a>,
     },
     Empty,
 }

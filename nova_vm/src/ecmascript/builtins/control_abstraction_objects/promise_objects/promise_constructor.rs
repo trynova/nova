@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecordHeapData;
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord;
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
 use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
 use crate::ecmascript::builtins::Array;
@@ -334,7 +334,7 @@ impl PromiseConstructor {
         let undefined_values = (vec![Value::Undefined.bind(gc.nogc()); 2]).bind(gc.nogc());
         let result_array =
             Array::from_slice(agent, &undefined_values.unbind(), gc.nogc()).bind(gc.nogc());
-        let promise_all_record = agent.heap.create(PromiseAllRecordHeapData {
+        let promise_all_record = agent.heap.create(PromiseAllRecord {
             remaining_unresolved_promise_count: 2,
             result_array: result_array.unbind(),
             promise: result_promise.unbind(),
