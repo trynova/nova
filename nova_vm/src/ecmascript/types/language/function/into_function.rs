@@ -16,7 +16,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, NoCache,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryGetContinue, TryGetResult, Value, language::IntoObject,
+            String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult, Value,
+            language::IntoObject,
         },
     },
     engine::{
@@ -64,7 +65,7 @@ pub(crate) fn function_create_backing_object<'a>(
     assert!(func.get_backing_object(agent).is_none());
     let prototype = func.internal_prototype(agent).unwrap();
     let length_entry = ObjectEntry {
-        key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+        key: BUILTIN_STRING_MEMORY.length.into(),
         value: ObjectEntryPropertyDescriptor::Data {
             value: func.get_length(agent).into(),
             writable: false,
@@ -73,7 +74,7 @@ pub(crate) fn function_create_backing_object<'a>(
         },
     };
     let name_entry = ObjectEntry {
-        key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+        key: BUILTIN_STRING_MEMORY.name.into(),
         value: ObjectEntryPropertyDescriptor::Data {
             value: func.get_name(agent).into_value(),
             writable: false,
@@ -95,8 +96,8 @@ pub(crate) fn function_set_cached<'a, 'gc>(
 ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
     let bo = func.get_backing_object(agent);
     if bo.is_none()
-        && (props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-            || props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
+        && (props.p == BUILTIN_STRING_MEMORY.length.into()
+            || props.p == BUILTIN_STRING_MEMORY.name.into())
     {
         SetCachedResult::Unwritable.into()
     } else {
@@ -123,7 +124,7 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
             property_key,
             gc,
         )
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+    } else if property_key == BUILTIN_STRING_MEMORY.length.into() {
         Some(PropertyDescriptor {
             value: Some(func.get_length(agent).into()),
             writable: Some(false),
@@ -131,7 +132,7 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
             configurable: Some(true),
             ..Default::default()
         })
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+    } else if property_key == BUILTIN_STRING_MEMORY.name.into() {
         Some(PropertyDescriptor {
             value: Some(func.get_name(agent).into_value().bind(gc)),
             writable: Some(false),
@@ -164,20 +165,25 @@ pub(crate) fn function_internal_define_own_property<'a>(
     )
 }
 
-pub(crate) fn function_try_has_property<'a>(
+pub(crate) fn function_try_has_property<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
     cache: Option<PropertyLookupCache>,
-    gc: NoGcScope,
-) -> TryResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryHasResult<'gc> {
     let backing_object = func.get_backing_object(agent);
 
     if backing_object.is_none()
-        && (property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name))
+        && (property_key == BUILTIN_STRING_MEMORY.length.into()
+            || property_key == BUILTIN_STRING_MEMORY.name.into())
     {
-        TryResult::Continue(true)
+        let index = if property_key == BUILTIN_STRING_MEMORY.length.into() {
+            0
+        } else {
+            1
+        };
+        TryHasContinue::Custom(index, func.into_object().bind(gc)).into()
     } else {
         ordinary_try_has_property(
             agent,
@@ -205,8 +211,8 @@ pub(crate) fn function_internal_has_property<'a, 'gc>(
             property_key.unbind(),
             gc,
         )
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-        || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+    } else if property_key == BUILTIN_STRING_MEMORY.length.into()
+        || property_key == BUILTIN_STRING_MEMORY.name.into()
     {
         Ok(true)
     } else {
@@ -231,11 +237,9 @@ pub(crate) fn function_try_get<'gc, 'a>(
 ) -> TryGetResult<'gc> {
     let backing_object = func.get_backing_object(agent);
     // if let Some(backing_object) = func.get_backing_object(agent) {
-    if backing_object.is_none() && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+    if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.length.into() {
         TryGetContinue::Value(func.get_length(agent).into()).into()
-    } else if backing_object.is_none()
-        && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
-    {
+    } else if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.name.into() {
         TryGetContinue::Value(func.get_name(agent).into_value()).into()
     } else {
         ordinary_try_get(
@@ -260,9 +264,9 @@ pub(crate) fn function_internal_get<'gc, 'a>(
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_get(agent, property_key.unbind(), receiver, gc)
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
+    } else if property_key == BUILTIN_STRING_MEMORY.length.into() {
         Ok(func.get_length(agent).into())
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
+    } else if property_key == BUILTIN_STRING_MEMORY.name.into() {
         Ok(func.get_name(agent).into_value().bind(gc.into_nogc()))
     } else {
         // Note: Getting a function's prototype never calls JavaScript.
@@ -287,8 +291,8 @@ pub(crate) fn function_try_set<'a>(
 ) -> TryResult<bool> {
     if func.get_backing_object(agent).is_some() {
         ordinary_try_set(agent, func.into_object(), property_key, value, receiver, gc)
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-        || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+    } else if property_key == BUILTIN_STRING_MEMORY.length.into()
+        || property_key == BUILTIN_STRING_MEMORY.name.into()
     {
         // length and name are not writable
         TryResult::Continue(false)
@@ -315,8 +319,8 @@ pub(crate) fn function_internal_set<'a, 'gc>(
             receiver,
             gc,
         )
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-        || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+    } else if property_key == BUILTIN_STRING_MEMORY.length.into()
+        || property_key == BUILTIN_STRING_MEMORY.name.into()
     {
         // length and name are not writable
         Ok(false)
@@ -340,8 +344,8 @@ pub(crate) fn function_internal_delete<'a>(
 ) -> bool {
     if let Some(backing_object) = func.get_backing_object(agent) {
         ordinary_delete(agent, func.into_object(), backing_object, property_key, gc)
-    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-        || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
+    } else if property_key == BUILTIN_STRING_MEMORY.length.into()
+        || property_key == BUILTIN_STRING_MEMORY.name.into()
     {
         let backing_object = func.create_backing_object(agent);
         ordinary_delete(agent, func.into_object(), backing_object, property_key, gc)
@@ -360,8 +364,8 @@ pub(crate) fn function_internal_own_property_keys<'a, 'b>(
         ordinary_own_property_keys(agent, backing_object, gc)
     } else {
         vec![
-            PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-            PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            BUILTIN_STRING_MEMORY.length.into(),
+            BUILTIN_STRING_MEMORY.name.into(),
         ]
     }
 }

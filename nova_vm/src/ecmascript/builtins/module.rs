@@ -16,16 +16,16 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, NoCache, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryBreak, TryGetContinue, TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
+            SetCachedResult, String, TryBreak, TryGetContinue, TryGetResult, TryHasContinue,
+            TryHasResult, Value,
         },
     },
     engine::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -473,13 +473,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-hasproperty-p)
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         _cache: Option<PropertyLookupCache>,
-        _gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         match property_key {
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 let p = match property_key {
@@ -492,15 +492,19 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports: &[String] = &agent[self].exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
-                    TryResult::Continue(true)
+                    TryHasContinue::Custom(1, self.into_object().bind(gc)).into()
                 } else {
                     // 4. Return false.
-                    TryResult::Continue(false)
+                    TryHasContinue::Unset.into()
                 }
             }
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
-                TryResult::Continue(symbol == WellKnownSymbolIndexes::ToStringTag.into())
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    TryHasContinue::Custom(0, self.into_object().bind(gc)).into()
+                } else {
+                    TryHasContinue::Unset.into()
+                }
             }
             PropertyKey::PrivateName(_) => unreachable!(),
         }
@@ -512,13 +516,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let gc = gc.into_nogc();
-        Ok(unwrap_try(self.try_has_property(
-            agent,
-            property_key,
-            None,
-            gc,
-        )))
+        Ok(!matches!(
+            self.try_has_property(agent, property_key, None, gc.into_nogc()),
+            ControlFlow::Continue(TryHasContinue::Unset)
+        ))
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)

@@ -260,13 +260,13 @@ where
     /// method cannot be completed without calling into JavaScript, then `None`
     /// is returned. It is preferable to call this method first and only call
     /// the main method if this returns None.
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         ordinary_try_has_property(
             agent,
@@ -603,6 +603,38 @@ pub enum TryBreak<'a> {
     Error(JsError<'a>),
 }
 bindable_handle!(TryBreak);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Continue results for the \[\[Get]] method's Try variant.
+pub enum TryHasContinue<'a> {
+    /// Property was not found in the object or its prototype chain.
+    Unset,
+    /// The property was found at the provided offset in the provided object.
+    Offset(u32, Object<'a>),
+    /// The property was found in the provided object at a custom offset.
+    Custom(u32, Object<'a>),
+    /// A Proxy trap call is needed.
+    ///
+    /// This means that the method ran to completion but could not call the
+    /// Proxy trap itself.
+    Proxy(Proxy<'a>),
+}
+bindable_handle!(TryHasContinue);
+
+/// Result type for the \[\[HasProperty]] method's Try variant.
+pub type TryHasResult<'a> = ControlFlow<TryBreak<'a>, TryHasContinue<'a>>;
+
+impl<'a> From<TryBreak<'a>> for TryHasResult<'a> {
+    fn from(value: TryBreak<'a>) -> Self {
+        Self::Break(value)
+    }
+}
+
+impl<'a> From<TryHasContinue<'a>> for TryHasResult<'a> {
+    fn from(value: TryHasContinue<'a>) -> Self {
+        Self::Continue(value)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Continue results for the \[\[Get]] method's Try variant.

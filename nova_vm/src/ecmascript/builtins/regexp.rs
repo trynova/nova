@@ -14,7 +14,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
+            SetCachedResult, String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult,
+            Value,
         },
     },
     engine::{
@@ -202,16 +203,16 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
-            TryResult::Continue(true)
+            TryHasContinue::Custom(0, self.into_object().bind(gc)).into()
         } else {
             ordinary_try_has_property(
                 agent,

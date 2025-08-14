@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 
 use super::{
     InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey, SetCachedProps,
-    SetCachedResult, String, TryGetContinue, TryGetResult, Value,
+    SetCachedResult, String, TryGetContinue, TryGetResult, TryHasResult, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -379,13 +379,13 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         match self {
             Function::BoundFunction(x) => x.try_has_property(agent, property_key, cache, gc),
             Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, cache, gc),

@@ -28,8 +28,8 @@ use crate::{
             },
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_property_key_complex, to_property_key_simple, to_string,
-                to_string_primitive,
+                to_property_key, to_property_key_complex, to_property_key_primitive,
+                to_property_key_simple, to_string, to_string_primitive,
             },
         },
         builtins::{
@@ -52,8 +52,8 @@ use crate::{
             BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, SetCachedProps,
-            SetCachedResult, SetProps, String, TryBreak, TryGetValueContinue, Value,
-            call_proxy_set, get_this_value, get_value, initialize_referenced_binding,
+            SetCachedResult, SetProps, String, TryBreak, TryGetValueContinue, TryHasContinue,
+            Value, call_proxy_set, get_this_value, get_value, initialize_referenced_binding,
             is_private_reference, is_property_reference, is_super_reference,
             is_unresolvable_reference, put_value, throw_cannot_set_property,
             throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
@@ -2196,7 +2196,7 @@ impl Vm {
                 let rval = vm.result.take().unwrap().bind(gc.nogc());
                 // RelationalExpression : RelationalExpression in ShiftExpression
                 // 5. If rval is not an Object, throw a TypeError exception.
-                let Ok(mut rval) = Object::try_from(rval) else {
+                let Ok(rval) = Object::try_from(rval) else {
                     return Err(throw_error_in_target_not_object(
                         agent,
                         rval.unbind(),
@@ -2204,36 +2204,63 @@ impl Vm {
                     ));
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
-                let property_key = if lval.is_string() || lval.is_integer() {
-                    unwrap_try(to_property_key_simple(agent, lval, gc.nogc()))
+                let property_key = if let Ok(lval) = Primitive::try_from(lval) {
+                    to_property_key_primitive(agent, lval, gc.nogc())
                 } else {
                     let scoped_rval = rval.scope(agent, gc.nogc());
                     let lval = lval.unbind();
-                    let property_key = with_vm_gc(
+                    let result = with_vm_gc(
                         agent,
                         vm,
-                        |agent, gc| to_property_key(agent, lval, gc),
+                        |agent, mut gc| {
+                            let property_key = to_property_key(agent, lval, gc.reborrow())
+                                .unbind()?
+                                .bind(gc.nogc());
+                            has_property(
+                                agent,
+                                // SAFETY: not shred.
+                                unsafe { scoped_rval.take(agent) },
+                                property_key.unbind(),
+                                gc,
+                            )
+                        },
                         gc.reborrow(),
                     )
-                    .unbind()?
-                    .bind(gc.nogc());
-                    // SAFETY: not shared.
-                    rval = unsafe { scoped_rval.take(agent).bind(gc.nogc()) };
-                    property_key
+                    .unbind()?;
+                    vm.result = Some(result.into_value());
+                    return Ok(ContinuationKind::Normal);
                 };
-                let result = if let TryResult::Continue(result) =
-                    try_has_property(agent, rval, property_key, None, gc.nogc())
-                {
-                    result
-                } else {
-                    let rval = rval.unbind();
-                    let property_key = property_key.unbind();
-                    with_vm_gc(
-                        agent,
-                        vm,
-                        |agent, gc| has_property(agent, rval, property_key, gc),
-                        gc,
-                    )?
+                let result = match try_has_property(agent, rval, property_key, None, gc.nogc()) {
+                    ControlFlow::Continue(c) => match c {
+                        TryHasContinue::Unset => false,
+                        TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                        TryHasContinue::Proxy(proxy) => {
+                            let proxy = proxy.unbind();
+                            let property_key = property_key.unbind();
+                            with_vm_gc(
+                                agent,
+                                vm,
+                                |agent, gc| proxy.internal_has_property(agent, property_key, gc),
+                                gc,
+                            )?
+                        }
+                    },
+                    ControlFlow::Break(TryBreak::Error(err)) => {
+                        return Err(err.unbind().bind(gc.into_nogc()));
+                    }
+                    ControlFlow::Break(TryBreak::CannotContinue)
+                    | ControlFlow::Break(TryBreak::FailedToAllocate) => {
+                        let rval = rval.unbind();
+                        let property_key = property_key.unbind();
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| {
+                                has_property(agent, rval.unbind(), property_key.unbind(), gc)
+                            },
+                            gc,
+                        )?
+                    }
                 };
                 vm.result = Some(result.into());
             }

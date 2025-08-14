@@ -1318,14 +1318,22 @@ pub(crate) fn to_property_key_complex<'a, 'gc>(
     let gc = gc.into_nogc();
     let key = key.bind(gc);
 
+    Ok(to_property_key_primitive(agent, key, gc))
+}
+
+pub(crate) fn to_property_key_primitive<'a>(
+    agent: &mut Agent,
+    primitive: Primitive<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> PropertyKey<'a> {
     // 2. If Type(key) is Symbol, then
     //    a. Return key.
     // Note: We can reuse the fast path and non-standard special case handler:
     // If the property key was an object, it is now a primitive. We need to do
     // our non-standard parsing of integer strings back into integer property
     // keys here as well.
-    if let TryResult::Continue(key) = to_property_key_simple(agent, key, gc) {
-        Ok(key)
+    if let TryResult::Continue(key) = to_property_key_simple(agent, primitive, gc) {
+        key
     } else {
         // Key was still not simple: This mean it's a heap allocated f64,
         // BigInt, or non-negative-zero f32: These should never be safe
@@ -1333,7 +1341,7 @@ pub(crate) fn to_property_key_complex<'a, 'gc>(
         // stringifying.
 
         // 3. Return ! ToString(key).
-        Ok(to_string_primitive(agent, key, gc).unwrap().into())
+        to_string_primitive(agent, primitive, gc).unwrap().into()
     }
 }
 

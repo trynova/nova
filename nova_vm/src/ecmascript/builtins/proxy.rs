@@ -24,7 +24,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
+            SetCachedResult, String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult,
+            Value,
         },
     },
     engine::{
@@ -910,14 +911,14 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(true)
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         _: &mut Agent,
         _: PropertyKey,
         _: Option<PropertyLookupCache>,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
-        TryResult::Break(())
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
+        TryHasContinue::Proxy(self.bind(gc)).into()
     }
 
     fn internal_has_property<'gc>(

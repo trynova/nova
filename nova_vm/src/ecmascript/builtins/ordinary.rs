@@ -21,7 +21,7 @@ use crate::{
         },
         types::{
             IntoValue, NoCache, SetCachedProps, SetCachedResult, TryBreak, TryGetContinue,
-            TryGetResult, handle_try_get_result,
+            TryGetResult, TryHasContinue, TryHasResult, handle_try_get_result,
         },
     },
     engine::{
@@ -615,14 +615,14 @@ fn validate_and_apply_property_descriptor(
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
-pub(crate) fn ordinary_try_has_property(
+pub(crate) fn ordinary_try_has_property<'gc>(
     agent: &mut Agent,
     object: Object,
     backing_object: Option<OrdinaryObject>,
     property_key: PropertyKey,
     cache: Option<PropertyLookupCache>,
-    gc: NoGcScope,
-) -> TryResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryHasResult<'gc> {
     if let Some(cache) = cache {
         // A cache-based lookup on an ordinary object can fully rely on the
         // Object Shape and caches.
@@ -631,9 +631,17 @@ pub(crate) fn ordinary_try_has_property(
         } else {
             object.object_shape(agent)
         };
-        if let Some((offset, _)) = cache.find_cached_property_offset(agent, shape) {
+        if let Some((offset, prototype)) = cache.find_cached_property_offset(agent, shape) {
             // Found a cached result.
-            return TryResult::Continue(!offset.is_unset());
+            return if offset.is_unset() {
+                TryHasContinue::Unset.into()
+            } else {
+                TryHasContinue::Offset(
+                    offset.get_property_offset() as u32,
+                    prototype.unwrap_or(object).bind(gc),
+                )
+                .into()
+            };
         }
     }
 
@@ -666,15 +674,19 @@ pub(crate) fn ordinary_try_has_property(
                 cache.insert_prototype_lookup_offset(agent, shape, offset, object);
             }
         }
-        return TryResult::Continue(true);
+        return TryHasContinue::Offset(offset, object.bind(gc)).into();
     };
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
     // Note: ? means that if we'd call a Proxy's GetPrototypeOf trap then we'll
     // instead return None.
-    let parent = backing_object
+    let parent = match backing_object
         .map_or(object, |bo| bo.into_object())
-        .try_get_prototype_of(agent, gc)?;
+        .try_get_prototype_of(agent, gc)
+    {
+        ControlFlow::Continue(p) => p,
+        ControlFlow::Break(_) => return TryBreak::CannotContinue.into(),
+    };
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
@@ -704,7 +716,7 @@ pub(crate) fn ordinary_try_has_property(
     }
 
     // 5. Return false.
-    TryResult::Continue(false)
+    TryHasContinue::Unset.into()
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)

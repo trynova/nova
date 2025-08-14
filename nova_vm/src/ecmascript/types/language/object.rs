@@ -2969,13 +2969,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         match self {
             Object::Object(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::Array(data) => data.try_has_property(agent, property_key, cache, gc),

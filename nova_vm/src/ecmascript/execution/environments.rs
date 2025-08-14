@@ -25,6 +25,7 @@
 //! of the current evaluation of the surrounding function.
 
 use core::{marker::PhantomData, num::NonZeroU32};
+use std::ops::ControlFlow;
 
 mod declarative_environment;
 mod function_environment;
@@ -54,12 +55,17 @@ pub(crate) use private_environment::{
 
 use crate::{
     ecmascript::{
-        builtins::ordinary::caches::PropertyLookupCache,
-        types::{IntoValue, Object, Reference, String, Value},
+        builtins::{
+            ordinary::caches::{PropertyLookupCache, PropertyOffset},
+            proxy::Proxy,
+        },
+        types::{
+            InternalMethods, IntoValue, Object, Reference, String, TryBreak, TryHasContinue, Value,
+        },
     },
     engine::{
         TryResult,
-        context::{Bindable, GcScope, GcToken, NoGcScope},
+        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -268,6 +274,7 @@ pub(crate) enum Environment<'a> {
     Module(ModuleEnvironment<'a>),
     Object(ObjectEnvironment<'a>),
 }
+bindable_handle!(Environment);
 
 impl<'e> Environment<'e> {
     pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv<'e> {
@@ -284,18 +291,24 @@ impl<'e> Environment<'e> {
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
-    pub(crate) fn try_has_binding(
+    pub(crate) fn try_has_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<TryBreak<'gc>, TryHasBindingContinue<'gc>> {
         match self {
-            Environment::Declarative(e) => TryResult::Continue(e.has_binding(agent, name)),
-            Environment::Function(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Declarative(e) => {
+                TryHasBindingContinue::Declarative(e.has_binding(agent, name)).into()
+            }
+            Environment::Function(e) => {
+                TryHasBindingContinue::Declarative(e.has_binding(agent, name)).into()
+            }
             Environment::Global(e) => e.try_has_binding(agent, name, cache, gc),
-            Environment::Module(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Module(e) => {
+                TryHasBindingContinue::Declarative(e.has_binding(agent, name)).into()
+            }
             Environment::Object(e) => e.try_has_binding(agent, name, cache, gc),
         }
     }
@@ -731,21 +744,6 @@ impl<'e> Environment<'e> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Environment<'_> {
-    type Of<'a> = Environment<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
 impl core::fmt::Debug for Environment<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -839,6 +837,51 @@ impl Default for Environments {
     }
 }
 
+pub(crate) enum TryHasBindingContinue<'a> {
+    /// Property was not found in the object or its prototype chain.
+    Unset,
+    /// The property was found at the provided offset in the provided object.
+    Offset(u32, Object<'a>),
+    /// The property was found in the provided object at a custom offset.
+    Custom(u32, Object<'a>),
+    /// A Proxy trap call is needed.
+    ///
+    /// This means that the method ran to completion but could not call the
+    /// Proxy trap itself.
+    Proxy(Proxy<'a>),
+    /// Declarative environment result.
+    Declarative(bool),
+}
+
+impl<'a> From<TryHasContinue<'a>> for TryHasBindingContinue<'a> {
+    fn from(value: TryHasContinue<'a>) -> Self {
+        match value {
+            TryHasContinue::Unset => Self::Unset,
+            TryHasContinue::Offset(offset, object) => Self::Offset(offset, object),
+            TryHasContinue::Custom(offset, object) => Self::Custom(offset, object),
+            TryHasContinue::Proxy(proxy) => Self::Proxy(proxy),
+        }
+    }
+}
+
+impl<'a> From<TryHasContinue<'a>> for ControlFlow<TryBreak<'a>, TryHasBindingContinue<'a>> {
+    fn from(value: TryHasContinue<'a>) -> Self {
+        Self::Continue(value.into())
+    }
+}
+
+impl<'a> From<TryHasBindingContinue<'a>> for ControlFlow<TryBreak<'a>, TryHasBindingContinue<'a>> {
+    fn from(value: TryHasBindingContinue<'a>) -> Self {
+        Self::Continue(value)
+    }
+}
+
+impl<'a> From<TryBreak<'a>> for ControlFlow<TryBreak<'a>, TryHasBindingContinue<'a>> {
+    fn from(value: TryBreak<'a>) -> Self {
+        Self::Break(value)
+    }
+}
+
 /// ### Try [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
 ///
 /// The abstract operation GetIdentifierReference takes arguments env (an
@@ -858,15 +901,40 @@ pub(crate) fn try_get_identifier_reference<'a>(
     let cache = cache.bind(gc);
     // 1. If env is null, then
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = env.try_has_binding(agent, name, cache, gc)?;
+    let exists = match env.try_has_binding(agent, name, cache, gc) {
+        ControlFlow::Continue(c) => match c {
+            TryHasBindingContinue::Unset => None,
+            TryHasBindingContinue::Offset(offset, object) => {
+                Some(PropertyOffset::new(offset).map(|o| (o, object)))
+            }
+            TryHasBindingContinue::Custom(offset, object) => {
+                Some(PropertyOffset::new_custom(offset).map(|o| (o, object)))
+            }
+            TryHasBindingContinue::Proxy(_) => return TryResult::Break(()),
+            TryHasBindingContinue::Declarative(exists) => {
+                if exists {
+                    Some(None)
+                } else {
+                    None
+                }
+            }
+        },
+        ControlFlow::Break(_) => return TryResult::Break(()),
+    };
 
     // 3. If exists is true, then
-    if exists {
+    if let Some(resolved_offset) = exists {
         // a. Return the Reference Record {
         // [[ReferencedName]]: name,
         // [[Base]]: env,
         // [[Strict]]: strict,
-        TryResult::Continue(Reference::new_variable_reference(env, name, cache, strict))
+        TryResult::Continue(Reference::new_variable_reference(
+            env,
+            name,
+            cache,
+            resolved_offset,
+            strict,
+        ))
         // [[ThisValue]]: EMPTY
         // }.
     }
@@ -921,34 +989,73 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let exists =
-        if let TryResult::Continue(result) = env.try_has_binding(agent, name, cache, gc.nogc()) {
-            result
-        } else {
-            let env_scoped = env.scope(agent, gc.nogc());
-            let name_scoped = name.scope(agent, gc.nogc());
-            let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
-            let result = env
-                .unbind()
-                .has_binding(agent, name.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            // SAFETY: not shared.
-            unsafe {
-                cache = cache_scoped.map(|c| c.take(agent));
-                name = name_scoped.take(agent);
-                env = env_scoped.take(agent);
+    let exists = match env.try_has_binding(agent, name, cache, gc.nogc()) {
+        ControlFlow::Continue(c) => match c {
+            TryHasBindingContinue::Unset => None,
+            TryHasBindingContinue::Offset(offset, object) => {
+                Some(PropertyOffset::new(offset).map(|o| (o, object)))
             }
-            result
-        };
+            TryHasBindingContinue::Custom(offset, object) => {
+                Some(PropertyOffset::new_custom(offset).map(|o| (o, object)))
+            }
+            TryHasBindingContinue::Proxy(proxy) => {
+                let env_scoped = env.scope(agent, gc.nogc());
+                let name_scoped = name.scope(agent, gc.nogc());
+                let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
+                let exists = proxy
+                    .unbind()
+                    .internal_has_property(agent, name.to_property_key().unbind(), gc.reborrow())
+                    .unbind()?;
+                // SAFETY: not shared.
+                unsafe {
+                    cache = cache_scoped.map(|c| c.take(agent));
+                    name = name_scoped.take(agent);
+                    env = env_scoped.take(agent);
+                }
+                if exists { Some(None) } else { None }
+            }
+            TryHasBindingContinue::Declarative(exists) => {
+                if exists {
+                    Some(None)
+                } else {
+                    None
+                }
+            }
+        },
+        ControlFlow::Break(b) => match b {
+            TryBreak::Error(err) => return Err(err.unbind().bind(gc.into_nogc())),
+            _ => {
+                let env_scoped = env.scope(agent, gc.nogc());
+                let name_scoped = name.scope(agent, gc.nogc());
+                let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
+                if b == TryBreak::FailedToAllocate {
+                    agent.gc(gc.reborrow());
+                    env = env_scoped.get(agent).bind(gc.nogc());
+                    name = name_scoped.get(agent).bind(gc.nogc());
+                }
+                let exists = env
+                    .unbind()
+                    .has_binding(agent, name.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // SAFETY: not shared.
+                unsafe {
+                    cache = cache_scoped.map(|c| c.take(agent));
+                    name = name_scoped.take(agent);
+                    env = env_scoped.take(agent);
+                }
+                if exists { Some(None) } else { None }
+            }
+        },
+    };
 
     // 3. If exists is true, then
-    if exists {
+    if let Some(resolved_offset) = exists {
         // a. Return the Reference Record {
         // [[Base]]: env,
         // [[ReferencedName]]: name,
         // [[Strict]]: strict,
-        Ok(Reference::new_variable_reference(env, name, cache, strict).unbind())
+        Ok(Reference::new_variable_reference(env, name, cache, resolved_offset, strict).unbind())
         // [[ThisValue]]: EMPTY
         // }.
     }

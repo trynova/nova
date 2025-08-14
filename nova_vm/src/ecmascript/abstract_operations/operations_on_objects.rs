@@ -36,8 +36,9 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
-            PropertyKey, PropertyKeySet, String, TryBreak, TryGetContinue, TryGetResult, Value,
-            map_try_get_into_try_result_or_error, rethrow_try_get_result, rethrow_try_js_result,
+            PropertyKey, PropertyKeySet, String, TryBreak, TryGetContinue, TryGetResult,
+            TryHasResult, Value, map_try_get_into_try_result_or_error, rethrow_try_get_result,
+            rethrow_try_js_result,
         },
     },
     engine::{
@@ -639,13 +640,13 @@ fn get_method_internal<'a>(
 /// property with the specified property key. The property may be either own or
 /// inherited.
 #[inline(always)]
-pub(crate) fn try_has_property(
+pub(crate) fn try_has_property<'gc>(
     agent: &mut Agent,
     o: Object,
     p: PropertyKey,
     cache: Option<PropertyLookupCache>,
-    gc: NoGcScope,
-) -> TryResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryHasResult<'gc> {
     // 1. Return ? O.[[HasProperty]](P).
     o.try_has_property(agent, p, cache, gc)
 }

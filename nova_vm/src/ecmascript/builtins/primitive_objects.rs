@@ -20,7 +20,7 @@ use crate::{
             Number, Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
             SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
             SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String, Symbol, TryGetContinue,
-            TryGetResult, Value, bigint::HeapBigInt,
+            TryGetResult, TryHasContinue, TryHasResult, Value, bigint::HeapBigInt,
         },
     },
     engine::{
@@ -302,17 +302,17 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         if let Ok(string) = String::try_from(agent[self].data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryResult::Continue(true);
+            return TryHasContinue::Custom(0, self.into_object().bind(gc)).into();
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).

@@ -12,15 +12,7 @@ mod weak_ref_and_finalization_registry;
 
 pub use agent::{Agent, JsResult};
 pub use default_host_hooks::DefaultHostHooks;
-pub(crate) use environments::{
-    DeclarativeEnvironment, Environment, Environments, FunctionEnvironment, GlobalEnvironment,
-    ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, PrivateField, PrivateMethod,
-    ThisBindingStatus, create_import_binding, create_indirect_import_binding, get_this_environment,
-    initialize_import_binding, new_class_field_initializer_environment,
-    new_class_static_element_environment, new_declarative_environment, new_function_environment,
-    new_global_environment, new_module_environment, new_private_environment,
-    resolve_private_identifier, throw_uninitialized_binding,
-};
+pub(crate) use environments::*;
 pub(crate) use execution_context::*;
 pub(crate) use realm::{
     ProtoIntrinsics, Realm, RealmRecord, initialize_default_realm, initialize_host_defined_realm,

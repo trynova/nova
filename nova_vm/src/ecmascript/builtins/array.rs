@@ -26,7 +26,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, TryGetContinue, TryGetResult, Value,
+            SetCachedProps, SetCachedResult, TryGetContinue, TryGetResult, TryHasContinue,
+            TryHasResult, Value,
         },
     },
     engine::{
@@ -528,37 +529,38 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
+        let array = self.bind(gc);
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
-            return TryResult::Continue(true);
+            return TryHasContinue::Custom(u32::MAX, array.into_object()).into();
         } else if let Some(index) = property_key.into_u32() {
             // Within possible Array bounds: the data is found in the Array
             // elements storage.
-            let values = self.as_slice(agent);
+            let values = array.as_slice(agent);
             if index < values.len() as u32 {
                 // Within the Array slice: first check values as checking
                 // descriptors requires a hash calculation.
                 if values[index as usize].is_some() {
-                    return TryResult::Continue(true);
+                    return TryHasContinue::Custom(index, array.into_object()).into();
                 }
                 // No value at this index; we have to check descriptors.
                 let ElementStorageRef {
                     values: _,
                     descriptors,
-                } = self.get_storage(agent);
+                } = array.get_storage(agent);
                 if let Some(d) = descriptors
                     && d.contains_key(&index)
                 {
                     // Indeed, found a descriptor at this index. It must be an
                     // accessor, otherwise it should have a value as well.
                     debug_assert!(d.get(&index).unwrap().is_accessor_descriptor());
-                    return TryResult::Continue(true);
+                    return TryHasContinue::Custom(index, array.into_object()).into();
                 }
             }
             // Overindexing, or no value or descriptor at this index: we have
@@ -566,8 +568,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
         ordinary_try_has_property(
             agent,
-            self.into_object(),
-            self.get_backing_object(agent),
+            array.into_object(),
+            array.get_backing_object(agent),
             property_key,
             cache,
             gc,

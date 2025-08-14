@@ -763,6 +763,8 @@ unsafe fn global_declaration_instantiation<'a>(
 
 #[cfg(test)]
 mod test {
+    use std::ops::ControlFlow;
+
     use crate::{
         SmallInteger,
         ecmascript::{
@@ -771,14 +773,14 @@ mod test {
                 ArgumentsList, Array, Behaviour, BuiltinFunctionArgs, create_builtin_function,
             },
             execution::{
-                Agent, DefaultHostHooks, JsResult,
+                Agent, DefaultHostHooks, JsResult, TryHasBindingContinue,
                 agent::{ExceptionType, Options},
                 initialize_default_realm,
             },
             scripts_and_modules::script::{parse_script, script_evaluation},
             types::{
-                BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Number, Object, PropertyKey,
-                String, Value,
+                BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Number, Object,
+                PropertyKey, String, TryHasContinue, Value,
             },
         },
         engine::{
@@ -1068,12 +1070,10 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_static_str(&mut agent, "a", gc.nogc());
-        assert!(unwrap_try(result.try_has_property(
-            &mut agent,
-            key,
-            None,
-            gc.nogc()
-        )));
+        assert_eq!(
+            result.try_has_property(&mut agent, key, None, gc.nogc()),
+            ControlFlow::Continue(TryHasContinue::Offset(0, result))
+        );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
                 .unwrap()
@@ -1134,12 +1134,10 @@ mod test {
         assert!(foo.is_object());
         let result = Array::try_from(foo).unwrap();
         let key = PropertyKey::Integer(0.into());
-        assert!(unwrap_try(result.try_has_property(
-            &mut agent,
-            key,
-            None,
-            gc.nogc()
-        )));
+        assert_eq!(
+            result.try_has_property(&mut agent, key, None, gc.nogc()),
+            ControlFlow::Continue(TryHasContinue::Custom(0, result.into_object()))
+        );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
                 .unwrap()
@@ -1147,12 +1145,10 @@ mod test {
             Some(Value::from_static_str(&mut agent, "a", gc.nogc()))
         );
         let key = PropertyKey::Integer(1.into());
-        assert!(unwrap_try(result.unbind().try_has_property(
-            &mut agent,
-            key,
-            None,
-            gc.nogc()
-        )));
+        assert_eq!(
+            result.try_has_property(&mut agent, key, None, gc.nogc()),
+            ControlFlow::Continue(TryHasContinue::Offset(1, result.into_object()))
+        );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
                 .unwrap()
@@ -1181,12 +1177,10 @@ mod test {
 
         let global_env = agent.current_global_env(gc.nogc());
         let foo_key = String::from_static_str(&mut agent, "foo", gc.nogc());
-        assert!(unwrap_try(global_env.try_has_binding(
-            &mut agent,
-            foo_key,
-            None,
-            gc.nogc()
-        )));
+        assert!(matches!(
+            global_env.try_has_binding(&mut agent, foo_key, None, gc.nogc()),
+            ControlFlow::Continue(TryHasBindingContinue::Offset(_, _))
+        ));
         assert!(
             unwrap_try(global_env.try_get_binding_value(
                 &mut agent,
@@ -1463,18 +1457,14 @@ mod test {
             .bind(gc.nogc());
         let a_key = String::from_static_str(&mut agent, "a", gc.nogc());
         let i_key = String::from_static_str(&mut agent, "i", gc.nogc());
-        assert!(unwrap_try(global_env.try_has_binding(
-            &mut agent,
-            a_key,
-            None,
-            gc.nogc()
-        )));
-        assert!(unwrap_try(global_env.try_has_binding(
-            &mut agent,
-            i_key,
-            None,
-            gc.nogc()
-        )));
+        assert!(matches!(
+            global_env.try_has_binding(&mut agent, a_key, None, gc.nogc()),
+            ControlFlow::Continue(TryHasBindingContinue::Offset(_, _))
+        ));
+        assert!(matches!(
+            global_env.try_has_binding(&mut agent, i_key, None, gc.nogc()),
+            ControlFlow::Continue(TryHasBindingContinue::Offset(_, _))
+        ));
         assert_eq!(
             unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc()))
                 .unwrap(),

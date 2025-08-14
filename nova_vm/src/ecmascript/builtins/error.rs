@@ -15,7 +15,8 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, Value,
+            SetCachedResult, String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult,
+            Value,
         },
     },
     engine::{
@@ -212,26 +213,29 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
-        let backing_object = self.get_backing_object(agent);
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
+        let error = self.bind(gc);
+        let backing_object = error.get_backing_object(agent);
         if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && agent[error].message.is_some()
         {
-            TryResult::Continue(agent[self].message.is_some())
+            TryHasContinue::Custom(0, error.into_object()).into()
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+            && agent[error].cause.is_some()
         {
-            TryResult::Continue(agent[self].cause.is_some())
+            TryHasContinue::Custom(1, error.into_object()).into()
         } else {
             ordinary_try_has_property(
                 agent,
-                self.into_object(),
+                error.into_object(),
                 backing_object,
                 property_key,
                 cache,

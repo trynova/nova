@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use ahash::AHashSet;
 
 use crate::{
@@ -22,7 +24,9 @@ use crate::{
                 ObjectEnvironment, ObjectEnvironmentRecord,
             },
         },
-        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
+        types::{
+            InternalMethods, Object, PropertyDescriptor, PropertyKey, String, TryBreak, Value,
+        },
     },
     engine::{
         TryResult,
@@ -31,6 +35,8 @@ use crate::{
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
+
+use super::TryHasBindingContinue;
 
 /// ### [9.1.1.4 Global Environment Records](https://tc39.es/ecma262/#sec-global-environment-records)
 ///
@@ -162,19 +168,19 @@ impl<'e> GlobalEnvironment<'e> {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
-    pub(crate) fn try_has_binding(
+    pub(crate) fn try_has_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<TryBreak<'gc>, TryHasBindingContinue<'gc>> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
-            return TryResult::Continue(true);
+            return TryHasBindingContinue::Declarative(true).into();
         }
 
         // 3. Let ObjRec be envRec.[[ObjectRecord]].

@@ -17,7 +17,7 @@ use crate::{
             INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
             IntoObject, IntoValue, NoCache, Number, Numeric, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String,
-            TryGetContinue, TryGetResult, UINT_8_ARRAY_DISCRIMINANT,
+            TryGetContinue, TryGetResult, TryHasContinue, TryHasResult, UINT_8_ARRAY_DISCRIMINANT,
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
             UINT_32_ARRAY_DISCRIMINANT, Value,
         },
@@ -448,13 +448,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.3 Infallible \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-hasproperty)
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -462,7 +462,15 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
-            TryResult::Continue(result.is_some())
+            if let Some(result) = result {
+                TryHasContinue::Custom(
+                    result.min(u32::MAX as usize) as u32,
+                    self.into_object().bind(gc),
+                )
+                .into()
+            } else {
+                TryHasContinue::Unset.into()
+            }
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
             ordinary_try_has_property(
@@ -484,12 +492,10 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         if let PropertyKey::Integer(_) = property_key {
-            Ok(unwrap_try(self.try_has_property(
-                agent,
-                property_key,
-                None,
-                gc.into_nogc(),
-            )))
+            Ok(!matches!(
+                self.try_has_property(agent, property_key, None, gc.into_nogc()),
+                ControlFlow::Continue(TryHasContinue::Unset)
+            ))
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
             ordinary_has_property_entry(agent, self, property_key, gc)

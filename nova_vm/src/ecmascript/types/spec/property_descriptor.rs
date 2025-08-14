@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -12,8 +14,8 @@ use crate::{
         builtins::ordinary::caches::PropertyLookupCache,
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-            map_try_get_into_try_result,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
+            TryHasContinue, Value, map_try_get_into_try_result,
         },
     },
     engine::{
@@ -500,7 +502,14 @@ impl<'a> PropertyDescriptor<'a> {
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
         let key = BUILTIN_STRING_MEMORY.enumerable.into();
         let cache = PropertyLookupCache::get(agent, key);
-        let has_enumerable = try_has_property(agent, obj, key, cache, gc)?;
+        let has_enumerable = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasContinue::Unset => false,
+                TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+            },
+            ControlFlow::Break(_) => return TryResult::Break(()),
+        };
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
@@ -512,7 +521,14 @@ impl<'a> PropertyDescriptor<'a> {
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
         let key = BUILTIN_STRING_MEMORY.configurable.into();
         let cache = PropertyLookupCache::get(agent, key);
-        let has_configurable = try_has_property(agent, obj, key, cache, gc)?;
+        let has_configurable = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasContinue::Unset => false,
+                TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+            },
+            ControlFlow::Break(_) => return TryResult::Break(()),
+        };
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
@@ -524,7 +540,14 @@ impl<'a> PropertyDescriptor<'a> {
         // 7. Let hasValue be ? HasProperty(Obj, "value").
         let key = BUILTIN_STRING_MEMORY.value.into();
         let cache = PropertyLookupCache::get(agent, key);
-        let has_value = try_has_property(agent, obj, key, cache, gc)?;
+        let has_value = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasContinue::Unset => false,
+                TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+            },
+            ControlFlow::Break(_) => return TryResult::Break(()),
+        };
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
@@ -535,7 +558,14 @@ impl<'a> PropertyDescriptor<'a> {
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
         let key = BUILTIN_STRING_MEMORY.writable.into();
         let cache = PropertyLookupCache::get(agent, key);
-        let has_writable = try_has_property(agent, obj, key, cache, gc)?;
+        let has_writable = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasContinue::Unset => false,
+                TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+            },
+            ControlFlow::Break(_) => return TryResult::Break(()),
+        };
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
@@ -547,7 +577,14 @@ impl<'a> PropertyDescriptor<'a> {
         // 11. Let hasGet be ? HasProperty(Obj, "get").
         let key = BUILTIN_STRING_MEMORY.get.into();
         let cache = PropertyLookupCache::get(agent, key);
-        let has_get = try_has_property(agent, obj, key, cache, gc)?;
+        let has_get = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasContinue::Unset => false,
+                TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+            },
+            ControlFlow::Break(_) => return TryResult::Break(()),
+        };
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
@@ -571,7 +608,14 @@ impl<'a> PropertyDescriptor<'a> {
         // 13. Let hasSet be ? HasProperty(Obj, "set").
         let key = BUILTIN_STRING_MEMORY.set.into();
         let cache = PropertyLookupCache::get(agent, key);
-        let has_set = try_has_property(agent, obj, key, cache, gc)?;
+        let has_set = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasContinue::Unset => false,
+                TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
+                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+            },
+            ControlFlow::Break(_) => return TryResult::Break(()),
+        };
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").

@@ -15,7 +15,7 @@ use crate::{
         types::{
             Function, FunctionInternalProperties, InternalMethods, InternalSlots, NoCache, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryGetResult, Value, function_create_backing_object,
+            String, TryGetResult, TryHasResult, Value, function_create_backing_object,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
             function_internal_own_property_keys, function_internal_set, function_set_cached,
@@ -162,13 +162,13 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryHasResult<'gc> {
         function_try_has_property(self, agent, property_key, cache, gc)
     }
 

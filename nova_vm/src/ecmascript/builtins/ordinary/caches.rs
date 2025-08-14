@@ -450,7 +450,7 @@ pub(crate) struct PropertyLookupCacheResult<'a> {
 }
 
 impl<'a> PropertyLookupCache<'a> {
-    /// Get a property lookup cache entry for this key if one exists.
+    /// Get a property lookup cache entry for the given key if one exists.
     pub(crate) fn get(agent: &Agent, key: PropertyKey<'a>) -> Option<PropertyLookupCache<'a>> {
         let hash = key.heap_hash(agent);
         agent
@@ -461,7 +461,7 @@ impl<'a> PropertyLookupCache<'a> {
             .map(|(_, c)| c.0)
     }
 
-    /// Get or create a property lookup cache entry for this key.
+    /// Get or create a property lookup cache entry for the given key.
     pub(crate) fn new(agent: &mut Agent, key: PropertyKey<'a>) -> PropertyLookupCache<'a> {
         let hash = key.heap_hash(agent);
         let caches = &mut agent.heap.caches;
