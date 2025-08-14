@@ -93,11 +93,23 @@ impl IndexMut<PromiseAll<'_>> for Vec<Option<PromiseAllRecord<'static>>> {
 
 impl HeapMarkAndSweep for PromiseAllRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.result_array.mark_values(queues);
+        let Self {
+            remaining_unresolved_promise_count: _,
+            result_array,
+            promise,
+        } = self;
+        result_array.mark_values(queues);
+        promise.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.result_array.sweep_values(compactions);
+        let Self {
+            remaining_unresolved_promise_count: _,
+            result_array,
+            promise,
+        } = self;
+        result_array.sweep_values(compactions);
+        promise.sweep_values(compactions);
     }
 }
 
