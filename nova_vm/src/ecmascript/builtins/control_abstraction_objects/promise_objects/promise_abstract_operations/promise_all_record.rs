@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct PromiseAllRecordHeapData<'a> {
+pub struct PromiseAllRecord<'a> {
     pub remaining_unresolved_promise_count: u32,
     pub result_array: Array<'a>,
     pub promise: Promise<'a>,
@@ -28,9 +28,9 @@ pub struct PromiseAllRecordHeapData<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseAllRecord<'a>(pub(crate) BaseIndex<'a, PromiseAllRecordHeapData<'a>>);
+pub struct PromiseAll<'a>(pub(crate) BaseIndex<'a, PromiseAllRecord<'a>>);
 
-impl<'a> PromiseAllRecordHeapData<'a> {
+impl<'a> PromiseAllRecord<'a> {
     pub(crate) fn on_promise_fufilled(
         &mut self,
         agent: &mut Agent,
@@ -51,30 +51,30 @@ impl<'a> PromiseAllRecordHeapData<'a> {
     }
 }
 
-impl PromiseAllRecord<'_> {
+impl PromiseAll<'_> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
 }
 
-impl Index<PromiseAllRecord<'_>> for Agent {
-    type Output = PromiseAllRecordHeapData<'static>;
+impl Index<PromiseAll<'_>> for Agent {
+    type Output = PromiseAllRecord<'static>;
 
-    fn index(&self, index: PromiseAllRecord) -> &Self::Output {
+    fn index(&self, index: PromiseAll) -> &Self::Output {
         &self.heap.promise_all_records[index]
     }
 }
 
-impl IndexMut<PromiseAllRecord<'_>> for Agent {
-    fn index_mut(&mut self, index: PromiseAllRecord) -> &mut Self::Output {
+impl IndexMut<PromiseAll<'_>> for Agent {
+    fn index_mut(&mut self, index: PromiseAll) -> &mut Self::Output {
         &mut self.heap.promise_all_records[index]
     }
 }
 
-impl Index<PromiseAllRecord<'_>> for Vec<Option<PromiseAllRecordHeapData<'static>>> {
-    type Output = PromiseAllRecordHeapData<'static>;
+impl Index<PromiseAll<'_>> for Vec<Option<PromiseAllRecord<'static>>> {
+    type Output = PromiseAllRecord<'static>;
 
-    fn index(&self, index: PromiseAllRecord) -> &Self::Output {
+    fn index(&self, index: PromiseAll) -> &Self::Output {
         self.get(index.get_index())
             .expect("PromiseAllRecord out of bounds")
             .as_ref()
@@ -82,8 +82,8 @@ impl Index<PromiseAllRecord<'_>> for Vec<Option<PromiseAllRecordHeapData<'static
     }
 }
 
-impl IndexMut<PromiseAllRecord<'_>> for Vec<Option<PromiseAllRecordHeapData<'static>>> {
-    fn index_mut(&mut self, index: PromiseAllRecord) -> &mut Self::Output {
+impl IndexMut<PromiseAll<'_>> for Vec<Option<PromiseAllRecord<'static>>> {
+    fn index_mut(&mut self, index: PromiseAll) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PromiseAllRecord out of bounds")
             .as_mut()
@@ -91,37 +91,13 @@ impl IndexMut<PromiseAllRecord<'_>> for Vec<Option<PromiseAllRecordHeapData<'sta
     }
 }
 
-impl HeapMarkAndSweep for PromiseAllRecordHeapData<'static> {
+impl HeapMarkAndSweep for PromiseAllRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.result_array.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.result_array.sweep_values(compactions);
-    }
-}
-
-unsafe impl Bindable for PromiseAllRecordHeapData<'_> {
-    type Of<'a> = PromiseAllRecordHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl HeapMarkAndSweep for PromiseAllRecord<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.promise_all_records.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.promise_all_records.shift_index(&mut self.0);
     }
 }
 
@@ -139,10 +115,34 @@ unsafe impl Bindable for PromiseAllRecord<'_> {
     }
 }
 
-impl<'a> CreateHeapData<PromiseAllRecordHeapData<'a>, PromiseAllRecord<'a>> for Heap {
-    fn create(&mut self, data: PromiseAllRecordHeapData<'a>) -> PromiseAllRecord<'a> {
+impl HeapMarkAndSweep for PromiseAll<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.promise_all_records.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.promise_all_records.shift_index(&mut self.0);
+    }
+}
+
+unsafe impl Bindable for PromiseAll<'_> {
+    type Of<'a> = PromiseAll<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> CreateHeapData<PromiseAllRecord<'a>, PromiseAll<'a>> for Heap {
+    fn create(&mut self, data: PromiseAllRecord<'a>) -> PromiseAll<'a> {
         self.promise_all_records.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<PromiseAllRecordHeapData<'static>>>();
-        PromiseAllRecord(BaseIndex::last(&self.promise_all_records))
+        self.alloc_counter += core::mem::size_of::<Option<PromiseAllRecord<'static>>>();
+        PromiseAll(BaseIndex::last(&self.promise_all_records))
     }
 }
