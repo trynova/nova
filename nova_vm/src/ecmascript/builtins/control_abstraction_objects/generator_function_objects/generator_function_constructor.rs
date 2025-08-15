@@ -111,8 +111,7 @@ impl GeneratorFunctionConstructor {
                 ..Default::default()
             },
             gc,
-        ))
-        .unwrap();
+        ));
         // }).
 
         Ok(f.into_value())

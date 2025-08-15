@@ -375,7 +375,7 @@ pub unsafe trait Bindable: Sized {
 macro_rules! bindable_handle {
     ($self:ident) => {
         // SAFETY: Bindable handle.
-        unsafe impl Bindable for $self<'_> {
+        unsafe impl crate::engine::context::Bindable for $self<'_> {
             type Of<'a> = $self<'a>;
 
             #[inline(always)]
@@ -384,7 +384,7 @@ macro_rules! bindable_handle {
             }
 
             #[inline(always)]
-            fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+            fn bind<'a>(self, _: crate::engine::context::NoGcScope<'a, '_>) -> Self::Of<'a> {
                 unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
             }
         }

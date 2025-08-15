@@ -10,20 +10,19 @@ use data::TypedArrayArrayLength;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{Agent, JsResult},
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
             INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
             IntoObject, IntoValue, NoCache, Number, Numeric, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String,
-            TryGetContinue, TryGetResult, TryHasContinue, TryHasResult, UINT_8_ARRAY_DISCRIMINANT,
-            UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-            UINT_32_ARRAY_DISCRIMINANT, Value,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String, TryGetResult,
+            TryHasResult, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
         unwrap_try,
@@ -386,7 +385,11 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
 
 impl<'a> InternalMethods<'a> for TypedArray<'a> {
     /// ### [10.4.5.2 Infallible \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-getownproperty)
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. NOTE: The extensibility-related invariants specified in 6.1.7.3
         //    do not allow this method to return true when O can gain (or lose
         //    and then regain) properties, which might occur for properties
@@ -412,7 +415,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         mut property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let o = self.bind(gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
@@ -454,7 +457,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -463,13 +466,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let numeric_index = numeric_index.into_i64();
             let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
             if let Some(result) = result {
-                TryHasContinue::Custom(
+                TryHasResult::Custom(
                     result.min(u32::MAX as usize) as u32,
                     self.into_object().bind(gc),
                 )
                 .into()
             } else {
-                TryHasContinue::Unset.into()
+                TryHasResult::Unset.into()
             }
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
@@ -494,7 +497,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(_) = property_key {
             Ok(!matches!(
                 self.try_has_property(agent, property_key, None, gc.into_nogc()),
-                ControlFlow::Continue(TryHasContinue::Unset)
+                ControlFlow::Continue(TryHasResult::Unset)
             ))
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
@@ -503,13 +506,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.4 Infallible \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-typedarray-defineownproperty)
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -562,7 +565,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 gc,
             ) {
                 Ok(b) => TryResult::Continue(b),
-                Err(_) => TryResult::Break(()),
+                Err(_) => TryError::GcError.into(),
             }
         }
     }
@@ -634,9 +637,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 property_descriptor.unbind(),
                 gc.nogc(),
             )
-            .map_err(|err| {
-                agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc.into_nogc())
-            })
+            .map_err(|err| agent.throw_allocation_exception(err, gc.into_nogc()))
         }
     }
 
@@ -648,7 +649,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -658,9 +659,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let numeric_index = numeric_index.into_i64();
             let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
             result
-                .map_or(TryGetContinue::Unset, |v| {
-                    TryGetContinue::Value(v.into_value())
-                })
+                .map_or(TryGetResult::Unset, |v| TryGetResult::Value(v.into_value()))
                 .into()
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
@@ -732,14 +731,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.6 Infallible \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -798,12 +797,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -826,7 +825,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record =
             make_typed_array_with_buffer_witness_record(agent, self, Ordering::SeqCst, gc);

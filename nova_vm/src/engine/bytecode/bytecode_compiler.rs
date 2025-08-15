@@ -33,10 +33,7 @@ use crate::{
         execution::{Agent, agent::ExceptionType},
         types::{IntoObject, IntoPrimitive, Primitive, PropertyKey},
     },
-    engine::{
-        TryResult,
-        context::{Bindable, NoGcScope},
-    },
+    engine::context::{Bindable, NoGcScope},
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
@@ -1231,7 +1228,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 
         if let Some(ExpressionOutput::Literal(literal)) = output {
             let (agent, gc) = ctx.get_agent_and_gc();
-            if let TryResult::Continue(identifier) = to_property_key_simple(agent, literal, gc) {
+            if let Some(identifier) = to_property_key_simple(agent, literal, gc) {
                 if self.object.is_super() {
                     ctx.add_instruction_with_identifier(
                         Instruction::MakeSuperPropertyReferenceWithIdentifierKey,

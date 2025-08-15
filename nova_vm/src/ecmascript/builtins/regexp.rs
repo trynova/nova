@@ -14,8 +14,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult,
-            Value,
+            SetCachedResult, String, TryGetResult, TryHasResult, Value,
         },
     },
     engine::{
@@ -183,7 +182,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             // If a backing object exists, it's the only one with correct
             // knowledge of all our properties, including lastIndex.
@@ -209,10 +208,10 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
-            TryHasContinue::Custom(0, self.into_object().bind(gc)).into()
+            TryHasResult::Custom(0, self.into_object().bind(gc)).into()
         } else {
             ordinary_try_has_property(
                 agent,
@@ -256,13 +255,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into()
             && let Some(last_index) = agent[self].last_index.get_value()
         {
-            return TryGetContinue::Value(last_index.into()).into();
+            return TryGetResult::Value(last_index.into()).into();
         }
         ordinary_try_get(
             agent,
@@ -305,14 +304,14 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If we're setting the last index and we have a backing object,
             // then we set the value there first and observe the result.
@@ -390,7 +389,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         TryResult::Continue(
             if let Some(backing_object) = self.get_backing_object(agent) {
                 // Note: If backing object exists, it also contains the

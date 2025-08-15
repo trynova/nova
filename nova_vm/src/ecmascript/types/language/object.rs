@@ -1572,7 +1572,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<Object<'gc>>> {
+    ) -> TryResult<'gc, Option<Object<'gc>>> {
         match self {
             Object::Object(data) => data.try_get_prototype_of(agent, gc),
             Object::Array(data) => data.try_get_prototype_of(agent, gc),
@@ -1772,12 +1772,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_set_prototype_of(
+    fn try_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Array(data) => data.try_set_prototype_of(agent, prototype, gc),
@@ -1990,7 +1990,11 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_is_extensible<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(data) => data.try_is_extensible(agent, gc),
             Object::Array(data) => data.try_is_extensible(agent, gc),
@@ -2178,7 +2182,11 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(data) => data.try_prevent_extensions(agent, gc),
             Object::Array(data) => data.try_prevent_extensions(agent, gc),
@@ -2385,7 +2393,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self {
             Object::Object(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Array(data) => data.try_get_own_property(agent, property_key, gc),
@@ -2605,13 +2613,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(idx) => {
                 idx.try_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2975,7 +2983,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         match self {
             Object::Object(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::Array(data) => data.try_has_property(agent, property_key, cache, gc),
@@ -3199,7 +3207,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         match self {
             Object::Object(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::Array(data) => data.try_get(agent, property_key, receiver, cache, gc),
@@ -3423,14 +3431,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Array(data) => data.try_set(agent, property_key, value, receiver, gc),
@@ -3701,12 +3709,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(data) => data.try_delete(agent, property_key, gc),
             Object::Array(data) => data.try_delete(agent, property_key, gc),
@@ -3917,7 +3925,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         match self {
             Object::Object(data) => data.try_own_property_keys(agent, gc),
             Object::Array(data) => data.try_own_property_keys(agent, gc),
@@ -4213,7 +4221,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetContinue<'gc> {
+    ) -> TryGetResult<'gc> {
         match self {
             Object::Object(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::Array(data) => data.get_own_property_at_offset(agent, offset, gc),

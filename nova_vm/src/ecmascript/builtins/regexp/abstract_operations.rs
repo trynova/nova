@@ -25,14 +25,14 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, TryBreak, TryGetContinue, Value, handle_try_get_result, unwrap_try_get_value,
+            String, TryGetResult, Value, handle_try_get_result, unwrap_try_get_value,
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped, TryError,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
+        try_result_into_js, unwrap_try,
     },
     heap::CreateHeapData,
 };
@@ -349,9 +349,9 @@ fn reg_exp_exec_prepare<'a>(
         gc.nogc(),
     );
     let exec = match exec {
-        ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
-        ControlFlow::Continue(TryGetContinue::Value(v)) => v,
-        ControlFlow::Break(TryBreak::Error(e)) => {
+        ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+        ControlFlow::Continue(TryGetResult::Value(v)) => v,
+        ControlFlow::Break(TryError::Err(e)) => {
             return ControlFlow::Break(Err(e.unbind().bind(gc.into_nogc())));
         }
         _ => {
@@ -503,8 +503,10 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
             None,
             gc.nogc(),
         ));
-        if let TryResult::Continue(last_index) = try_to_length(agent, last_index, gc.nogc()) {
-            last_index.unbind()? as usize
+        if let Some(last_index) =
+            try_result_into_js(try_to_length(agent, last_index, gc.nogc())).unbind()?
+        {
+            last_index as usize
         } else {
             let scoped_r = r.scope(agent, gc.nogc());
             let scoped_s = s.scope(agent, gc.nogc());
@@ -668,8 +670,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         index,
         Number::try_from(last_index).unwrap().into_value(),
         gc,
-    ))
-    .unwrap();
+    ));
     let input = String::from_static_str(agent, "input", gc).to_property_key();
     // 23. Perform ! CreateDataPropertyOrThrow(A, "input", S).
     unwrap_try(try_create_data_property_or_throw(
@@ -678,8 +679,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         input,
         s.into_value(),
         gc,
-    ))
-    .unwrap();
+    ));
     // 24. Let match be the Match Record { [[StartIndex]]: lastIndex, [[EndIndex]]: e }.
     // 25. Let indices be a new empty List.
     // let mut indices = vec![];
@@ -708,8 +708,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         key,
         groups.map_or(Value::Undefined, |g| g.into_value()),
         gc,
-    ))
-    .unwrap();
+    ));
     // 33. Let matchedGroupNames be a new empty List.
     // let mut matched_group_names = vec![];
     // 34. For each integer i such that 1 ≤ i ≤ n, in ascending order, do
@@ -746,8 +745,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
             PropertyKey::try_from(i).unwrap(),
             captured_value,
             gc,
-        ))
-        .unwrap();
+        ));
         // e. If the ith capture of R was defined with a GroupName, then
         //         i. Let s be the CapturingGroupName of that GroupName.
         //         ii. If matchedGroupNames contains s, then

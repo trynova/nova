@@ -159,8 +159,7 @@ impl ArrayConstructor {
                     PropertyKey::from(SmallInteger::zero()),
                     len,
                     gc,
-                ))
-                .unwrap();
+                ));
                 // ii. Let intLen be 1𝔽.
                 // e. Perform ! Set(array, "length", intLen, true).
                 debug_assert_eq!(agent[array].elements.len(), 1);

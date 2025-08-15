@@ -30,7 +30,7 @@ use crate::{
         },
     },
     engine::{
-        Executable, TryResult,
+        Executable, TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -198,7 +198,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
             agent,
@@ -207,13 +207,13 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         ))
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match function_internal_define_own_property(
             self,
             agent,
@@ -222,7 +222,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
             gc,
         ) {
             Ok(b) => TryResult::Continue(b),
-            Err(_) => TryResult::Break(()),
+            Err(_) => TryError::GcError.into(),
         }
     }
 
@@ -232,7 +232,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         function_try_has_property(self, agent, property_key, cache, gc)
     }
 
@@ -252,7 +252,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         function_try_get(self, agent, property_key, receiver, cache, gc)
     }
 
@@ -266,14 +266,14 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -288,12 +288,12 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
@@ -301,7 +301,7 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 

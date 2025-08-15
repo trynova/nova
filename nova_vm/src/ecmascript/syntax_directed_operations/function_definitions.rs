@@ -185,8 +185,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
                 ..Default::default()
             },
             gc,
-        ))
-        .unwrap();
+        ));
         // }).
     }
 

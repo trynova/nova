@@ -92,8 +92,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                                     PropertyKey::from(idx),
                                     result.unbind(),
                                     gc.nogc(),
-                                ))
-                                .unwrap();
+                                ));
                                 idx += 1;
                             }
                             iterator_is_done = true;

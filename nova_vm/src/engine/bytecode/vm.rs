@@ -52,8 +52,8 @@ use crate::{
             BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
             PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, SetCachedProps,
-            SetCachedResult, SetProps, String, TryBreak, TryGetValueContinue, TryHasContinue,
-            Value, call_proxy_set, get_this_value, get_value, initialize_referenced_binding,
+            SetCachedResult, SetProps, String, TryGetValueContinue, TryHasResult, Value,
+            call_proxy_set, get_this_value, get_value, initialize_referenced_binding,
             is_private_reference, is_property_reference, is_super_reference,
             is_unresolvable_reference, put_value, throw_cannot_set_property,
             throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
@@ -61,7 +61,7 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, Scoped, TryResult,
+        ScopableCollection, Scoped, TryError, TryResult,
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
@@ -71,7 +71,7 @@ use crate::{
         },
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
+        try_result_into_js, try_result_into_option_js, unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, ObjectEntry, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -1108,7 +1108,7 @@ impl Vm {
                         match result {
                             ControlFlow::Continue(TryGetValueContinue::Unset) => Value::Undefined,
                             ControlFlow::Continue(TryGetValueContinue::Value(value)) => value,
-                            ControlFlow::Break(TryBreak::Error(err)) => {
+                            ControlFlow::Break(TryError::Err(err)) => {
                                 return Err(err.unbind().bind(gc.into_nogc()));
                             }
                             _ => with_vm_gc(
@@ -1228,9 +1228,7 @@ impl Vm {
                     let pk_result = match parameter {
                         NamedEvaluationParameter::Result => {
                             let value = vm.result.take().unwrap().bind(gc.nogc());
-                            if let TryResult::Continue(pk) =
-                                to_property_key_simple(agent, value, gc.nogc())
-                            {
+                            if let Some(pk) = to_property_key_simple(agent, value, gc.nogc()) {
                                 Ok(pk)
                             } else {
                                 Err(value)
@@ -1238,9 +1236,7 @@ impl Vm {
                         }
                         NamedEvaluationParameter::Stack => {
                             let value = vm.stack.last().unwrap().bind(gc.nogc());
-                            if let TryResult::Continue(pk) =
-                                to_property_key_simple(agent, value, gc.nogc())
-                            {
+                            if let Some(pk) = to_property_key_simple(agent, value, gc.nogc()) {
                                 Ok(pk)
                             } else {
                                 Err(value)
@@ -1377,8 +1373,7 @@ impl Vm {
                             configurable: Some(false),
                         },
                         gc.nogc(),
-                    ))
-                    .unwrap();
+                    ));
                 }
 
                 if init_binding {
@@ -1394,8 +1389,7 @@ impl Vm {
                         None,
                         function.into_value(),
                         gc.nogc(),
-                    ))
-                    .unwrap();
+                    ));
                 }
 
                 vm.result = Some(function.into_value().unbind());
@@ -1669,11 +1663,7 @@ impl Vm {
                         .property_storage()
                         .add_private_field_slot(agent, private_name)
                     {
-                        return Err(agent.throw_exception(
-                            ExceptionType::RangeError,
-                            err.to_string(),
-                            gc.into_nogc(),
-                        ));
+                        return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                     };
                 } else {
                     private_env.add_instance_private_field(agent, description);
@@ -2258,9 +2248,9 @@ impl Vm {
                 };
                 let result = match try_has_property(agent, rval, property_key, None, gc.nogc()) {
                     ControlFlow::Continue(c) => match c {
-                        TryHasContinue::Unset => false,
-                        TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => true,
-                        TryHasContinue::Proxy(proxy) => {
+                        TryHasResult::Unset => false,
+                        TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                        TryHasResult::Proxy(proxy) => {
                             let proxy = proxy.unbind();
                             let property_key = property_key.unbind();
                             with_vm_gc(
@@ -2271,10 +2261,10 @@ impl Vm {
                             )?
                         }
                     },
-                    ControlFlow::Break(TryBreak::Error(err)) => {
+                    ControlFlow::Break(TryError::Err(err)) => {
                         return Err(err.unbind().bind(gc.into_nogc()));
                     }
-                    ControlFlow::Break(TryBreak::CannotContinue) => {
+                    ControlFlow::Break(TryError::GcError) => {
                         let rval = rval.unbind();
                         let property_key = property_key.unbind();
                         with_vm_gc(
@@ -2369,9 +2359,7 @@ impl Vm {
                 let w = vm.result.take().unwrap();
                 // Note: https://tc39.es/ecma262/#sec-initializereferencedbinding
                 // suggests this cannot call user code, hence NoGC.
-                unwrap_try(try_initialize_referenced_binding(agent, v, w, gc.nogc()))
-                    .unbind()?
-                    .bind(gc.nogc());
+                unwrap_try(try_initialize_referenced_binding(agent, v, w, gc.nogc()));
             }
             Instruction::InitializeVariableEnvironment => {
                 let num_variables = instr.get_first_index();
@@ -2463,8 +2451,7 @@ impl Vm {
                     name.unbind(),
                     false,
                     gc.nogc(),
-                ))
-                .unwrap();
+                ));
             }
             Instruction::CreateImmutableBinding => {
                 let lex_env = agent.current_lexical_environment(gc.nogc());
@@ -2668,10 +2655,10 @@ impl Vm {
                 }
             }
             Instruction::IteratorStepValueOrUndefined => {
-                let result = if let TryResult::Continue(r) = vm
-                    .get_active_iterator_mut()
-                    .try_step_value(agent, gc.nogc())
-                {
+                let result = if let Some(r) = try_result_into_option_js(
+                    vm.get_active_iterator_mut()
+                        .try_step_value(agent, gc.nogc()),
+                ) {
                     r.unbind().bind(gc.into_nogc())
                 } else {
                     with_vm_gc(
@@ -3758,8 +3745,7 @@ fn delete_evaluation<'a>(
         let referenced_name = if !reference.is_static_property_reference() {
             // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
             let referenced_name = reference.referenced_name_value();
-            if let TryResult::Continue(referenced_name) =
-                to_property_key_simple(agent, referenced_name, gc.nogc())
+            if let Some(referenced_name) = to_property_key_simple(agent, referenced_name, gc.nogc())
             {
                 referenced_name
             } else {
@@ -3815,10 +3801,11 @@ fn delete_evaluation<'a>(
         let base = reference.base_env();
         let referenced_name = reference.referenced_name_string();
         // c. Return ? base.DeleteBinding(ref.[[ReferencedName]]).
-        let result = if let TryResult::Continue(result) =
-            base.try_delete_binding(agent, referenced_name, gc.nogc())
+        let result = if let Some(result) =
+            try_result_into_js(base.try_delete_binding(agent, referenced_name, gc.nogc()))
+                .unbind()?
         {
-            result.unbind()?
+            result
         } else {
             let referenced_name = referenced_name.unbind();
             let base = base.unbind();
@@ -3892,7 +3879,7 @@ fn execute_get_value<'gc>(
     let result = match result {
         ControlFlow::Continue(TryGetValueContinue::Unset) => Value::Undefined,
         ControlFlow::Continue(TryGetValueContinue::Value(value)) => value,
-        ControlFlow::Break(TryBreak::Error(err)) => {
+        ControlFlow::Break(TryError::Err(err)) => {
             return Err(err.unbind().bind(gc.into_nogc()));
         }
         _ => handle_get_value_break(agent, vm, &reference.unbind(), result.unbind(), gc)?,
@@ -3912,30 +3899,29 @@ fn mutate_reference_property_key<'vm, 'gc>(
     // Expression reference; we need to convert to PropertyKey
     // first.
     let referenced_name = reference.referenced_name_value().bind(gc.nogc());
-    let referenced_name = if let TryResult::Continue(referenced_name) =
-        to_property_key_simple(agent, referenced_name, gc.nogc())
-    {
-        referenced_name
-    } else {
-        let base = reference.base_value().bind(gc.nogc());
-        if base.is_undefined() || base.is_null() {
-            // Undefined and null should throw an error from
-            // ToObject before ToPropertyKey gets called.
-            return Err(throw_read_undefined_or_null_error(
+    let referenced_name =
+        if let Some(referenced_name) = to_property_key_simple(agent, referenced_name, gc.nogc()) {
+            referenced_name
+        } else {
+            let base = reference.base_value().bind(gc.nogc());
+            if base.is_undefined() || base.is_null() {
+                // Undefined and null should throw an error from
+                // ToObject before ToPropertyKey gets called.
+                return Err(throw_read_undefined_or_null_error(
+                    agent,
+                    referenced_name.unbind(),
+                    base.unbind(),
+                    gc.into_nogc(),
+                ));
+            }
+            let referenced_name = referenced_name.unbind();
+            with_vm_gc(
                 agent,
-                referenced_name.unbind(),
-                base.unbind(),
-                gc.into_nogc(),
-            ));
-        }
-        let referenced_name = referenced_name.unbind();
-        with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| to_property_key_complex(agent, referenced_name, gc),
-            gc,
-        )?
-    };
+                vm,
+                |agent, gc| to_property_key_complex(agent, referenced_name, gc),
+                gc,
+            )?
+        };
     let reference = vm.reference.as_mut().unwrap();
     reference.set_referenced_name_to_property_key(referenced_name);
     Ok(reference.clone())
@@ -3947,7 +3933,7 @@ fn handle_get_value_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,
     reference: &Reference,
-    result: ControlFlow<TryBreak, TryGetValueContinue>,
+    result: ControlFlow<TryError, TryGetValueContinue>,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     let result = result.unbind();
@@ -3963,8 +3949,8 @@ fn handle_get_value_break<'a>(
                 receiver,
                 property_key,
             }) => proxy.internal_get(agent, property_key, receiver, gc),
-            ControlFlow::Break(TryBreak::Error(err)) => Err(err.bind(gc.into_nogc())),
-            ControlFlow::Break(TryBreak::CannotContinue) => get_value(agent, &reference, gc),
+            ControlFlow::Break(TryError::Err(err)) => Err(err.bind(gc.into_nogc())),
+            ControlFlow::Break(TryError::GcError) => get_value(agent, &reference, gc),
             _ => unreachable!(),
         },
         gc,
@@ -4027,9 +4013,7 @@ fn put_value_with_cache<'gc>(
     let result = try_put_value(agent, &reference, value, gc.nogc());
     agent.heap.caches.clear_current_cache_to_populate();
 
-    if let TryResult::Continue(result) = result {
-        result.unbind()?;
-    } else {
+    if try_result_into_js(result).unbind()?.is_none() {
         let value = value.unbind();
         let reference = reference.unbind();
         with_vm_gc(

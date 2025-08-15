@@ -36,10 +36,11 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            PropertyKey, String, TryBreak, TryGetContinue, Value, handle_try_get_result,
+            PropertyKey, String, TryGetResult, Value, handle_try_get_result,
         },
     },
     engine::{
+        TryError,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
@@ -138,9 +139,9 @@ impl MapConstructor {
             gc.nogc(),
         );
         let adder = match adder {
-            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
-            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
-            ControlFlow::Break(TryBreak::Error(e)) => {
+            ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetResult::Value(v)) => v,
+            ControlFlow::Break(TryError::Err(e)) => {
                 return Err(e.unbind().bind(gc.into_nogc()));
             }
             _ => {

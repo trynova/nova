@@ -16,8 +16,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, NoCache,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult, Value,
-            language::IntoObject,
+            String, TryGetResult, TryHasResult, Value, language::IntoObject,
         },
     },
     engine::{
@@ -171,7 +170,7 @@ pub(crate) fn function_try_has_property<'a, 'gc>(
     property_key: PropertyKey,
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
-) -> TryHasResult<'gc> {
+) -> TryResult<'gc, TryHasResult<'gc>> {
     let backing_object = func.get_backing_object(agent);
 
     if backing_object.is_none()
@@ -183,7 +182,7 @@ pub(crate) fn function_try_has_property<'a, 'gc>(
         } else {
             1
         };
-        TryHasContinue::Custom(index, func.into_object().bind(gc)).into()
+        TryHasResult::Custom(index, func.into_object().bind(gc)).into()
     } else {
         ordinary_try_has_property(
             agent,
@@ -234,13 +233,13 @@ pub(crate) fn function_try_get<'gc, 'a>(
     receiver: Value,
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
-) -> TryGetResult<'gc> {
+) -> TryResult<'gc, TryGetResult<'gc>> {
     let backing_object = func.get_backing_object(agent);
     // if let Some(backing_object) = func.get_backing_object(agent) {
     if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.length.into() {
-        TryGetContinue::Value(func.get_length(agent).into()).into()
+        TryGetResult::Value(func.get_length(agent).into()).into()
     } else if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.name.into() {
-        TryGetContinue::Value(func.get_name(agent).into_value()).into()
+        TryGetResult::Value(func.get_name(agent).into_value()).into()
     } else {
         ordinary_try_get(
             agent,
@@ -281,14 +280,14 @@ pub(crate) fn function_internal_get<'gc, 'a>(
     }
 }
 
-pub(crate) fn function_try_set<'a>(
+pub(crate) fn function_try_set<'gc, 'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    gc: NoGcScope,
-) -> TryResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, bool> {
     if func.get_backing_object(agent).is_some() {
         ordinary_try_set(agent, func.into_object(), property_key, value, receiver, gc)
     } else if property_key == BUILTIN_STRING_MEMORY.length.into()

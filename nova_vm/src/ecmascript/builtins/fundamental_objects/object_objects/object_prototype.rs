@@ -19,10 +19,13 @@ use crate::{
         execution::{Agent, JsResult, Realm},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
-            String, TryBreak, TryGetContinue, Value, handle_try_get_result,
+            String, TryGetResult, Value, handle_try_get_result,
         },
     },
-    engine::context::{Bindable, GcScope},
+    engine::{
+        TryError,
+        context::{Bindable, GcScope},
+    },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
@@ -268,9 +271,9 @@ impl ObjectPrototype {
         );
         let tag = match tag {
             // We got a result without creating a primitive object! Good!
-            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
-            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
-            ControlFlow::Break(TryBreak::Error(e)) => {
+            ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetResult::Value(v)) => v,
+            ControlFlow::Break(TryError::Err(e)) => {
                 return Err(e.unbind().bind(gc.into_nogc()));
             }
             _ => {

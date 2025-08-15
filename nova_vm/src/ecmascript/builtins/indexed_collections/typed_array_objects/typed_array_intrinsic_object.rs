@@ -47,10 +47,10 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
+        try_result_into_js, unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     with_typed_array_viewable,
@@ -1177,9 +1177,10 @@ impl TypedArrayPrototype {
         };
         // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
         let from_index_is_undefined = from_index.is_undefined();
-        let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, from_index, nogc)
+        let n = if let Some(n) =
+            try_result_into_js(try_to_integer_or_infinity(agent, from_index, nogc)).unbind()?
         {
-            n.unbind()?
+            n
         } else {
             let scoped_o = o.scope(agent, nogc);
             let scoped_search_element = search_element.scope(agent, nogc);
@@ -1270,10 +1271,10 @@ impl TypedArrayPrototype {
         };
         // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
         let from_index_is_undefined = from_index.is_undefined();
-        let n = if let TryResult::Continue(n) =
-            try_to_integer_or_infinity(agent, from_index, gc.nogc())
+        let n = if let Some(n) =
+            try_result_into_js(try_to_integer_or_infinity(agent, from_index, gc.nogc())).unbind()?
         {
-            n.unbind()?
+            n
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
             let scoped_search_element = search_element.scope(agent, gc.nogc());
@@ -1444,7 +1445,7 @@ impl TypedArrayPrototype {
                 )
             );
             // i. Let S be ! ToString(element).
-            let s = unwrap_try(try_to_string(agent, element, gc)).unwrap();
+            let s = unwrap_try(try_to_string(agent, element, gc));
             // ii. Set R to the string-concatenation of R and S.
             r.push_wtf8(s.as_wtf8(agent));
             // d. Set k to k + 1.
@@ -2216,8 +2217,7 @@ impl TypedArrayPrototype {
                 from_value.unbind(),
                 true,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
             // . Set k to k + 1.
             k += 1;
         }

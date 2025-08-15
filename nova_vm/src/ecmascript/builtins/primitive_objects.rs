@@ -19,12 +19,12 @@ use crate::{
             InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, NoCache,
             Number, Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
             SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String, Symbol, TryGetContinue,
-            TryGetResult, TryHasContinue, TryHasResult, Value, bigint::HeapBigInt,
+            SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String, Symbol, TryGetResult,
+            TryHasResult, Value, bigint::HeapBigInt,
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
@@ -236,7 +236,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let o = self.bind(gc);
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -258,13 +258,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // For string exotic objects:
             // 1. Let stringDesc be StringGetOwnProperty(S, P).
@@ -280,7 +280,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                     gc,
                 ) {
                     Ok(b) => TryResult::Continue(b),
-                    Err(_) => TryResult::Break(()),
+                    Err(_) => TryError::GcError.into(),
                 };
             }
             // 3. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
@@ -298,7 +298,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             gc,
         ) {
             Ok(b) => TryResult::Continue(b),
-            Err(_) => TryResult::Break(()),
+            Err(_) => TryError::GcError.into(),
         }
     }
 
@@ -308,11 +308,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryHasContinue::Custom(0, self.into_object().bind(gc)).into();
+            return TryHasResult::Custom(0, self.into_object().bind(gc)).into();
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
@@ -374,11 +374,11 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
-            return TryGetContinue::Value(value.bind(gc)).into();
+            return TryGetResult::Value(value.bind(gc)).into();
         }
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
@@ -426,14 +426,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if let Ok(string) = String::try_from(agent[self].data)
             && string.get_property_value(agent, property_key).is_some()
         {
@@ -470,12 +470,12 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         )
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // A String will return unconfigurable descriptors for length and
             // all valid string indexes, making delete return false.
@@ -506,7 +506,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);

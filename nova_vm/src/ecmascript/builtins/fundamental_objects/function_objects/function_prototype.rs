@@ -23,12 +23,12 @@ use crate::{
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
-            Number, OrdinaryObject, PropertyKey, String, TryBreak, TryGetContinue, Value,
+            Number, OrdinaryObject, PropertyKey, String, TryGetResult, Value,
             handle_try_get_result,
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
@@ -232,9 +232,9 @@ impl FunctionPrototype {
                 gc.nogc(),
             );
             let target_len = match target_len {
-                ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
-                ControlFlow::Continue(TryGetContinue::Value(v)) => v,
-                ControlFlow::Break(TryBreak::Error(e)) => {
+                ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+                ControlFlow::Continue(TryGetResult::Value(v)) => v,
+                ControlFlow::Break(TryError::Err(e)) => {
                     return Err(e.unbind().bind(gc.into_nogc()));
                 }
                 _ => {
@@ -300,9 +300,9 @@ impl FunctionPrototype {
             gc.nogc(),
         );
         let target_name = match target_name {
-            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
-            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
-            ControlFlow::Break(TryBreak::Error(e)) => return Err(e.unbind().bind(gc.into_nogc())),
+            ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetResult::Value(v)) => v,
+            ControlFlow::Break(TryError::Err(e)) => return Err(e.unbind().bind(gc.into_nogc())),
             _ => {
                 if scoped_f.is_none() {
                     scoped_f = Some(f.scope(agent, gc.nogc()));

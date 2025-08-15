@@ -24,9 +24,10 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, ScopedCollection, TryResult, VmIteratorRecord,
+        ScopableCollection, ScopedCollection, VmIteratorRecord,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
+        try_result_into_js, try_result_into_option_js,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
@@ -495,12 +496,12 @@ pub(crate) fn iterator_close_with_value<'a>(
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
-    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
+    let inner_result = if let Some(inner_result) = try_result_into_option_js(try_get_object_method(
         agent,
         iterator,
         BUILTIN_STRING_MEMORY.r#return.into(),
         gc.nogc(),
-    ) {
+    )) {
         inner_result
     } else {
         let scoped_iterator = iterator.scope(agent, gc.nogc());
@@ -574,12 +575,12 @@ pub(crate) fn iterator_close_with_error<'a>(
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
-    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
+    let inner_result = if let Some(inner_result) = try_result_into_option_js(try_get_object_method(
         agent,
         iterator,
         BUILTIN_STRING_MEMORY.r#return.into(),
         gc.nogc(),
-    ) {
+    )) {
         inner_result
     } else {
         let scoped_iterator = iterator.scope(agent, gc.nogc());
@@ -659,12 +660,15 @@ pub(crate) fn async_iterator_close_with_value<'a>(
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     let mut iterator = iterator.bind(gc.nogc());
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
-    let inner_result = if let TryResult::Continue(inner_result) = try_get_object_method(
+    let inner_result = if let Some(inner_result) = try_result_into_js(try_get_object_method(
         agent,
         iterator,
         BUILTIN_STRING_MEMORY.r#return.into(),
         gc.nogc(),
-    ) {
+    ))
+    .unbind()?
+    .bind(gc.nogc())
+    {
         // Note: completion.[[Type]] is known to not be throw, so if
         // innerResult.[[Type]] is throw then the following steps mean that
         // "rethrow innerResult immediately". Hence we can use the ? operator
@@ -672,7 +676,7 @@ pub(crate) fn async_iterator_close_with_value<'a>(
         // 4. If innerResult.[[Type]] is normal, then
         // 5. If completion.[[Type]] is throw, return ? completion.
         // 6. If innerResult.[[Type]] is throw, return ? innerResult.
-        inner_result.unbind()?.bind(gc.nogc())
+        inner_result
     } else {
         let scoped_iterator = iterator.scope(agent, gc.nogc());
         let inner_result = get_object_method(

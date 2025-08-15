@@ -31,8 +31,9 @@ use crate::{
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
+        js_result_into_try,
         rootable::Scopable,
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
@@ -586,25 +587,20 @@ pub(crate) fn try_to_integer_or_infinity<'a>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<'a, IntegerOrInfinity>> {
+) -> TryResult<'a, IntegerOrInfinity> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         let int = IntegerOrInfinity(int.into_i64());
-        return TryResult::Continue(Ok(int));
+        return TryResult::Continue(int);
     }
     // 1. Let number be ? ToNumber(argument).
     let Ok(argument) = Primitive::try_from(argument) else {
         // Converting to Number would require calling into JavaScript code.
-        return TryResult::Break(());
+        return TryError::GcError.into();
     };
-    let number = match to_number_primitive(agent, argument, gc) {
-        Ok(number) => number,
-        Err(err) => {
-            return TryResult::Continue(Err(err));
-        }
-    };
+    let number = js_result_into_try(to_number_primitive(agent, argument, gc))?;
 
-    TryResult::Continue(Ok(to_integer_or_infinity_number(agent, number)))
+    TryResult::Continue(to_integer_or_infinity_number(agent, number))
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
@@ -1059,12 +1055,12 @@ pub(crate) fn try_to_string<'a, 'gc>(
     agent: &mut Agent,
     argument: impl IntoValue<'a>,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<JsResult<'gc, String<'gc>>> {
+) -> TryResult<'gc, String<'gc>> {
     let argument = argument.into_value().unbind().bind(gc);
     if let Ok(argument) = Primitive::try_from(argument) {
-        TryResult::Continue(to_string_primitive(agent, argument, gc))
+        js_result_into_try(to_string_primitive(agent, argument, gc))
     } else {
-        TryResult::Break(())
+        TryError::GcError.into()
     }
 }
 
@@ -1233,7 +1229,7 @@ pub(crate) fn to_property_key<'a, 'gc>(
     // Note: Fast path and non-standard special case combined. Usually the
     // argument is already a valid property key. We also need to parse integer
     // strings back into integer property keys.
-    if let TryResult::Continue(simple_result) = to_property_key_simple(agent, argument, gc.nogc()) {
+    if let Some(simple_result) = to_property_key_simple(agent, argument, gc.nogc()) {
         return Ok(simple_result.unbind().bind(gc.into_nogc()));
     }
 
@@ -1267,7 +1263,7 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
     agent: &Agent,
     argument: impl IntoValue<'a>,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<PropertyKey<'gc>> {
+) -> Option<PropertyKey<'gc>> {
     let argument = argument.into_value().unbind().bind(gc);
     match argument {
         Value::String(_) | Value::SmallString(_) => {
@@ -1277,34 +1273,32 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
                 _ => unreachable!(),
             };
             if let Some(key) = parse_wtf8_to_integer_property_key(str) {
-                TryResult::Continue(key)
+                Some(key)
             } else {
-                TryResult::Continue(string_key)
+                Some(string_key)
             }
         }
-        Value::Integer(x) => TryResult::Continue(PropertyKey::Integer(x)),
-        Value::SmallF64(x) if x.into_f64() == -0.0 => {
-            TryResult::Continue(PropertyKey::Integer(0.into()))
-        }
-        Value::Symbol(x) => TryResult::Continue(PropertyKey::Symbol(x)),
+        Value::Integer(x) => Some(PropertyKey::Integer(x)),
+        Value::SmallF64(x) if x.into_f64() == -0.0 => Some(PropertyKey::Integer(0.into())),
+        Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
         Value::SmallBigInt(x)
             if (SmallInteger::MIN..=SmallInteger::MAX).contains(&x.into_i64()) =>
         {
-            TryResult::Continue(PropertyKey::Integer(
+            Some(PropertyKey::Integer(
                 // SAFETY: Range check performed above.
                 unsafe { SmallInteger::from_small_bigint_unchecked(x) },
             ))
         }
-        Value::Undefined => TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
-        Value::Null => TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
+        Value::Undefined => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
+        Value::Null => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
         Value::Boolean(bool) => {
             if bool {
-                TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
+                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
             } else {
-                TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
+                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
             }
         }
-        _ => TryResult::Break(()),
+        _ => None,
     }
 }
 
@@ -1332,7 +1326,7 @@ pub(crate) fn to_property_key_primitive<'a>(
     // If the property key was an object, it is now a primitive. We need to do
     // our non-standard parsing of integer strings back into integer property
     // keys here as well.
-    if let TryResult::Continue(key) = to_property_key_simple(agent, primitive, gc) {
+    if let Some(key) = to_property_key_simple(agent, primitive, gc) {
         key
     } else {
         // Key was still not simple: This mean it's a heap allocated f64,
@@ -1397,22 +1391,19 @@ pub(crate) fn try_to_length<'a>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<'a, i64>> {
+) -> TryResult<'a, i64> {
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let len be ? ToIntegerOrInfinity(argument).
-    let len = match try_to_integer_or_infinity(agent, argument, gc)? {
-        Ok(len) => len.into_i64(),
-        Err(err) => return TryResult::Continue(Err(err)),
-    };
+    let len = try_to_integer_or_infinity(agent, argument, gc)?.into_i64();
 
     // 2. If len ≤ 0, return +0𝔽.
     if len <= 0 {
-        return TryResult::Continue(Ok(0));
+        return TryResult::Continue(0);
     }
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
-    TryResult::Continue(Ok(len.min(SmallInteger::MAX)))
+    TryResult::Continue(len.min(SmallInteger::MAX))
 }
 
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
@@ -1482,24 +1473,19 @@ pub(crate) fn try_to_index<'a>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<'a, i64>> {
+) -> TryResult<'a, i64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
-        return TryResult::Continue(
-            validate_index(agent, integer.into_i64(), gc).map(|i| i as i64),
-        );
+        return js_result_into_try(validate_index(agent, integer.into_i64(), gc).map(|i| i as i64));
     }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let integer be ? ToIntegerOrInfinity(value).
-    let integer = match try_to_integer_or_infinity(agent, argument, gc)? {
-        Ok(i) => i.into_i64(),
-        Err(err) => return TryResult::Continue(Err(err)),
-    };
+    let integer = try_to_integer_or_infinity(agent, argument, gc)?.into_i64();
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     // 3. Return integer.
-    TryResult::Continue(validate_index(agent, integer, gc).map(|i| i as i64))
+    js_result_into_try(validate_index(agent, integer, gc).map(|i| i as i64))
 }
 
 /// Helper function to check if a `char` is trimmable.

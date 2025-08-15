@@ -55,6 +55,7 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
+        try_result_into_js,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -594,7 +595,7 @@ impl<'a> Value<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<JsResult<'gc, String<'gc>>> {
+    ) -> TryResult<'gc, String<'gc>> {
         try_to_string(agent, self, gc)
     }
 
@@ -621,9 +622,9 @@ impl<'a> Value<'a> {
             // string instead (the result of `String(symbol)`).
             return symbol_idx.unbind().descriptive_string(agent, gc);
         };
-        match self.try_to_string(agent, gc) {
-            TryResult::Continue(result) => result.unwrap(),
-            _ => map_object_to_static_string_repr(self),
+        match try_result_into_js(self.try_to_string(agent, gc)).unwrap() {
+            Some(result) => result,
+            None => map_object_to_static_string_repr(self),
         }
     }
 

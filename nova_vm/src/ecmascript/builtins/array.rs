@@ -26,12 +26,11 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, TryGetContinue, TryGetResult, TryHasContinue,
-            TryHasResult, Value,
+            SetCachedProps, SetCachedResult, TryGetResult, TryHasResult, Value,
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         unwrap_try,
@@ -147,7 +146,7 @@ impl<'a> Array<'a> {
             // into the prototype chain or calling getters.
             false
         } else {
-            let TryResult::Continue(Ok(Some(iterator_method))) = try_get_object_method(
+            let TryResult::Continue(Some(iterator_method)) = try_get_object_method(
                 agent,
                 self.into_object(),
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
@@ -340,7 +339,11 @@ impl<'a> InternalSlots<'a> for Array<'a> {
 }
 
 impl<'a> InternalMethods<'a> for Array<'a> {
-    fn try_prevent_extensions(self, agent: &mut Agent, _gc: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        _gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         self.internal_set_extensible(agent, false);
         TryResult::Continue(true)
     }
@@ -350,7 +353,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         if let Some(index) = property_key.into_u32() {
             let elements = &agent[self].elements;
             let length = elements.len();
@@ -399,15 +402,15 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            array_try_set_length(agent, self, property_descriptor)
+            array_try_set_length(agent, self, property_descriptor, gc)
         } else if let Some(index) = property_key.into_u32() {
             // Let lengthDesc be OrdinaryGetOwnProperty(A, "length").
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
@@ -435,7 +438,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     .reserve(elements, index + 1)
                     .is_err()
                 {
-                    return TryResult::Break(());
+                    return TryError::GcError.into();
                 }
                 let mut value = property_descriptor.value;
                 let element_descriptor =
@@ -452,13 +455,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 if element_descriptor.is_some() {
                     *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
                 }
-                if array_heap_data
+                if let Err(err) = array_heap_data
                     .elements
                     .push(elements, value, element_descriptor)
-                    .is_err()
                 {
-                    return TryResult::Break(());
-                }
+                    return TryError::Err(agent.throw_allocation_exception(err, gc)).into();
+                };
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
                 // This should've already been handled by the push.
@@ -503,7 +505,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 gc,
             ) {
                 Ok(b) => TryResult::Continue(b),
-                Err(_) => TryResult::Break(()),
+                Err(_) => TryError::GcError.into(),
             }
         }
     }
@@ -535,10 +537,10 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         let array = self.bind(gc);
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
-            return TryHasContinue::Custom(u32::MAX, array.into_object()).into();
+            return TryHasResult::Custom(u32::MAX, array.into_object()).into();
         } else if let Some(index) = property_key.into_u32() {
             // Within possible Array bounds: the data is found in the Array
             // elements storage.
@@ -547,7 +549,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // Within the Array slice: first check values as checking
                 // descriptors requires a hash calculation.
                 if values[index as usize].is_some() {
-                    return TryHasContinue::Custom(index, array.into_object()).into();
+                    return TryHasResult::Custom(index, array.into_object()).into();
                 }
                 // No value at this index; we have to check descriptors.
                 let ElementStorageRef {
@@ -560,7 +562,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     // Indeed, found a descriptor at this index. It must be an
                     // accessor, otherwise it should have a value as well.
                     debug_assert!(d.get(&index).unwrap().is_accessor_descriptor());
-                    return TryHasContinue::Custom(index, array.into_object()).into();
+                    return TryHasResult::Custom(index, array.into_object()).into();
                 }
             }
             // Overindexing, or no value or descriptor at this index: we have
@@ -648,12 +650,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         let array = self.bind(gc);
         let property_key = property_key.bind(gc);
         let receiver = receiver.bind(gc);
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            return TryGetContinue::Value(array.len(agent).into()).into();
+            return TryGetResult::Value(array.len(agent).into()).into();
         } else if let Some(index) = property_key.into_u32() {
             let values = array.as_slice(agent);
             if index < values.len() as u32 {
@@ -661,7 +663,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // indexing should never fail.
                 let element = values[index as usize];
                 if let Some(element) = element {
-                    return TryGetContinue::Value(element).into();
+                    return TryGetResult::Value(element).into();
                 }
                 // No value at this index; this might be a getter or setter.
                 let ElementStorageRef { descriptors, .. } = array.get_storage(agent);
@@ -671,11 +673,11 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     return if let Some(getter) = descriptor.getter_function(gc) {
                         // 7. Return ? Call(getter, Receiver).
                         // return call_function(agent, getter, receiver, None, gc);
-                        TryGetContinue::Get(getter).into()
+                        TryGetResult::Get(getter).into()
                     } else {
                         // Accessor with no getter.
                         debug_assert!(descriptor.is_accessor_descriptor());
-                        TryGetContinue::Value(Value::Undefined).into()
+                        TryGetResult::Value(Value::Undefined).into()
                     };
                 }
                 // Hole! We must look into the prototype chain!
@@ -756,12 +758,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         Ok(Value::Undefined)
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             TryResult::Continue(false)
         } else if let Some(index) = property_key.into_u32() {
@@ -802,7 +804,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
             unwrap_try(backing_object.try_own_property_keys(agent, gc))
         } else {

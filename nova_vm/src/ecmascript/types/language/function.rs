@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 
 use super::{
     InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey, SetCachedProps,
-    SetCachedResult, String, TryGetContinue, TryGetResult, TryHasResult, Value,
+    SetCachedResult, String, TryGetResult, TryHasResult, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -269,7 +269,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<Object<'gc>>> {
+    ) -> TryResult<'gc, Option<Object<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinFunction(x) => x.try_get_prototype_of(agent, gc),
@@ -282,12 +282,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_set_prototype_of(
+    fn try_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
@@ -302,7 +302,11 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_is_extensible<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinFunction(x) => x.try_is_extensible(agent, gc),
@@ -315,7 +319,11 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinFunction(x) => x.try_prevent_extensions(agent, gc),
@@ -333,7 +341,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),
@@ -350,13 +358,13 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => {
                 x.try_define_own_property(agent, property_key, property_descriptor, gc)
@@ -385,7 +393,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         match self {
             Function::BoundFunction(x) => x.try_has_property(agent, property_key, cache, gc),
             Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, cache, gc),
@@ -431,7 +439,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         match self {
             Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
             Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
@@ -471,14 +479,14 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
             Function::BuiltinFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
@@ -523,12 +531,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_delete(agent, property_key, gc),
@@ -545,7 +553,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),
@@ -581,7 +589,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetContinue<'gc> {
+    ) -> TryGetResult<'gc> {
         match self {
             Function::BoundFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
             Function::BuiltinFunction(f) => f.get_own_property_at_offset(agent, offset, gc),

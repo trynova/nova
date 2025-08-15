@@ -780,7 +780,7 @@ mod test {
             scripts_and_modules::script::{parse_script, script_evaluation},
             types::{
                 BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Number, Object,
-                PropertyKey, String, TryHasContinue, Value,
+                PropertyKey, String, TryHasResult, Value,
             },
         },
         engine::{
@@ -1072,7 +1072,7 @@ mod test {
         let key = PropertyKey::from_static_str(&mut agent, "a", gc.nogc());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasContinue::Offset(0, result))
+            ControlFlow::Continue(TryHasResult::Offset(0, result))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
@@ -1101,8 +1101,7 @@ mod test {
             None,
             true,
             gc.nogc(),
-        ))
-        .unwrap();
+        ));
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let keys = unwrap_try(result.try_own_property_keys(&mut agent, gc.nogc()));
@@ -1129,14 +1128,13 @@ mod test {
             None,
             true,
             gc.nogc(),
-        ))
-        .unwrap();
+        ));
         assert!(foo.is_object());
         let result = Array::try_from(foo).unwrap();
         let key = PropertyKey::Integer(0.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasContinue::Custom(0, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Custom(0, result.into_object()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
@@ -1147,7 +1145,7 @@ mod test {
         let key = PropertyKey::Integer(1.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasContinue::Offset(1, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Offset(1, result.into_object()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
@@ -1189,7 +1187,6 @@ mod test {
                 true,
                 gc.nogc()
             ))
-            .unwrap()
             .is_function(),
         );
     }
@@ -1466,13 +1463,11 @@ mod test {
             ControlFlow::Continue(TryHasBindingContinue::Result(true))
         ));
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc()))
-                .unwrap(),
+            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc())),
             String::from_small_string("foo").into_value()
         );
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, None, true, gc.nogc()))
-                .unwrap(),
+            unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, None, true, gc.nogc())),
             Value::from(3)
         );
     }
@@ -2002,18 +1997,15 @@ mod test {
         assert!(global_env.has_lexical_declaration(&agent, b_key));
         assert!(global_env.has_lexical_declaration(&agent, c_key));
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc()))
-                .unwrap(),
+            unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc())),
             1.into()
         );
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, b_key, None, true, gc.nogc()))
-                .unwrap(),
+            unwrap_try(global_env.try_get_binding_value(&mut agent, b_key, None, true, gc.nogc())),
             2.into()
         );
         assert_eq!(
-            unwrap_try(global_env.try_get_binding_value(&mut agent, c_key, None, true, gc.nogc()))
-                .unwrap(),
+            unwrap_try(global_env.try_get_binding_value(&mut agent, c_key, None, true, gc.nogc())),
             4.into()
         );
     }
@@ -2048,8 +2040,7 @@ mod test {
                 None,
                 true,
                 gc.nogc()
-            ))
-            .unwrap(),
+            )),
             10.into()
         );
     }

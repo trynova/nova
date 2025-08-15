@@ -17,10 +17,10 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetContinue, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -299,9 +299,9 @@ impl<'a> PromiseCapability<'a> {
             None,
             gc,
         ) {
-            ControlFlow::Continue(TryGetContinue::Unset) => Value::Undefined,
-            ControlFlow::Continue(TryGetContinue::Value(v)) => v,
-            _ => return TryResult::Break(()),
+            ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetResult::Value(v)) => v,
+            _ => return TryError::GcError.into(),
         };
 
         // 12. If IsCallable(thenAction) is false, then

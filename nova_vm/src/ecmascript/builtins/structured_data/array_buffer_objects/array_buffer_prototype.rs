@@ -19,9 +19,9 @@ use crate::{
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
+        try_result_into_js,
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -193,17 +193,18 @@ impl ArrayBufferPrototype {
             ));
         }
         // 4. Let newByteLength be ? ToIndex(newLength).
-        let new_byte_length =
-            if let TryResult::Continue(res) = try_to_index(agent, new_length, gc.nogc()) {
-                res.unbind()? as usize
-            } else {
-                let scoped_o = o.scope(agent, gc.nogc());
-                let res = to_index(agent, new_length.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                o = scoped_o.get(agent).bind(gc.nogc());
-                res as usize
-            };
+        let new_byte_length = if let Some(res) =
+            try_result_into_js(try_to_index(agent, new_length, gc.nogc())).unbind()?
+        {
+            res as usize
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let res = to_index(agent, new_length.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            res as usize
+        };
         // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(

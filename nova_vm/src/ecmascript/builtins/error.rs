@@ -15,8 +15,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetContinue, TryGetResult, TryHasContinue, TryHasResult,
-            Value,
+            SetCachedResult, String, TryGetResult, TryHasResult, Value,
         },
     },
     engine::{
@@ -180,7 +179,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(
                 ordinary_get_own_property(
@@ -219,19 +218,19 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         property_key: PropertyKey,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryHasResult<'gc> {
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         let error = self.bind(gc);
         let backing_object = error.get_backing_object(agent);
         if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && agent[error].message.is_some()
         {
-            TryHasContinue::Custom(0, error.into_object()).into()
+            TryHasResult::Custom(0, error.into_object()).into()
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
             && agent[error].cause.is_some()
         {
-            TryHasContinue::Custom(1, error.into_object()).into()
+            TryHasResult::Custom(1, error.into_object()).into()
         } else {
             ordinary_try_has_property(
                 agent,
@@ -286,7 +285,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         receiver: Value,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryGetResult<'gc> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         let backing_object = self.get_backing_object(agent);
         let property_value = if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
@@ -300,7 +299,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None
         };
         if let Some(property_value) = property_value {
-            return TryGetContinue::Value(property_value).into();
+            return TryGetResult::Value(property_value).into();
         }
         ordinary_try_get(
             agent,
@@ -348,14 +347,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if self.get_backing_object(agent).is_some() {
             ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
@@ -411,12 +410,12 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(ordinary_delete(
                 agent,
@@ -440,7 +439,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
                 TryResult::Continue(unwrap_try(backing_object.try_own_property_keys(agent, gc)))

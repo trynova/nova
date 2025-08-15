@@ -29,9 +29,9 @@ use crate::{
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope},
         rootable::Scopable,
+        try_result_into_js,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
@@ -945,10 +945,10 @@ fn typed_array_constructor<'gc, T: Viewable>(
     assert!(!first_argument_is_object);
 
     // ii. Let elementLength be ? ToIndex(firstArgument).
-    let element_length = if let TryResult::Continue(element_length) =
-        try_to_index(agent, first_argument, gc.nogc())
+    let element_length = if let Some(element_length) =
+        try_result_into_js(try_to_index(agent, first_argument, gc.nogc())).unbind()?
     {
-        element_length.unbind()?
+        element_length
     } else {
         let scoped_new_target = new_target.scope(agent, gc.nogc());
         let element_length = to_index(agent, first_argument.unbind(), gc.reborrow()).unbind()?;

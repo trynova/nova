@@ -27,13 +27,14 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, NoCache, Object, PropertyDescriptor,
-            PropertyKey, SetCachedProps, SetCachedResult, SetProps, String, TryBreak,
-            TryGetContinue, TryHasContinue, Value, call_proxy_set, map_try_get_into_try_result,
+            PropertyKey, SetCachedProps, SetCachedResult, SetProps, String, TryGetResult,
+            TryHasResult, Value, call_proxy_set, try_get_result_into_value,
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
+        js_result_into_try,
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -142,7 +143,7 @@ impl<'e> ObjectEnvironment<'e> {
         n: String,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryBreak<'gc>, TryHasBindingContinue<'gc>> {
+    ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
@@ -153,7 +154,7 @@ impl<'e> ObjectEnvironment<'e> {
         let found_binding = try_has_property(agent, binding_object, name, cache, gc)?;
 
         // 3. If foundBinding is false, return false.
-        if found_binding == TryHasContinue::Unset {
+        if found_binding == TryHasResult::Unset {
             return TryHasBindingContinue::Result(false).into();
         }
         // 4. If envRec.[[IsWithEnvironment]] is false, return true.
@@ -168,10 +169,10 @@ impl<'e> ObjectEnvironment<'e> {
             None,
             gc,
         )? {
-            TryGetContinue::Unset => return found_binding.into(),
-            TryGetContinue::Value(value) => value,
-            TryGetContinue::Get(_) | TryGetContinue::Proxy(_) => {
-                return TryBreak::CannotContinue.into();
+            TryGetResult::Unset => return found_binding.into(),
+            TryGetResult::Value(value) => value,
+            TryGetResult::Get(_) | TryGetResult::Proxy(_) => {
+                return TryError::GcError.into();
             }
         };
         // 6. If unscopables is an Object, then
@@ -179,10 +180,10 @@ impl<'e> ObjectEnvironment<'e> {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
             let blocked = match try_get(agent, unscopables, name, cache, gc) {
                 ControlFlow::Continue(c) => match c {
-                    TryGetContinue::Unset => false,
-                    TryGetContinue::Value(value) => to_boolean(agent, value),
-                    TryGetContinue::Get(_) | TryGetContinue::Proxy(_) => {
-                        return TryBreak::CannotContinue.into();
+                    TryGetResult::Unset => false,
+                    TryGetResult::Value(value) => to_boolean(agent, value),
+                    TryGetResult::Get(_) | TryGetResult::Proxy(_) => {
+                        return TryError::GcError.into();
                     }
                 },
                 ControlFlow::Break(b) => return b.into(),
@@ -280,7 +281,7 @@ impl<'e> ObjectEnvironment<'e> {
         n: String,
         d: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
@@ -374,7 +375,7 @@ impl<'e> ObjectEnvironment<'e> {
         cache: Option<PropertyLookupCache>,
         v: Value,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
         self.try_set_mutable_binding(agent, n, cache, v, false, gc)
@@ -431,7 +432,7 @@ impl<'e> ObjectEnvironment<'e> {
         v: Value,
         s: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
@@ -443,7 +444,7 @@ impl<'e> ObjectEnvironment<'e> {
         {
             let b = match b {
                 Ok(b) => b,
-                Err(err) => return TryResult::Continue(Err(err)),
+                Err(err) => return err.into(),
             };
             match b {
                 SetCachedResult::Done => {}
@@ -451,14 +452,14 @@ impl<'e> ObjectEnvironment<'e> {
                     if s {
                         // The key was unwritable and we're in strict mode;
                         // need to throw an error.
-                        return TryResult::Continue(throw_set_error(agent, n, gc));
+                        return throw_set_error(agent, n, gc).into();
                     }
                 }
                 SetCachedResult::Set(_) | SetCachedResult::Proxy(_) => {
-                    return TryResult::Break(());
+                    return TryError::GcError.into();
                 }
             }
-            return TryResult::Continue(Ok(()));
+            return TryResult::Continue(());
         }
 
         Self::try_set_mutable_binding_inner(agent, binding_object, n, cache, v, s, gc)
@@ -477,34 +478,30 @@ impl<'e> ObjectEnvironment<'e> {
         v: Value,
         s: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let still_exists = match try_has_property(agent, binding_object, n, cache, gc) {
             ControlFlow::Continue(c) => match c {
-                TryHasContinue::Unset => None,
-                TryHasContinue::Offset(_, _) => Some(c),
-                TryHasContinue::Custom(_, _) => Some(c),
+                TryHasResult::Unset => None,
+                TryHasResult::Offset(_, _) => Some(c),
+                TryHasResult::Custom(_, _) => Some(c),
                 // Can't continue as we have to check the proxy trap result and
                 // throw error or call [[Set]].
-                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
             },
-            ControlFlow::Break(_) => return TryResult::Break(()),
+            ControlFlow::Break(_) => return TryError::GcError.into(),
         };
 
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if still_exists.is_none() && s {
-            TryResult::Continue(Err(Self::throw_property_doesnt_exist_error(
-                agent,
-                BUILTIN_STRING_MEMORY.object,
-                n,
-                gc,
-            )))
+            Self::throw_property_doesnt_exist_error(agent, BUILTIN_STRING_MEMORY.object, n, gc)
+                .into()
         } else if let Some(cache) = cache
             && let Some((offset, object)) = still_exists.and_then(|c| match c {
-                TryHasContinue::Offset(offset, object) => {
+                TryHasResult::Offset(offset, object) => {
                     PropertyOffset::new(offset).map(|o| (o, object))
                 }
-                TryHasContinue::Custom(offset, object) => {
+                TryHasResult::Custom(offset, object) => {
                     PropertyOffset::new_custom(offset).map(|o| (o, object))
                 }
                 _ => unreachable!(),
@@ -523,16 +520,16 @@ impl<'e> ObjectEnvironment<'e> {
             ) {
                 ControlFlow::Continue(_) => todo!(),
                 ControlFlow::Break(b) => match b {
-                    SetCachedResult::Done => TryResult::Continue(Ok(())),
+                    SetCachedResult::Done => TryResult::Continue(()),
                     SetCachedResult::Unwritable | SetCachedResult::Accessor => {
                         if s {
-                            return TryResult::Continue(throw_set_error(agent, n, gc));
+                            return throw_set_error(agent, n, gc).into();
                         }
-                        TryResult::Continue(Ok(()))
+                        TryResult::Continue(())
                     }
                     // TODO: we can just call the setter.
-                    SetCachedResult::Set(_function) => TryResult::Break(()),
-                    SetCachedResult::Proxy(_) => TryResult::Break(()),
+                    SetCachedResult::Set(_function) => TryError::GcError.into(),
+                    SetCachedResult::Proxy(_) => TryError::GcError.into(),
                 },
             }
         } else {
@@ -586,7 +583,7 @@ impl<'e> ObjectEnvironment<'e> {
                     if s {
                         // The key was unwritable and we're in strict mode;
                         // need to throw an error.
-                        return throw_set_error(agent, n.unbind(), gc.into_nogc());
+                        return throw_set_error(agent, n.unbind(), gc.into_nogc()).into();
                     }
                 }
                 SetCachedResult::Set(setter) => {
@@ -641,10 +638,10 @@ impl<'e> ObjectEnvironment<'e> {
     ) -> ControlFlow<JsResult<'a, SetCachedResult<'a>>, NoCache> {
         let still_exists = match try_has_property(agent, binding_object, n, Some(cache), gc) {
             ControlFlow::Continue(c) => match c {
-                TryHasContinue::Unset => false,
-                TryHasContinue::Offset(_, _) => true,
-                TryHasContinue::Custom(_, _) => true,
-                TryHasContinue::Proxy(_) => return ControlFlow::Continue(NoCache),
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) => true,
+                TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return ControlFlow::Continue(NoCache),
             },
             ControlFlow::Break(_) => return ControlFlow::Continue(NoCache),
         };
@@ -757,7 +754,7 @@ impl<'e> ObjectEnvironment<'e> {
         cache: Option<PropertyLookupCache>,
         s: bool,
         gc: NoGcScope<'e, '_>,
-    ) -> TryResult<JsResult<'e, Value<'e>>> {
+    ) -> TryResult<'e, Value<'e>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
@@ -766,36 +763,35 @@ impl<'e> ObjectEnvironment<'e> {
         // 2. Let value be ? HasProperty(bindingObject, N).
         let value = match try_has_property(agent, binding_object, name, cache, gc) {
             ControlFlow::Continue(c) => match c {
-                TryHasContinue::Unset => None,
-                TryHasContinue::Offset(_, _) => Some(c),
-                TryHasContinue::Custom(_, _) => Some(c),
-                TryHasContinue::Proxy(_) => return TryResult::Break(()),
+                TryHasResult::Unset => None,
+                TryHasResult::Offset(_, _) => Some(c),
+                TryHasResult::Custom(_, _) => Some(c),
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
             },
-            ControlFlow::Break(_) => return TryResult::Break(()),
+            ControlFlow::Break(_) => return TryError::GcError.into(),
         };
 
         // 3. If value is false, then
         if value.is_none() {
-            TryResult::Continue(Self::handle_property_not_found(agent, name, s, gc))
+            js_result_into_try(Self::handle_property_not_found(agent, name, s, gc))
         } else if let Some((offset, object)) = value.and_then(|c| match c {
-            TryHasContinue::Offset(offset, object) => {
+            TryHasResult::Offset(offset, object) => {
                 PropertyOffset::new(offset).map(|o| (o, object))
             }
-            TryHasContinue::Custom(offset, object) => {
+            TryHasResult::Custom(offset, object) => {
                 PropertyOffset::new_custom(offset).map(|o| (o, object))
             }
             _ => unreachable!(),
         }) {
             match object.get_own_property_at_offset(agent, offset, gc) {
-                TryGetContinue::Unset => TryResult::Continue(Ok(Value::Undefined)),
-                TryGetContinue::Value(value) => TryResult::Continue(Ok(value)),
-                TryGetContinue::Get(_function) => return TryResult::Break(()),
-                TryGetContinue::Proxy(_proxy) => return TryResult::Break(()),
+                TryGetResult::Unset => TryResult::Continue(Value::Undefined),
+                TryGetResult::Value(value) => TryResult::Continue(value),
+                TryGetResult::Get(_function) => return TryError::GcError.into(),
+                TryGetResult::Proxy(_proxy) => return TryError::GcError.into(),
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
-            let result = try_get(agent, binding_object, name, cache, gc);
-            TryResult::Continue(Ok(map_try_get_into_try_result(result)?))
+            try_get_result_into_value(try_get(agent, binding_object, name, cache, gc))
         }
     }
 
@@ -876,12 +872,12 @@ impl<'e> ObjectEnvironment<'e> {
     /// completion containing a Boolean or a throw completion. It can only
     /// delete bindings that correspond to properties of the environment
     /// object whose [[Configurable]] attribute have the value true.
-    pub(crate) fn try_delete_binding(
+    pub(crate) fn try_delete_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;

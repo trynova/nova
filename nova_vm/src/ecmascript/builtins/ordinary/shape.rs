@@ -13,7 +13,7 @@ use crate::{
         types::{
             BigInt, InternalMethods, InternalSlots, IntoObject, NoCache, Number, Numeric, Object,
             OrdinaryObject, Primitive, PropertyKey, SetCachedProps, SetCachedResult, String,
-            Symbol, TryGetContinue, Value,
+            Symbol, TryGetResult, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -179,13 +179,13 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetContinue<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetResult<'gc>, NoCache> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find_cached_property_offset(agent, shape) {
             // A cached lookup result was found.
             if offset.is_unset() {
                 // The property is unset.
-                TryGetContinue::Unset.into()
+                TryGetResult::Unset.into()
             } else {
                 let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
                 ControlFlow::Break(o.get_own_property_at_offset(agent, offset, gc))

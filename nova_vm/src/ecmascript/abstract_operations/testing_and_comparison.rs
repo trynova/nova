@@ -141,7 +141,11 @@ pub(crate) fn is_constructor<'a>(
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn try_is_extensible(agent: &mut Agent, o: Object, gc: NoGcScope) -> TryResult<bool> {
+pub(crate) fn try_is_extensible<'gc>(
+    agent: &mut Agent,
+    o: Object,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.try_is_extensible(agent, gc)
 }

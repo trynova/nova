@@ -25,7 +25,7 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            TryGetContinue, Value,
+            TryGetResult, Value,
         },
     },
     engine::{
@@ -547,8 +547,7 @@ impl RegExpPrototype {
                     n.into(),
                     match_str.into_value(),
                     gc.nogc(),
-                ))
-                .unwrap();
+                ));
                 // 3. If matchStr is the empty String, then
                 if match_str.is_empty_string() {
                     // a. Let thisIndex be ℝ(? ToLength(? Get(rx, "lastIndex"))).
@@ -688,7 +687,7 @@ impl RegExpPrototype {
                 gc.nogc(),
             );
             if exec
-                == TryGetContinue::Value(
+                == TryGetResult::Value(
                     agent
                         .current_realm_record()
                         .intrinsics()

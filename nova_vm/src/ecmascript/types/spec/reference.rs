@@ -21,12 +21,13 @@ use crate::{
         },
         types::{
             Function, InternalMethods, IntoObject, IntoValue, Object, PropertyKey, String,
-            TryBreak, TryGetContinue, Value,
+            TryGetResult, Value,
         },
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        js_result_into_try, option_into_try,
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -676,16 +677,16 @@ fn try_handle_primitive_get_value<'a>(
     receiver: Value<'a>,
     cache: Option<PropertyLookupCache<'a>>,
     gc: NoGcScope<'a, '_>,
-) -> ControlFlow<TryBreak<'a>, TryGetValueContinue<'a>> {
+) -> ControlFlow<TryError<'a>, TryGetValueContinue<'a>> {
     // b. If IsPrivateReference(V) is true, then
     if referenced_name.is_private_name() {
         // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-        return TryBreak::Error(throw_no_private_name_error(agent, gc)).into();
+        return TryError::Err(throw_no_private_name_error(agent, gc)).into();
     }
     // Primitive value. annoying stuff.
     let prototype = match receiver {
         Value::Undefined | Value::Null => {
-            return TryBreak::Error(throw_read_undefined_or_null_error(
+            return TryError::Err(throw_read_undefined_or_null_error(
                 agent,
                 // SAFETY: We do not care about the conversion validity in
                 // error message logging.
@@ -760,15 +761,15 @@ bindable_handle!(TryGetValueContinue);
 
 impl<'a> TryGetValueContinue<'a> {
     fn from_get_continue(
-        c: TryGetContinue<'a>,
+        c: TryGetResult<'a>,
         receiver: Value<'a>,
         property_key: PropertyKey<'a>,
     ) -> Self {
         match c {
-            TryGetContinue::Unset => Self::Unset,
-            TryGetContinue::Value(value) => Self::Value(value),
-            TryGetContinue::Get(getter) => Self::Get { getter, receiver },
-            TryGetContinue::Proxy(proxy) => Self::Proxy {
+            TryGetResult::Unset => Self::Unset,
+            TryGetResult::Value(value) => Self::Value(value),
+            TryGetResult::Get(getter) => Self::Get { getter, receiver },
+            TryGetResult::Proxy(proxy) => Self::Proxy {
                 proxy,
                 receiver,
                 property_key,
@@ -777,15 +778,9 @@ impl<'a> TryGetValueContinue<'a> {
     }
 }
 
-impl<'a> From<TryGetValueContinue<'a>> for ControlFlow<TryBreak<'a>, TryGetValueContinue<'a>> {
+impl<'a> From<TryGetValueContinue<'a>> for ControlFlow<TryError<'a>, TryGetValueContinue<'a>> {
     fn from(b: TryGetValueContinue<'a>) -> Self {
         Self::Continue(b)
-    }
-}
-
-impl<'a> From<TryBreak<'a>> for ControlFlow<TryBreak<'a>, TryGetValueContinue<'a>> {
-    fn from(b: TryBreak<'a>) -> Self {
-        Self::Break(b)
     }
 }
 
@@ -798,7 +793,7 @@ pub(crate) fn try_get_value<'gc>(
     reference: &Reference,
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
-) -> ControlFlow<TryBreak<'gc>, TryGetValueContinue<'gc>> {
+) -> ControlFlow<TryError<'gc>, TryGetValueContinue<'gc>> {
     let cache = cache.bind(gc);
     // 1. If V is not a Reference Record, return V.
     // Note: we never perform GetValue on Reference Records, as we know
@@ -811,7 +806,7 @@ pub(crate) fn try_get_value<'gc>(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.to_string_lossy(agent)
             );
-            TryBreak::Error(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
+            TryError::Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
                 .into()
         }
         // 3. If IsPropertyReference(V) is true, then
@@ -824,7 +819,7 @@ pub(crate) fn try_get_value<'gc>(
             let referenced_name = reference.referenced_name_value().bind(gc);
             let base = reference.base_value().bind(gc);
             if base.is_undefined() || base.is_null() {
-                return TryBreak::Error(throw_read_undefined_or_null_error(
+                return TryError::Err(throw_read_undefined_or_null_error(
                     agent,
                     referenced_name,
                     base,
@@ -835,8 +830,8 @@ pub(crate) fn try_get_value<'gc>(
             // c. If V.[[ReferencedName]] is not a property key, then
             // i. Set V.[[ReferencedName]] to ? ToPropertyKey(V.[[ReferencedName]]).
             let referenced_name = match to_property_key_simple(agent, referenced_name, gc) {
-                ControlFlow::Continue(r) => r,
-                ControlFlow::Break(_) => return TryBreak::CannotContinue.into(),
+                Some(r) => r,
+                None => return TryError::GcError.into(),
             };
             if let Ok(base_obj) = Object::try_from(base) {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
@@ -870,7 +865,7 @@ pub(crate) fn try_get_value<'gc>(
                         )
                     })
                 } else {
-                    TryBreak::Error(throw_no_private_name_error(agent, gc)).into()
+                    TryError::Err(throw_no_private_name_error(agent, gc)).into()
                 }
             } else if let Ok(base_obj) = base_obj {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
@@ -891,19 +886,14 @@ pub(crate) fn try_get_value<'gc>(
             let base = v.base.bind(gc);
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
-            match base.try_get_binding_value(
+            TryGetValueContinue::Value(base.try_get_binding_value(
                 agent,
                 v.referenced_name.bind(gc),
                 v.cache.bind(gc),
                 reference.strict(),
                 gc,
-            ) {
-                ControlFlow::Continue(v) => match v {
-                    Ok(v) => TryGetValueContinue::Value(v).into(),
-                    Err(err) => TryBreak::Error(err).into(),
-                },
-                ControlFlow::Break(_) => TryBreak::CannotContinue.into(),
-            }
+            )?)
+            .into()
         }
     }
 }
@@ -1114,7 +1104,7 @@ pub(crate) fn try_put_value<'a>(
     reference: &Reference<'a>,
     w: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<'a, ()>> {
+) -> TryResult<'a, ()> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     match reference {
         // 2. If IsUnresolvableReference(V) is true, then
@@ -1139,11 +1129,9 @@ pub(crate) fn try_put_value<'a>(
                 "Cannot assign to undeclared variable '{}'.",
                 referenced_name.to_string_lossy(agent)
             );
-            TryResult::Continue(Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                error_message,
-                gc,
-            )))
+            agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
+                .into()
         }
         // 3. If IsPropertyReference(V) is true, then
         Reference::PropertyExpression(_)
@@ -1151,15 +1139,13 @@ pub(crate) fn try_put_value<'a>(
         | Reference::SuperExpression(_)
         | Reference::SuperExpressionStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base_obj = match to_object(agent, reference.base_value(), gc) {
-                Ok(base_obj) => base_obj,
-                Err(err) => return TryResult::Continue(Err(err)),
-            };
+            let base_obj = js_result_into_try(to_object(agent, reference.base_value(), gc))?;
             let this_value = get_this_value(reference);
             let referenced_name = reference.referenced_name_value();
             // c. If V.[[ReferencedName]] is not a property key, then
             // i. Set V.[[ReferencedName]] to ? ToPropertyKey(V.[[ReferencedName]]).
-            let referenced_name = to_property_key_simple(agent, referenced_name, gc)?;
+            let referenced_name =
+                option_into_try(to_property_key_simple(agent, referenced_name, gc))?;
             // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
             let succeeded = base_obj.try_set(agent, referenced_name, w, this_value, gc)?;
             // d. If succeeded is false and V.[[Strict]] is true,
@@ -1167,17 +1153,14 @@ pub(crate) fn try_put_value<'a>(
                 // throw a TypeError exception.
             }
             // e. Return UNUSED.
-            TryResult::Continue(Ok(()))
+            TryResult::Continue(())
         }
         Reference::Property(_)
         | Reference::PropertyStrict(_)
         | Reference::Super(_)
         | Reference::SuperStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base_obj = match to_object(agent, reference.base_value(), gc) {
-                Ok(base_obj) => base_obj,
-                Err(err) => return TryResult::Continue(Err(err)),
-            };
+            let base_obj = js_result_into_try(to_object(agent, reference.base_value(), gc))?;
             let referenced_name = reference.referenced_name_property_key();
             // b. If IsPrivateReference(V) is true, then
             if let PropertyKey::PrivateName(referenced_name) = referenced_name {
@@ -1189,15 +1172,16 @@ pub(crate) fn try_put_value<'a>(
                 base_obj.try_set(agent, referenced_name, w, get_this_value(reference), gc)?;
             if !succeeded && reference.strict() {
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-                return TryResult::Continue(Err(throw_cannot_set_property(
+                return throw_cannot_set_property(
                     agent,
                     base_obj.into_value(),
                     referenced_name,
                     gc,
-                )));
+                )
+                .into();
             }
             // e. Return UNUSED.
-            TryResult::Continue(Ok(()))
+            TryResult::Continue(())
         }
         Reference::Variable(v) | Reference::VariableStrict(v) => {
             // 4. Else,
@@ -1295,7 +1279,7 @@ pub(crate) fn try_initialize_referenced_binding<'a>(
     v: Reference<'a>,
     w: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<JsResult<'a, ()>> {
+) -> TryResult<'a, ()> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     // 2. Let base be V.[[Base]].
     // 3. Assert: base is an Environment Record.

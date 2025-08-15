@@ -56,13 +56,12 @@ pub(crate) use private_environment::{
 use crate::{
     ecmascript::{
         builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
-        types::{
-            InternalMethods, IntoValue, Object, Reference, String, TryBreak, TryHasContinue, Value,
-        },
+        types::{InternalMethods, IntoValue, Object, Reference, String, TryHasResult, Value},
     },
     engine::{
-        TryResult,
+        TryError, TryResult,
         context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
+        js_result_into_try,
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -294,7 +293,7 @@ impl<'e> Environment<'e> {
         name: String,
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryBreak<'gc>, TryHasBindingContinue<'gc>> {
+    ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
         match self {
             Environment::Declarative(e) => {
                 TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
@@ -340,22 +339,22 @@ impl<'e> Environment<'e> {
         name: String,
         is_deletable: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
                 e.create_mutable_binding(agent, name, is_deletable);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Function(e) => {
                 e.create_mutable_binding(agent, name, is_deletable);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Global(e) => {
-                TryResult::Continue(e.create_mutable_binding(agent, name, is_deletable, gc))
+                js_result_into_try(e.create_mutable_binding(agent, name, is_deletable, gc))
             }
             Environment::Module(e) => {
                 e.create_mutable_binding(agent, name, is_deletable);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Object(e) => e.try_create_mutable_binding(agent, name, is_deletable, gc),
         }
@@ -442,20 +441,20 @@ impl<'e> Environment<'e> {
         cache: Option<PropertyLookupCache>,
         value: Value,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Function(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, cache, value, gc),
             Environment::Module(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, cache, value, gc),
         }
@@ -508,20 +507,20 @@ impl<'e> Environment<'e> {
         value: Value,
         is_strict: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
-                TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
+                js_result_into_try(e.set_mutable_binding(agent, name, value, is_strict, gc))
             }
             Environment::Function(e) => {
-                TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
+                js_result_into_try(e.set_mutable_binding(agent, name, value, is_strict, gc))
             }
             Environment::Global(e) => {
                 e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
             }
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                TryResult::Continue(e.set_mutable_binding(agent, name, value, gc))
+                js_result_into_try(e.set_mutable_binding(agent, name, value, gc))
             }
             Environment::Object(e) => {
                 e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
@@ -578,20 +577,20 @@ impl<'e> Environment<'e> {
         cache: Option<PropertyLookupCache>,
         is_strict: bool,
         gc: NoGcScope<'e, '_>,
-    ) -> TryResult<JsResult<'e, Value<'e>>> {
+    ) -> TryResult<'e, Value<'e>> {
         match self {
             Environment::Declarative(e) => {
-                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+                js_result_into_try(e.get_binding_value(agent, name, is_strict, gc))
             }
             Environment::Function(e) => {
-                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+                js_result_into_try(e.get_binding_value(agent, name, is_strict, gc))
             }
             Environment::Global(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
             Environment::Module(e) => {
                 let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
-                    return TryResult::Continue(Err(throw_uninitialized_binding(agent, name, gc)));
+                    return throw_uninitialized_binding(agent, name, gc).into();
                 };
-                TryResult::Continue(Ok(value))
+                TryResult::Continue(value)
             }
             Environment::Object(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
         }
@@ -645,19 +644,17 @@ impl<'e> Environment<'e> {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, bool>> {
+    ) -> TryResult<'a, bool> {
         match self {
-            Environment::Declarative(e) => TryResult::Continue(Ok(e.delete_binding(agent, name))),
-            Environment::Function(e) => TryResult::Continue(Ok(e.delete_binding(agent, name))),
+            Environment::Declarative(e) => TryResult::Continue(e.delete_binding(agent, name)),
+            Environment::Function(e) => TryResult::Continue(e.delete_binding(agent, name)),
             Environment::Global(e) => e.try_delete_binding(agent, name, gc),
             // NOTE: Module Environment Records are only used within strict
             // code and an early error rule prevents the delete operator, in
             // strict code, from being applied to a Reference Record that would
             // resolve to a Module Environment Record binding. See 13.5.1.1.
             Environment::Module(_) => unreachable!(),
-            Environment::Object(e) => {
-                TryResult::Continue(Ok(e.try_delete_binding(agent, name, gc)?))
-            }
+            Environment::Object(e) => TryResult::Continue(e.try_delete_binding(agent, name, gc)?),
         }
     }
 
@@ -860,31 +857,25 @@ impl<'a> TryFrom<TryHasBindingContinue<'a>> for bool {
     }
 }
 
-impl<'a> From<TryHasContinue<'a>> for TryHasBindingContinue<'a> {
-    fn from(value: TryHasContinue<'a>) -> Self {
+impl<'a> From<TryHasResult<'a>> for TryHasBindingContinue<'a> {
+    fn from(value: TryHasResult<'a>) -> Self {
         match value {
-            TryHasContinue::Unset => Self::Result(false),
-            TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => Self::Result(true),
-            TryHasContinue::Proxy(proxy) => Self::Proxy(proxy),
+            TryHasResult::Unset => Self::Result(false),
+            TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => Self::Result(true),
+            TryHasResult::Proxy(proxy) => Self::Proxy(proxy),
         }
     }
 }
 
-impl<'a> From<TryHasContinue<'a>> for ControlFlow<TryBreak<'a>, TryHasBindingContinue<'a>> {
-    fn from(value: TryHasContinue<'a>) -> Self {
+impl<'a> From<TryHasResult<'a>> for TryResult<'a, TryHasBindingContinue<'a>> {
+    fn from(value: TryHasResult<'a>) -> Self {
         Self::Continue(value.into())
     }
 }
 
-impl<'a> From<TryHasBindingContinue<'a>> for ControlFlow<TryBreak<'a>, TryHasBindingContinue<'a>> {
+impl<'a> From<TryHasBindingContinue<'a>> for TryResult<'a, TryHasBindingContinue<'a>> {
     fn from(value: TryHasBindingContinue<'a>) -> Self {
         Self::Continue(value)
-    }
-}
-
-impl<'a> From<TryBreak<'a>> for ControlFlow<TryBreak<'a>, TryHasBindingContinue<'a>> {
-    fn from(value: TryBreak<'a>) -> Self {
-        Self::Break(value)
     }
 }
 
@@ -901,7 +892,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     cache: Option<PropertyLookupCache>,
     strict: bool,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<Reference<'a>> {
+) -> TryResult<'a, Reference<'a>> {
     let env = env.bind(gc);
     let name = name.bind(gc);
     let cache = cache.bind(gc);
@@ -912,7 +903,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     {
         exists
     } else {
-        return TryResult::Break(());
+        return TryError::GcError.into();
     };
 
     // 3. If exists is true, then
@@ -1034,7 +1025,7 @@ fn handle_try_has_binding_result_cold<'a>(
     agent: &mut Agent,
     env: Environment,
     name: String,
-    exists: ControlFlow<TryBreak, TryHasBindingContinue>,
+    exists: ControlFlow<TryError, TryHasBindingContinue>,
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
     match exists {
@@ -1047,7 +1038,7 @@ fn handle_try_has_binding_result_cold<'a>(
             }
         },
         ControlFlow::Break(b) => match b {
-            TryBreak::Error(err) => return Err(err.unbind().bind(gc.into_nogc())),
+            TryError::Err(err) => return Err(err.unbind().bind(gc.into_nogc())),
             _ => env.unbind().has_binding(agent, name.unbind(), gc),
         },
     }

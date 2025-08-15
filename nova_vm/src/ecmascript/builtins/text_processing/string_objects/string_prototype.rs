@@ -35,9 +35,9 @@ use crate::{
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
+        try_result_into_js,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -583,8 +583,11 @@ impl StringPrototype {
             let o = require_object_coercible(agent, this_value, nogc)
                 .unbind()?
                 .bind(nogc);
-            if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
-                (s.unbind()?.bind(nogc), &args[..])
+            if let Some(s) = try_result_into_js(try_to_string(agent, o, nogc))
+                .unbind()?
+                .bind(gc.nogc())
+            {
+                (s, &args[..])
             } else {
                 let scoped_args = args
                     .iter()
@@ -1161,8 +1164,11 @@ impl StringPrototype {
             .bind(nogc);
 
         // 2. Let S be ? ToString(O).
-        let mut s = if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
-            s.unbind()?.bind(nogc)
+        let mut s = if let Some(s) = try_result_into_js(try_to_string(agent, o, nogc))
+            .unbind()?
+            .bind(gc.nogc())
+        {
+            s
         } else {
             let scoped_form = form.scope(agent, nogc);
             let s = to_string(agent, o.unbind(), gc.reborrow())
@@ -1177,8 +1183,11 @@ impl StringPrototype {
             NormalizeForm::Nfc
         } else {
             // 4. Else, let f be ? ToString(form).
-            let f = if let TryResult::Continue(f) = try_to_string(agent, form, gc.nogc()) {
-                f.unbind()?.bind(gc.nogc())
+            let f = if let Some(f) = try_result_into_js(try_to_string(agent, form, gc.nogc()))
+                .unbind()?
+                .bind(gc.nogc())
+            {
+                f
             } else {
                 let scoped_s = s.scope(agent, gc.nogc());
                 let f = to_string(agent, form.unbind(), gc.reborrow())
@@ -1289,9 +1298,10 @@ impl StringPrototype {
         // 3. Let n be ? ToIntegerOrInfinity(count).
         // SAFETY: count is not shared.
         let count = unsafe { count.take(agent) };
-        let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, count, gc.nogc())
+        let n = if let Some(n) =
+            try_result_into_js(try_to_integer_or_infinity(agent, count, gc.nogc())).unbind()?
         {
-            n.unbind()?
+            n
         } else {
             let scoped_s = s.scope(agent, gc.nogc());
             let result = to_integer_or_infinity(agent, count, gc.reborrow()).unbind()?;
@@ -1966,10 +1976,10 @@ impl StringPrototype {
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
         // SAFETY: Never shared.
         let start = unsafe { start.take(agent) }.bind(gc.nogc());
-        let int_start = if let TryResult::Continue(int_start) =
-            try_to_integer_or_infinity(agent, start, gc.nogc())
+        let int_start = if let Some(int_start) =
+            try_result_into_js(try_to_integer_or_infinity(agent, start, gc.nogc())).unbind()?
         {
-            int_start.unbind()?
+            int_start
         } else {
             let local_scoped_s = s.scope(agent, gc.nogc());
             let int_start =
@@ -1982,10 +1992,10 @@ impl StringPrototype {
         let end = end.get(agent).bind(gc.nogc());
         let int_end = if end.is_undefined() {
             None
-        } else if let TryResult::Continue(int_end) =
-            try_to_integer_or_infinity(agent, end, gc.nogc())
+        } else if let Some(int_end) =
+            try_result_into_js(try_to_integer_or_infinity(agent, end, gc.nogc())).unbind()?
         {
-            Some(int_end.unbind()?)
+            Some(int_end)
         } else {
             let local_scoped_s = scoped_s.unwrap_or_else(|| s.scope(agent, gc.nogc()));
             let int_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
@@ -2673,8 +2683,11 @@ fn string_padding_builtins_impl<'gc>(
     let mut fill_string = fill_string.bind(nogc);
     let mut scoped_fill_string = None;
     // 1. Let S be ? ToString(O).
-    let mut s = if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
-        s.unbind()?.bind(nogc)
+    let mut s = if let Some(s) = try_result_into_js(try_to_string(agent, o, nogc))
+        .unbind()?
+        .bind(gc.nogc())
+    {
+        s
     } else {
         scoped_fill_string = Some(fill_string.scope(agent, nogc));
         let scoped_max_length = max_length.scope(agent, nogc);
@@ -2693,24 +2706,27 @@ fn string_padding_builtins_impl<'gc>(
     let mut scoped_s = None;
 
     // 2. Let intMaxLength be ℝ(? ToLength(maxLength)).
-    let int_max_length =
-        if let TryResult::Continue(int_max_length) = try_to_length(agent, max_length, gc.nogc()) {
-            int_max_length.unbind()?.bind(gc.nogc())
-        } else {
-            scoped_s = Some(s.scope(agent, gc.nogc()));
-            scoped_fill_string =
-                scoped_fill_string.or_else(|| Some(fill_string.scope(agent, gc.nogc())));
-            let int_max_length = to_length(agent, max_length.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            s = scoped_s.as_ref().unwrap().get(agent).bind(gc.nogc());
-            fill_string = scoped_fill_string
-                .as_ref()
-                .unwrap()
-                .get(agent)
-                .bind(gc.nogc());
-            int_max_length
-        };
+    let int_max_length = if let Some(int_max_length) =
+        try_result_into_js(try_to_length(agent, max_length, gc.nogc()))
+            .unbind()?
+            .bind(gc.nogc())
+    {
+        int_max_length
+    } else {
+        scoped_s = Some(s.scope(agent, gc.nogc()));
+        scoped_fill_string =
+            scoped_fill_string.or_else(|| Some(fill_string.scope(agent, gc.nogc())));
+        let int_max_length = to_length(agent, max_length.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        s = scoped_s.as_ref().unwrap().get(agent).bind(gc.nogc());
+        fill_string = scoped_fill_string
+            .as_ref()
+            .unwrap()
+            .get(agent)
+            .bind(gc.nogc());
+        int_max_length
+    };
 
     // 3. Let stringLength be the length of S.
     let string_length = s.utf16_len(agent) as i64;
@@ -2892,8 +2908,11 @@ fn create_html<'gc>(
         .bind(nogc);
 
     // 2. Let S be ? ToString(str)
-    let mut s = if let TryResult::Continue(s) = try_to_string(agent, str.unbind(), nogc) {
-        s.unbind()?.bind(nogc)
+    let mut s = if let Some(s) = try_result_into_js(try_to_string(agent, str.unbind(), nogc))
+        .unbind()?
+        .bind(gc.nogc())
+    {
+        s
     } else {
         let attribute_and_scoped_value =
             attribute_and_value.map(|(attribute, value)| (attribute, value.scope(agent, nogc)));
@@ -2921,8 +2940,11 @@ fn create_html<'gc>(
     // 8. Return p4.
     if let Some((attribute, value)) = attribute_and_value {
         // a. Let V be ? ToString(value).
-        let v = if let TryResult::Continue(v) = try_to_string(agent, value, gc.nogc()) {
-            v.unbind()?.bind(gc.nogc())
+        let v = if let Some(v) = try_result_into_js(try_to_string(agent, value, gc.nogc()))
+            .unbind()?
+            .bind(gc.nogc())
+        {
+            v
         } else {
             let scoped_s = s.scope(agent, gc.nogc());
             let v = to_string(agent, value.unbind(), gc.reborrow())

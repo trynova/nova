@@ -167,8 +167,7 @@ impl JSONObject {
                 root_name.unwrap(),
                 unfiltered,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
             let root = root.unbind().into_object().scope(agent, gc.nogc());
@@ -290,7 +289,7 @@ impl JSONObject {
                     let item = if let Ok(v) = String::try_from(v) {
                         // d. If v is a String, then
                         // i. Set item to v.
-                        Some(unwrap_try(to_property_key_simple(agent, v, gc.nogc())))
+                        Some(to_property_key_simple(agent, v, gc.nogc()).unwrap())
                     } else if let Ok(v) = Number::try_from(v) {
                         // e. Else if v is a Number, then
                         // i. Set item to ! ToString(v).
@@ -429,11 +428,7 @@ impl JSONObject {
                 PropertyDescriptor::new_data_descriptor(value),
                 gc.nogc(),
             ) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    err.to_string(),
-                    gc.into_nogc(),
-                ));
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             };
         }
         // 12. Let state be the JSON Serialization Record { [[ReplacerFunction]]: ReplacerFunction, [[Stack]]: stack, [[Indent]]: indent, [[Gap]]: gap, [[PropertyList]]: PropertyList }.

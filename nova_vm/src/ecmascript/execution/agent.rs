@@ -53,6 +53,7 @@ use super::{
     initialize_default_realm, initialize_host_defined_realm,
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
+use std::collections::TryReserveError;
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -61,6 +62,12 @@ pub struct Options {
 }
 
 pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
+
+impl<'a, T: 'a> From<JsError<'a>> for JsResult<'a, T> {
+    fn from(value: JsError<'a>) -> Self {
+        JsResult::Err(value)
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[repr(transparent)]
@@ -682,6 +689,7 @@ impl Agent {
         &mut self[id]
     }
 
+    #[must_use]
     pub fn create_exception_with_static_message<'a>(
         &mut self,
         kind: ExceptionType,
@@ -694,6 +702,7 @@ impl Agent {
             .into_value()
     }
 
+    #[must_use]
     pub(crate) fn todo<'a>(&mut self, feature: &'static str, gc: NoGcScope<'a, '_>) -> JsError<'a> {
         self.throw_exception(
             ExceptionType::Error,
@@ -703,6 +712,7 @@ impl Agent {
     }
 
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
+    #[must_use]
     pub fn throw_exception_with_static_message<'a>(
         &mut self,
         kind: ExceptionType,
@@ -715,6 +725,7 @@ impl Agent {
         )
     }
 
+    #[must_use]
     pub fn throw_exception<'a>(
         &mut self,
         kind: ExceptionType,
@@ -729,6 +740,7 @@ impl Agent {
         )
     }
 
+    #[must_use]
     pub fn throw_exception_with_message<'a>(
         &mut self,
         kind: ExceptionType,
@@ -741,6 +753,15 @@ impl Agent {
                 .into_value()
                 .bind(gc),
         )
+    }
+
+    #[must_use]
+    pub(crate) fn throw_allocation_exception<'a>(
+        &mut self,
+        error: TryReserveError,
+        gc: NoGcScope<'a, '_>,
+    ) -> JsError<'a> {
+        self.throw_exception(ExceptionType::ReferenceError, error.to_string(), gc)
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
@@ -1018,7 +1039,7 @@ pub(crate) fn try_resolve_binding<'a>(
     name: String<'a>,
     cache: Option<PropertyLookupCache<'a>>,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<Reference<'a>> {
+) -> TryResult<'a, Reference<'a>> {
     // 1. If env is not present or env is undefined, then
     // a. Set env to the running execution context's LexicalEnvironment.
     let env = agent.current_lexical_environment(gc);
