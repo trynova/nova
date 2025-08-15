@@ -55,10 +55,7 @@ pub(crate) use private_environment::{
 
 use crate::{
     ecmascript::{
-        builtins::{
-            ordinary::caches::{PropertyLookupCache, PropertyOffset},
-            proxy::Proxy,
-        },
+        builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
         types::{
             InternalMethods, IntoValue, Object, Reference, String, TryBreak, TryHasContinue, Value,
         },
@@ -300,14 +297,14 @@ impl<'e> Environment<'e> {
     ) -> ControlFlow<TryBreak<'gc>, TryHasBindingContinue<'gc>> {
         match self {
             Environment::Declarative(e) => {
-                TryHasBindingContinue::Declarative(e.has_binding(agent, name)).into()
+                TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
             }
             Environment::Function(e) => {
-                TryHasBindingContinue::Declarative(e.has_binding(agent, name)).into()
+                TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
             }
             Environment::Global(e) => e.try_has_binding(agent, name, cache, gc),
             Environment::Module(e) => {
-                TryHasBindingContinue::Declarative(e.has_binding(agent, name)).into()
+                TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
             }
             Environment::Object(e) => e.try_has_binding(agent, name, cache, gc),
         }
@@ -837,28 +834,37 @@ impl Default for Environments {
     }
 }
 
+/// Result of the HasBinding abstract operation's Try variant.
+///
+/// > Note: we could return eg. the exact object and offset that a proprety was
+/// > found at, and cache that for later usage. Experiments showed that it did
+/// > not have a meaningful impact on performance at that time.
 pub(crate) enum TryHasBindingContinue<'a> {
-    /// Property was not found in the object or its prototype chain.
-    Unset,
-    /// The property was found at the provided offset in the provided object.
-    Offset(u32, Object<'a>),
-    /// The property was found in the provided object at a custom offset.
-    Custom(u32, Object<'a>),
+    Result(bool),
     /// A Proxy trap call is needed.
     ///
     /// This means that the method ran to completion but could not call the
     /// Proxy trap itself.
     Proxy(Proxy<'a>),
-    /// Declarative environment result.
-    Declarative(bool),
+}
+bindable_handle!(TryHasBindingContinue);
+
+impl<'a> TryFrom<TryHasBindingContinue<'a>> for bool {
+    type Error = Proxy<'a>;
+
+    fn try_from(value: TryHasBindingContinue<'a>) -> Result<Self, Self::Error> {
+        match value {
+            TryHasBindingContinue::Result(bool) => Ok(bool),
+            TryHasBindingContinue::Proxy(proxy) => Err(proxy),
+        }
+    }
 }
 
 impl<'a> From<TryHasContinue<'a>> for TryHasBindingContinue<'a> {
     fn from(value: TryHasContinue<'a>) -> Self {
         match value {
-            TryHasContinue::Unset => Self::Unset,
-            TryHasContinue::Offset(offset, object) => Self::Offset(offset, object),
-            TryHasContinue::Custom(offset, object) => Self::Custom(offset, object),
+            TryHasContinue::Unset => Self::Result(false),
+            TryHasContinue::Offset(_, _) | TryHasContinue::Custom(_, _) => Self::Result(true),
             TryHasContinue::Proxy(proxy) => Self::Proxy(proxy),
         }
     }
@@ -901,40 +907,21 @@ pub(crate) fn try_get_identifier_reference<'a>(
     let cache = cache.bind(gc);
     // 1. If env is null, then
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = match env.try_has_binding(agent, name, cache, gc) {
-        ControlFlow::Continue(c) => match c {
-            TryHasBindingContinue::Unset => None,
-            TryHasBindingContinue::Offset(offset, object) => {
-                Some(PropertyOffset::new(offset).map(|o| (o, object)))
-            }
-            TryHasBindingContinue::Custom(offset, object) => {
-                Some(PropertyOffset::new_custom(offset).map(|o| (o, object)))
-            }
-            TryHasBindingContinue::Proxy(_) => return TryResult::Break(()),
-            TryHasBindingContinue::Declarative(exists) => {
-                if exists {
-                    Some(None)
-                } else {
-                    None
-                }
-            }
-        },
-        ControlFlow::Break(_) => return TryResult::Break(()),
+    let exists = if let ControlFlow::Continue(TryHasBindingContinue::Result(exists)) =
+        env.try_has_binding(agent, name, cache, gc)
+    {
+        exists
+    } else {
+        return TryResult::Break(());
     };
 
     // 3. If exists is true, then
-    if let Some(resolved_offset) = exists {
+    if exists {
         // a. Return the Reference Record {
         // [[ReferencedName]]: name,
         // [[Base]]: env,
         // [[Strict]]: strict,
-        TryResult::Continue(Reference::new_variable_reference(
-            env,
-            name,
-            cache,
-            resolved_offset,
-            strict,
-        ))
+        TryResult::Continue(Reference::new_variable_reference(env, name, cache, strict))
         // [[ThisValue]]: EMPTY
         // }.
     }
@@ -989,73 +976,38 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = match env.try_has_binding(agent, name, cache, gc.nogc()) {
-        ControlFlow::Continue(c) => match c {
-            TryHasBindingContinue::Unset => None,
-            TryHasBindingContinue::Offset(offset, object) => {
-                Some(PropertyOffset::new(offset).map(|o| (o, object)))
-            }
-            TryHasBindingContinue::Custom(offset, object) => {
-                Some(PropertyOffset::new_custom(offset).map(|o| (o, object)))
-            }
-            TryHasBindingContinue::Proxy(proxy) => {
-                let env_scoped = env.scope(agent, gc.nogc());
-                let name_scoped = name.scope(agent, gc.nogc());
-                let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
-                let exists = proxy
-                    .unbind()
-                    .internal_has_property(agent, name.to_property_key().unbind(), gc.reborrow())
-                    .unbind()?;
-                // SAFETY: not shared.
-                unsafe {
-                    cache = cache_scoped.map(|c| c.take(agent));
-                    name = name_scoped.take(agent);
-                    env = env_scoped.take(agent);
-                }
-                if exists { Some(None) } else { None }
-            }
-            TryHasBindingContinue::Declarative(exists) => {
-                if exists {
-                    Some(None)
-                } else {
-                    None
-                }
-            }
-        },
-        ControlFlow::Break(b) => match b {
-            TryBreak::Error(err) => return Err(err.unbind().bind(gc.into_nogc())),
-            _ => {
-                let env_scoped = env.scope(agent, gc.nogc());
-                let name_scoped = name.scope(agent, gc.nogc());
-                let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
-                if b == TryBreak::FailedToAllocate {
-                    agent.gc(gc.reborrow());
-                    env = env_scoped.get(agent).bind(gc.nogc());
-                    name = name_scoped.get(agent).bind(gc.nogc());
-                }
-                let exists = env
-                    .unbind()
-                    .has_binding(agent, name.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                // SAFETY: not shared.
-                unsafe {
-                    cache = cache_scoped.map(|c| c.take(agent));
-                    name = name_scoped.take(agent);
-                    env = env_scoped.take(agent);
-                }
-                if exists { Some(None) } else { None }
-            }
-        },
+    let exists = env.try_has_binding(agent, name, cache, gc.nogc());
+    let exists = if let ControlFlow::Continue(TryHasBindingContinue::Result(exists)) = exists {
+        exists
+    } else {
+        let env_scoped = env.scope(agent, gc.nogc());
+        let name_scoped = name.scope(agent, gc.nogc());
+        let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
+        let exists = handle_try_has_binding_result_cold(
+            agent,
+            env.unbind(),
+            name.unbind(),
+            exists.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        unsafe {
+            cache = cache_scoped.map(|c| c.take(agent));
+            name = name_scoped.take(agent);
+            env = env_scoped.take(agent);
+        }
+        exists
     };
 
     // 3. If exists is true, then
-    if let Some(resolved_offset) = exists {
+    if exists {
         // a. Return the Reference Record {
         // [[Base]]: env,
         // [[ReferencedName]]: name,
         // [[Strict]]: strict,
-        Ok(Reference::new_variable_reference(env, name, cache, resolved_offset, strict).unbind())
+        Ok(Reference::new_variable_reference(env, name, cache, strict).unbind())
         // [[ThisValue]]: EMPTY
         // }.
     }
@@ -1073,6 +1025,31 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
             strict,
             gc,
         )
+    }
+}
+
+#[cold]
+#[inline(never)]
+fn handle_try_has_binding_result_cold<'a>(
+    agent: &mut Agent,
+    env: Environment,
+    name: String,
+    exists: ControlFlow<TryBreak, TryHasBindingContinue>,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
+    match exists {
+        ControlFlow::Continue(c) => match c {
+            TryHasBindingContinue::Result(exists) => Ok(exists),
+            TryHasBindingContinue::Proxy(proxy) => {
+                proxy
+                    .unbind()
+                    .internal_has_property(agent, name.to_property_key(), gc)
+            }
+        },
+        ControlFlow::Break(b) => match b {
+            TryBreak::Error(err) => return Err(err.unbind().bind(gc.into_nogc())),
+            _ => env.unbind().has_binding(agent, name.unbind(), gc),
+        },
     }
 }
 

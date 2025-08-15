@@ -180,7 +180,7 @@ impl<'e> GlobalEnvironment<'e> {
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
-            return TryHasBindingContinue::Declarative(true).into();
+            return TryHasBindingContinue::Result(true).into();
         }
 
         // 3. Let ObjRec be envRec.[[ObjectRecord]].

@@ -154,7 +154,7 @@ impl<'e> ObjectEnvironment<'e> {
 
         // 3. If foundBinding is false, return false.
         if found_binding == TryHasContinue::Unset {
-            return TryHasBindingContinue::Unset.into();
+            return TryHasBindingContinue::Result(false).into();
         }
         // 4. If envRec.[[IsWithEnvironment]] is false, return true.
         if !is_with_environment {
@@ -189,7 +189,7 @@ impl<'e> ObjectEnvironment<'e> {
             };
             // b. If blocked is true, return false.
             if blocked {
-                return TryHasBindingContinue::Unset.into();
+                return TryHasBindingContinue::Result(false).into();
             }
         }
         // 7. Return true.

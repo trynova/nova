@@ -1179,7 +1179,7 @@ mod test {
         let foo_key = String::from_static_str(&mut agent, "foo", gc.nogc());
         assert!(matches!(
             global_env.try_has_binding(&mut agent, foo_key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasBindingContinue::Offset(_, _))
+            ControlFlow::Continue(TryHasBindingContinue::Result(true))
         ));
         assert!(
             unwrap_try(global_env.try_get_binding_value(
@@ -1459,11 +1459,11 @@ mod test {
         let i_key = String::from_static_str(&mut agent, "i", gc.nogc());
         assert!(matches!(
             global_env.try_has_binding(&mut agent, a_key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasBindingContinue::Offset(_, _))
+            ControlFlow::Continue(TryHasBindingContinue::Result(true))
         ));
         assert!(matches!(
             global_env.try_has_binding(&mut agent, i_key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasBindingContinue::Offset(_, _))
+            ControlFlow::Continue(TryHasBindingContinue::Result(true))
         ));
         assert_eq!(
             unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc()))

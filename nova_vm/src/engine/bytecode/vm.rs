@@ -27,9 +27,9 @@ use crate::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
             },
             type_conversion::{
-                to_boolean, to_number, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_property_key_complex, to_property_key_primitive,
-                to_property_key_simple, to_string, to_string_primitive,
+                to_boolean, to_number, to_number_primitive, to_numeric, to_numeric_primitive,
+                to_object, to_primitive, to_property_key, to_property_key_complex,
+                to_property_key_primitive, to_property_key_simple, to_string, to_string_primitive,
             },
         },
         builtins::{
@@ -683,14 +683,24 @@ impl Vm {
                 vm.result = Some(result.unbind());
             }
             Instruction::ToNumber => {
-                let arg0 = vm.result.unwrap();
-                let result = with_vm_gc(agent, vm, |agent, gc| to_number(agent, arg0, gc), gc)?;
-                vm.result = Some(result.into_value().unbind());
+                let arg0 = vm.result.unwrap().bind(gc.nogc());
+                let result = if let Ok(arg0) = Primitive::try_from(arg0) {
+                    to_number_primitive(agent, arg0.unbind(), gc.into_nogc())
+                } else {
+                    let arg0 = arg0.unbind();
+                    with_vm_gc(agent, vm, |agent, gc| to_number(agent, arg0, gc), gc)
+                };
+                vm.result = Some(result?.into_value().unbind());
             }
             Instruction::ToNumeric => {
-                let arg0 = vm.result.unwrap();
-                let result = with_vm_gc(agent, vm, |agent, gc| to_numeric(agent, arg0, gc), gc)?;
-                vm.result = Some(result.into_value().unbind());
+                let arg0 = vm.result.unwrap().bind(gc.nogc());
+                let result = if let Ok(arg0) = Primitive::try_from(arg0) {
+                    to_numeric_primitive(agent, arg0.unbind(), gc.into_nogc())
+                } else {
+                    let arg0 = arg0.unbind();
+                    with_vm_gc(agent, vm, |agent, gc| to_numeric(agent, arg0, gc), gc)
+                };
+                vm.result = Some(result?.into_value().unbind());
             }
             Instruction::ToObject => {
                 vm.result = Some(
@@ -702,18 +712,34 @@ impl Vm {
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| {
-                        if op_text == BinaryOperator::Addition {
-                            apply_string_or_numeric_addition(agent, lval, rval, gc)
-                        } else {
-                            apply_string_or_numeric_binary_operator(agent, lval, op_text, rval, gc)
-                        }
-                    },
-                    gc,
-                )?;
+                let result = if let (Ok(lnum), Ok(rnum)) =
+                    (Number::try_from(lval), Number::try_from(rval))
+                {
+                    number_binary_operator(agent, op_text, lnum, rnum, gc.into_nogc())?.into_value()
+                } else if op_text == BinaryOperator::Addition
+                    && let (Ok(lstr), Ok(rstr)) = (String::try_from(lval), String::try_from(rval))
+                {
+                    String::concat(agent, [lstr, rstr], gc.into_nogc()).into_value()
+                } else if let (Ok(lnum), Ok(rnum)) =
+                    (BigInt::try_from(lval), BigInt::try_from(rval))
+                {
+                    bigint_binary_operator(agent, op_text, lnum, rnum, gc.into_nogc())?.into_value()
+                } else {
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| {
+                            if op_text == BinaryOperator::Addition {
+                                apply_string_or_numeric_addition(agent, lval, rval, gc)
+                            } else {
+                                apply_string_or_numeric_binary_operator(
+                                    agent, lval, op_text, rval, gc,
+                                )
+                            }
+                        },
+                        gc,
+                    )?
+                };
                 vm.result = Some(result.unbind());
             }
             Instruction::ObjectDefineProperty => {
@@ -2643,12 +2669,19 @@ impl Vm {
                 }
             }
             Instruction::IteratorStepValueOrUndefined => {
-                let result = with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| ActiveIterator::new(agent, gc.nogc()).step_value(agent, gc),
-                    gc,
-                );
+                let result = if let TryResult::Continue(r) = vm
+                    .get_active_iterator_mut()
+                    .try_step_value(agent, gc.nogc())
+                {
+                    r.unbind().bind(gc.into_nogc())
+                } else {
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| ActiveIterator::new(agent, gc.nogc()).step_value(agent, gc),
+                        gc,
+                    )
+                };
                 if result.map_or(true, |r| r.is_none()) {
                     // We have exhausted the iterator or it threw an error;
                     // replace the top iterator with an empty slice iterator so
@@ -3830,11 +3863,19 @@ fn execute_get_value<'gc>(
 ) -> JsResult<'gc, ()> {
     // 1. If V is not a Reference Record, return V.
     let reference = if keep_reference {
-        let reference = vm.reference.as_ref().unwrap();
+        let reference = vm.reference.as_mut().unwrap();
         if is_property_reference(reference) && !reference.is_static_property_reference() {
-            mutate_reference_property_key(agent, vm, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
+            if let Ok(referenced_name) =
+                Primitive::try_from(reference.referenced_name_value().bind(gc.nogc()))
+            {
+                let referenced_name = to_property_key_primitive(agent, referenced_name, gc.nogc());
+                reference.set_referenced_name_to_property_key(referenced_name);
+                reference.clone()
+            } else {
+                mutate_reference_property_key(agent, vm, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+            }
         } else {
             reference.clone().bind(gc.nogc())
         }
@@ -3861,28 +3902,30 @@ fn execute_get_value<'gc>(
     Ok(())
 }
 
-fn mutate_reference_property_key<'a>(
+#[inline(never)]
+#[cold]
+fn mutate_reference_property_key<'vm, 'gc>(
     agent: &mut Agent,
-    vm: &mut Vm,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Reference<'a>> {
+    vm: &'vm mut Vm,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Reference<'gc>> {
     let reference = vm.reference.as_ref().unwrap();
     // Expression reference; we need to convert to PropertyKey
     // first.
-    let referenced_name = reference.referenced_name_value();
+    let referenced_name = reference.referenced_name_value().bind(gc.nogc());
     let referenced_name = if let TryResult::Continue(referenced_name) =
         to_property_key_simple(agent, referenced_name, gc.nogc())
     {
         referenced_name
     } else {
-        let base = reference.base_value();
+        let base = reference.base_value().bind(gc.nogc());
         if base.is_undefined() || base.is_null() {
             // Undefined and null should throw an error from
             // ToObject before ToPropertyKey gets called.
             return Err(throw_read_undefined_or_null_error(
                 agent,
-                referenced_name,
-                base,
+                referenced_name.unbind(),
+                base.unbind(),
                 gc.into_nogc(),
             ));
         }
@@ -3891,10 +3934,8 @@ fn mutate_reference_property_key<'a>(
             agent,
             vm,
             |agent, gc| to_property_key_complex(agent, referenced_name, gc),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc())
+            gc,
+        )?
     };
     let reference = vm.reference.as_mut().unwrap();
     reference.set_referenced_name_to_property_key(referenced_name);
@@ -3902,6 +3943,7 @@ fn mutate_reference_property_key<'a>(
 }
 
 #[inline(never)]
+#[cold]
 fn handle_get_value_break<'a>(
     agent: &mut Agent,
     vm: &mut Vm,

@@ -867,7 +867,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new(offset: u32) -> Option<Self> {
+    pub(crate) const fn new(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16))
@@ -880,7 +880,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new_prototype(offset: u32) -> Option<Self> {
+    pub(crate) const fn new_prototype(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16 | Self::PROTOTYPE_BIT_MASK))
@@ -893,7 +893,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new_custom(offset: u32) -> Option<Self> {
+    pub(crate) const fn new_custom(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16 | Self::CUSTOM_STORAGE_BIT_MASK))
@@ -907,7 +907,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new_custom_prototype(offset: u32) -> Option<Self> {
+    pub(crate) const fn new_custom_prototype(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(
@@ -921,26 +921,26 @@ impl PropertyOffset {
     /// Returns true if the property was not set on the Object with this
     /// Object Shape or in its prototype chain.
     #[inline(always)]
-    pub(crate) fn is_unset(self) -> bool {
+    pub(crate) const fn is_unset(self) -> bool {
         (self.0 & Self::UNSET_BIT_MASK) > 0
     }
 
     /// Returns true if the property was found on the Object Shape's prototype.
     #[inline(always)]
-    pub(crate) fn is_prototype_property(self) -> bool {
+    pub(crate) const fn is_prototype_property(self) -> bool {
         (self.0 & Self::PROTOTYPE_BIT_MASK) > 0
     }
 
     /// Returns true if the property was found in the target object or its
     /// prototype's custom property storage.
     #[inline(always)]
-    pub(crate) fn is_custom_property(self) -> bool {
+    pub(crate) const fn is_custom_property(self) -> bool {
         (self.0 & Self::CUSTOM_STORAGE_BIT_MASK) > 0
     }
 
     /// Returns the offset that the property was found at.
     #[inline(always)]
-    pub(crate) fn get_property_offset(self) -> u16 {
+    pub(crate) const fn get_property_offset(self) -> u16 {
         debug_assert!(!self.is_unset());
         self.0 & Self::OFFSET_BIT_MASK
     }

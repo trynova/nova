@@ -13,10 +13,7 @@ use crate::{
             },
             type_conversion::{to_object, to_property_key, to_property_key_simple},
         },
-        builtins::{
-            ordinary::caches::{PropertyLookupCache, PropertyOffset},
-            proxy::Proxy,
-        },
+        builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
         execution::{
             Environment,
             agent::{self, ExceptionType, JsError},
@@ -50,7 +47,6 @@ pub(crate) struct VariableReference<'a> {
     referenced_name: String<'a>,
     /// Property lookup cache for the variable reference.
     cache: Option<PropertyLookupCache<'a>>,
-    resolved_offset: Option<(PropertyOffset, Object<'a>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -175,14 +171,12 @@ impl<'a> Reference<'a> {
         base: Environment<'a>,
         referenced_name: String<'a>,
         cache: Option<PropertyLookupCache<'a>>,
-        resolved_offset: Option<(PropertyOffset, Object<'a>)>,
         strict: bool,
     ) -> Self {
         let reference = VariableReference {
             base,
             referenced_name,
             cache,
-            resolved_offset,
         };
         if strict {
             Self::VariableStrict(reference)
@@ -1355,14 +1349,10 @@ impl HeapMarkAndSweep for VariableReference<'static> {
             base,
             referenced_name,
             cache,
-            resolved_offset,
         } = self;
         base.mark_values(queues);
         referenced_name.mark_values(queues);
         cache.mark_values(queues);
-        if let Some((_, o)) = resolved_offset {
-            o.mark_values(queues);
-        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -1370,14 +1360,10 @@ impl HeapMarkAndSweep for VariableReference<'static> {
             base,
             referenced_name,
             cache,
-            resolved_offset,
         } = self;
         base.sweep_values(compactions);
         referenced_name.sweep_values(compactions);
         cache.sweep_values(compactions);
-        if let Some((_, o)) = resolved_offset {
-            o.sweep_values(compactions);
-        }
     }
 }
 
