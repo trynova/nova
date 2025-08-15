@@ -26,7 +26,10 @@ use crate::{
             ordinary::ordinary_object_create_with_intrinsics,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoPrimitive, IntoValue,
             Number, Object, PropertyDescriptor, PropertyKey, ScopedPropertyKey, String, Value,
@@ -36,7 +39,6 @@ use crate::{
         ScopableCollection, Scoped, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::WellKnownSymbolIndexes,
 };

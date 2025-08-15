@@ -27,7 +27,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, TryError, TryResult},
         },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -35,7 +35,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryError, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope, ScopeToken},
         rootable::Scopable,
     },
@@ -276,7 +276,9 @@ impl<'a> VmIteratorRecord<'a> {
                     ControlFlow::Continue(TryGetResult::Value(v)) => {
                         !v.is_undefined() && !v.is_null()
                     }
-                    ControlFlow::Break(TryError::Err(_)) => todo!(),
+                    ControlFlow::Break(TryError::Err(_)) => {
+                        todo!()
+                    }
                     _ => true,
                 }
             }

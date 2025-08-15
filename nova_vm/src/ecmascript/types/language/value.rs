@@ -46,16 +46,18 @@ use crate::{
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
-        execution::{Agent, JsResult},
+        execution::{
+            Agent, JsResult,
+            agent::{TryResult, try_result_into_js},
+        },
         types::{BUILTIN_STRING_MEMORY, Object},
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
-        try_result_into_js,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

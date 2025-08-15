@@ -12,7 +12,10 @@ use crate::{
             is_compatible_property_descriptor, ordinary_define_own_property, ordinary_delete,
             ordinary_get, ordinary_get_own_property, ordinary_has_property, ordinary_set,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{TryError, TryResult, unwrap_try},
+        },
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
             FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
@@ -24,12 +27,10 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,

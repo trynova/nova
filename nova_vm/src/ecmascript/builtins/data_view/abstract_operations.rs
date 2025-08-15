@@ -8,13 +8,15 @@ use crate::{
             },
             structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, try_result_into_js},
+        },
         types::{BigInt, IntoNumeric, Number, Numeric, Value, Viewable},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        try_result_into_js,
     },
 };
 

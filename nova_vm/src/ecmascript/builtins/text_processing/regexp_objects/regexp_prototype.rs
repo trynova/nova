@@ -21,7 +21,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
@@ -31,7 +31,6 @@ use crate::{
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

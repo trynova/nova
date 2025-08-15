@@ -28,7 +28,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, try_result_into_js, unwrap_try},
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
@@ -39,7 +39,6 @@ use crate::{
         ScopableCollection, Scoped,
         context::{Bindable, GcScope},
         rootable::{Rootable, Scopable},
-        try_result_into_js, unwrap_try,
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

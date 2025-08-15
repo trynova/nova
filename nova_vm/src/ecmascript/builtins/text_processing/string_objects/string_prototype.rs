@@ -29,7 +29,10 @@ use crate::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             regexp::reg_exp_create,
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, try_result_into_js},
+        },
         types::{
             BUILTIN_STRING_MEMORY, IntoValue, Number, Object, Primitive, PropertyKey, String, Value,
         },
@@ -37,7 +40,6 @@ use crate::{
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        try_result_into_js,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

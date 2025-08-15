@@ -8,14 +8,16 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_numeric_primitive,
         builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryResult},
+        },
         types::{
             Function, InternalMethods, IntoValue, Number, Numeric, Object, Primitive, PropertyKey,
             String, Value, bigint::BigInt,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },

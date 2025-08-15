@@ -12,18 +12,17 @@ use crate::{
             ordinary_get_own_property, ordinary_has_property, ordinary_own_property_keys,
             ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
         },
-        execution::{Agent, JsResult},
+        execution::{
+            Agent, JsResult,
+            agent::{TryResult, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, NoCache,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
             String, TryGetResult, TryHasResult, Value, language::IntoObject,
         },
     },
-    engine::{
-        TryResult,
-        context::{Bindable, GcScope, NoGcScope},
-        unwrap_try,
-    },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 

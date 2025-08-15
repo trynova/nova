@@ -42,7 +42,10 @@ use crate::{
         },
         execution::{
             Agent, Environment, JsResult, PrivateMethod, ProtoIntrinsics,
-            agent::{ExceptionType, JsError, resolve_binding, try_resolve_binding},
+            agent::{
+                ExceptionType, JsError, TryError, TryResult, resolve_binding, try_resolve_binding,
+                try_result_into_js, try_result_into_option_js, unwrap_try,
+            },
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment, new_private_environment, resolve_private_identifier,
             resolve_this_binding,
@@ -61,7 +64,7 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, Scoped, TryError, TryResult,
+        ScopableCollection, Scoped,
         bytecode::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
@@ -71,7 +74,6 @@ use crate::{
         },
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        try_result_into_js, try_result_into_option_js, unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, ObjectEntry, WellKnownSymbolIndexes, WorkQueues},
 };

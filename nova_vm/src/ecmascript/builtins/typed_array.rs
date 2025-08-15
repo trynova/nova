@@ -10,7 +10,10 @@ use data::TypedArrayArrayLength;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
-        execution::{Agent, JsResult},
+        execution::{
+            Agent, JsResult,
+            agent::{TryError, TryResult, unwrap_try},
+        },
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
@@ -22,10 +25,8 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,

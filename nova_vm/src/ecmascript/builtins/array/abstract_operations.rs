@@ -15,14 +15,16 @@ use crate::{
             ArgumentsList,
             array::{Array, ArrayHeapData},
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, Number, Object, OrdinaryObject, PropertyDescriptor,
             Value,
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -281,7 +283,7 @@ pub(crate) fn array_try_set_length<'gc>(
         desc.writable,
     ) {
         Ok(b) => TryResult::Continue(b),
-        Err(err) => TryError::Err(agent.throw_allocation_exception(err, gc)).into(),
+        Err(err) => agent.throw_allocation_exception(err, gc).into(),
     }
 }
 

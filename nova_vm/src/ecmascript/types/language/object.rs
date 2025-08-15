@@ -98,11 +98,10 @@ use crate::{
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
         types::{IntoValue, PropertyDescriptor},
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope},
         rootable::HeapRootData,
     },

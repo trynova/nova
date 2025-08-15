@@ -8,11 +8,10 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::Agent,
+        execution::{Agent, agent::TryResult},
         types::{InternalMethods, Object, PropertyKey, Value},
     },
     engine::{
-        TryResult,
         context::{Bindable, GcToken, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },

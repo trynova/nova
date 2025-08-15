@@ -11,7 +11,10 @@ pub(crate) use data::ErrorHeapData;
 
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, TryResult, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
@@ -19,10 +22,8 @@ use crate::{
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,

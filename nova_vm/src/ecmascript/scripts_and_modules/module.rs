@@ -24,13 +24,15 @@ use crate::{
                 promise_prototype::inner_promise_then,
             },
         },
-        execution::{Agent, JsResult, agent::get_active_script_or_module},
+        execution::{
+            Agent, JsResult,
+            agent::{get_active_script_or_module, unwrap_try},
+        },
         types::{IntoValue, Primitive, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
 };
 pub mod module_semantics;

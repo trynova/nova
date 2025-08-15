@@ -774,7 +774,7 @@ mod test {
             },
             execution::{
                 Agent, DefaultHostHooks, JsResult, TryHasBindingContinue,
-                agent::{ExceptionType, Options},
+                agent::{ExceptionType, Options, unwrap_try},
                 initialize_default_realm,
             },
             scripts_and_modules::script::{parse_script, script_evaluation},
@@ -786,7 +786,6 @@ mod test {
         engine::{
             context::{Bindable, GcScope},
             rootable::Scopable,
-            unwrap_try,
         },
     };
 

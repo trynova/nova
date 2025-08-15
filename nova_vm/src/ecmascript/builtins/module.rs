@@ -8,7 +8,11 @@ use std::{marker::PhantomData, ops::ControlFlow};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
-        execution::{Agent, JsResult, agent::ExceptionType, throw_uninitialized_binding},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult},
+            throw_uninitialized_binding,
+        },
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::{
                 AbstractModule, AbstractModuleMethods, AbstractModuleSlots, ResolvedBinding,
@@ -22,7 +26,6 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
     },
@@ -591,19 +594,20 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let target_env = target_module.environment(agent, gc);
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     let Some(target_env) = target_env else {
-                        return TryError::Err(agent.throw_exception_with_static_message(
-                            ExceptionType::ReferenceError,
-                            "Attempted to access unlinked module's environment",
-                            gc,
-                        ))
-                        .into();
+                        return agent
+                            .throw_exception_with_static_message(
+                                ExceptionType::ReferenceError,
+                                "Attempted to access unlinked module's environment",
+                                gc,
+                            )
+                            .into();
                     };
                     // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
                     if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
                     {
                         TryGetResult::Value(value).into()
                     } else {
-                        TryError::Err(throw_uninitialized_binding(agent, binding_name, gc)).into()
+                        throw_uninitialized_binding(agent, binding_name, gc).into()
                     }
                 }
             }

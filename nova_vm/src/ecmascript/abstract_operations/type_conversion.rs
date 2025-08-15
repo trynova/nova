@@ -24,16 +24,17 @@ use crate::{
             ArgumentsList,
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoPrimitive, IntoValue,
             Number, Numeric, Object, Primitive, PropertyKey, String, Value,
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        js_result_into_try,
         rootable::Scopable,
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},

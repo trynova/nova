@@ -20,14 +20,15 @@ use crate::{
             },
             proxy::Proxy,
         },
-        execution::{Agent, JsResult},
+        execution::{
+            Agent, JsResult,
+            agent::{TryError, TryResult, try_result_ok, unwrap_try},
+        },
         types::{Function, IntoValue, PropertyDescriptor, Value, throw_cannot_set_property},
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
-        try_result_ok, unwrap_try,
     },
 };
 

@@ -18,7 +18,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{IntoValue, Value},
     },
@@ -26,7 +26,6 @@ use crate::{
         ExecutionResult, Scoped, SuspendedVm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
 };
 

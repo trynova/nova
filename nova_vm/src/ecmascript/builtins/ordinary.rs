@@ -19,16 +19,16 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
+        execution::agent::{TryError, TryResult, unwrap_try},
         types::{
             IntoValue, NoCache, SetCachedProps, SetCachedResult, TryGetResult, TryHasResult,
             handle_try_get_result,
         },
     },
     engine::{
-        Scoped, TryError, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{
         HeapSweepWeakReference,

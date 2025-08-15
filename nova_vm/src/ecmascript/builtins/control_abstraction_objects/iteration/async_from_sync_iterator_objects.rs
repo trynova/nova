@@ -27,14 +27,16 @@ use crate::{
                 promise_prototype::inner_promise_then,
             },
         },
-        execution::{Agent, agent::ExceptionType},
+        execution::{
+            Agent,
+            agent::{ExceptionType, unwrap_try},
+        },
         types::{BUILTIN_STRING_MEMORY, IntoValue, Object, Value},
     },
     engine::{
         VmIteratorRecord,
         context::{Bindable, GcScope},
         rootable::Scopable,
-        unwrap_try,
     },
 };
 

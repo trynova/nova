@@ -30,14 +30,17 @@ use crate::{
                 data::{TypedArrayArrayLength, TypedArrayHeapData},
             },
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, IntoValue,
             Number, Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
-        Scoped, ScopedCollection, TryError, TryResult,
+        Scoped, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },

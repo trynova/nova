@@ -16,7 +16,10 @@ use crate::{
         builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
         execution::{
             Environment,
-            agent::{self, ExceptionType, JsError},
+            agent::{
+                self, ExceptionType, JsError, TryError, TryResult, js_result_into_try,
+                option_into_try,
+            },
             get_global_object,
         },
         types::{
@@ -25,9 +28,7 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        js_result_into_try, option_into_try,
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -681,19 +682,19 @@ fn try_handle_primitive_get_value<'a>(
     // b. If IsPrivateReference(V) is true, then
     if referenced_name.is_private_name() {
         // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-        return TryError::Err(throw_no_private_name_error(agent, gc)).into();
+        return throw_no_private_name_error(agent, gc).into();
     }
     // Primitive value. annoying stuff.
     let prototype = match receiver {
         Value::Undefined | Value::Null => {
-            return TryError::Err(throw_read_undefined_or_null_error(
+            return throw_read_undefined_or_null_error(
                 agent,
                 // SAFETY: We do not care about the conversion validity in
                 // error message logging.
                 unsafe { referenced_name.into_value_unchecked() },
                 receiver,
                 gc,
-            ))
+            )
             .into();
         }
         Value::Boolean(_) => agent
@@ -806,7 +807,8 @@ pub(crate) fn try_get_value<'gc>(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.to_string_lossy(agent)
             );
-            TryError::Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
+            agent
+                .throw_exception(ExceptionType::ReferenceError, error_message, gc)
                 .into()
         }
         // 3. If IsPropertyReference(V) is true, then
@@ -819,13 +821,7 @@ pub(crate) fn try_get_value<'gc>(
             let referenced_name = reference.referenced_name_value().bind(gc);
             let base = reference.base_value().bind(gc);
             if base.is_undefined() || base.is_null() {
-                return TryError::Err(throw_read_undefined_or_null_error(
-                    agent,
-                    referenced_name,
-                    base,
-                    gc,
-                ))
-                .into();
+                return throw_read_undefined_or_null_error(agent, referenced_name, base, gc).into();
             }
             // c. If V.[[ReferencedName]] is not a property key, then
             // i. Set V.[[ReferencedName]] to ? ToPropertyKey(V.[[ReferencedName]]).
@@ -865,7 +861,7 @@ pub(crate) fn try_get_value<'gc>(
                         )
                     })
                 } else {
-                    TryError::Err(throw_no_private_name_error(agent, gc)).into()
+                    throw_no_private_name_error(agent, gc).into()
                 }
             } else if let Ok(base_obj) = base_obj {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).

@@ -59,15 +59,16 @@ use crate::{
         types::{InternalMethods, IntoValue, Object, Reference, String, TryHasResult, Value},
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        js_result_into_try,
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-use super::{Agent, JsResult};
+use super::{
+    Agent, JsResult,
+    agent::{TryError, TryResult, js_result_into_try},
+};
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
 ///

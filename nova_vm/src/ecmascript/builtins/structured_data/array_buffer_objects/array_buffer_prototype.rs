@@ -13,7 +13,10 @@ use crate::{
             ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter,
             array_buffer::{is_detached_buffer, is_fixed_length_array_buffer},
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, try_result_into_js},
+        },
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Object, PropertyKey, String, Value,
         },
@@ -21,7 +24,6 @@ use crate::{
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        try_result_into_js,
     },
     heap::WellKnownSymbolIndexes,
 };

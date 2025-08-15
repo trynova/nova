@@ -22,7 +22,10 @@ use crate::{
             },
             typed_array::TypedArray,
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, try_result_into_js},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
             U8Clamped, Value, Viewable,
@@ -31,7 +34,6 @@ use crate::{
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
-        try_result_into_js,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

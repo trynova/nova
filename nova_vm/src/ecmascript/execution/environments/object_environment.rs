@@ -22,7 +22,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, TryError, TryResult, js_result_into_try},
             environments::{Environment, ObjectEnvironment, OuterEnv},
         },
         types::{
@@ -32,9 +32,7 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        js_result_into_try,
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},

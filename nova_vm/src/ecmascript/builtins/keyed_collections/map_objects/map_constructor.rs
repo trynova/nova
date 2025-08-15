@@ -33,14 +33,16 @@ use crate::{
             },
             ordinary::ordinary_create_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, TryError},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
             PropertyKey, String, TryGetResult, Value, handle_try_get_result,
         },
     },
     engine::{
-        TryError,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },

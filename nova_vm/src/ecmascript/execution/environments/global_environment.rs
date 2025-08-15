@@ -18,7 +18,7 @@ use crate::{
         builtins::ordinary::caches::PropertyLookupCache,
         execution::{
             Agent, JsResult,
-            agent::ExceptionType,
+            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
             environments::{
                 DeclarativeEnvironment, DeclarativeEnvironmentRecord, GlobalEnvironment,
                 ObjectEnvironment, ObjectEnvironmentRecord,
@@ -27,9 +27,7 @@ use crate::{
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        js_result_into_try,
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

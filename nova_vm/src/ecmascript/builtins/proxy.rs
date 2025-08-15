@@ -20,7 +20,10 @@ use crate::{
             type_conversion::to_boolean,
         },
         builtins::ArgumentsList,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult, try_result_into_js},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, NoCache,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
@@ -28,10 +31,9 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, TryError, TryResult,
+        ScopableCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
-        try_result_into_js,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,

@@ -22,7 +22,10 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array_create, ordinary::get_prototype_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
             PropertyKey, String, Value,
@@ -31,7 +34,6 @@ use crate::{
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

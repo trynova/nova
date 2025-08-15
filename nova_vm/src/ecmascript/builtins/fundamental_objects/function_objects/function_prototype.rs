@@ -20,7 +20,10 @@ use crate::{
             BuiltinIntrinsicConstructor, SetFunctionNamePrefix,
             bound_function::bound_function_create, set_function_name,
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
             Number, OrdinaryObject, PropertyKey, String, TryGetResult, Value,
@@ -28,7 +31,6 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },

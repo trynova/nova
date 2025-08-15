@@ -22,17 +22,19 @@ use crate::{
                 ordinary_object_create_with_intrinsics,
             },
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, TryError, try_result_into_js, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
             String, TryGetResult, Value, handle_try_get_result, unwrap_try_get_value,
         },
     },
     engine::{
-        Scoped, TryError,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        try_result_into_js, unwrap_try,
     },
     heap::CreateHeapData,
 };

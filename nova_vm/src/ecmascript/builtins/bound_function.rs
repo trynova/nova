@@ -11,7 +11,10 @@ use crate::{
             operations_on_objects::{call_function, construct},
             testing_and_comparison::is_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{TryError, TryResult, unwrap_try},
+        },
         types::{
             BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
             InternalSlots, IntoFunction, IntoValue, NoCache, Object, OrdinaryObject,
@@ -24,10 +27,8 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,

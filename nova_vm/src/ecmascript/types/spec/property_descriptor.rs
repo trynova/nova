@@ -12,14 +12,17 @@ use crate::{
             type_conversion::to_boolean,
         },
         builtins::ordinary::caches::PropertyLookupCache,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
             TryHasResult, Value, try_get_result_into_value,
         },
     },
     engine::{
-        Scoped, TryError, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },

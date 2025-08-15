@@ -16,7 +16,7 @@ use crate::{
         builtins::ArgumentsList,
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, try_result_into_js, try_result_into_option_js},
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -27,7 +27,6 @@ use crate::{
         ScopableCollection, ScopedCollection, VmIteratorRecord,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        try_result_into_js, try_result_into_option_js,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,

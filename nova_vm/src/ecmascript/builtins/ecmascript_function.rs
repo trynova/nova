@@ -21,7 +21,7 @@ use crate::{
             ThisBindingStatus,
             agent::{
                 ExceptionType::{self, SyntaxError},
-                get_active_script_or_module,
+                TryError, TryResult, get_active_script_or_module,
             },
             new_function_environment,
         },
@@ -43,7 +43,7 @@ use crate::{
         },
     },
     engine::{
-        Executable, TryError, TryResult,
+        Executable,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },

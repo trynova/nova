@@ -22,7 +22,10 @@ use crate::{
             array::abstract_operations::{array_set_length, array_try_set_length},
             ordinary::{caches::Caches, ordinary_define_own_property},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{TryError, TryResult, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
@@ -30,10 +33,8 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -459,7 +460,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     .elements
                     .push(elements, value, element_descriptor)
                 {
-                    return TryError::Err(agent.throw_allocation_exception(err, gc)).into();
+                    return agent.throw_allocation_exception(err, gc).into();
                 };
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.

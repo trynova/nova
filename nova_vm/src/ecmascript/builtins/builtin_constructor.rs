@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         execution::{
             Agent, Environment, ExecutionContext, JsResult, PrivateEnvironment, ProtoIntrinsics,
-            agent::ExceptionType,
+            agent::{ExceptionType, TryError, TryResult},
         },
         scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::class_definitions::{
@@ -30,7 +30,7 @@ use crate::{
         },
     },
     engine::{
-        Executable, TryError, TryResult,
+        Executable,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },

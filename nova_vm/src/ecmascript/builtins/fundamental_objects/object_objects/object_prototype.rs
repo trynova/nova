@@ -16,16 +16,13 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
             ordinary::caches::PropertyLookupCache, primitive_objects::PrimitiveObjectData,
         },
-        execution::{Agent, JsResult, Realm},
+        execution::{Agent, JsResult, Realm, agent::TryError},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
             String, TryGetResult, Value, handle_try_get_result,
         },
     },
-    engine::{
-        TryError,
-        context::{Bindable, GcScope},
-    },
+    engine::context::{Bindable, GcScope},
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 

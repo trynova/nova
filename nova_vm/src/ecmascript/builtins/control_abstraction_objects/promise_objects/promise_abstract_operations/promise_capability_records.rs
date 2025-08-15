@@ -15,12 +15,11 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
+            agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
         },
         types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },

@@ -10,7 +10,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::ordinary_object_create_with_intrinsics,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::unwrap_try},
         fundamental_objects::function_objects::function_constructor::{
             DynamicFunctionKind, create_dynamic_function,
         },
@@ -19,10 +19,7 @@ use crate::{
             String, Value,
         },
     },
-    engine::{
-        context::{Bindable, GcScope},
-        unwrap_try,
-    },
+    engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 

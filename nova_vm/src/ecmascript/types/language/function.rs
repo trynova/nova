@@ -26,11 +26,10 @@ use crate::{
             ordinary::caches::{PropertyLookupCache, PropertyOffset},
             promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
         types::PropertyDescriptor,
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },

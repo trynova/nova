@@ -25,7 +25,10 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, TryResult, js_result_into_try, try_result_into_js, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
@@ -33,11 +36,9 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, Scoped, TryResult,
+        ScopableCollection, Scoped,
         context::{Bindable, GcScope, NoGcScope},
-        js_result_into_try,
         rootable::Scopable,
-        try_result_into_js, unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };

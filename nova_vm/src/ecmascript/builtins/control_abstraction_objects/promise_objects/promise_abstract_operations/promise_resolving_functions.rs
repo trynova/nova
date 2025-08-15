@@ -11,7 +11,10 @@ use crate::{
             ArgumentsList, ordinary::caches::PropertyLookupCache,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{TryError, TryResult},
+        },
         types::{
             Function, FunctionInternalProperties, InternalMethods, InternalSlots, NoCache, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
@@ -23,7 +26,6 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },

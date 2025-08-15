@@ -11,7 +11,8 @@ use std::{hint::unreachable_unchecked, ops::ControlFlow, ptr::NonNull};
 use crate::{
     ecmascript::{
         execution::{
-            Agent, ExecutionContext, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType,
+            Agent, ExecutionContext, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, TryError, TryResult},
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
@@ -26,7 +27,6 @@ use crate::{
         },
     },
     engine::{
-        TryError, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },

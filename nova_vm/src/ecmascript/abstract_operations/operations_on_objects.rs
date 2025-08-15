@@ -30,7 +30,10 @@ use crate::{
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult, Realm,
-            agent::{ExceptionType, JsError},
+            agent::{
+                ExceptionType, JsError, TryError, TryResult, js_result_into_try,
+                try_result_into_js, unwrap_try,
+            },
             new_class_field_initializer_environment,
         },
         types::{
@@ -41,11 +44,10 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, Scoped, ScopedCollection, TryError, TryResult, Vm,
+        ScopableCollection, Scoped, ScopedCollection, Vm,
         context::{Bindable, GcScope, NoGcScope},
-        instanceof_operator, js_result_into_try,
+        instanceof_operator,
         rootable::{Rootable, Scopable},
-        try_result_into_js, unwrap_try,
     },
     heap::{ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
@@ -2470,7 +2472,7 @@ pub(crate) fn try_private_get<'a>(
 ) -> TryResult<'a, TryGetResult<'a>> {
     let o = o.bind(gc);
     if o.is_proxy() {
-        return TryError::Err(throw_no_proxy_private_names(agent, gc)).into();
+        return throw_no_proxy_private_names(agent, gc).into();
     }
     // 1. Let entry be PrivateElementFind(O, P).
     match private_element_find(agent, o, p) {
@@ -2499,11 +2501,11 @@ pub(crate) fn try_private_get<'a>(
                 // Note: can't call getters in try-methods.
                 TryGetResult::Get(getter).into()
             } else {
-                TryError::Err(throw_no_private_name_getter_error(agent, gc)).into()
+                throw_no_private_name_getter_error(agent, gc).into()
             }
         }
         // 2. If entry is empty, throw a TypeError exception.
-        _ => TryError::Err(throw_no_private_name_error(agent, gc)).into(),
+        _ => throw_no_private_name_error(agent, gc).into(),
     }
 }
 
