@@ -2274,8 +2274,7 @@ impl Vm {
                     ControlFlow::Break(TryBreak::Error(err)) => {
                         return Err(err.unbind().bind(gc.into_nogc()));
                     }
-                    ControlFlow::Break(TryBreak::CannotContinue)
-                    | ControlFlow::Break(TryBreak::FailedToAllocate) => {
+                    ControlFlow::Break(TryBreak::CannotContinue) => {
                         let rval = rval.unbind();
                         let property_key = property_key.unbind();
                         with_vm_gc(
@@ -3955,7 +3954,7 @@ fn handle_get_value_break<'a>(
     with_vm_gc(
         agent,
         vm,
-        |agent, mut gc| match result {
+        |agent, gc| match result {
             ControlFlow::Continue(TryGetValueContinue::Get { getter, receiver }) => {
                 call_function(agent, getter, receiver, None, gc)
             }
@@ -3964,12 +3963,8 @@ fn handle_get_value_break<'a>(
                 receiver,
                 property_key,
             }) => proxy.internal_get(agent, property_key, receiver, gc),
-            ControlFlow::Break(b) => {
-                if matches!(b, TryBreak::FailedToAllocate) {
-                    agent.gc(gc.reborrow());
-                }
-                get_value(agent, &reference, gc)
-            }
+            ControlFlow::Break(TryBreak::Error(err)) => Err(err.bind(gc.into_nogc())),
+            ControlFlow::Break(TryBreak::CannotContinue) => get_value(agent, &reference, gc),
             _ => unreachable!(),
         },
         gc,

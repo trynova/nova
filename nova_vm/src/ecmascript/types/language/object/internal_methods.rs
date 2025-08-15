@@ -589,16 +589,6 @@ pub enum TryBreak<'a> {
     /// > be used when the method would need to perform additional work after
     /// > the JavaScript call is done.
     CannotContinue,
-    /// The method cannot run to completion due to allocation failure.
-    ///
-    /// This should be used to indicate that the heap is likely full and the
-    /// caller should explicitly trigger garbage collection before calling the
-    /// normal method variant.
-    ///
-    /// > Note: the caller should not call the method's Try variant in a loop
-    /// > with explicit garbage collection, as it is possible that the heap is
-    /// > not full and allocation failure is related to method arguments.
-    FailedToAllocate,
     /// The method threw an error.
     Error(JsError<'a>),
 }
@@ -670,7 +660,7 @@ pub fn handle_try_get_result<'a>(
     o: impl InternalMethods<'a>,
     p: PropertyKey,
     result: TryGetResult,
-    mut gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     let p = p.bind(gc.nogc());
     let result = result.bind(gc.nogc());
@@ -691,17 +681,6 @@ pub fn handle_try_get_result<'a>(
             TryBreak::Error(err) => Err(err.unbind().bind(gc.into_nogc())),
             TryBreak::CannotContinue => {
                 o.internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
-            }
-            TryBreak::FailedToAllocate => {
-                let o = o.into_object().scope(agent, gc.nogc());
-                let p = p.scope(agent, gc.nogc());
-                agent.gc(gc.reborrow());
-                // SAFETY: not shared.
-                let p = unsafe { p.take(agent) }.bind(gc.nogc());
-                // SAFETY: not shared.
-                let o = unsafe { o.take(agent) }.bind(gc.nogc());
-                o.unbind()
-                    .internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
             }
         },
     }
