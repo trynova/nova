@@ -2790,6 +2790,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -3098,7 +3099,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             }
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => {
-                TypedArray::Float16Array(data).try_has_property(agent, property_key, gc)
+                TypedArray::Float16Array(data).try_has_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -3603,9 +3604,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 gc,
             ),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(data) => {
-                TypedArray::Float16Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Float16Array(data) => TypedArray::Float16Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).try_set(
                 agent,
