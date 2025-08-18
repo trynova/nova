@@ -1146,7 +1146,7 @@ mod test {
         let key = PropertyKey::Integer(1.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasResult::Offset(1, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Custom(1, result.into_object()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))

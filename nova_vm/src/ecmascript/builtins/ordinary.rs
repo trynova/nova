@@ -136,7 +136,6 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
                 .unwrap();
             d.getter_function(gc)
                 .map_or(TryGetResult::Value(Value::Undefined), TryGetResult::Get)
-                .into()
         }
     }
 
@@ -1037,8 +1036,8 @@ pub(crate) fn ordinary_try_set<'o, 'gc>(
         property_key,
         value,
         receiver,
-        cache,
         own_descriptor,
+        cache,
         gc,
     )
 }
@@ -1075,14 +1074,15 @@ pub(crate) fn ordinary_set<'a>(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
+#[allow(clippy::too_many_arguments)]
 fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     agent: &mut Agent,
     object: impl InternalMethods<'o>,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    cache: Option<PropertyLookupCache>,
     own_descriptor: Option<PropertyDescriptor>,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, SetResult<'gc>> {
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
@@ -1443,7 +1443,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             SetResult::Done.into()
         } else {
             // b. If Receiver is not an Object, return false.
-            return handle_super_set_inner(agent, p, v, receiver, None, gc);
+            handle_super_set_inner(agent, p, v, receiver, None, gc)
         }
     } else {
         let Entry::Occupied(e) = data.descriptors else {

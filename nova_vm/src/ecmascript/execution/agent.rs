@@ -130,15 +130,15 @@ pub enum TryError<'a> {
     /// The method cannot run to completion without calling into JavaScript.
     ///
     /// > Note 1: methods can and are encouraged to delegate any JavaScript
-    /// tail calls to the caller (such as getter, setter, or Proxy trap call at
-    /// the end of a \[\[Get]] or \[\[Set]] method). This variant should be
-    /// used when the method would need to perform additional work after the
-    /// JavaScript call is done.
+    /// > tail calls to the caller (such as getter, setter, or Proxy trap call
+    /// > at the end of a \[\[Get]] or \[\[Set]] method). This variant should
+    /// > be used when the method would need to perform additional work after
+    /// > the JavaScript call is done.
     ///
     /// > Note 2: Returning this error indicates that the entire operation will
-    /// be rerun from start to finish in a GC-capable scope. The Try method
-    /// variant must therefore be undetectable; it cannot perform mutations
-    /// that would affect how the normal variant runs.
+    /// > be rerun from start to finish in a GC-capable scope. The Try method
+    /// > variant must therefore be undetectable; it cannot perform mutations
+    /// > that would affect how the normal variant runs.
     GcError,
 }
 bindable_handle!(TryError);

@@ -4,8 +4,6 @@
 
 //! ## [27.2.1.1 PromiseCapability Records]()
 
-use core::ops::ControlFlow;
-
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{get, try_get},
@@ -242,12 +240,12 @@ impl<'a> PromiseCapability<'a> {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn try_resolve(
+    pub fn try_resolve<'gc>(
         &self,
         agent: &mut Agent,
         resolution: Value,
-        gc: NoGcScope,
-    ) -> TryResult<()> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, ()> {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -297,9 +295,9 @@ impl<'a> PromiseCapability<'a> {
             BUILTIN_STRING_MEMORY.then.into(),
             None,
             gc,
-        ) {
-            ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
-            ControlFlow::Continue(TryGetResult::Value(v)) => v,
+        )? {
+            TryGetResult::Unset => Value::Undefined,
+            TryGetResult::Value(v) => v,
             _ => return TryError::GcError.into(),
         };
 

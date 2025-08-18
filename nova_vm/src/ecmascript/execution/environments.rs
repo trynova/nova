@@ -844,7 +844,7 @@ impl Default for Environments {
 
 /// Result of the HasBinding abstract operation's Try variant.
 ///
-/// > Note: we could return eg. the exact object and offset that a proprety was
+/// > Note: we could return eg. the exact object and offset that a property was
 /// > found at, and cache that for later usage. Experiments showed that it did
 /// > not have a meaningful impact on performance at that time.
 pub(crate) enum TryHasBindingContinue<'a> {
@@ -1049,7 +1049,7 @@ fn handle_try_has_binding_result_cold<'a>(
             }
         },
         ControlFlow::Break(b) => match b {
-            TryError::Err(err) => return Err(err.unbind().bind(gc.into_nogc())),
+            TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
             _ => env.unbind().has_binding(agent, name.unbind(), gc),
         },
     }

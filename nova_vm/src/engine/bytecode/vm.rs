@@ -3915,13 +3915,11 @@ fn handle_set_value_break<'gc>(
             )
             .map(|_| ())
         }
-        ControlFlow::Break(TryError::Err(err)) => {
-            return Err(err.unbind().bind(gc.into_nogc()));
-        }
+        ControlFlow::Break(TryError::Err(err)) => Err(err.unbind().bind(gc.into_nogc())),
         ControlFlow::Break(TryError::GcError) => with_vm_gc(
             agent,
             vm,
-            |agent, gc| put_value(agent, &reference, value, gc),
+            |agent, gc| put_value(agent, reference, value, gc),
             gc,
         ),
     }
@@ -3979,9 +3977,9 @@ fn execute_get_value<'gc>(
 
 #[inline(never)]
 #[cold]
-fn mutate_reference_property_key<'vm, 'gc>(
+fn mutate_reference_property_key<'gc>(
     agent: &mut Agent,
-    vm: &'vm mut Vm,
+    vm: &mut Vm,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Reference<'gc>> {
     let reference = vm.reference.as_ref().unwrap();
@@ -4039,7 +4037,7 @@ fn handle_get_value_break<'a>(
                 property_key,
             }) => proxy.internal_get(agent, property_key, receiver, gc),
             ControlFlow::Break(TryError::Err(err)) => Err(err.bind(gc.into_nogc())),
-            ControlFlow::Break(TryError::GcError) => get_value(agent, &reference, gc),
+            ControlFlow::Break(TryError::GcError) => get_value(agent, reference, gc),
             _ => unreachable!(),
         },
         gc,

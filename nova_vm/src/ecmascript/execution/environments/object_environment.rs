@@ -723,8 +723,8 @@ impl<'e> ObjectEnvironment<'e> {
             match object.get_own_property_at_offset(agent, offset, gc) {
                 TryGetResult::Unset => TryResult::Continue(Value::Undefined),
                 TryGetResult::Value(value) => TryResult::Continue(value),
-                TryGetResult::Get(_function) => return TryError::GcError.into(),
-                TryGetResult::Proxy(_proxy) => return TryError::GcError.into(),
+                TryGetResult::Get(_function) => TryError::GcError.into(),
+                TryGetResult::Proxy(_proxy) => TryError::GcError.into(),
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
