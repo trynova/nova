@@ -13,12 +13,11 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
+            agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -241,12 +240,12 @@ impl<'a> PromiseCapability<'a> {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn try_resolve(
+    pub fn try_resolve<'gc>(
         &self,
         agent: &mut Agent,
         resolution: Value,
-        gc: NoGcScope,
-    ) -> TryResult<()> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, ()> {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -290,7 +289,17 @@ impl<'a> PromiseCapability<'a> {
         // a. Perform RejectPromise(promise, then.[[Value]]).
         // b. Return undefined.
         // 11. Let thenAction be then.[[Value]].
-        let then_action = try_get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc)?;
+        let then_action = match try_get(
+            agent,
+            resolution,
+            BUILTIN_STRING_MEMORY.then.into(),
+            None,
+            gc,
+        )? {
+            TryGetResult::Unset => Value::Undefined,
+            TryGetResult::Value(v) => v,
+            _ => return TryError::GcError.into(),
+        };
 
         // 12. If IsCallable(thenAction) is false, then
         // TODO: Callable proxies

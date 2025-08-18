@@ -32,7 +32,7 @@ use crate::{
         execution::{
             Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
             Realm,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, unwrap_try},
             create_import_binding, create_indirect_import_binding, initialize_import_binding,
             new_module_environment,
         },
@@ -58,7 +58,6 @@ use crate::{
         Executable, ExecutionResult, Scoped, Vm,
         context::{Bindable, GcScope, GcToken, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-        unwrap_try,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };

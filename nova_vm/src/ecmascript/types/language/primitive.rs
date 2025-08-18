@@ -10,7 +10,7 @@ use crate::{
     SmallInteger,
     ecmascript::{builtins::ordinary::caches::PropertyLookupCache, execution::Agent},
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
@@ -18,8 +18,7 @@ use crate::{
 };
 
 use super::{
-    GetCachedResult, IntoValue, NoCache, PropertyKey, SetCachedProps, SetCachedResult, String,
-    Symbol, Value,
+    IntoValue, NoCache, PropertyKey, String, Symbol, TryGetResult, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -77,6 +76,7 @@ pub enum Primitive<'a> {
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
+bindable_handle!(Primitive);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -173,7 +173,7 @@ impl Primitive<'_> {
         p: PropertyKey,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> ControlFlow<TryGetResult<'gc>, NoCache> {
         match self {
             Primitive::Undefined | Primitive::Null => ControlFlow::Continue(NoCache),
             Primitive::Boolean(_)
@@ -191,46 +191,6 @@ impl Primitive<'_> {
                 .unwrap()
                 .get_cached(agent, p, cache, gc),
         }
-    }
-
-    pub(crate) fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        debug_assert_eq!(self.into_value(), props.receiver);
-        match self {
-            Primitive::Undefined | Primitive::Null => NoCache.into(),
-            Primitive::Boolean(_)
-            | Primitive::Symbol(_)
-            | Primitive::Number(_)
-            | Primitive::Integer(_)
-            | Primitive::SmallF64(_)
-            | Primitive::BigInt(_)
-            | Primitive::SmallBigInt(_) => self
-                .object_shape(agent)
-                .unwrap()
-                .set_cached_primitive(agent, props, gc),
-            Primitive::String(_) | Primitive::SmallString(_) => {
-                String::try_from(self).unwrap().set_cached(agent, props, gc)
-            }
-        }
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Primitive<'_> {
-    type Of<'a> = Primitive<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

@@ -28,7 +28,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, try_result_into_js, unwrap_try},
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
@@ -36,10 +36,9 @@ use crate::{
         },
     },
     engine::{
-        ScopableCollection, Scoped, TryResult,
+        ScopableCollection, Scoped,
         context::{Bindable, GcScope},
         rootable::{Rootable, Scopable},
-        unwrap_try,
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -304,8 +303,10 @@ impl ArrayPrototype {
             .bind(gc.nogc());
         let mut scoped_o = None;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = if let TryResult::Continue(len) = try_length_of_array_like(agent, o, gc.nogc()) {
-            len.unbind()?
+        let len = if let Some(len) =
+            try_result_into_js(try_length_of_array_like(agent, o, gc.nogc())).unbind()?
+        {
+            len
         } else {
             scoped_o = Some(o.scope(agent, gc.nogc()));
             let scoped_index = index.scope(agent, gc.nogc());
@@ -315,17 +316,18 @@ impl ArrayPrototype {
             result
         };
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index =
-            if let TryResult::Continue(len) = try_to_integer_or_infinity(agent, index, gc.nogc()) {
-                len.unbind()?.into_i64()
-            } else {
-                scoped_o = Some(scoped_o.unwrap_or_else(|| o.scope(agent, gc.nogc())));
-                let result = to_integer_or_infinity(agent, index.unbind(), gc.reborrow())
-                    .unbind()?
-                    .into_i64();
-                o = scoped_o.unwrap().get(agent).bind(gc.nogc());
-                result
-            };
+        let relative_index = if let Some(len) =
+            try_result_into_js(try_to_integer_or_infinity(agent, index, gc.nogc())).unbind()?
+        {
+            len.into_i64()
+        } else {
+            scoped_o = Some(scoped_o.unwrap_or_else(|| o.scope(agent, gc.nogc())));
+            let result = to_integer_or_infinity(agent, index.unbind(), gc.reborrow())
+                .unbind()?
+                .into_i64();
+            o = scoped_o.unwrap().get(agent).bind(gc.nogc());
+            result
+        };
         // 4. If relativeIndex ≥ 0, then
         let k = if relative_index >= 0 {
             // a. Let k be relativeIndex.
@@ -401,11 +403,7 @@ impl ArrayPrototype {
                 arrays, elements, ..
             } = &mut agent.heap;
             if let Err(err) = arrays[a].elements.reserve(elements, total_len) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    err.to_string(),
-                    gc.into_nogc(),
-                ));
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             }
         }
 
@@ -2197,11 +2195,7 @@ impl ArrayPrototype {
                 .elements
                 .reserve(elements, len as u32 + arg_count as u32)
             {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    err.to_string(),
-                    gc.into_nogc(),
-                ));
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             }
         }
         // 5. For each element E of items, do
@@ -3621,9 +3615,9 @@ impl ArrayPrototype {
                 a.get(agent),
                 pk,
                 from_value.unbind(),
+                None,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
             //    e. Set k to k + 1.
             k += 1;
         }
@@ -3779,9 +3773,9 @@ impl ArrayPrototype {
                 scoped_a.get(agent),
                 pi,
                 i_value.unbind(),
+                None,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
             // d. Set i to i + 1.
             i += 1;
         }
@@ -3795,9 +3789,9 @@ impl ArrayPrototype {
                 scoped_a.get(agent),
                 pi,
                 e.get(agent).unbind(),
+                None,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
             // d. Set i to i + 1.
             i += 1;
         }
@@ -3817,9 +3811,9 @@ impl ArrayPrototype {
                 scoped_a.get(agent),
                 pi,
                 from_value.unbind(),
+                None,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
             // d. Set i to i + 1.
             i += 1;
             // f. Set r to r + 1.
@@ -3904,11 +3898,7 @@ impl ArrayPrototype {
                     arrays, elements, ..
                 } = &mut agent.heap;
                 if let Err(err) = arrays[array].elements.reserve(elements, final_len) {
-                    return Err(agent.throw_exception(
-                        ExceptionType::RangeError,
-                        err.to_string(),
-                        gc.into_nogc(),
-                    ));
+                    return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                 }
                 agent[array].elements.len += arg_count as u32;
                 // Fast path: Copy old items to the end of array,
@@ -4118,9 +4108,9 @@ impl ArrayPrototype {
                 a.get(agent),
                 pk,
                 from_value.unbind(),
+                None,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
             // e. Set k to k + 1.
             k += 1;
         }
@@ -4714,8 +4704,11 @@ fn compare_array_elements<'a>(
         Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
-        let (x, y) = if let TryResult::Continue(x) = try_to_string(agent, x, gc.nogc()) {
-            (x.unbind()?.bind(gc.nogc()), y)
+        let (x, y) = if let Some(x) = try_result_into_js(try_to_string(agent, x, gc.nogc()))
+            .unbind()?
+            .bind(gc.nogc())
+        {
+            (x, y)
         } else {
             let x = to_string(agent, x.unbind(), gc.reborrow())
                 .unbind()?
@@ -4723,8 +4716,11 @@ fn compare_array_elements<'a>(
             (x, scoped_y.get(agent).bind(gc.nogc()))
         };
         // 6. Let yString be ? ToString(y).
-        let (x, y) = if let TryResult::Continue(y) = try_to_string(agent, y, gc.nogc()) {
-            (x, y.unbind()?.bind(gc.nogc()))
+        let (x, y) = if let Some(y) = try_result_into_js(try_to_string(agent, y, gc.nogc()))
+            .unbind()?
+            .bind(gc.nogc())
+        {
+            (x, y)
         } else {
             let x = x.scope(agent, gc.nogc());
             let y = to_string(agent, y.unbind(), gc.reborrow())

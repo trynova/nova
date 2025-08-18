@@ -9,7 +9,7 @@ use crate::{
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
             OrdinaryObject, String, Value,
         },
     },
@@ -75,7 +75,7 @@ impl<'a> StringIterator<'a> {
 
 impl<'a> From<StringIterator<'a>> for Object<'a> {
     fn from(iter: StringIterator<'a>) -> Self {
-        iter.into_object()
+        Object::StringIterator(iter)
     }
 }
 

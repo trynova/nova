@@ -30,14 +30,17 @@ use crate::{
                 data::{TypedArrayArrayLength, TypedArrayHeapData},
             },
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, IntoValue,
             Number, Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
-        Scoped, ScopedCollection, TryResult,
+        Scoped, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -578,13 +581,13 @@ pub(crate) fn typed_array_set_element<'a, O: Viewable>(
 /// > This operation always appears to succeed, but it has no effect when
 /// > attempting to write past the end of a TypedArray or to a TypedArray which
 /// > is backed by a detached ArrayBuffer.
-pub(crate) fn try_typed_array_set_element_generic(
+pub(crate) fn try_typed_array_set_element_generic<'gc>(
     agent: &mut Agent,
     o: TypedArray,
     index: i64,
     value: Value,
-    gc: NoGcScope,
-) -> TryResult<()> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, ()> {
     with_typed_array_viewable!(
         o,
         try_typed_array_set_element::<T>(agent, o, index, value, gc)
@@ -602,26 +605,26 @@ pub(crate) fn try_typed_array_set_element_generic(
 /// > This operation always appears to succeed, but it has no effect when
 /// > attempting to write past the end of a TypedArray or to a TypedArray which
 /// > is backed by a detached ArrayBuffer.
-pub(crate) fn try_typed_array_set_element<O: Viewable>(
+pub(crate) fn try_typed_array_set_element<'gc, O: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     index: i64,
     value: Value,
-    gc: NoGcScope,
-) -> TryResult<()> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, ()> {
     // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
     let num_value = if O::IS_BIGINT {
         if let Ok(v) = BigInt::try_from(value) {
             v.into_numeric()
         } else {
-            return TryResult::Break(());
+            return TryError::GcError.into();
         }
     } else {
         // 2. Otherwise, let numValue be ? ToNumber(value).
         if let Ok(v) = Number::try_from(value) {
             v.into_numeric()
         } else {
-            return TryResult::Break(());
+            return TryError::GcError.into();
         }
     };
     typed_array_set_element_internal::<O>(agent, o, index, num_value, gc);

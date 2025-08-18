@@ -26,7 +26,10 @@ use crate::{
             ordinary::ordinary_object_create_with_intrinsics,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoPrimitive, IntoValue,
             Number, Object, PropertyDescriptor, PropertyKey, ScopedPropertyKey, String, Value,
@@ -36,7 +39,6 @@ use crate::{
         ScopableCollection, Scoped, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -166,9 +168,9 @@ impl JSONObject {
                 root,
                 root_name.unwrap(),
                 unfiltered,
+                None,
                 gc.nogc(),
-            ))
-            .unwrap();
+            ));
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
             let root = root.unbind().into_object().scope(agent, gc.nogc());
@@ -290,7 +292,7 @@ impl JSONObject {
                     let item = if let Ok(v) = String::try_from(v) {
                         // d. If v is a String, then
                         // i. Set item to v.
-                        Some(unwrap_try(to_property_key_simple(agent, v, gc.nogc())))
+                        Some(to_property_key_simple(agent, v, gc.nogc()).unwrap())
                     } else if let Ok(v) = Number::try_from(v) {
                         // e. Else if v is a Number, then
                         // i. Set item to ! ToString(v).
@@ -429,11 +431,7 @@ impl JSONObject {
                 PropertyDescriptor::new_data_descriptor(value),
                 gc.nogc(),
             ) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    err.to_string(),
-                    gc.into_nogc(),
-                ));
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             };
         }
         // 12. Let state be the JSON Serialization Record { [[ReplacerFunction]]: ReplacerFunction, [[Stack]]: stack, [[Indent]]: indent, [[Gap]]: gap, [[PropertyList]]: PropertyList }.
@@ -1284,7 +1282,7 @@ pub(crate) fn value_from_json<'gc>(
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
                 let js_value = value_from_json(agent, value, gc);
                 unwrap_try(try_create_data_property(
-                    agent, array_obj, prop, js_value, gc,
+                    agent, array_obj, prop, js_value, None, gc,
                 ));
             }
             array_obj.into_value()
@@ -1302,7 +1300,9 @@ pub(crate) fn value_from_json<'gc>(
             for (key, value) in json_object.iter() {
                 let prop = PropertyKey::from_str(agent, key, gc);
                 let js_value = value_from_json(agent, value, gc);
-                unwrap_try(try_create_data_property(agent, object, prop, js_value, gc));
+                unwrap_try(try_create_data_property(
+                    agent, object, prop, js_value, None, gc,
+                ));
             }
             object.into()
         }

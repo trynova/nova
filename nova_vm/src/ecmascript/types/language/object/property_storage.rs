@@ -115,7 +115,7 @@ impl<'a> PropertyStorage<'a> {
         // cannot push into the private_fields list. Hence the pointer here is
         // always valid.
         if let Err(err) = unsafe { Self::insert_private_fields(agent, self.0, private_fields) } {
-            return Err(agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc));
+            return Err(agent.throw_allocation_exception(err, gc));
         };
         Ok(())
     }

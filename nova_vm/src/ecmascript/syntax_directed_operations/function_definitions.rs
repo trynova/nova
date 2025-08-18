@@ -28,7 +28,9 @@ use crate::{
             promise::Promise,
             set_function_name,
         },
-        execution::{Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics},
+        execution::{
+            Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics, agent::unwrap_try,
+        },
         scripts_and_modules::source_code::SourceCode,
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
@@ -39,7 +41,6 @@ use crate::{
         Executable, ExecutionResult, FunctionExpression, Vm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::CreateHeapData,
 };
@@ -184,9 +185,9 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
                 configurable: Some(false),
                 ..Default::default()
             },
+            None,
             gc,
-        ))
-        .unwrap();
+        ));
         // }).
     }
 

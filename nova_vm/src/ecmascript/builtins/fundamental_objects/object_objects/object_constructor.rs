@@ -25,17 +25,20 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, TryResult, js_result_into_try, try_result_into_js, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            try_get_result_into_value,
         },
     },
     engine::{
-        ScopableCollection, Scoped, TryResult,
+        ScopableCollection, Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
@@ -504,7 +507,7 @@ impl ObjectConstructor {
         };
         let o = o.scope(agent, gc.nogc());
         // 2. Let key be ? ToPropertyKey(P).
-        let mut key = if let TryResult::Continue(key) = to_property_key_simple(agent, p, nogc) {
+        let mut key = if let Some(key) = to_property_key_simple(agent, p, nogc) {
             key
         } else {
             let scoped_attributes = attributes.scope(agent, nogc);
@@ -515,10 +518,13 @@ impl ObjectConstructor {
             key
         };
         // 3. Let desc be ? ToPropertyDescriptor(Attributes).
-        let desc = if let TryResult::Continue(desc) =
-            PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc())
+        let desc = if let Some(desc) = try_result_into_js(
+            PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc()),
+        )
+        .unbind()?
+        .bind(gc.nogc())
         {
-            desc.unbind()?.bind(gc.nogc())
+            desc
         } else {
             let scoped_key = key.scope(agent, gc.nogc());
             let desc = PropertyDescriptor::to_property_descriptor(
@@ -672,8 +678,7 @@ impl ObjectConstructor {
                         };
                     let key_value_elements = &agent[&agent[entry_element_array].elements];
                     let key = key_value_elements.first().unwrap().unwrap();
-                    let key = to_property_key_simple(agent, key, gc.nogc());
-                    let TryResult::Continue(key) = key else {
+                    let Some(key) = to_property_key_simple(agent, key, gc.nogc()) else {
                         valid = false;
                         break;
                     };
@@ -739,7 +744,7 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let mut obj = to_object(agent, o, gc.nogc()).unbind()?.bind(gc.nogc());
         // 2. Let key be ? ToPropertyKey(P).
-        let key = if let TryResult::Continue(key) = to_property_key_simple(agent, p, gc.nogc()) {
+        let key = if let Some(key) = to_property_key_simple(agent, p, gc.nogc()) {
             key
         } else {
             let scoped_obj = obj.scope(agent, gc.nogc());
@@ -793,7 +798,8 @@ impl ObjectConstructor {
         let mut i = 0;
         for &key in own_keys.iter() {
             // a. Let desc be ? obj.[[GetOwnProperty]](key).
-            let TryResult::Continue(desc) = obj.try_get_own_property(agent, key, gc.nogc()) else {
+            let TryResult::Continue(desc) = obj.try_get_own_property(agent, key, None, gc.nogc())
+            else {
                 break;
             };
             // b. Let descriptor be FromPropertyDescriptor(desc).
@@ -930,7 +936,7 @@ impl ObjectConstructor {
         let mut obj = to_object(agent, arguments.get(0), gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        let key = if let TryResult::Continue(key) = to_property_key_simple(agent, p, gc.nogc()) {
+        let key = if let Some(key) = to_property_key_simple(agent, p, gc.nogc()) {
             key
         } else {
             let scoped_obj = obj.scope(agent, gc.nogc());
@@ -1266,19 +1272,14 @@ fn object_define_properties<'gc>(
     Ok(unsafe { scoped_o.take(agent) })
 }
 
-fn try_object_define_properties<'a, 'gc, T: InternalMethods<'a>>(
+fn try_object_define_properties<'gc, T: 'gc + InternalMethods<'gc>>(
     agent: &mut Agent,
     o: T,
     properties: Value,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<JsResult<'gc, T>> {
+) -> TryResult<'gc, T> {
     // 1. Let props be ? ToObject(Properties).
-    let props = match to_object(agent, properties, gc) {
-        Ok(props) => props,
-        Err(err) => {
-            return TryResult::Continue(Err(err));
-        }
-    };
+    let props = js_result_into_try(to_object(agent, properties, gc))?;
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
     let keys = props.try_own_property_keys(agent, gc)?;
     // 3. Let descriptors be a new empty List.
@@ -1286,7 +1287,7 @@ fn try_object_define_properties<'a, 'gc, T: InternalMethods<'a>>(
     // 4. For each element nextKey of keys, do
     for next_key in keys {
         // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
-        let prop_desc = props.try_get_own_property(agent, next_key, gc)?;
+        let prop_desc = props.try_get_own_property(agent, next_key, None, gc)?;
         // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
         let Some(prop_desc) = prop_desc else {
             continue;
@@ -1295,29 +1296,19 @@ fn try_object_define_properties<'a, 'gc, T: InternalMethods<'a>>(
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = try_get(agent, props, next_key, gc)?;
+        let desc_obj = try_get_result_into_value(try_get(agent, props, next_key, None, gc))?;
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
         let desc = PropertyDescriptor::try_to_property_descriptor(agent, desc_obj, gc)?;
-        let desc = match desc {
-            Ok(desc) => desc,
-            Err(err) => {
-                return TryResult::Continue(Err(err));
-            }
-        };
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
         descriptors.push((next_key, desc));
     }
     // 5. For each element property of descriptors, do
     for (property_key, property_descriptor) in descriptors {
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        if let Err(err) =
-            try_define_property_or_throw(agent, o, property_key, property_descriptor, gc)?
-        {
-            return TryResult::Continue(Err(err));
-        }
+        try_define_property_or_throw(agent, o, property_key, property_descriptor, None, gc)?;
     }
     // 6. Return O.
-    TryResult::Continue(Ok(o))
+    TryResult::Continue(o)
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -1443,6 +1434,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
                 agent,
                 property_key.unbind(),
                 PropertyDescriptor::new_data_descriptor(scoped_v.get(agent)),
+                None,
                 gc.nogc(),
             ));
             // c. Return undefined.
@@ -1543,6 +1535,7 @@ fn get_own_property_descriptors_slow<'gc>(
                 descriptors.get(agent).bind(gc),
                 key.get(gc),
                 descriptor.unbind().into_value(),
+                None,
                 gc,
             )));
         }

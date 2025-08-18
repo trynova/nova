@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use ahash::AHashSet;
 
 use crate::{
@@ -16,21 +18,24 @@ use crate::{
         builtins::ordinary::caches::PropertyLookupCache,
         execution::{
             Agent, JsResult,
-            agent::ExceptionType,
+            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
             environments::{
                 DeclarativeEnvironment, DeclarativeEnvironmentRecord, GlobalEnvironment,
                 ObjectEnvironment, ObjectEnvironmentRecord,
             },
         },
-        types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
+        types::{
+            InternalMethods, Object, PropertyDescriptor, PropertyKey, SetResult, String, Value,
+        },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
+
+use super::TryHasBindingContinue;
 
 /// ### [9.1.1.4 Global Environment Records](https://tc39.es/ecma262/#sec-global-environment-records)
 ///
@@ -156,25 +161,29 @@ pub(crate) fn new_global_environment<'a>(
 }
 
 impl<'e> GlobalEnvironment<'e> {
+    pub(crate) fn get_binding_object(self, agent: &Agent) -> Object<'e> {
+        agent[self].object_record.get_binding_object(agent)
+    }
+
     /// ### Try [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Global Environment Record envRec
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if the
     /// argument identifier is one of the identifiers bound by the record.
-    pub(crate) fn try_has_binding(
+    pub(crate) fn try_has_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
-            return TryResult::Continue(true);
+            return TryHasBindingContinue::Result(true).into();
         }
 
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
@@ -286,14 +295,14 @@ impl<'e> GlobalEnvironment<'e> {
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V. An
     /// uninitialized binding for N must already exist.
-    pub(crate) fn try_initialize_binding<'a>(
+    pub(crate) fn try_initialize_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -302,7 +311,7 @@ impl<'e> GlobalEnvironment<'e> {
         if dcl_rec.has_binding(agent, name) {
             // a. Return ! DclRec.InitializeBinding(N, V).
             dcl_rec.initialize_binding(agent, name, value);
-            TryResult::Continue(Ok(()))
+            SetResult::Done.into()
         } else {
             // 3. Assert: If the binding exists, it must be in the Object Environment Record.
             // 4. Let ObjRec be envRec.[[ObjectRecord]].
@@ -360,15 +369,15 @@ impl<'e> GlobalEnvironment<'e> {
     /// If the binding is an immutable binding and S is true, a TypeError is
     /// thrown. A property named N normally already exists but if it does not
     /// or is not currently writable, error handling is determined by S.
-    pub(crate) fn try_set_mutable_binding<'a>(
+    pub(crate) fn try_set_mutable_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -376,7 +385,11 @@ impl<'e> GlobalEnvironment<'e> {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
-            TryResult::Continue(dcl_rec.set_mutable_binding(agent, name, value, is_strict, gc))
+            js_result_into_try(
+                dcl_rec
+                    .set_mutable_binding(agent, name, value, is_strict, gc)
+                    .map(|_| SetResult::Done),
+            )
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -454,7 +467,7 @@ impl<'e> GlobalEnvironment<'e> {
         cache: Option<PropertyLookupCache>,
         s: bool,
         gc: NoGcScope<'e, '_>,
-    ) -> TryResult<JsResult<'e, Value<'e>>> {
+    ) -> TryResult<'e, Value<'e>> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -462,7 +475,7 @@ impl<'e> GlobalEnvironment<'e> {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, n) {
             // a. Return ? DclRec.GetBindingValue(N, S).
-            TryResult::Continue(dcl_rec.get_binding_value(agent, n, s, gc))
+            js_result_into_try(dcl_rec.get_binding_value(agent, n, s, gc))
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -516,7 +529,7 @@ impl<'e> GlobalEnvironment<'e> {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, bool>> {
+    ) -> TryResult<'a, bool> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -524,7 +537,7 @@ impl<'e> GlobalEnvironment<'e> {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ! DclRec.DeleteBinding(N).
-            return TryResult::Continue(Ok(dcl_rec.delete_binding(agent, name)));
+            return TryResult::Continue(dcl_rec.delete_binding(agent, name));
         }
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc);
@@ -532,7 +545,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
-        let existing_prop = try_has_own_property(agent, global_object, n, gc)?;
+        let existing_prop = try_has_own_property(agent, global_object, n, None, gc)?;
         // 6. If existingProp is true, then
         if existing_prop {
             // a. Let status be ? ObjRec.DeleteBinding(N).
@@ -546,10 +559,10 @@ impl<'e> GlobalEnvironment<'e> {
                 }
             }
             // c. Return status.
-            TryResult::Continue(Ok(status))
+            TryResult::Continue(status)
         } else {
             // 7. Return true.
-            TryResult::Continue(Ok(true))
+            TryResult::Continue(true)
         }
     }
 
@@ -692,12 +705,13 @@ impl<'e> GlobalEnvironment<'e> {
     /// completion containing a Boolean or a throw completion. It determines if
     /// the argument identifier is the name of a property of the global object
     /// that must not be shadowed by a global lexical binding.
-    pub(crate) fn try_has_restricted_global_property(
+    pub(crate) fn try_has_restricted_global_property<'gc>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -706,7 +720,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
-        let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
+        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
             return TryResult::Continue(false);
@@ -759,12 +773,13 @@ impl<'e> GlobalEnvironment<'e> {
     /// a corresponding CreateGlobalVarBinding call would succeed if called for
     /// the same argument N. Redundant var declarations and var declarations
     /// for pre-existing global object properties are allowed.
-    pub(crate) fn try_can_declare_global_var(
+    pub(crate) fn try_can_declare_global_var<'gc>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -773,7 +788,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
-        let has_property = try_has_own_property(agent, global_object, n, gc)?;
+        let has_property = try_has_own_property(agent, global_object, n, cache, gc)?;
         // 4. If hasProperty is true, return true.
         if has_property {
             TryResult::Continue(true)
@@ -825,12 +840,13 @@ impl<'e> GlobalEnvironment<'e> {
     /// completion containing a Boolean or a throw completion. It determines if
     /// a corresponding CreateGlobalFunctionBinding call would succeed if
     /// called for the same argument N.
-    pub(crate) fn try_can_declare_global_function(
+    pub(crate) fn try_can_declare_global_function<'gc>(
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -839,7 +855,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
+        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
         let Some(existing_prop) = existing_prop else {
             return try_is_extensible(agent, global_object, gc);
@@ -920,7 +936,7 @@ impl<'e> GlobalEnvironment<'e> {
         cache: PropertyLookupCache,
         is_deletable: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -929,21 +945,15 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let has_property = try_has_own_property(agent, global_object, n, gc)?;
+        let has_property = try_has_own_property(agent, global_object, n, Some(cache), gc)?;
         // 4. Let extensible be ? IsExtensible(globalObject).
         let extensible = try_is_extensible(agent, global_object, gc)?;
         // 5. If hasProperty is false and extensible is true, then
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            if let Err(err) = obj_rec.try_create_mutable_binding(agent, name, is_deletable, gc)? {
-                return TryResult::Continue(Err(err));
-            }
+            obj_rec.try_create_mutable_binding(agent, name, is_deletable, Some(cache), gc)?;
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            if let Err(err) =
-                obj_rec.try_initialize_binding(agent, name, Some(cache), Value::Undefined, gc)?
-            {
-                return TryResult::Continue(Err(err));
-            }
+            obj_rec.try_initialize_binding(agent, name, Some(cache), Value::Undefined, gc)?;
         }
 
         // 6. If envRec.[[VarNames]] does not contain N, then
@@ -952,7 +962,7 @@ impl<'e> GlobalEnvironment<'e> {
         env_rec.var_names.insert(name.unbind());
 
         // 7. Return UNUSED.
-        TryResult::Continue(Ok(()))
+        TryResult::Continue(())
     }
 
     /// ### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
@@ -1044,8 +1054,9 @@ impl<'e> GlobalEnvironment<'e> {
         name: String,
         value: Value,
         d: bool,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         let env = self.bind(gc);
         let env_rec = &agent[env];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -1054,7 +1065,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
+        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then
         let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
             // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.
@@ -1079,19 +1090,16 @@ impl<'e> GlobalEnvironment<'e> {
             }
         };
         // 6. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
-        if let Err(err) = try_define_property_or_throw(agent, global_object, n, desc, gc)? {
-            return TryResult::Continue(Err(err));
-        }
+        try_define_property_or_throw(agent, global_object, n, desc, cache, gc)?;
         // 7. Perform ? Set(globalObject, N, V, false).
-        if let Err(err) = try_set(agent, global_object, n, value, false, gc)? {
-            return TryResult::Continue(Err(err));
-        }
+        try_set(agent, global_object, n, value, false, None, gc)?;
+
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
         let env_rec = &mut agent[env];
         env_rec.var_names.insert(name.unbind());
         // 9. Return UNUSED.
-        TryResult::Continue(Ok(()))
+        TryResult::Continue(())
         // NOTE
         // Global function declarations are always represented as own
         // properties of the global object. If possible, an existing own

@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{get, try_create_data_property_or_throw},
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, agent::unwrap_try},
         types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
     },
     engine::{
@@ -18,7 +18,6 @@ use crate::{
         context::{Bindable, GcScope},
         iterator::ActiveIterator,
         rootable::Scopable,
-        unwrap_try,
     },
 };
 
@@ -91,9 +90,9 @@ pub(super) fn execute_simple_array_binding<'a>(
                                     rest.get(agent),
                                     PropertyKey::from(idx),
                                     result.unbind(),
+                                    None,
                                     gc.nogc(),
-                                ))
-                                .unwrap();
+                                ));
                                 idx += 1;
                             }
                             iterator_is_done = true;

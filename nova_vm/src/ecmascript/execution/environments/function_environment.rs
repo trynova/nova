@@ -7,7 +7,7 @@ use crate::{
         builtins::{ECMAScriptFunction, ThisMode},
         execution::{
             Agent, JsResult,
-            agent::ExceptionType,
+            agent::{ExceptionType, unwrap_try},
             environments::{
                 DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment,
                 FunctionEnvironment,
@@ -15,10 +15,7 @@ use crate::{
         },
         types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
     },
-    engine::{
-        context::{Bindable, NoGcScope},
-        unwrap_try,
-    },
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

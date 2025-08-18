@@ -11,13 +11,15 @@ use crate::{
         builtins::{
             ArgumentsList, BuiltinConstructorFunction, ordinary::ordinary_create_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, unwrap_try},
+        },
         types::{Function, InternalMethods, Object},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
-        unwrap_try,
     },
 };
 

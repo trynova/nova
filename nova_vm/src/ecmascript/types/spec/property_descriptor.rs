@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -9,13 +11,18 @@ use crate::{
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        builtins::ordinary::caches::PropertyLookupCache,
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject, Value,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
+            TryHasResult, Value, try_get_result_into_value,
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -483,74 +490,121 @@ impl<'a> PropertyDescriptor<'a> {
         agent: &mut Agent,
         obj: Value,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, Self>> {
+    ) -> TryResult<'a, Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Property descriptor must be an object",
-                gc,
-            )));
+            return agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Property descriptor must be an object",
+                    gc,
+                )
+                .into();
         };
         // 2. Let desc be a new Property Descriptor that initially has no
         // fields.
         let mut desc = PropertyDescriptor::default();
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
-        let has_enumerable =
-            try_has_property(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.enumerable.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_enumerable = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
+            },
+            ControlFlow::Break(_) => return TryError::GcError.into(),
+        };
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
-            let enumerable = try_get(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into(), gc)?;
+            let enumerable = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             let enumerable = to_boolean(agent, enumerable);
             // b. Set desc.[[Enumerable]] to enumerable.
             desc.enumerable = Some(enumerable);
         }
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
-        let has_configurable =
-            try_has_property(agent, obj, BUILTIN_STRING_MEMORY.configurable.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.configurable.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_configurable = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
+            },
+            ControlFlow::Break(_) => return TryError::GcError.into(),
+        };
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
-            let configurable = try_get(agent, obj, BUILTIN_STRING_MEMORY.configurable.into(), gc)?;
+            let configurable = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             let configurable = to_boolean(agent, configurable);
             // b. Set desc.[[Configurable]] to configurable.
             desc.configurable = Some(configurable);
         }
         // 7. Let hasValue be ? HasProperty(Obj, "value").
-        let has_value = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.value.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.value.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_value = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
+            },
+            ControlFlow::Break(_) => return TryError::GcError.into(),
+        };
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
-            let value = try_get(agent, obj, BUILTIN_STRING_MEMORY.value.into(), gc)?;
+            let value = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             // b. Set desc.[[Value]] to value.
             desc.value = Some(value.unbind());
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
-        let has_writable = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.writable.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.writable.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_writable = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
+            },
+            ControlFlow::Break(_) => return TryError::GcError.into(),
+        };
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
-            let writable = try_get(agent, obj, BUILTIN_STRING_MEMORY.writable.into(), gc)?;
+            let writable = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             let writable = to_boolean(agent, writable);
             // b. Set desc.[[Writable]] to writable.
             desc.writable = Some(writable);
         }
         // 11. Let hasGet be ? HasProperty(Obj, "get").
-        let has_get = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.get.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_get = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
+            },
+            ControlFlow::Break(_) => return TryError::GcError.into(),
+        };
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = try_get(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc)?;
+            let getter = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter, gc) else {
-                    return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "getter is not callable",
-                        gc,
-                    )));
+                    return agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "getter is not callable",
+                            gc,
+                        )
+                        .into();
                 };
                 // c. Set desc.[[Get]] to getter.
                 desc.get = Some(Some(getter.unbind()));
@@ -559,20 +613,31 @@ impl<'a> PropertyDescriptor<'a> {
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
-        let has_set = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc)?;
+        let key = BUILTIN_STRING_MEMORY.set.into();
+        let cache = PropertyLookupCache::get(agent, key);
+        let has_set = match try_has_property(agent, obj, key, cache, gc) {
+            ControlFlow::Continue(c) => match c {
+                TryHasResult::Unset => false,
+                TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => true,
+                TryHasResult::Proxy(_) => return TryError::GcError.into(),
+            },
+            ControlFlow::Break(_) => return TryError::GcError.into(),
+        };
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = try_get(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc)?;
+            let setter = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter, gc) else {
-                    return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "setter is not callable",
-                        gc,
-                    )));
+                    return agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "setter is not callable",
+                            gc,
+                        )
+                        .into();
                 };
                 // c. Set desc.[[Set]] to setter.
                 desc.set = Some(Some(setter.unbind()));
@@ -585,15 +650,17 @@ impl<'a> PropertyDescriptor<'a> {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
             if desc.value.is_some() || desc.writable.is_some() {
-                return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Over-defined property descriptor",
-                    gc,
-                )));
+                return agent
+                    .throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Over-defined property descriptor",
+                        gc,
+                    )
+                    .into();
             }
         }
         // 16. Return desc.
-        TryResult::Continue(Ok(desc))
+        TryResult::Continue(desc)
     }
 
     /// ### [6.2.6.6 CompletePropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-completepropertydescriptor)

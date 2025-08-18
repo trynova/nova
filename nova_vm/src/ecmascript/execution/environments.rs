@@ -25,6 +25,7 @@
 //! of the current evaluation of the surrounding function.
 
 use core::{marker::PhantomData, num::NonZeroU32};
+use std::ops::ControlFlow;
 
 mod declarative_environment;
 mod function_environment;
@@ -54,18 +55,22 @@ pub(crate) use private_environment::{
 
 use crate::{
     ecmascript::{
-        builtins::ordinary::caches::PropertyLookupCache,
-        types::{IntoValue, Object, Reference, String, Value},
+        builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
+        types::{
+            InternalMethods, IntoValue, Object, Reference, SetResult, String, TryHasResult, Value,
+        },
     },
     engine::{
-        TryResult,
-        context::{Bindable, GcScope, GcToken, NoGcScope},
+        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-use super::{Agent, JsResult};
+use super::{
+    Agent, JsResult,
+    agent::{TryError, TryResult, js_result_into_try},
+};
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
 ///
@@ -268,6 +273,7 @@ pub(crate) enum Environment<'a> {
     Module(ModuleEnvironment<'a>),
     Object(ObjectEnvironment<'a>),
 }
+bindable_handle!(Environment);
 
 impl<'e> Environment<'e> {
     pub(crate) fn get_outer_env(self, agent: &Agent) -> OuterEnv<'e> {
@@ -284,18 +290,24 @@ impl<'e> Environment<'e> {
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
-    pub(crate) fn try_has_binding(
+    pub(crate) fn try_has_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
         match self {
-            Environment::Declarative(e) => TryResult::Continue(e.has_binding(agent, name)),
-            Environment::Function(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Declarative(e) => {
+                TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
+            }
+            Environment::Function(e) => {
+                TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
+            }
             Environment::Global(e) => e.try_has_binding(agent, name, cache, gc),
-            Environment::Module(e) => TryResult::Continue(e.has_binding(agent, name)),
+            Environment::Module(e) => {
+                TryHasBindingContinue::Result(e.has_binding(agent, name)).into()
+            }
             Environment::Object(e) => e.try_has_binding(agent, name, cache, gc),
         }
     }
@@ -329,25 +341,28 @@ impl<'e> Environment<'e> {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+    ) -> TryResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
                 e.create_mutable_binding(agent, name, is_deletable);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Function(e) => {
                 e.create_mutable_binding(agent, name, is_deletable);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
             Environment::Global(e) => {
-                TryResult::Continue(e.create_mutable_binding(agent, name, is_deletable, gc))
+                js_result_into_try(e.create_mutable_binding(agent, name, is_deletable, gc))
             }
             Environment::Module(e) => {
                 e.create_mutable_binding(agent, name, is_deletable);
-                TryResult::Continue(Ok(()))
+                TryResult::Continue(())
             }
-            Environment::Object(e) => e.try_create_mutable_binding(agent, name, is_deletable, gc),
+            Environment::Object(e) => {
+                e.try_create_mutable_binding(agent, name, is_deletable, cache, gc)
+            }
         }
     }
 
@@ -425,27 +440,27 @@ impl<'e> Environment<'e> {
     /// Environment Record. The String value N is the text of the bound name.
     /// V is the value for the binding and is a value of any ECMAScript
     /// language type.
-    pub(crate) fn try_initialize_binding<'a>(
+    pub(crate) fn try_initialize_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
             Environment::Declarative(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(Ok(()))
+                SetResult::Done.into()
             }
             Environment::Function(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(Ok(()))
+                SetResult::Done.into()
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, cache, value, gc),
             Environment::Module(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(Ok(()))
+                SetResult::Done.into()
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, cache, value, gc),
         }
@@ -490,28 +505,33 @@ impl<'e> Environment<'e> {
     /// value for the binding and may be a value of any ECMAScript language
     /// type. S is a Boolean flag. If S is true and the binding cannot be set
     /// throw a TypeError exception.
-    pub(crate) fn try_set_mutable_binding<'a>(
+    pub(crate) fn try_set_mutable_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, ()>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
-            Environment::Declarative(e) => {
-                TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
-            }
-            Environment::Function(e) => {
-                TryResult::Continue(e.set_mutable_binding(agent, name, value, is_strict, gc))
-            }
+            Environment::Declarative(e) => js_result_into_try(
+                e.set_mutable_binding(agent, name, value, is_strict, gc)
+                    .map(|_| SetResult::Done),
+            ),
+            Environment::Function(e) => js_result_into_try(
+                e.set_mutable_binding(agent, name, value, is_strict, gc)
+                    .map(|_| SetResult::Done),
+            ),
             Environment::Global(e) => {
                 e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
             }
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                TryResult::Continue(e.set_mutable_binding(agent, name, value, gc))
+                js_result_into_try(
+                    e.set_mutable_binding(agent, name, value, gc)
+                        .map(|_| SetResult::Done),
+                )
             }
             Environment::Object(e) => {
                 e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
@@ -568,20 +588,20 @@ impl<'e> Environment<'e> {
         cache: Option<PropertyLookupCache>,
         is_strict: bool,
         gc: NoGcScope<'e, '_>,
-    ) -> TryResult<JsResult<'e, Value<'e>>> {
+    ) -> TryResult<'e, Value<'e>> {
         match self {
             Environment::Declarative(e) => {
-                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+                js_result_into_try(e.get_binding_value(agent, name, is_strict, gc))
             }
             Environment::Function(e) => {
-                TryResult::Continue(e.get_binding_value(agent, name, is_strict, gc))
+                js_result_into_try(e.get_binding_value(agent, name, is_strict, gc))
             }
             Environment::Global(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
             Environment::Module(e) => {
                 let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
-                    return TryResult::Continue(Err(throw_uninitialized_binding(agent, name, gc)));
+                    return throw_uninitialized_binding(agent, name, gc).into();
                 };
-                TryResult::Continue(Ok(value))
+                TryResult::Continue(value)
             }
             Environment::Object(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
         }
@@ -635,19 +655,17 @@ impl<'e> Environment<'e> {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'a, '_>,
-    ) -> TryResult<JsResult<'a, bool>> {
+    ) -> TryResult<'a, bool> {
         match self {
-            Environment::Declarative(e) => TryResult::Continue(Ok(e.delete_binding(agent, name))),
-            Environment::Function(e) => TryResult::Continue(Ok(e.delete_binding(agent, name))),
+            Environment::Declarative(e) => TryResult::Continue(e.delete_binding(agent, name)),
+            Environment::Function(e) => TryResult::Continue(e.delete_binding(agent, name)),
             Environment::Global(e) => e.try_delete_binding(agent, name, gc),
             // NOTE: Module Environment Records are only used within strict
             // code and an early error rule prevents the delete operator, in
             // strict code, from being applied to a Reference Record that would
             // resolve to a Module Environment Record binding. See 13.5.1.1.
             Environment::Module(_) => unreachable!(),
-            Environment::Object(e) => {
-                TryResult::Continue(Ok(e.try_delete_binding(agent, name, gc)?))
-            }
+            Environment::Object(e) => TryResult::Continue(e.try_delete_binding(agent, name, gc)?),
         }
     }
 
@@ -728,21 +746,6 @@ impl<'e> Environment<'e> {
             Environment::Object(e) => e.with_base_object(agent),
             _ => None,
         }
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Environment<'_> {
-    type Of<'a> = Environment<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -839,6 +842,54 @@ impl Default for Environments {
     }
 }
 
+/// Result of the HasBinding abstract operation's Try variant.
+///
+/// > Note: we could return eg. the exact object and offset that a property was
+/// > found at, and cache that for later usage. Experiments showed that it did
+/// > not have a meaningful impact on performance at that time.
+pub(crate) enum TryHasBindingContinue<'a> {
+    Result(bool),
+    /// A Proxy trap call is needed.
+    ///
+    /// This means that the method ran to completion but could not call the
+    /// Proxy trap itself.
+    Proxy(Proxy<'a>),
+}
+bindable_handle!(TryHasBindingContinue);
+
+impl<'a> TryFrom<TryHasBindingContinue<'a>> for bool {
+    type Error = Proxy<'a>;
+
+    fn try_from(value: TryHasBindingContinue<'a>) -> Result<Self, Self::Error> {
+        match value {
+            TryHasBindingContinue::Result(bool) => Ok(bool),
+            TryHasBindingContinue::Proxy(proxy) => Err(proxy),
+        }
+    }
+}
+
+impl<'a> From<TryHasResult<'a>> for TryHasBindingContinue<'a> {
+    fn from(value: TryHasResult<'a>) -> Self {
+        match value {
+            TryHasResult::Unset => Self::Result(false),
+            TryHasResult::Offset(_, _) | TryHasResult::Custom(_, _) => Self::Result(true),
+            TryHasResult::Proxy(proxy) => Self::Proxy(proxy),
+        }
+    }
+}
+
+impl<'a> From<TryHasResult<'a>> for TryResult<'a, TryHasBindingContinue<'a>> {
+    fn from(value: TryHasResult<'a>) -> Self {
+        Self::Continue(value.into())
+    }
+}
+
+impl<'a> From<TryHasBindingContinue<'a>> for TryResult<'a, TryHasBindingContinue<'a>> {
+    fn from(value: TryHasBindingContinue<'a>) -> Self {
+        Self::Continue(value)
+    }
+}
+
 /// ### Try [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
 ///
 /// The abstract operation GetIdentifierReference takes arguments env (an
@@ -852,13 +903,19 @@ pub(crate) fn try_get_identifier_reference<'a>(
     cache: Option<PropertyLookupCache>,
     strict: bool,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<Reference<'a>> {
+) -> TryResult<'a, Reference<'a>> {
     let env = env.bind(gc);
     let name = name.bind(gc);
     let cache = cache.bind(gc);
     // 1. If env is null, then
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = env.try_has_binding(agent, name, cache, gc)?;
+    let exists = if let ControlFlow::Continue(TryHasBindingContinue::Result(exists)) =
+        env.try_has_binding(agent, name, cache, gc)
+    {
+        exists
+    } else {
+        return TryError::GcError.into();
+    };
 
     // 3. If exists is true, then
     if exists {
@@ -921,26 +978,30 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let exists =
-        if let TryResult::Continue(result) = env.try_has_binding(agent, name, cache, gc.nogc()) {
-            result
-        } else {
-            let env_scoped = env.scope(agent, gc.nogc());
-            let name_scoped = name.scope(agent, gc.nogc());
-            let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
-            let result = env
-                .unbind()
-                .has_binding(agent, name.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            // SAFETY: not shared.
-            unsafe {
-                cache = cache_scoped.map(|c| c.take(agent));
-                name = name_scoped.take(agent);
-                env = env_scoped.take(agent);
-            }
-            result
-        };
+    let exists = env.try_has_binding(agent, name, cache, gc.nogc());
+    let exists = if let ControlFlow::Continue(TryHasBindingContinue::Result(exists)) = exists {
+        exists
+    } else {
+        let env_scoped = env.scope(agent, gc.nogc());
+        let name_scoped = name.scope(agent, gc.nogc());
+        let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
+        let exists = handle_try_has_binding_result_cold(
+            agent,
+            env.unbind(),
+            name.unbind(),
+            exists.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        unsafe {
+            cache = cache_scoped.map(|c| c.take(agent));
+            name = name_scoped.take(agent);
+            env = env_scoped.take(agent);
+        }
+        exists
+    };
 
     // 3. If exists is true, then
     if exists {
@@ -966,6 +1027,31 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
             strict,
             gc,
         )
+    }
+}
+
+#[cold]
+#[inline(never)]
+fn handle_try_has_binding_result_cold<'a>(
+    agent: &mut Agent,
+    env: Environment,
+    name: String,
+    exists: ControlFlow<TryError, TryHasBindingContinue>,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
+    match exists {
+        ControlFlow::Continue(c) => match c {
+            TryHasBindingContinue::Result(exists) => Ok(exists),
+            TryHasBindingContinue::Proxy(proxy) => {
+                proxy
+                    .unbind()
+                    .internal_has_property(agent, name.to_property_key(), gc)
+            }
+        },
+        ControlFlow::Break(b) => match b {
+            TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
+            _ => env.unbind().has_binding(agent, name.unbind(), gc),
+        },
     }
 }
 

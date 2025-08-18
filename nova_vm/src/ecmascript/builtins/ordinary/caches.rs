@@ -8,11 +8,10 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::Agent,
+        execution::{Agent, agent::TryResult},
         types::{InternalMethods, Object, PropertyKey, Value},
     },
     engine::{
-        TryResult,
         context::{Bindable, GcToken, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -450,6 +449,18 @@ pub(crate) struct PropertyLookupCacheResult<'a> {
 }
 
 impl<'a> PropertyLookupCache<'a> {
+    /// Get a property lookup cache entry for the given key if one exists.
+    pub(crate) fn get(agent: &Agent, key: PropertyKey<'a>) -> Option<PropertyLookupCache<'a>> {
+        let hash = key.heap_hash(agent);
+        agent
+            .heap
+            .caches
+            .property_lookup_cache_lookup_table
+            .find(hash, |(k, _)| *k == key)
+            .map(|(_, c)| c.0)
+    }
+
+    /// Get or create a property lookup cache entry for the given key.
     pub(crate) fn new(agent: &mut Agent, key: PropertyKey<'a>) -> PropertyLookupCache<'a> {
         let hash = key.heap_hash(agent);
         let caches = &mut agent.heap.caches;
@@ -475,7 +486,9 @@ impl<'a> PropertyLookupCache<'a> {
         }
     }
 
-    pub(crate) fn find(
+    /// Find a cached property offset (possibly in a prototype) in this
+    /// property lookup cache for the given Object Shape.
+    pub(crate) fn find_cached_property_offset(
         self,
         agent: &Agent,
         shape: ObjectShape<'a>,
@@ -498,20 +511,20 @@ impl<'a> PropertyLookupCache<'a> {
             };
             Some((offset, prototype))
         } else if let Some(next) = record.next {
-            next.find(agent, shape)
+            next.find_cached_property_offset(agent, shape)
         } else {
             None
         }
     }
 
     pub(crate) fn insert_unset(self, agent: &mut Agent, shape: ObjectShape<'a>) {
-        debug_assert!(self.find(agent, shape).is_none());
+        debug_assert!(self.find_cached_property_offset(agent, shape).is_none());
         let offset = PropertyOffset::UNSET;
         let caches = &mut agent.heap.caches;
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, _) = cache.get_mut(caches);
+            let (record, _) = cache.get_record_mut(caches);
             if record.insert(shape, offset).is_some() {
                 return;
             }
@@ -546,7 +559,7 @@ impl<'a> PropertyLookupCache<'a> {
         shape: ObjectShape<'a>,
         index: u32,
     ) {
-        debug_assert!(self.find(agent, shape).is_none());
+        debug_assert!(self.find_cached_property_offset(agent, shape).is_none());
         let Some(offset) = PropertyOffset::new(index) else {
             return;
         };
@@ -554,7 +567,7 @@ impl<'a> PropertyLookupCache<'a> {
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, _) = cache.get_mut(caches);
+            let (record, _) = cache.get_record_mut(caches);
             if record.insert(shape, offset).is_some() {
                 return;
             }
@@ -591,7 +604,7 @@ impl<'a> PropertyLookupCache<'a> {
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, _) = cache.get_mut(caches);
+            let (record, _) = cache.get_record_mut(caches);
             if record.insert_if_not_found(shape, offset).is_some() {
                 return;
             }
@@ -619,7 +632,7 @@ impl<'a> PropertyLookupCache<'a> {
         index: u32,
         prototype: Object<'a>,
     ) {
-        debug_assert!(self.find(agent, shape).is_none());
+        debug_assert!(self.find_cached_property_offset(agent, shape).is_none());
         let Some(offset) = PropertyOffset::new_prototype(index) else {
             return;
         };
@@ -627,7 +640,7 @@ impl<'a> PropertyLookupCache<'a> {
         let mut cache = self;
         let next_to_create = PropertyLookupCache::from_index(caches.property_lookup_caches.len());
         loop {
-            let (record, prototypes) = cache.get_mut(caches);
+            let (record, prototypes) = cache.get_record_mut(caches);
             if let Some(i) = record.insert(shape, offset) {
                 debug_assert!(offset.is_prototype_property());
                 let previous = prototypes.prototypes[i as usize].replace(prototype.unbind());
@@ -673,7 +686,7 @@ impl<'a> PropertyLookupCache<'a> {
     }
 
     #[inline(always)]
-    fn get<'c>(
+    fn get_record<'c>(
         self,
         caches: &'c Caches<'a>,
     ) -> (
@@ -688,7 +701,7 @@ impl<'a> PropertyLookupCache<'a> {
     }
 
     #[inline(always)]
-    fn get_mut<'c>(
+    fn get_record_mut<'c>(
         self,
         caches: &'c mut Caches<'static>,
     ) -> (
@@ -853,7 +866,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new(offset: u32) -> Option<Self> {
+    pub(crate) const fn new(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16))
@@ -866,7 +879,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new_prototype(offset: u32) -> Option<Self> {
+    pub(crate) const fn new_prototype(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16 | Self::PROTOTYPE_BIT_MASK))
@@ -879,7 +892,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new_custom(offset: u32) -> Option<Self> {
+    pub(crate) const fn new_custom(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16 | Self::CUSTOM_STORAGE_BIT_MASK))
@@ -893,7 +906,7 @@ impl PropertyOffset {
     ///
     /// Returns None if the offset is beyond supported limits.
     #[inline(always)]
-    pub(crate) fn new_custom_prototype(offset: u32) -> Option<Self> {
+    pub(crate) const fn new_custom_prototype(offset: u32) -> Option<Self> {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(
@@ -907,26 +920,26 @@ impl PropertyOffset {
     /// Returns true if the property was not set on the Object with this
     /// Object Shape or in its prototype chain.
     #[inline(always)]
-    pub(crate) fn is_unset(self) -> bool {
+    pub(crate) const fn is_unset(self) -> bool {
         (self.0 & Self::UNSET_BIT_MASK) > 0
     }
 
     /// Returns true if the property was found on the Object Shape's prototype.
     #[inline(always)]
-    pub(crate) fn is_prototype_property(self) -> bool {
+    pub(crate) const fn is_prototype_property(self) -> bool {
         (self.0 & Self::PROTOTYPE_BIT_MASK) > 0
     }
 
     /// Returns true if the property was found in the target object or its
     /// prototype's custom property storage.
     #[inline(always)]
-    pub(crate) fn is_custom_property(self) -> bool {
+    pub(crate) const fn is_custom_property(self) -> bool {
         (self.0 & Self::CUSTOM_STORAGE_BIT_MASK) > 0
     }
 
     /// Returns the offset that the property was found at.
     #[inline(always)]
-    pub(crate) fn get_property_offset(self) -> u16 {
+    pub(crate) const fn get_property_offset(self) -> u16 {
         debug_assert!(!self.is_unset());
         self.0 & Self::OFFSET_BIT_MASK
     }

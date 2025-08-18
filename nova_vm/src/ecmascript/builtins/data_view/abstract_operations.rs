@@ -8,11 +8,13 @@ use crate::{
             },
             structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, try_result_into_js},
+        },
         types::{BigInt, IntoNumeric, Number, Numeric, Value, Viewable},
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -185,9 +187,10 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
         .bind(gc.nogc());
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
-    let get_index = if let TryResult::Continue(res) = try_to_index(agent, request_index, gc.nogc())
+    let get_index = if let Some(res) =
+        try_result_into_js(try_to_index(agent, request_index, gc.nogc())).unbind()?
     {
-        res.unbind()? as usize
+        res as usize
     } else {
         let scoped_view = view.scope(agent, gc.nogc());
         let res = to_index(agent, request_index, gc.reborrow()).unbind()? as usize;
@@ -269,9 +272,10 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
         .bind(gc.nogc());
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
-    let get_index = if let TryResult::Continue(res) = try_to_index(agent, request_index, gc.nogc())
+    let get_index = if let Some(res) =
+        try_result_into_js(try_to_index(agent, request_index, gc.nogc())).unbind()?
     {
-        res.unbind()? as usize
+        res as usize
     } else {
         let scoped_view = view.scope(agent, gc.nogc());
         let res = to_index(agent, request_index, gc.reborrow()).unbind()? as usize;

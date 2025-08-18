@@ -3,8 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, GetCachedResult, InternalMethods, IntoValue, NoCache, Number, Numeric,
-    OrdinaryObject, Primitive, PropertyKey, SetCachedProps, SetCachedResult, String,
+    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
     StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
@@ -41,17 +40,19 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
-            ordinary::caches::PropertyLookupCache,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
-        execution::{Agent, JsResult},
+        execution::{
+            Agent, JsResult,
+            agent::{TryResult, try_result_into_js},
+        },
         types::{BUILTIN_STRING_MEMORY, Object},
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
@@ -70,7 +71,6 @@ use core::{
     mem::size_of,
     ops::Index,
 };
-use std::ops::ControlFlow;
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -595,7 +595,7 @@ impl<'a> Value<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<JsResult<'gc, String<'gc>>> {
+    ) -> TryResult<'gc, String<'gc>> {
         try_to_string(agent, self, gc)
     }
 
@@ -622,9 +622,9 @@ impl<'a> Value<'a> {
             // string instead (the result of `String(symbol)`).
             return symbol_idx.unbind().descriptive_string(agent, gc);
         };
-        match self.try_to_string(agent, gc) {
-            TryResult::Continue(result) => result.unwrap(),
-            _ => map_object_to_static_string_repr(self),
+        match try_result_into_js(self.try_to_string(agent, gc)).unwrap() {
+            Some(result) => result,
+            None => map_object_to_static_string_repr(self),
         }
     }
 
@@ -1116,53 +1116,6 @@ impl<'a> Value<'a> {
             }
         }
         Ok(())
-    }
-
-    pub(crate) fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        if let Ok(o) = Object::try_from(self) {
-            o.get_cached(agent, p, cache, gc)
-        } else {
-            Primitive::try_from(self)
-                .unwrap()
-                .get_cached(agent, p, cache, gc)
-        }
-    }
-
-    pub(crate) fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        if let Ok(o) = Object::try_from(self) {
-            o.set_cached(agent, props, gc)
-        } else {
-            Primitive::try_from(self)
-                .unwrap()
-                .set_cached(agent, props, gc)
-        }
-    }
-
-    pub(crate) fn cached_set<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        if let Ok(o) = Object::try_from(self) {
-            o.get_cached(agent, p, cache, gc)
-        } else {
-            Primitive::try_from(self)
-                .unwrap()
-                .get_cached(agent, p, cache, gc)
-        }
     }
 }
 

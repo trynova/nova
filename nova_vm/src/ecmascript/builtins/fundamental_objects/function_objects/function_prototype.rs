@@ -2,11 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::ops::ControlFlow;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_list_from_array_like, get, has_own_property,
+                call_function, create_list_from_array_like, has_own_property,
                 ordinary_has_instance, try_get, try_has_own_property,
             },
             testing_and_comparison::is_callable,
@@ -18,14 +20,17 @@ use crate::{
             BuiltinIntrinsicConstructor, SetFunctionNamePrefix,
             bound_function::bound_function_create, set_function_name,
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
-            Number, OrdinaryObject, PropertyKey, String, Value,
+            Number, OrdinaryObject, PropertyKey, String, TryGetResult, Value,
+            handle_try_get_result,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
@@ -202,6 +207,7 @@ impl FunctionPrototype {
             agent,
             scoped_target.get(agent).into_object(),
             BUILTIN_STRING_MEMORY.length.into(),
+            None,
             gc.nogc(),
         ) {
             result
@@ -221,30 +227,38 @@ impl FunctionPrototype {
         // 6. If targetHasLength is true, then
         if target_has_length {
             // a. Let targetLen be ? Get(Target, "length").
-
-            let target_len = if let TryResult::Continue(result) = try_get(
+            let target_len = try_get(
                 agent,
                 target,
-                BUILTIN_STRING_MEMORY.length.into(),
+                BUILTIN_STRING_MEMORY.length.to_property_key(),
+                None,
                 gc.nogc(),
-            ) {
-                result
-            } else {
-                if scoped_f.is_none() {
-                    scoped_f = Some(f.scope(agent, gc.nogc()));
+            );
+            let target_len = match target_len {
+                ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+                ControlFlow::Continue(TryGetResult::Value(v)) => v,
+                ControlFlow::Break(TryError::Err(e)) => {
+                    return Err(e.unbind().bind(gc.into_nogc()));
                 }
-                let result = get(
-                    agent,
-                    target.unbind(),
-                    BUILTIN_STRING_MEMORY.length.unbind().into(),
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
-                target = scoped_target.get(agent);
-                result
+                _ => {
+                    if scoped_f.is_none() {
+                        scoped_f = Some(f.scope(agent, gc.nogc()));
+                    }
+                    let result = handle_try_get_result(
+                        agent,
+                        target.unbind(),
+                        BUILTIN_STRING_MEMORY.length.to_property_key(),
+                        target_len.unbind(),
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
+                    f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
+                    target = scoped_target.get(agent);
+                    result
+                }
             };
+
             // b. If targetLen is a Number, then
             if let Ok(target_len) = Number::try_from(target_len) {
                 match target_len {
@@ -281,24 +295,33 @@ impl FunctionPrototype {
         // 7. Perform SetFunctionLength(F, L).
         agent[f].length = u8::try_from(l).unwrap_or(u8::MAX);
         // 8. Let targetName be ? Get(Target, "name").
-        let target_name = if let TryResult::Continue(result) =
-            try_get(agent, target, BUILTIN_STRING_MEMORY.name.into(), gc.nogc())
-        {
-            result
-        } else {
-            if scoped_f.is_none() {
-                scoped_f = Some(f.scope(agent, gc.nogc()));
+        let target_name = try_get(
+            agent,
+            target,
+            BUILTIN_STRING_MEMORY.name.to_property_key(),
+            None,
+            gc.nogc(),
+        );
+        let target_name = match target_name {
+            ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+            ControlFlow::Continue(TryGetResult::Value(v)) => v,
+            ControlFlow::Break(TryError::Err(e)) => return Err(e.unbind().bind(gc.into_nogc())),
+            _ => {
+                if scoped_f.is_none() {
+                    scoped_f = Some(f.scope(agent, gc.nogc()));
+                }
+                let result = handle_try_get_result(
+                    agent,
+                    target.unbind(),
+                    BUILTIN_STRING_MEMORY.length.to_property_key(),
+                    target_name.unbind(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
+                result
             }
-            let result = get(
-                agent,
-                target.unbind(),
-                BUILTIN_STRING_MEMORY.name.unbind().into(),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-            f = scoped_f.unwrap().get(agent).bind(gc.nogc());
-            result
         };
         // 9. If targetName is not a String, set targetName to the empty String.
         let target_name = String::try_from(target_name).unwrap_or(String::EMPTY_STRING);

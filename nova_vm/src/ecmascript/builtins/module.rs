@@ -8,7 +8,11 @@ use std::{marker::PhantomData, ops::ControlFlow};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
-        execution::{Agent, JsResult, agent::ExceptionType, throw_uninitialized_binding},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult},
+            throw_uninitialized_binding,
+        },
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::{
                 AbstractModule, AbstractModuleMethods, AbstractModuleSlots, ResolvedBinding,
@@ -16,16 +20,14 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoValue,
-            NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
+            TryHasResult, Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -184,28 +186,32 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         _: &mut Agent,
         _: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<Object<'gc>>> {
+    ) -> TryResult<'gc, Option<Object<'gc>>> {
         TryResult::Continue(None)
     }
 
     /// ### [10.4.6.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-setprototypeof-v)
-    fn try_set_prototype_of(
+    fn try_set_prototype_of<'gc>(
         self,
         _: &mut Agent,
         prototype: Option<Object>,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // This is what it all comes down to in the end.
         TryResult::Continue(prototype.is_none())
     }
 
     /// ### [10.4.6.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-isextensible)
-    fn try_is_extensible(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
+    fn try_is_extensible<'gc>(self, _: &mut Agent, _: NoGcScope<'gc, '_>) -> TryResult<'gc, bool> {
         TryResult::Continue(false)
     }
 
     /// ### [10.4.6.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-preventextensions)
-    fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        _: &mut Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         TryResult::Continue(true)
     }
 
@@ -213,8 +219,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        _cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
@@ -249,9 +256,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self
-                        .try_get(agent, property_key, self.into_value(), gc)?
-                        .unbind();
+                    let value = match self.try_get(agent, property_key, self.into_value(), None, gc)
+                    {
+                        ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+                        ControlFlow::Continue(TryGetResult::Value(v)) => v,
+                        _ => return TryError::GcError.into(),
+                    };
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     TryResult::Continue(Some(PropertyDescriptor {
                         value: Some(value),
@@ -325,13 +335,14 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-defineownproperty-p-desc)
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
@@ -356,7 +367,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
-                let current = self.try_get_own_property(agent, property_key, gc)?;
+                let current = self.try_get_own_property(agent, property_key, cache, gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return TryResult::Continue(false);
@@ -470,12 +481,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-hasproperty-p)
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope,
-    ) -> TryResult<bool> {
+        _cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         match property_key {
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 let p = match property_key {
@@ -488,15 +500,19 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports: &[String] = &agent[self].exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
-                    TryResult::Continue(true)
+                    TryHasResult::Custom(1, self.into_object().bind(gc)).into()
                 } else {
                     // 4. Return false.
-                    TryResult::Continue(false)
+                    TryHasResult::Unset.into()
                 }
             }
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
-                TryResult::Continue(symbol == WellKnownSymbolIndexes::ToStringTag.into())
+                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                    TryHasResult::Custom(0, self.into_object().bind(gc)).into()
+                } else {
+                    TryHasResult::Unset.into()
+                }
             }
             PropertyKey::PrivateName(_) => unreachable!(),
         }
@@ -508,8 +524,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let gc = gc.into_nogc();
-        Ok(unwrap_try(self.try_has_property(agent, property_key, gc)))
+        Ok(!matches!(
+            self.try_has_property(agent, property_key, None, gc.into_nogc()),
+            ControlFlow::Continue(TryHasResult::Unset)
+        ))
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
@@ -518,8 +536,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         _receiver: Value,
+        _cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
         // it must return the same result. An implementation might choose to
@@ -531,9 +550,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    TryResult::Continue(BUILTIN_STRING_MEMORY.Module.into_value())
+                    TryGetResult::Value(BUILTIN_STRING_MEMORY.Module.into_value()).into()
                 } else {
-                    TryResult::Continue(Value::Undefined)
+                    TryGetResult::Unset.into()
                 }
             }
             PropertyKey::PrivateName(_) => unreachable!(),
@@ -549,7 +568,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
-                    TryResult::Continue(Value::Undefined)
+                    TryGetResult::Unset.into()
                 } else {
                     // 4. Let m be O.[[Module]].
                     let m = &agent[self].module;
@@ -568,22 +587,29 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
-                        return TryResult::Continue(
+                        return TryGetResult::Value(
                             get_module_namespace(agent, target_module.unbind(), gc).into_value(),
-                        );
+                        )
+                        .into();
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
                     let target_env = target_module.environment(agent, gc);
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     let Some(target_env) = target_env else {
-                        return TryResult::Break(());
+                        return agent
+                            .throw_exception_with_static_message(
+                                ExceptionType::ReferenceError,
+                                "Attempted to access unlinked module's environment",
+                                gc,
+                            )
+                            .into();
                     };
                     // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
                     if let Some(value) = target_env.get_binding_value(agent, binding_name, true, gc)
                     {
-                        TryResult::Continue(value)
+                        TryGetResult::Value(value).into()
                     } else {
-                        TryResult::Break(())
+                        throw_uninitialized_binding(agent, binding_name, gc).into()
                     }
                 }
             }
@@ -677,15 +703,16 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-set-p-v-receiver)
-    fn try_set(
+    fn try_set<'gc>(
         self,
         _: &mut Agent,
         _: PropertyKey,
         _: Value,
         _: Value,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
-        TryResult::Continue(false)
+        _: Option<PropertyLookupCache>,
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
+        SetResult::Unwritable.into()
     }
 
     fn internal_set<'gc>(
@@ -700,12 +727,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-delete-p)
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, then
@@ -741,7 +768,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         agent: &mut Agent,
         _gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         // 1. Let exports be O.[[Exports]].
         let exports = agent[self]
             .exports
@@ -757,33 +784,12 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     #[inline(always)]
-    fn get_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: PropertyKey,
-        _: PropertyLookupCache,
-        _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        ControlFlow::Continue(NoCache)
-    }
-
-    #[inline(always)]
-    fn set_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: &SetCachedProps,
-        _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        SetCachedResult::Unwritable.into()
-    }
-
-    #[inline(always)]
     fn get_own_property_at_offset<'gc>(
         self,
         _: &Agent,
         _: PropertyOffset,
         _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetResult<'gc> {
         unreachable!()
     }
 }

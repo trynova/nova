@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::{collections::VecDeque, ops::ControlFlow};
+use std::collections::VecDeque;
 
 use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
@@ -20,15 +20,18 @@ use crate::{
             type_conversion::to_boolean,
         },
         builtins::ArgumentsList,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult, try_result_into_js},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, Function, GetCachedResult, InternalMethods, InternalSlots,
-            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String,
+            TryGetResult, TryHasResult, Value,
         },
     },
     engine::{
-        ScopableCollection, TryResult,
+        ScopableCollection,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, Scopable},
     },
@@ -152,8 +155,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         self,
         _: &mut Agent,
         _: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<Object<'gc>>> {
-        TryResult::Break(())
+    ) -> TryResult<'gc, Option<Object<'gc>>> {
+        TryError::GcError.into()
     }
 
     fn internal_get_prototype_of<'gc>(
@@ -174,13 +177,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
         // 5. Let trap be ? GetMethod(handler, "getPrototypeOf").
         let target = target.scope(agent, gc.nogc());
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.getPrototypeOf.into(),
             gc.nogc(),
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             let scoped_handler = handler.scope(agent, gc.nogc());
             let trap = get_object_method(
@@ -257,13 +263,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(handler_proto)
     }
 
-    fn try_set_prototype_of(
+    fn try_set_prototype_of<'gc>(
         self,
         _: &mut Agent,
         _: Option<Object>,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
-        TryResult::Break(())
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
+        TryError::GcError.into()
     }
 
     /// ### 0.5.2 [[[SetPrototypeOf]] ( V )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-setprototypeof-v)
@@ -292,13 +298,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let scoped_target = target.scope(agent, nogc);
         let mut scoped_prototype = None;
         // 5. Let trap be ? GetMethod(handler, "setPrototypeOf").
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.setPrototypeOf.into(),
             nogc,
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             scoped_prototype = prototype.map(|p| p.scope(agent, nogc));
             let scoped_handler = handler.scope(agent, nogc);
@@ -371,8 +380,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(true)
     }
 
-    fn try_is_extensible(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
-        TryResult::Break(())
+    fn try_is_extensible<'gc>(self, _: &mut Agent, _: NoGcScope<'gc, '_>) -> TryResult<'gc, bool> {
+        TryError::GcError.into()
     }
 
     fn internal_is_extensible<'gc>(
@@ -393,13 +402,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
         // 5. Let trap be ? GetMethod(handler, "isExtensible").
         let target = target.scope(agent, gc.nogc());
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.isExtensible.into(),
             gc.nogc(),
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             let scoped_handler = handler.scope(agent, gc.nogc());
             let trap = get_object_method(
@@ -450,8 +462,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(boolean_trap_result)
     }
 
-    fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
-        TryResult::Break(())
+    fn try_prevent_extensions<'gc>(
+        self,
+        _: &mut Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
+        TryError::GcError.into()
     }
 
     fn internal_prevent_extensions<'gc>(
@@ -472,13 +488,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
         // 5. Let trap be ? GetMethod(handler, "preventExtensions").
         let target = target.scope(agent, gc.nogc());
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.preventExtensions.into(),
             gc.nogc(),
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             let scoped_handler = handler.scope(agent, gc.nogc());
             let trap = get_object_method(
@@ -538,9 +557,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         self,
         _: &mut Agent,
         _: PropertyKey,
+        _: Option<PropertyLookupCache>,
         _: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
-        TryResult::Break(())
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
+        TryError::GcError.into()
     }
 
     /// ### 10.5.5 [[[GetOwnProperty]] ( P )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-getownproperty-p)
@@ -569,13 +589,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let scoped_target = target.scope(agent, nogc);
         let mut scoped_property_key = None;
         // 5. Let trap be ? GetMethod(handler, "getOwnPropertyDescriptor").
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor.into(),
             nogc,
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             let scoped_handler = handler.scope(agent, nogc);
             scoped_property_key = Some(property_key.scope(agent, nogc));
@@ -694,11 +717,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         ) {
             Ok(b) => b,
             Err(err) => {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    err.to_string(),
-                    gc.into_nogc(),
-                ));
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             }
         };
         // 15. If valid is false, throw a TypeError exception.
@@ -748,14 +767,15 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(Some(result_desc.unbind()))
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         _: &mut Agent,
         _: PropertyKey,
         _: PropertyDescriptor,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
-        TryResult::Break(())
+        _: Option<PropertyLookupCache>,
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
+        TryError::GcError.into()
     }
 
     fn internal_define_own_property<'gc>(
@@ -874,7 +894,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             Some(target_desc.clone()),
             gc,
         )
-        .map_err(|err| agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc))?;
+        .map_err(|err| agent.throw_allocation_exception(err, gc))?;
         // a. If IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) is false, throw a TypeError exception.
         if !is_compatible {
             let message = format!(
@@ -910,8 +930,14 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(true)
     }
 
-    fn try_has_property(self, _: &mut Agent, _: PropertyKey, _: NoGcScope) -> TryResult<bool> {
-        TryResult::Break(())
+    fn try_has_property<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
+        TryHasResult::Proxy(self.bind(gc)).into()
     }
 
     fn internal_has_property<'gc>(
@@ -937,10 +963,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 5. Let trap be ? GetMethod(handler, "has").
         let scoped_target = target.scope(agent, nogc);
         let scoped_property_key = property_key.scope(agent, nogc);
-        let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.has.into(), nogc)
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.has.into(),
+            nogc,
+        ))
+        .unbind()?
+        .bind(nogc)
         {
-            trap.unbind()?.bind(nogc)
+            trap
         } else {
             let scoped_handler = handler.scope(agent, nogc);
             let trap = get_object_method(
@@ -1031,9 +1063,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &mut Agent,
         _: PropertyKey,
         _: Value,
-        _: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
-        TryResult::Break(())
+        _: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
+        TryGetResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.8 [[Get]] ( P, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver)
@@ -1075,10 +1108,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 5. Let trap be ? GetMethod(handler, "get").
         let scoped_target = target.scope(agent, nogc);
         let scoped_property_key = property_key.scope(agent, nogc);
-        let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.get.into(), nogc)
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.get.into(),
+            nogc,
+        ))
+        .unbind()?
+        .bind(nogc)
         {
-            trap.unbind()?.bind(nogc)
+            trap
         } else {
             let scoped_handler = handler.scope(agent, nogc);
             let scoped_receiver = receiver.scope(agent, nogc);
@@ -1163,15 +1202,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(trap_result.unbind())
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         _: &mut Agent,
         _: PropertyKey,
         _: Value,
         _: Value,
-        _: NoGcScope,
-    ) -> TryResult<bool> {
-        TryResult::Break(())
+        _: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
+        SetResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.9 [[Set]] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver)
@@ -1205,10 +1245,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 5. Let trap be ? GetMethod(handler, "set").
         let scoped_target = target.scope(agent, nogc);
         let scoped_property_key = property_key.scope(agent, nogc);
-        let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.set.into(), nogc)
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.set.into(),
+            nogc,
+        ))
+        .unbind()?
+        .bind(nogc)
         {
-            trap.unbind()?.bind(nogc)
+            trap
         } else {
             let scoped_value = value.scope(agent, nogc);
             let scoped_handler = handler.scope(agent, nogc);
@@ -1302,8 +1348,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(true)
     }
 
-    fn try_delete(self, _: &mut Agent, _: PropertyKey, _: NoGcScope) -> TryResult<bool> {
-        TryResult::Break(())
+    fn try_delete<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
+        TryError::GcError.into()
     }
 
     fn internal_delete<'gc>(
@@ -1327,13 +1378,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let mut scoped_target = None;
         let mut scoped_property_key = None;
         // 5. Let trap be ? GetMethod(handler, "deleteProperty").
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.deleteProperty.into(),
             nogc,
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             let scoped_handler = handler.scope(agent, nogc);
             scoped_target = Some(target.scope(agent, nogc));
@@ -1420,8 +1474,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         self,
         _: &mut Agent,
         _: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
-        TryResult::Break(())
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
+        TryError::GcError.into()
     }
 
     fn internal_own_property_keys<'gc>(
@@ -1441,13 +1495,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .bind(gc.nogc());
         // 5. Let trap be ? GetMethod(handler, "ownKeys").
         let mut scoped_target = None;
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.ownKeys.into(),
             gc.nogc(),
-        ) {
-            trap.unbind()?.bind(gc.nogc())
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            trap
         } else {
             scoped_target = Some(target.scope(agent, gc.nogc()));
             let scoped_handler = handler.scope(agent, gc.nogc());
@@ -1625,39 +1682,15 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     }
 
     #[inline(always)]
-    fn get_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: PropertyKey,
-        _: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        // TODO: Check if self is non-revoked, try to go through the Proxy
-        // without trigger the trap.
-        GetCachedResult::Proxy(self.bind(gc)).into()
-    }
-
-    fn set_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        // TODO: Check if self is non-revoked, try to go through the Proxy
-        // without trigger the trap.
-        SetCachedResult::Proxy(self.bind(gc)).into()
-    }
-
-    #[inline(always)]
     fn get_own_property_at_offset<'gc>(
         self,
         _: &Agent,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetResult<'gc> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        GetCachedResult::Proxy(self.bind(gc)).into()
+        TryGetResult::Proxy(self.bind(gc))
     }
 
     #[inline(always)]
@@ -1667,10 +1700,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &SetCachedProps,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        SetCachedResult::Proxy(self.bind(gc)).into()
+        SetResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)
@@ -1701,10 +1734,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .unbind()?
             .bind(nogc);
         // 5. Let trap be ? GetMethod(handler, "apply").
-        let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.apply.into(), nogc)
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.apply.into(),
+            nogc,
+        ))
+        .unbind()?
+        .bind(nogc)
         {
-            trap.unbind()?.bind(nogc)
+            trap
         } else {
             let scoped_handler = handler.scope(agent, nogc);
             let scoped_target = target.scope(agent, nogc);
@@ -1779,10 +1818,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 3. Assert: IsConstructor(target) is true.
         let mut target = is_constructor(agent, target).unwrap();
         // 6. Let trap be ? GetMethod(handler, "construct").
-        let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.construct.into(), nogc)
+        let trap = if let Some(trap) = try_result_into_js(try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.construct.into(),
+            nogc,
+        ))
+        .unbind()?
+        .bind(nogc)
         {
-            trap.unbind()?.bind(nogc)
+            trap
         } else {
             let scoped_new_target = new_target.scope(agent, nogc);
             let scoped_target = target.scope(agent, nogc);

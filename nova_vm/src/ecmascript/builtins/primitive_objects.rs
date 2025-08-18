@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::ops::ControlFlow;
 
 use crate::{
     SmallInteger,
@@ -12,24 +11,25 @@ use crate::{
             is_compatible_property_descriptor, ordinary_define_own_property, ordinary_delete,
             ordinary_get, ordinary_get_own_property, ordinary_has_property, ordinary_set,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{TryError, TryResult, js_result_into_try, unwrap_try},
+        },
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, GetCachedResult, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoObject, IntoPrimitive, IntoValue,
-            NUMBER_DISCRIMINANT, NoCache, Number, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String,
-            Symbol, Value, bigint::HeapBigInt,
+            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
+            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, Number,
+            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
+            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryGetResult, TryHasResult, Value,
+            bigint::HeapBigInt,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -40,7 +40,7 @@ use small_string::SmallString;
 
 use super::ordinary::{
     caches::PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
-    ordinary_try_has_property_entry, ordinary_try_set, shape::ObjectShape,
+    ordinary_try_has_property, ordinary_try_set, shape::ObjectShape,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -235,8 +235,9 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let o = self.bind(gc);
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -244,8 +245,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 1. Let desc be OrdinaryGetOwnProperty(S, P).
         // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = o.get_backing_object(agent)
-            && let Some(property_descriptor) =
-                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key, gc)
+            && let Some(property_descriptor) = ordinary_get_own_property(
+                agent,
+                o.into_object(),
+                backing_object,
+                property_key,
+                cache,
+                gc,
+            )
         {
             return TryResult::Continue(Some(property_descriptor));
         }
@@ -258,13 +265,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // For string exotic objects:
             // 1. Let stringDesc be StringGetOwnProperty(S, P).
@@ -280,7 +288,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                     gc,
                 ) {
                     Ok(b) => TryResult::Continue(b),
-                    Err(_) => TryResult::Break(()),
+                    Err(_) => TryError::GcError.into(),
                 };
             }
             // 3. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
@@ -289,33 +297,39 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        match ordinary_define_own_property(
+        js_result_into_try(ordinary_define_own_property(
             agent,
             self.into_object(),
             backing_object,
             property_key,
             property_descriptor,
+            cache,
             gc,
-        ) {
-            Ok(b) => TryResult::Continue(b),
-            Err(_) => TryResult::Break(()),
-        }
+        ))
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryResult::Continue(true);
+            return TryHasResult::Custom(0, self.into_object().bind(gc)).into();
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
-        ordinary_try_has_property_entry(agent, self, property_key, gc)
+        ordinary_try_has_property(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            cache,
+            gc,
+        )
     }
 
     fn internal_has_property<'gc>(
@@ -364,35 +378,24 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
-            return TryResult::Continue(value.bind(gc));
+            return TryGetResult::Value(value.bind(gc)).into();
         }
-
         // 1. Return ? OrdinaryGet(O, P, Receiver).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_try_get(
-                agent,
-                self.into_object(),
-                backing_object,
-                property_key,
-                receiver,
-                gc,
-            ),
-            None => {
-                // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc)) else {
-                    // b. If parent is null, return undefined.
-                    return TryResult::Continue(Value::Undefined);
-                };
-
-                // c. Return ? parent.[[Get]](P, Receiver).
-                parent.try_get(agent, property_key, receiver, gc)
-            }
-        }
+        ordinary_try_get(
+            agent,
+            self.into_object(),
+            self.get_backing_object(agent),
+            property_key,
+            receiver,
+            cache,
+            gc,
+        )
     }
 
     fn internal_get<'gc>(
@@ -429,22 +432,23 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryResult::Continue(false);
+            return SetResult::Unwritable.into();
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
     }
 
     fn internal_set<'gc>(
@@ -473,12 +477,12 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         )
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // A String will return unconfigurable descriptors for length and
             // all valid string indexes, making delete return false.
@@ -509,7 +513,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);
@@ -553,39 +557,6 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 TryResult::Continue(ordinary_own_property_keys(agent, backing_object, gc))
             }
             None => TryResult::Continue(vec![]),
-        }
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        if let Ok(string) = String::try_from(agent[self].data)
-            && let Some(value) = string.get_property_value(agent, p)
-        {
-            value.into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.get_cached(agent, p, self.into_value(), cache, gc)
-        }
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        if String::try_from(agent[self].data)
-            .is_ok_and(|s| s.get_property_value(agent, props.p).is_some())
-        {
-            SetCachedResult::Unwritable.into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), props, gc)
         }
     }
 }

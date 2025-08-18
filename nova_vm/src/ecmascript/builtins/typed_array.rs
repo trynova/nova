@@ -10,22 +10,23 @@ use data::TypedArrayArrayLength;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{TryResult, js_result_into_try, unwrap_try},
+        },
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GetCachedResult,
-            INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache, Number, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+            INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
+            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, SetResult, String, TryGetResult, TryHasResult, UINT_8_ARRAY_DISCRIMINANT,
+            UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+            UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -49,7 +50,7 @@ use super::{
     ordinary::{
         caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete, ordinary_get,
         ordinary_get_own_property, ordinary_has_property_entry, ordinary_prevent_extensions,
-        ordinary_set, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
+        ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
         shape::ObjectShape,
     },
 };
@@ -385,7 +386,11 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
 
 impl<'a> InternalMethods<'a> for TypedArray<'a> {
     /// ### [10.4.5.2 Infallible \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-getownproperty)
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. NOTE: The extensibility-related invariants specified in 6.1.7.3
         //    do not allow this method to return true when O can gain (or lose
         //    and then regain) properties, which might occur for properties
@@ -410,8 +415,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let o = self.bind(gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
@@ -441,18 +447,26 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
             TryResult::Continue(o.get_backing_object(agent).and_then(|backing_o| {
-                ordinary_get_own_property(agent, o.into_object(), backing_o, property_key, gc)
+                ordinary_get_own_property(
+                    agent,
+                    o.into_object(),
+                    backing_o,
+                    property_key,
+                    cache,
+                    gc,
+                )
             }))
         }
     }
 
     /// ### [10.4.5.3 Infallible \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-hasproperty)
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -460,10 +474,25 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
-            TryResult::Continue(result.is_some())
+            if let Some(result) = result {
+                TryHasResult::Custom(
+                    result.min(u32::MAX as usize) as u32,
+                    self.into_object().bind(gc),
+                )
+                .into()
+            } else {
+                TryHasResult::Unset.into()
+            }
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
-            ordinary_try_has_property_entry(agent, self, property_key, gc)
+            ordinary_try_has_property(
+                agent,
+                self.into_object(),
+                self.get_backing_object(agent),
+                property_key,
+                cache,
+                gc,
+            )
         }
     }
 
@@ -475,11 +504,10 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         if let PropertyKey::Integer(_) = property_key {
-            Ok(unwrap_try(self.try_has_property(
-                agent,
-                property_key,
-                gc.into_nogc(),
-            )))
+            Ok(!matches!(
+                self.try_has_property(agent, property_key, None, gc.into_nogc()),
+                ControlFlow::Continue(TryHasResult::Unset)
+            ))
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
             ordinary_has_property_entry(agent, self, property_key, gc)
@@ -487,13 +515,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.4 Infallible \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-typedarray-defineownproperty)
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -537,17 +566,15 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            match ordinary_define_own_property(
+            js_result_into_try(ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
-            ) {
-                Ok(b) => TryResult::Continue(b),
-                Err(_) => TryResult::Break(()),
-            }
+            ))
         }
     }
 
@@ -616,11 +643,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 backing_object,
                 property_key,
                 property_descriptor.unbind(),
-                gc.nogc(),
+                None,
+                gc.into_nogc(),
             )
-            .map_err(|err| {
-                agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc.into_nogc())
-            })
         }
     }
 
@@ -630,8 +655,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         mut property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -640,29 +666,20 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // i. Return TypedArrayGetElement(O, numericIndex).
             let numeric_index = numeric_index.into_i64();
             let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
-            TryResult::Continue(result.map_or(Value::Undefined, |v| v.into_value()))
+            result
+                .map_or(TryGetResult::Unset, |v| TryGetResult::Value(v.into_value()))
+                .into()
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
-            match self.get_backing_object(agent) {
-                Some(backing_object) => ordinary_try_get(
-                    agent,
-                    self.into_object(),
-                    backing_object,
-                    property_key,
-                    receiver,
-                    gc,
-                ),
-                None => {
-                    // a. Let parent be ? O.[[GetPrototypeOf]]().
-                    let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
-                        // b. If parent is null, return undefined.
-                        return TryResult::Continue(Value::Undefined);
-                    };
-
-                    // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.try_get(agent, property_key, receiver, gc)
-                }
-            }
+            ordinary_try_get(
+                agent,
+                self.into_object(),
+                self.get_backing_object(agent),
+                property_key,
+                receiver,
+                cache,
+                gc,
+            )
         }
     }
 
@@ -682,13 +699,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc.nogc());
         // b. If numericIndex is not undefined, then
-        if property_key.is_array_index() {
-            Ok(unwrap_try(self.try_get(
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            Ok(typed_array_get_element_generic(
                 agent,
-                property_key.unbind(),
-                receiver.unbind(),
+                self,
+                numeric_index.into_i64(),
                 gc.into_nogc(),
-            )))
+            )
+            .map_or(Value::Undefined, Numeric::into_value))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
@@ -721,14 +739,15 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.6 Infallible \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -740,17 +759,25 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 try_typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
                 // 2. Return true.
-                return TryResult::Continue(true);
+                return SetResult::Done.into();
             } else {
                 // ii. If IsValidIntegerIndex(O, numericIndex) is false, return true.
                 let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
                 if result.is_none() {
-                    return TryResult::Continue(true);
+                    return SetResult::Done.into();
                 }
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(
+            agent,
+            self.into_object(),
+            property_key,
+            value,
+            receiver,
+            cache,
+            gc,
+        )
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
@@ -787,12 +814,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -815,7 +842,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record =
             make_typed_array_with_buffer_witness_record(agent, self, Ordering::SeqCst, gc);
@@ -886,51 +913,6 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         }
         // 6. Return keys.
         TryResult::Continue(keys)
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        mut p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        // Note: we mutate P but only if it turns into a valid integer, in
-        // which case we never enter the get_cached path anyway.
-        ta_canonical_numeric_index_string(agent, &mut p, gc);
-        if let PropertyKey::Integer(numeric_index) = p {
-            // i. Return TypedArrayGetElement(O, numericIndex).
-            let numeric_index = numeric_index.into_i64();
-            let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
-            result.map_or(Value::Undefined, |r| r.into_value()).into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.get_cached(agent, p, self.into_value(), cache, gc)
-        }
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        let mut p = props.p;
-        // Note: we mutate P but only if it turns into a valid integer, in
-        // which case we never enter the get_cached path anyway.
-        ta_canonical_numeric_index_string(agent, &mut p, gc);
-        if let PropertyKey::Integer(numeric_index) = p {
-            // i. Return TypedArrayGetElement(O, numericIndex).
-            let numeric_index = numeric_index.into_i64();
-            // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
-            match try_typed_array_set_element_generic(agent, self, numeric_index, props.value, gc) {
-                TryResult::Continue(_) => SetCachedResult::Done.into(),
-                TryResult::Break(_) => NoCache.into(),
-            }
-        } else {
-            let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), props, gc)
-        }
     }
 }
 

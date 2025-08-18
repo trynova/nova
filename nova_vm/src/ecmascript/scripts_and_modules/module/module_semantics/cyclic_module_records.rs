@@ -16,7 +16,10 @@ use crate::{
                 promise_prototype::inner_promise_then,
             },
         },
-        execution::{Agent, JsResult, agent::JsError},
+        execution::{
+            Agent, JsResult,
+            agent::{JsError, unwrap_try},
+        },
         scripts_and_modules::{
             module::module_semantics::{
                 abstract_module_records::AbstractModuleMethods, get_imported_module,
@@ -29,7 +32,6 @@ use crate::{
         Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

@@ -12,16 +12,13 @@ use oxc_ast::ast;
 use crate::{
     ecmascript::{
         builtins::{Array, array_create},
-        execution::Agent,
+        execution::{Agent, agent::unwrap_try},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
             String, Value,
         },
     },
-    engine::{
-        context::{Bindable, NoGcScope},
-        unwrap_try,
-    },
+    engine::context::{Bindable, NoGcScope},
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},
 };
 

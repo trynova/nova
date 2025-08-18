@@ -5,11 +5,9 @@
 mod data;
 pub mod into_function;
 
-use std::ops::ControlFlow;
-
 use super::{
-    GetCachedResult, InternalMethods, InternalSlots, NoCache, Object, OrdinaryObject, PropertyKey,
-    SetCachedProps, SetCachedResult, String, Value,
+    InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey, SetCachedProps, SetResult,
+    String, TryGetResult, TryHasResult, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -26,11 +24,10 @@ use crate::{
             ordinary::caches::{PropertyLookupCache, PropertyOffset},
             promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
         types::PropertyDescriptor,
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -40,15 +37,15 @@ use crate::{
 pub(crate) use data::*;
 pub use into_function::IntoFunction;
 pub(crate) use into_function::{
-    FunctionInternalProperties, function_create_backing_object, function_get_cached,
+    FunctionInternalProperties, function_create_backing_object,
     function_internal_define_own_property, function_internal_delete, function_internal_get,
     function_internal_get_own_property, function_internal_has_property,
-    function_internal_own_property_keys, function_internal_set, function_set_cached,
-    function_try_get, function_try_has_property, function_try_set,
+    function_internal_own_property_keys, function_internal_set, function_try_get,
+    function_try_has_property, function_try_set,
 };
 
 /// https://tc39.es/ecma262/#function-object
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Function<'a> {
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
@@ -269,7 +266,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<Object<'gc>>> {
+    ) -> TryResult<'gc, Option<Object<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinFunction(x) => x.try_get_prototype_of(agent, gc),
@@ -282,12 +279,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_set_prototype_of(
+    fn try_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
@@ -302,7 +299,11 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_is_extensible<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinFunction(x) => x.try_is_extensible(agent, gc),
@@ -315,7 +316,11 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+    fn try_prevent_extensions<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinFunction(x) => x.try_prevent_extensions(agent, gc),
@@ -332,67 +337,74 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self {
-            Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
-            Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),
-            Function::ECMAScriptFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, cache, gc),
+            Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, cache, gc),
+            Function::ECMAScriptFunction(x) => {
+                x.try_get_own_property(agent, property_key, cache, gc)
+            }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_get_own_property(agent, property_key, gc)
+                x.try_get_own_property(agent, property_key, cache, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_get_own_property(agent, property_key, gc)
+                x.try_get_own_property(agent, property_key, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::ECMAScriptFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
         match self {
-            Function::BoundFunction(x) => x.try_has_property(agent, property_key, gc),
-            Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, gc),
-            Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BoundFunction(x) => x.try_has_property(agent, property_key, cache, gc),
+            Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, cache, gc),
+            Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, cache, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_has_property(agent, property_key, cache, gc)
+            }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_has_property(agent, property_key, gc)
+                x.try_has_property(agent, property_key, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -426,16 +438,19 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
         match self {
-            Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
-            Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, gc),
-            Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
+            Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
+            Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_get(agent, property_key, receiver, cache, gc)
+            }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_get(agent, property_key, receiver, gc)
+                x.try_get(agent, property_key, receiver, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -465,24 +480,31 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
-            Function::BoundFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
-            Function::BuiltinFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
-            Function::ECMAScriptFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
+            Function::BoundFunction(x) => {
+                x.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Function::BuiltinFunction(x) => {
+                x.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Function::ECMAScriptFunction(x) => {
+                x.try_set(agent, property_key, value, receiver, cache, gc)
+            }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_set(agent, property_key, value, receiver, gc)
+                x.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_set(agent, property_key, value, receiver, gc)
+                x.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -517,12 +539,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_delete(agent, property_key, gc),
@@ -539,7 +561,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),
@@ -552,49 +574,12 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        match self {
-            Function::BoundFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::ECMAScriptFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinPromiseResolvingFunction(f) => f.get_cached(agent, p, cache, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-        }
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        match self {
-            Function::BoundFunction(f) => f.set_cached(agent, props, gc),
-            Function::BuiltinFunction(f) => f.set_cached(agent, props, gc),
-            Function::ECMAScriptFunction(f) => f.set_cached(agent, props, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(f) => f.set_cached(agent, props, gc),
-            Function::BuiltinPromiseResolvingFunction(f) => f.set_cached(agent, props, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-        }
-    }
-
     fn get_own_property_at_offset<'gc>(
         self,
         agent: &Agent,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
+    ) -> TryGetResult<'gc> {
         match self {
             Function::BoundFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
             Function::BuiltinFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
@@ -617,7 +602,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         props: &SetCachedProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
             Function::BoundFunction(f) => f.set_at_offset(agent, props, offset, gc),
             Function::BuiltinFunction(f) => f.set_at_offset(agent, props, offset, gc),

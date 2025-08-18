@@ -22,7 +22,10 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array_create, ordinary::get_prototype_from_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics, Realm,
+            agent::{ExceptionType, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
             PropertyKey, String, Value,
@@ -31,7 +34,6 @@ use crate::{
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
@@ -158,9 +160,9 @@ impl ArrayConstructor {
                     array,
                     PropertyKey::from(SmallInteger::zero()),
                     len,
+                    None,
                     gc,
-                ))
-                .unwrap();
+                ));
                 // ii. Let intLen be 1𝔽.
                 // e. Perform ! Set(array, "length", intLen, true).
                 debug_assert_eq!(agent[array].elements.len(), 1);

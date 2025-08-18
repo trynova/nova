@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::ops::ControlFlow;
 use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
@@ -12,7 +13,7 @@ use crate::{
                 get_iterator_from_method, iterator_close_with_value,
             },
             operations_on_objects::{
-                call_function, get, get_method, get_object_method, throw_not_callable,
+                call_function, get, get_method, get_object_method, throw_not_callable, try_get,
             },
             type_conversion::to_boolean,
         },
@@ -26,15 +27,15 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, TryError, TryResult},
         },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, PropertyKeySet, Value,
+            PropertyKey, PropertyKeySet, TryGetResult, Value,
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope, ScopeToken},
         rootable::Scopable,
     },
@@ -268,15 +269,17 @@ impl<'a> VmIteratorRecord<'a> {
                     agent,
                     BUILTIN_STRING_MEMORY.throw.into(),
                     array_iterator_prototype.into_value(),
+                    None,
                     gc,
                 ) {
-                    TryResult::Continue(return_method) => {
-                        !return_method.is_undefined() && !return_method.is_null()
+                    ControlFlow::Continue(TryGetResult::Unset) => false,
+                    ControlFlow::Continue(TryGetResult::Value(v)) => {
+                        !v.is_undefined() && !v.is_null()
                     }
-                    // Note: here it's still possible that we won't actually
-                    // call a return method but this break already means that
-                    // the user can observe the ArrayIterator object.
-                    TryResult::Break(_) => true,
+                    ControlFlow::Break(TryError::Err(_)) => {
+                        todo!()
+                    }
+                    _ => true,
                 }
             }
             VmIteratorRecord::InvalidIterator { iterator }
@@ -286,15 +289,15 @@ impl<'a> VmIteratorRecord<'a> {
                     agent,
                     BUILTIN_STRING_MEMORY.throw.into(),
                     iterator.into_value(),
+                    None,
                     gc,
                 ) {
-                    TryResult::Continue(return_method) => {
-                        !return_method.is_undefined() && !return_method.is_null()
+                    ControlFlow::Continue(TryGetResult::Unset) => false,
+                    ControlFlow::Continue(TryGetResult::Value(v)) => {
+                        !v.is_undefined() && !v.is_null()
                     }
-                    // Note: here it's still possible that we won't actually
-                    // call a return method but this break already means that
-                    // we'll need garbage collection.
-                    TryResult::Break(_) => true,
+                    ControlFlow::Break(TryError::Err(_)) => todo!(),
+                    _ => true,
                 }
             }
         }
@@ -469,6 +472,27 @@ impl<'a> VmIteratorRecord<'a> {
             get_iterator_from_method(agent, obj.unbind(), sync_method.unbind(), gc)?;
         // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
         Ok(create_async_from_sync_iterator(sync_iterator_record))
+    }
+
+    pub(super) fn try_step_value<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, Option<Value<'gc>>> {
+        match self {
+            VmIteratorRecord::InvalidIterator { .. } => throw_not_callable(agent, gc).into(),
+            VmIteratorRecord::ObjectProperties(iter) => iter.try_step_value(agent, gc),
+            VmIteratorRecord::ArrayValues(iter) => iter.try_next(agent, gc),
+            VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
+                // We should never call this for async iterators!
+                unreachable!()
+            }
+            VmIteratorRecord::GenericIterator(_) => TryError::GcError.into(),
+            VmIteratorRecord::SliceIterator(slice_ref) => {
+                TryResult::Continue(slice_ref.unshift(agent, gc))
+            }
+            VmIteratorRecord::EmptySliceIterator => TryResult::Continue(None),
+        }
     }
 }
 
@@ -653,6 +677,89 @@ impl<'a> ObjectPropertiesIteratorRecord<'a> {
             remaining_keys: Default::default(),
         }
     }
+
+    fn object<'gc>(&self, gc: NoGcScope<'gc, '_>) -> Object<'gc> {
+        self.object.bind(gc)
+    }
+
+    fn object_is_visited(&self) -> bool {
+        self.remaining_keys.is_some()
+    }
+
+    fn set_remaining_keys(&mut self, mut remaining_keys: Vec<PropertyKey>) {
+        remaining_keys.reverse();
+        self.remaining_keys = Some(remaining_keys.unbind());
+    }
+
+    fn set_object(&mut self, object: Object) {
+        let iter = self;
+        iter.object = object.unbind();
+        iter.remaining_keys = None;
+    }
+
+    fn next_remaining_key<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<(Object<'gc>, PropertyKey<'gc>)> {
+        loop {
+            let next_key = self.remaining_keys.as_mut().unwrap().pop()?;
+            if self.visited_keys.contains(agent, next_key) {
+                // Skip visited keys.
+                continue;
+            }
+            return Some((self.object.bind(gc), next_key.bind(gc)));
+        }
+    }
+
+    fn mark_key_visited(&mut self, agent: &mut Agent, key: PropertyKey) {
+        self.visited_keys.insert(agent, key);
+    }
+
+    /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
+    ///
+    /// While not exactly equal to the IteratorStepValue method in usage, this
+    /// function implements much the same intent. It does the IteratorNext
+    /// step, followed by a completion check, and finally extracts the value
+    /// if the iterator did not complete yet.
+    fn try_step_value<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, Option<Value<'gc>>> {
+        loop {
+            let object = self.object.bind(gc);
+            if !self.object_is_visited() {
+                let keys = object.try_own_property_keys(agent, gc)?;
+                let mut remaining_keys = Vec::with_capacity(keys.len());
+                for key in keys {
+                    if let PropertyKey::Symbol(_) = key {
+                        continue;
+                    } else {
+                        remaining_keys.push(key);
+                    }
+                }
+                self.set_remaining_keys(remaining_keys);
+            }
+            while let Some((object, next_key)) = self.next_remaining_key(agent, gc) {
+                let desc = object.try_get_own_property(agent, next_key, None, gc)?;
+                if let Some(desc) = desc {
+                    self.mark_key_visited(agent, next_key);
+                    if desc.enumerable == Some(true) {
+                        return TryResult::Continue(Some(
+                            ObjectPropertiesIterator::convert_result(agent, next_key, gc),
+                        ));
+                    }
+                }
+            }
+            let prototype = object.try_get_prototype_of(agent, gc)?;
+            if let Some(prototype) = prototype {
+                self.set_object(prototype);
+            } else {
+                return TryResult::Continue(None);
+            }
+        }
+    }
 }
 
 struct ArrayValuesIterator<'a> {
@@ -812,6 +919,54 @@ impl<'a> ArrayValuesIteratorRecord<'a> {
         // interact with.
         let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
         async_iterator_close_with_value(agent, iter.into_object().unbind(), gc)
+    }
+
+    fn prep_step<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<(Array<'gc>, u32)> {
+        let array = self.array.bind(gc);
+        // iv. Let indexNumber be 𝔽(index).
+        let index = self.index;
+        // 1. Let len be ? LengthOfArrayLike(array).
+        let len = array.len(agent);
+        // iii. If index ≥ len, return NormalCompletion(undefined).
+        if index >= len {
+            return None;
+        }
+        // viii. Set index to index + 1.
+        self.index += 1;
+        Some((array, index))
+    }
+
+    fn try_next<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, Option<Value<'gc>>> {
+        // b. Repeat,
+        let Some((array, index)) = self.prep_step(agent, gc) else {
+            // The iterator is exhausted.
+            return TryResult::Continue(None);
+        };
+        if let Some(element_value) = array.as_slice(agent)[index as usize] {
+            // Fast path: If the element at this index has a Value, then it is
+            // not an accessor nor a hole. Yield the result as-is.
+            return TryResult::Continue(Some(element_value.unbind()));
+        }
+        // 1. Let elementKey be ! ToString(indexNumber).
+        // 2. Let elementValue be ? Get(array, elementKey).
+        let element_value = match try_get(agent, array.unbind(), index.into(), None, gc)? {
+            TryGetResult::Unset => Value::Undefined,
+            TryGetResult::Value(value) => value,
+            TryGetResult::Get(_) | TryGetResult::Proxy(_) => {
+                return TryError::GcError.into();
+            }
+        };
+        // a. Let result be elementValue.
+        // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
+        TryResult::Continue(Some(element_value))
     }
 }
 
@@ -1084,15 +1239,13 @@ fn array_iterator_record_requires_return_call(agent: &mut Agent, gc: NoGcScope) 
         agent,
         BUILTIN_STRING_MEMORY.r#return.into(),
         array_iterator_prototype.into_value(),
+        None,
         gc,
     ) {
-        TryResult::Continue(return_method) => {
-            !return_method.is_undefined() && !return_method.is_null()
-        }
-        // Note: here it's still possible that we won't actually
-        // call a return method but this break already means that
-        // the user can observe the ArrayIterator object.
-        TryResult::Break(_) => true,
+        ControlFlow::Continue(TryGetResult::Unset) => false,
+        ControlFlow::Continue(TryGetResult::Value(v)) => !v.is_undefined() && !v.is_null(),
+        ControlFlow::Break(TryError::Err(_)) => todo!(),
+        _ => true,
     }
 }
 
@@ -1105,15 +1258,15 @@ fn generic_iterator_record_requires_return_call(
         agent,
         BUILTIN_STRING_MEMORY.r#return.into(),
         iterator.into_value(),
+        None,
         gc,
     ) {
-        TryResult::Continue(return_method) => {
-            !return_method.is_undefined() && !return_method.is_null()
-        }
-        // Note: here it's still possible that we won't actually
-        // call a return method but this break already means that
-        // we'll need garbage collection.
-        TryResult::Break(_) => true,
+        ControlFlow::Continue(TryGetResult::Unset) => false,
+        ControlFlow::Continue(TryGetResult::Value(v)) => !v.is_undefined() && !v.is_null(),
+        // TODO: consider passing the error on here; not sure if this is
+        // possible though.
+        ControlFlow::Break(TryError::Err(_)) => unreachable!(),
+        _ => true,
     }
 }
 

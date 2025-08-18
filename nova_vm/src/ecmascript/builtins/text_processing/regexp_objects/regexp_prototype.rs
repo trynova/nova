@@ -13,6 +13,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic, array_create,
+            ordinary::caches::PropertyLookupCache,
             regexp::{
                 advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
                 reg_exp_test, require_internal_slot_reg_exp,
@@ -20,18 +21,16 @@ use crate::{
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            Value,
+            TryGetResult, Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -546,9 +545,9 @@ impl RegExpPrototype {
                     a.get(agent),
                     n.into(),
                     match_str.into_value(),
+                    None,
                     gc.nogc(),
-                ))
-                .unwrap();
+                ));
                 // 3. If matchStr is the empty String, then
                 if match_str.is_empty_string() {
                     // a. Let thisIndex be ℝ(? ToLength(? Get(rx, "lastIndex"))).
@@ -679,20 +678,23 @@ impl RegExpPrototype {
         // 1. Let R be the this value.
         let r = this_value.bind(gc.nogc());
         if let (Ok(s), Value::RegExp(r)) = (String::try_from(s), r) {
+            let key = BUILTIN_STRING_MEMORY.exec.to_property_key();
             let exec = try_get(
                 agent,
                 r,
-                BUILTIN_STRING_MEMORY.exec.to_property_key(),
+                key,
+                PropertyLookupCache::get(agent, key),
                 gc.nogc(),
             );
             if exec
-                == TryResult::Continue(
+                == TryGetResult::Value(
                     agent
                         .current_realm_record()
                         .intrinsics()
                         .reg_exp_prototype_exec()
                         .into_value(),
                 )
+                .into()
             {
                 return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into_value());
             }

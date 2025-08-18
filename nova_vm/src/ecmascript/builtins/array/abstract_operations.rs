@@ -15,14 +15,16 @@ use crate::{
             ArgumentsList,
             array::{Array, ArrayHeapData},
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, TryError, TryResult},
+        },
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, Number, Object, OrdinaryObject, PropertyDescriptor,
             Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -75,7 +77,7 @@ pub(crate) fn array_create<'a>(
     {
         Ok(e) => e,
         Err(err) => {
-            return Err(agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc));
+            return Err(agent.throw_allocation_exception(err, gc));
         }
     };
     elements.len = length as u32;
@@ -245,14 +247,15 @@ pub(crate) fn array_set_length<'a>(
         desc_enumerable,
         desc_writable,
     )
-    .map_err(|err| agent.throw_exception(ExceptionType::RangeError, err.to_string(), gc))
+    .map_err(|err| agent.throw_allocation_exception(err, gc))
 }
 
-pub(crate) fn array_try_set_length(
+pub(crate) fn array_try_set_length<'gc>(
     agent: &mut Agent,
     a: Array,
     desc: PropertyDescriptor,
-) -> TryResult<bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, bool> {
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
@@ -262,12 +265,12 @@ pub(crate) fn array_try_set_length(
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let Ok(number_len) = Number::try_from(desc_value) else {
-        return TryResult::Break(());
+        return TryError::GcError.into();
     };
     let new_len = to_uint32_number(agent, number_len);
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
-        return TryResult::Break(());
+        return TryError::GcError.into();
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
@@ -280,7 +283,7 @@ pub(crate) fn array_try_set_length(
         desc.writable,
     ) {
         Ok(b) => TryResult::Continue(b),
-        Err(_) => TryResult::Break(()),
+        Err(err) => agent.throw_allocation_exception(err, gc).into(),
     }
 }
 

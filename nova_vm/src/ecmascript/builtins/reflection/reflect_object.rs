@@ -13,14 +13,16 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, try_result_into_js},
+        },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor, String,
             Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
@@ -252,25 +254,27 @@ impl ReflectObject {
         let mut scoped_target = None;
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let mut key =
-            if let TryResult::Continue(key) = to_property_key_simple(agent, property_key, nogc) {
-                key
-            } else {
-                scoped_target = Some(target.scope(agent, nogc));
-                let scoped_attributes = attributes.scope(agent, nogc);
-                let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                target = scoped_target.as_ref().unwrap().get(agent);
-                attributes = scoped_attributes.get(agent);
-                key
-            };
+        let mut key = if let Some(key) = to_property_key_simple(agent, property_key, nogc) {
+            key
+        } else {
+            scoped_target = Some(target.scope(agent, nogc));
+            let scoped_attributes = attributes.scope(agent, nogc);
+            let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            target = scoped_target.as_ref().unwrap().get(agent);
+            attributes = scoped_attributes.get(agent);
+            key
+        };
 
         // 3. Let desc be ? ToPropertyDescriptor(attributes).
-        let desc = if let TryResult::Continue(desc) =
-            PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc())
+        let desc = if let Some(desc) = try_result_into_js(
+            PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc()),
+        )
+        .unbind()?
+        .bind(gc.nogc())
         {
-            desc.unbind()?.bind(gc.nogc())
+            desc
         } else {
             if scoped_target.is_none() {
                 scoped_target = Some(target.scope(agent, gc.nogc()));
@@ -317,17 +321,16 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key =
-            if let TryResult::Continue(key) = to_property_key_simple(agent, property_key, nogc) {
-                key
-            } else {
-                let scoped_target = target.scope(agent, nogc);
-                let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                target = scoped_target.get(agent);
-                key
-            };
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, nogc) {
+            key
+        } else {
+            let scoped_target = target.scope(agent, nogc);
+            let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            target = scoped_target.get(agent);
+            key
+        };
         // 3. Return ? target.[[Delete]](key).
         let ret = target
             .unbind()
@@ -364,19 +367,18 @@ impl ReflectObject {
         let mut target = target.bind(nogc);
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key =
-            if let TryResult::Continue(key) = to_property_key_simple(agent, property_key, nogc) {
-                key
-            } else {
-                let scoped_target = target.scope(agent, nogc);
-                let scoped_receiver = receiver.map(|receiver| receiver.scope(agent, nogc));
-                let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                target = scoped_target.get(agent).bind(gc.nogc());
-                receiver = scoped_receiver.map(|scoped_receiver| scoped_receiver.get(agent));
-                key
-            };
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, nogc) {
+            key
+        } else {
+            let scoped_target = target.scope(agent, nogc);
+            let scoped_receiver = receiver.map(|receiver| receiver.scope(agent, nogc));
+            let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            target = scoped_target.get(agent).bind(gc.nogc());
+            receiver = scoped_receiver.map(|scoped_receiver| scoped_receiver.get(agent));
+            key
+        };
         // 3. If receiver is not present, then
         //   a. Set receiver to target.
         let receiver = receiver.unwrap_or(target.into_value());
@@ -408,17 +410,16 @@ impl ReflectObject {
         let mut target = target.bind(nogc);
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key =
-            if let TryResult::Continue(key) = to_property_key_simple(agent, property_key, nogc) {
-                key
-            } else {
-                let scoped_target = target.scope(agent, nogc);
-                let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                target = scoped_target.get(agent).bind(gc.nogc());
-                key
-            };
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, nogc) {
+            key
+        } else {
+            let scoped_target = target.scope(agent, nogc);
+            let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            target = scoped_target.get(agent).bind(gc.nogc());
+            key
+        };
         // 3. Let desc be ? target.[[GetOwnProperty]](key).
         let desc = target
             .unbind()
@@ -480,17 +481,16 @@ impl ReflectObject {
         let mut target = target.bind(nogc);
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key =
-            if let TryResult::Continue(key) = to_property_key_simple(agent, property_key, nogc) {
-                key
-            } else {
-                let scoped_target = target.scope(agent, nogc);
-                let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                target = scoped_target.get(agent).bind(gc.nogc());
-                key
-            };
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, nogc) {
+            key
+        } else {
+            let scoped_target = target.scope(agent, nogc);
+            let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            target = scoped_target.get(agent).bind(gc.nogc());
+            key
+        };
         // 3. Return ? target.[[HasProperty]](key).
         let ret = target
             .unbind()
@@ -604,21 +604,20 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key =
-            if let TryResult::Continue(key) = to_property_key_simple(agent, property_key, nogc) {
-                key
-            } else {
-                let scoped_target = target.scope(agent, nogc);
-                let scoped_v = v.scope(agent, nogc);
-                let scoped_receiver = receiver.map(|receiver| receiver.scope(agent, nogc));
-                let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                target = scoped_target.get(agent);
-                v = scoped_v.get(agent);
-                receiver = scoped_receiver.map(|scoped_receiver| scoped_receiver.get(agent));
-                key
-            };
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, nogc) {
+            key
+        } else {
+            let scoped_target = target.scope(agent, nogc);
+            let scoped_v = v.scope(agent, nogc);
+            let scoped_receiver = receiver.map(|receiver| receiver.scope(agent, nogc));
+            let key = to_property_key_complex(agent, property_key.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            target = scoped_target.get(agent);
+            v = scoped_v.get(agent);
+            receiver = scoped_receiver.map(|scoped_receiver| scoped_receiver.get(agent));
+            key
+        };
 
         // 3. If receiver is not present, then
         //   a. Set receiver to target.

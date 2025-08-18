@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
@@ -11,23 +10,23 @@ use crate::{
             operations_on_objects::{call_function, construct},
             testing_and_comparison::is_constructor,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{TryResult, unwrap_try},
+        },
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, GetCachedResult,
-            InternalMethods, InternalSlots, IntoFunction, IntoValue, NoCache, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, Value, function_create_backing_object, function_get_cached,
-            function_internal_define_own_property, function_internal_delete, function_internal_get,
-            function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_set_cached,
-            function_try_get, function_try_has_property, function_try_set,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
+            InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
+            function_create_backing_object, function_internal_define_own_property,
+            function_internal_delete, function_internal_get, function_internal_get_own_property,
+            function_internal_has_property, function_internal_own_property_keys,
+            function_internal_set, function_try_get, function_try_has_property, function_try_set,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -122,11 +121,7 @@ pub(crate) fn bound_function_create<'a>(
     {
         Ok(e) => e,
         Err(err) => {
-            return Err(agent.throw_exception(
-                ExceptionType::RangeError,
-                err.to_string(),
-                gc.into_nogc(),
-            ));
+            return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
         }
     };
     elements.len = u32::try_from(bound_args.len()).unwrap();
@@ -188,42 +183,44 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
             agent,
             property_key,
+            cache,
             gc,
         ))
     }
 
-    fn try_define_own_property(
+    fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
-        match function_internal_define_own_property(
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
+        function_internal_define_own_property(
             self,
             agent,
             property_key,
             property_descriptor,
+            cache,
             gc,
-        ) {
-            Ok(b) => TryResult::Continue(b),
-            Err(_) => TryResult::Break(()),
-        }
+        )
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
-        function_try_has_property(self, agent, property_key, gc)
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
+        function_try_has_property(self, agent, property_key, cache, gc)
     }
 
     fn internal_has_property<'gc>(
@@ -240,9 +237,10 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
-        function_try_get(self, agent, property_key, receiver, gc)
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
+        function_try_get(self, agent, property_key, receiver, cache, gc)
     }
 
     fn internal_get<'gc>(
@@ -255,15 +253,16 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
-        function_try_set(self, agent, property_key, value, receiver, gc)
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
+        function_try_set(self, agent, property_key, value, receiver, cache, gc)
     }
 
     fn internal_set<'gc>(
@@ -277,12 +276,12 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
@@ -290,27 +289,8 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        function_get_cached(self, agent, p, cache, gc)
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        function_set_cached(self, agent, props, gc)
     }
 
     /// ### [10.4.1.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-bound-function-exotic-objects-call-thisargument-argumentslist)

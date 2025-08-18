@@ -11,27 +11,30 @@ use oxc_regular_expression::{LiteralParser, Options};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{
-                call_function, get, try_create_data_property_or_throw, try_get,
-            },
+            operations_on_objects::{call_function, try_create_data_property_or_throw, try_get},
             testing_and_comparison::is_callable,
             type_conversion::{to_length, to_string, try_to_length},
         },
         builtins::{
             ArgumentsList, Array, array_create,
-            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+            ordinary::{
+                caches::PropertyLookupCache, ordinary_create_from_constructor,
+                ordinary_object_create_with_intrinsics,
+            },
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, TryError, try_result_into_js, unwrap_try},
+        },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, Value,
+            String, TryGetResult, Value, handle_try_get_result, unwrap_try_get_value,
         },
     },
     engine::{
-        Scoped, TryResult,
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        unwrap_try,
     },
     heap::CreateHeapData,
 };
@@ -339,34 +342,44 @@ fn reg_exp_exec_prepare<'a>(
     let mut s = s.bind(gc.nogc());
     let mut r = r.bind(gc.nogc());
     // 1. Let exec be ? Get(R, "exec").
-    let exec = if let TryResult::Continue(exec) = try_get(
+    let key = BUILTIN_STRING_MEMORY.exec.to_property_key();
+    let exec = try_get(
         agent,
         r,
-        BUILTIN_STRING_MEMORY.exec.to_property_key(),
+        key,
+        PropertyLookupCache::get(agent, key),
         gc.nogc(),
-    ) {
-        exec
-    } else {
-        let scoped_r = r.scope(agent, gc.nogc());
-        let scoped_s = s.scope(agent, gc.nogc());
-        let exec = get(
-            agent,
-            r.unbind(),
-            BUILTIN_STRING_MEMORY.exec.to_property_key(),
-            gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
-        let exec = match exec {
-            Ok(e) => e,
-            Err(err) => return ControlFlow::Break(Err(err.unbind())),
-        };
-        // SAFETY: Not shared.
-        unsafe {
-            s = scoped_s.take(agent).bind(gc.nogc());
-            r = scoped_r.take(agent).bind(gc.nogc());
+    );
+    let exec = match exec {
+        ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
+        ControlFlow::Continue(TryGetResult::Value(v)) => v,
+        ControlFlow::Break(TryError::Err(e)) => {
+            return ControlFlow::Break(Err(e.unbind().bind(gc.into_nogc())));
         }
-        exec
+        _ => {
+            let scoped_r = r.scope(agent, gc.nogc());
+            let scoped_s = s.scope(agent, gc.nogc());
+            let exec = handle_try_get_result(
+                agent,
+                r.unbind(),
+                BUILTIN_STRING_MEMORY.exec.to_property_key(),
+                exec.unbind(),
+                gc.reborrow(),
+            )
+            .unbind()
+            .bind(gc.nogc());
+            let exec = match exec {
+                Ok(e) => e,
+                Err(err) => return ControlFlow::Break(Err(err.unbind())),
+            };
+            let gc = gc.nogc();
+            // SAFETY: Not shared.
+            unsafe {
+                s = scoped_s.take(agent).bind(gc);
+                r = scoped_r.take(agent).bind(gc);
+            }
+            exec
+        }
     };
 
     // Fast path: native RegExp object and intrinsic exec function.
@@ -485,14 +498,17 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
         // Note: calling Get(R, "lastIndex") cannot trigger JavaScript
         // execution, as the "lastIndex" property is always an unconfigurable
         // data property of every RegExp object.
-        let last_index = unwrap_try(try_get(
+        let last_index = unwrap_try_get_value(try_get(
             agent,
             r,
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            None,
             gc.nogc(),
         ));
-        if let TryResult::Continue(last_index) = try_to_length(agent, last_index, gc.nogc()) {
-            last_index.unbind()? as usize
+        if let Some(last_index) =
+            try_result_into_js(try_to_length(agent, last_index, gc.nogc())).unbind()?
+        {
+            last_index as usize
         } else {
             let scoped_r = r.scope(agent, gc.nogc());
             let scoped_s = s.scope(agent, gc.nogc());
@@ -655,9 +671,9 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         a,
         index,
         Number::try_from(last_index).unwrap().into_value(),
+        None,
         gc,
-    ))
-    .unwrap();
+    ));
     let input = String::from_static_str(agent, "input", gc).to_property_key();
     // 23. Perform ! CreateDataPropertyOrThrow(A, "input", S).
     unwrap_try(try_create_data_property_or_throw(
@@ -665,9 +681,9 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         a,
         input,
         s.into_value(),
+        None,
         gc,
-    ))
-    .unwrap();
+    ));
     // 24. Let match be the Match Record { [[StartIndex]]: lastIndex, [[EndIndex]]: e }.
     // 25. Let indices be a new empty List.
     // let mut indices = vec![];
@@ -695,9 +711,9 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         a,
         key,
         groups.map_or(Value::Undefined, |g| g.into_value()),
+        None,
         gc,
-    ))
-    .unwrap();
+    ));
     // 33. Let matchedGroupNames be a new empty List.
     // let mut matched_group_names = vec![];
     // 34. For each integer i such that 1 ≤ i ≤ n, in ascending order, do
@@ -733,9 +749,9 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
             a,
             PropertyKey::try_from(i).unwrap(),
             captured_value,
+            None,
             gc,
-        ))
-        .unwrap();
+        ));
         // e. If the ith capture of R was defined with a GroupName, then
         //         i. Let s be the CapturingGroupName of that GroupName.
         //         ii. If matchedGroupNames contains s, then

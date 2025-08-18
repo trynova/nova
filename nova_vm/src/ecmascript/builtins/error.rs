@@ -5,24 +5,24 @@
 mod data;
 
 use core::ops::{Index, IndexMut};
-use std::ops::ControlFlow;
 
 pub(crate) use data::ErrorHeapData;
 
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, TryResult, unwrap_try},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, GetCachedResult, InternalMethods, InternalSlots, IntoObject,
-            IntoValue, NoCache, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetCachedResult, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
+            TryHasResult, Value,
         },
     },
     engine::{
-        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -178,8 +178,9 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Option<PropertyDescriptor<'gc>>> {
+    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(
                 ordinary_get_own_property(
@@ -187,6 +188,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                     self.into_object(),
                     backing_object,
                     property_key,
+                    cache,
                     gc,
                 )
                 .bind(gc),
@@ -212,39 +214,34 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_has_property(
+    fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
-        match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_try_has_property(
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, TryHasResult<'gc>> {
+        let error = self.bind(gc);
+        let backing_object = error.get_backing_object(agent);
+        if backing_object.is_none()
+            && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+            && agent[error].message.is_some()
+        {
+            TryHasResult::Custom(0, error.into_object()).into()
+        } else if backing_object.is_none()
+            && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+            && agent[error].cause.is_some()
+        {
+            TryHasResult::Custom(1, error.into_object()).into()
+        } else {
+            ordinary_try_has_property(
                 agent,
-                self.into_object(),
+                error.into_object(),
                 backing_object,
                 property_key,
+                cache,
                 gc,
-            ),
-            None => {
-                let found_direct =
-                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.is_some()
-                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                        agent[self].cause.is_some()
-                    } else {
-                        false
-                    };
-                if found_direct {
-                    TryResult::Continue(true)
-                } else {
-                    self.internal_prototype(agent).unwrap().try_has_property(
-                        agent,
-                        property_key.unbind(),
-                        gc,
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -288,39 +285,33 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Value<'gc>> {
-        match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_try_get(
-                agent,
-                self.into_object(),
-                backing_object,
-                property_key,
-                receiver,
-                gc,
-            ),
-            None => {
-                let property_value =
-                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.map(|message| message.into_value())
-                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                        agent[self].cause
-                    } else {
-                        None
-                    };
-                if let Some(property_value) = property_value {
-                    TryResult::Continue(property_value)
-                } else {
-                    // c. Return ? parent.[[Get]](P, Receiver).
-                    self.internal_prototype(agent).unwrap().try_get(
-                        agent,
-                        property_key,
-                        receiver,
-                        gc,
-                    )
-                }
-            }
+    ) -> TryResult<'gc, TryGetResult<'gc>> {
+        let backing_object = self.get_backing_object(agent);
+        let property_value = if backing_object.is_none()
+            && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+        {
+            agent[self].message.map(|message| message.into_value())
+        } else if backing_object.is_none()
+            && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
+        {
+            agent[self].cause
+        } else {
+            None
+        };
+        if let Some(property_value) = property_value {
+            return TryGetResult::Value(property_value).into();
         }
+        ordinary_try_get(
+            agent,
+            self.into_object(),
+            backing_object,
+            property_key,
+            receiver,
+            cache,
+            gc,
+        )
     }
 
     fn internal_get<'gc>(
@@ -358,27 +349,28 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_set(
+    fn try_set<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        cache: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         if self.get_backing_object(agent).is_some() {
-            ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+            ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
             agent[self].message = Some(String::try_from(value.unbind()).unwrap());
-            TryResult::Continue(true)
+            SetResult::Done.into()
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
             agent[self].cause = Some(value.unbind());
-            TryResult::Continue(true)
+            SetResult::Done.into()
         } else {
             self.create_backing_object(agent);
-            ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+            ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
         }
     }
 
@@ -421,12 +413,12 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_delete(
+    fn try_delete<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope,
-    ) -> TryResult<bool> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(ordinary_delete(
                 agent,
@@ -450,7 +442,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
                 TryResult::Continue(unwrap_try(backing_object.try_own_property_keys(agent, gc)))
@@ -465,55 +457,6 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 }
                 TryResult::Continue(property_keys)
             }
-        }
-    }
-
-    fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<GetCachedResult<'gc>, NoCache> {
-        let bo = self.get_backing_object(agent);
-        if bo.is_none()
-            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-            && let Some(message) = agent[self].message
-        {
-            message.into_value().bind(gc).into()
-        } else if bo.is_none()
-            && p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
-            && let Some(cause) = agent[self].cause
-        {
-            cause.into_value().bind(gc).into()
-        } else {
-            let shape = if let Some(bo) = bo {
-                bo.object_shape(agent)
-            } else {
-                self.object_shape(agent)
-            };
-            shape.get_cached(agent, p, self.into_value(), cache, gc)
-        }
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        if let Some(bo) = self.get_backing_object(agent) {
-            bo.set_cached(agent, props, gc)
-        } else if props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-            && let Ok(value) = String::try_from(props.value)
-        {
-            agent[self].message = Some(value.unbind());
-            SetCachedResult::Done.into()
-        } else if props.p == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            agent[self].cause = Some(props.value.unbind());
-            SetCachedResult::Done.into()
-        } else {
-            NoCache.into()
         }
     }
 }
