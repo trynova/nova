@@ -1100,6 +1100,32 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         }
         // c. Else,
         else {
+            if object.into_value() == receiver {
+                // No property set and the receiver is the object itself; this
+                // means that the property does not exist on object and the
+                // property is not a custom property of the object type (eg.
+                // "length" on Array). Hence, we can push the property directly
+                // into the object's backing object property storage.
+                // 1
+                if !object.internal_extensible(agent) {
+                    return SetResult::Unwritable.into();
+                }
+                if let Err(err) = object
+                    .get_or_create_backing_object(agent)
+                    .property_storage()
+                    .push(
+                        agent,
+                        object.into_object(),
+                        property_key,
+                        Some(value),
+                        None,
+                        gc,
+                    )
+                {
+                    return TryError::Err(agent.throw_allocation_exception(err, gc)).into();
+                }
+                return SetResult::Done.into();
+            }
             // i. Set ownDesc to the PropertyDescriptor {
             //   [[Value]]: undefined,
             //   [[Writable]]: true,
@@ -1125,7 +1151,13 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         // Note: Here again we do not have guarantees; the receiver could be a
         // Proxy.
-        let existing_descriptor = receiver.try_get_own_property(agent, property_key, cache, gc)?;
+        let existing_descriptor = if object.into_object() == receiver {
+            // Direct [[Set]] call on our receiver; we already know that the
+            // existingDescriptor is going to equal ownDescriptor.
+            Some(own_descriptor)
+        } else {
+            receiver.try_get_own_property(agent, property_key, cache, gc)?
+        };
 
         // d. If existingDescriptor is not undefined, then
         let result = if let Some(existing_descriptor) = existing_descriptor {
