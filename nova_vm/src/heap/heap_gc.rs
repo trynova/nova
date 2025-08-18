@@ -57,6 +57,7 @@ use crate::{
             ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
             primitive_objects::PrimitiveObject,
             promise::Promise,
+            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
@@ -158,6 +159,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             primitive_objects,
             promise_reaction_records,
             promise_resolving_functions,
+            promise_finally_functions,
             promises,
             proxys,
             realms,
@@ -665,6 +667,22 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 promise_resolving_functions
+                    .get(index)
+                    .mark_values(&mut queues);
+            }
+        });
+        let mut promise_finally_function_marks: Box<[BuiltinPromiseFinallyFunction]> =
+            queues.promise_finally_functions.drain(..).collect();
+        promise_finally_function_marks.sort();
+        promise_finally_function_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.promise_finally_functions.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                promise_finally_functions
                     .get(index)
                     .mark_values(&mut queues);
             }
@@ -1289,6 +1307,7 @@ fn sweep(
         primitive_objects,
         promise_reaction_records,
         promise_resolving_functions,
+        promise_finally_functions,
         promises,
         proxys,
         realms,
@@ -1711,6 +1730,15 @@ fn sweep(
                     promise_resolving_functions,
                     &compactions,
                     &bits.promise_resolving_functions,
+                );
+            });
+        }
+        if !promise_finally_functions.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    promise_finally_functions,
+                    &compactions,
+                    &bits.promise_finally_functions,
                 );
             });
         }

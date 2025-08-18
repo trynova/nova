@@ -174,6 +174,14 @@ impl<T: ?Sized> BaseIndex<'_, T> {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
+
+    pub(crate) fn last_t(vec: &[T]) -> Self
+    where
+        T: Sized,
+    {
+        assert!(!vec.is_empty());
+        Self::from_usize(vec.len())
+    }
 }
 
 impl<T> Default for BaseIndex<'_, T> {

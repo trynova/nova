@@ -64,6 +64,7 @@ use crate::{
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
+            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
@@ -73,6 +74,7 @@ use crate::{
             BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
             BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+            BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, IntoValue,
@@ -102,6 +104,8 @@ pub(crate) enum WeakKey<'a> {
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>) =
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
@@ -184,6 +188,7 @@ impl<'a> From<WeakKey<'a>> for Value<'a> {
             WeakKey::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             WeakKey::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d),
             WeakKey::BuiltinPromiseResolvingFunction(d) => Self::BuiltinPromiseResolvingFunction(d),
+            WeakKey::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
             WeakKey::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             WeakKey::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
             WeakKey::PrimitiveObject(d) => Self::PrimitiveObject(d),
@@ -261,6 +266,7 @@ impl<'a> From<Object<'a>> for WeakKey<'a> {
             Object::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             Object::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d),
             Object::BuiltinPromiseResolvingFunction(d) => Self::BuiltinPromiseResolvingFunction(d),
+            Object::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
             Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(d) => Self::PrimitiveObject(d),
@@ -341,6 +347,7 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
             WeakKey::BuiltinPromiseResolvingFunction(d) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(d))
             }
+            WeakKey::BuiltinPromiseFinallyFunction(d) => Ok(Self::BuiltinPromiseFinallyFunction(d)),
             WeakKey::BuiltinPromiseCollectorFunction => Ok(Self::BuiltinPromiseCollectorFunction),
             WeakKey::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             WeakKey::PrimitiveObject(d) => Ok(Self::PrimitiveObject(d)),
@@ -465,6 +472,7 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::BuiltinGeneratorFunction => {}
             Self::BuiltinConstructorFunction(d) => d.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(d) => d.mark_values(queues),
+            Self::BuiltinPromiseFinallyFunction(d) => d.mark_values(queues),
             Self::BuiltinPromiseCollectorFunction => {}
             Self::BuiltinProxyRevokerFunction => {}
             Self::PrimitiveObject(d) => d.mark_values(queues),
@@ -539,6 +547,7 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::BuiltinGeneratorFunction => {}
             Self::BuiltinConstructorFunction(d) => d.sweep_values(compactions),
             Self::BuiltinPromiseResolvingFunction(d) => d.sweep_values(compactions),
+            Self::BuiltinPromiseFinallyFunction(d) => d.sweep_values(compactions),
             Self::BuiltinPromiseCollectorFunction => {}
             Self::BuiltinProxyRevokerFunction => {}
             Self::PrimitiveObject(d) => d.sweep_values(compactions),
@@ -625,6 +634,9 @@ impl HeapSweepWeakReference for WeakKey<'static> {
             Self::BuiltinPromiseResolvingFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::BuiltinPromiseResolvingFunction),
+            Self::BuiltinPromiseFinallyFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinPromiseFinallyFunction),
             Self::BuiltinPromiseCollectorFunction => Some(Self::BuiltinPromiseCollectorFunction),
             Self::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
             Self::PrimitiveObject(data) => data

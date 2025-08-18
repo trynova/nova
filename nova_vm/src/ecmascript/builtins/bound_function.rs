@@ -11,17 +11,12 @@ use crate::{
             testing_and_comparison::is_constructor,
         },
         execution::{
-            Agent, JsResult, ProtoIntrinsics,
+            Agent, JsResult,
             agent::{TryResult, unwrap_try},
         },
         types::{
             BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
-            InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, function_try_get, function_try_has_property, function_try_set,
+            IntoFunction, IntoValue, Object, OrdinaryObject, String, Value,
         },
     },
     engine::{
@@ -34,7 +29,7 @@ use crate::{
     },
 };
 
-use super::{ArgumentsList, ordinary::caches::PropertyLookupCache};
+use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -154,143 +149,23 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     fn get_length(self, agent: &Agent) -> u8 {
         agent[self].length
     }
-}
-
-impl<'a> InternalSlots<'a> for BoundFunction<'a> {
-    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+    fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index.unbind()
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+    fn set_function_backing_object(
+        self,
+        agent: &mut Agent,
+        backing_object: OrdinaryObject<'static>,
+    ) {
         assert!(
             agent[self]
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
         );
-    }
-
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
-        function_create_backing_object(self, agent)
-    }
-}
-
-impl<'a> InternalMethods<'a> for BoundFunction<'a> {
-    fn try_get_own_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        TryResult::Continue(function_internal_get_own_property(
-            self,
-            agent,
-            property_key,
-            cache,
-            gc,
-        ))
-    }
-
-    fn try_define_own_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        function_internal_define_own_property(
-            self,
-            agent,
-            property_key,
-            property_descriptor,
-            cache,
-            gc,
-        )
-    }
-
-    fn try_has_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, TryHasResult<'gc>> {
-        function_try_has_property(self, agent, property_key, cache, gc)
-    }
-
-    fn internal_has_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, bool> {
-        function_internal_has_property(self, agent, property_key, gc)
-    }
-
-    fn try_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, TryGetResult<'gc>> {
-        function_try_get(self, agent, property_key, receiver, cache, gc)
-    }
-
-    fn internal_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        function_internal_get(self, agent, property_key, receiver, gc)
-    }
-
-    fn try_set<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, SetResult<'gc>> {
-        function_try_set(self, agent, property_key, value, receiver, cache, gc)
-    }
-
-    fn internal_set<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, bool> {
-        function_internal_set(self, agent, property_key, value, receiver, gc)
-    }
-
-    fn try_delete<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
-    }
-
-    fn try_own_property_keys<'gc>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
-        TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
     /// ### [10.4.1.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-bound-function-exotic-objects-call-thisargument-argumentslist)
@@ -300,7 +175,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
     /// argumentsList (a List of ECMAScript language values) and returns either
     /// a normal completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call<'gc>(
+    fn function_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
@@ -350,7 +225,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
     /// takes arguments argumentsList (a List of ECMAScript language values)
     /// and newTarget (a constructor) and returns either a normal completion
     /// containing an Object or a throw completion.
-    fn internal_construct<'gc>(
+    fn function_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,

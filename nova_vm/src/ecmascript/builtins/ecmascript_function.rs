@@ -20,7 +20,7 @@ use crate::{
             ThisBindingStatus,
             agent::{
                 ExceptionType::{self, SyntaxError},
-                TryResult, get_active_script_or_module,
+                get_active_script_or_module,
             },
             new_function_environment,
         },
@@ -31,13 +31,8 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
-            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String,
-            TryGetResult, TryHasResult, Value, function_create_backing_object,
-            function_internal_define_own_property, function_internal_delete, function_internal_get,
-            function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_try_get,
-            function_try_has_property, function_try_set,
+            FunctionInternalProperties, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -53,10 +48,7 @@ use crate::{
 
 use super::{
     ArgumentsList,
-    ordinary::{
-        caches::PropertyLookupCache, ordinary_create_from_constructor,
-        ordinary_object_create_with_intrinsics,
-    },
+    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -303,15 +295,25 @@ unsafe impl Bindable for ECMAScriptFunction<'_> {
     }
 }
 
-impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
-    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
+    fn get_name(self, agent: &Agent) -> String<'static> {
+        agent[self].name.unwrap_or(String::EMPTY_STRING)
+    }
+
+    fn get_length(self, agent: &Agent) -> u8 {
+        agent[self].length
+    }
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+    fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+    fn set_function_backing_object(
+        self,
+        agent: &mut Agent,
+        backing_object: OrdinaryObject<'static>,
+    ) {
         assert!(
             agent[self]
                 .object_index
@@ -320,11 +322,7 @@ impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
         );
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
-        function_create_backing_object(self, agent)
-    }
-
-    fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
+    fn function_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
@@ -344,132 +342,6 @@ impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
             Some(proto)
         }
     }
-}
-
-impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
-    fn get_name(self, agent: &Agent) -> String<'static> {
-        agent[self].name.unwrap_or(String::EMPTY_STRING)
-    }
-
-    fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
-    }
-}
-
-impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
-    fn try_get_own_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        TryResult::Continue(function_internal_get_own_property(
-            self,
-            agent,
-            property_key,
-            cache,
-            gc,
-        ))
-    }
-
-    fn try_define_own_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        function_internal_define_own_property(
-            self,
-            agent,
-            property_key,
-            property_descriptor,
-            cache,
-            gc,
-        )
-    }
-
-    fn try_has_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, TryHasResult<'gc>> {
-        function_try_has_property(self, agent, property_key, cache, gc)
-    }
-
-    fn internal_has_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, bool> {
-        function_internal_has_property(self, agent, property_key, gc)
-    }
-
-    fn try_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, TryGetResult<'gc>> {
-        function_try_get(self, agent, property_key, receiver, cache, gc)
-    }
-
-    fn internal_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        function_internal_get(self, agent, property_key, receiver, gc)
-    }
-
-    fn try_set<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, SetResult<'gc>> {
-        function_try_set(self, agent, property_key, value, receiver, cache, gc)
-    }
-
-    fn internal_set<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, bool> {
-        function_internal_set(self, agent, property_key, value, receiver, gc)
-    }
-
-    fn try_delete<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
-    }
-
-    fn try_own_property_keys<'gc>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
-        TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
-    }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
     ///
@@ -478,7 +350,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     /// `argumentsList` (a List of ECMAScript language values) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    fn internal_call<'gc>(
+    fn function_call<'gc>(
         self,
         agent: &mut Agent,
         this_argument: Value,
@@ -536,7 +408,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         result
     }
 
-    fn internal_construct<'gc>(
+    fn function_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments: ArgumentsList,
@@ -1013,7 +885,7 @@ fn expected_arguments_count(params: &FormalParameters) -> usize {
 /// UNUSED. It converts F into a constructor.
 pub(crate) fn make_constructor<'a>(
     agent: &mut Agent,
-    function: impl IntoFunction<'a> + InternalMethods<'a>,
+    function: impl FunctionInternalProperties<'a>,
     writable_prototype: Option<bool>,
     prototype: Option<OrdinaryObject>,
     gc: NoGcScope,
@@ -1039,6 +911,7 @@ pub(crate) fn make_constructor<'a>(
         Function::BuiltinGeneratorFunction
         | Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
+        | Function::BuiltinPromiseFinallyFunction(_)
         | Function::BuiltinPromiseCollectorFunction
         | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
@@ -1233,6 +1106,7 @@ pub(crate) fn set_function_name<'a>(
         Function::BuiltinGeneratorFunction
         | Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
+        | Function::BuiltinPromiseFinallyFunction(_)
         | Function::BuiltinPromiseCollectorFunction
         | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }

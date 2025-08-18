@@ -7,19 +7,11 @@ use core::ops::{Index, IndexMut};
 use crate::{
     ecmascript::{
         builtins::{
-            ArgumentsList, ordinary::caches::PropertyLookupCache,
+            ArgumentsList,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::{
-            Function, FunctionInternalProperties, InternalMethods, InternalSlots, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
-            TryHasResult, Value, function_create_backing_object,
-            function_internal_define_own_property, function_internal_delete, function_internal_get,
-            function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_try_get,
-            function_try_has_property, function_try_set,
-        },
+        execution::{Agent, JsResult},
+        types::{Function, FunctionInternalProperties, Object, OrdinaryObject, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -107,141 +99,21 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
     fn get_length(self, _: &Agent) -> u8 {
         1
     }
-}
-
-impl<'a> InternalSlots<'a> for BuiltinPromiseResolvingFunction<'a> {
-    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+    fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+    fn set_function_backing_object(
+        self,
+        agent: &mut Agent,
+        backing_object: OrdinaryObject<'static>,
+    ) {
         assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
-        function_create_backing_object(self, agent)
-    }
-}
-
-impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
-    fn try_get_own_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        TryResult::Continue(function_internal_get_own_property(
-            self,
-            agent,
-            property_key,
-            cache,
-            gc,
-        ))
-    }
-
-    fn try_define_own_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        function_internal_define_own_property(
-            self,
-            agent,
-            property_key,
-            property_descriptor,
-            cache,
-            gc,
-        )
-    }
-
-    fn try_has_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, TryHasResult<'gc>> {
-        function_try_has_property(self, agent, property_key, cache, gc)
-    }
-
-    fn internal_has_property<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, bool> {
-        function_internal_has_property(self, agent, property_key, gc)
-    }
-
-    fn try_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, TryGetResult<'gc>> {
-        function_try_get(self, agent, property_key, receiver, cache, gc)
-    }
-
-    fn internal_get<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        function_internal_get(self, agent, property_key, receiver, gc)
-    }
-
-    fn try_set<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, SetResult<'gc>> {
-        function_try_set(self, agent, property_key, value, receiver, cache, gc)
-    }
-
-    fn internal_set<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, bool> {
-        function_internal_set(self, agent, property_key, value, receiver, gc)
-    }
-
-    fn try_delete<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
-    }
-
-    fn try_own_property_keys<'gc>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
-        TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
-    }
-
-    fn internal_call<'gc>(
+    fn function_call<'gc>(
         self,
         agent: &mut Agent,
         _this_value: Value,
@@ -377,13 +249,23 @@ unsafe impl Bindable for PromiseResolvingFunctionHeapData<'_> {
 }
 
 impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.promise_capability.mark_values(queues);
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            object_index,
+            promise_capability,
+            resolve_type: _,
+        } = self;
+        object_index.mark_values(queues);
+        promise_capability.mark_values(queues);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.promise_capability.sweep_values(compactions);
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            object_index,
+            promise_capability,
+            resolve_type: _,
+        } = self;
+        object_index.sweep_values(compactions);
+        promise_capability.sweep_values(compactions);
     }
 }

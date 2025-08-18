@@ -42,6 +42,7 @@ use crate::{
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
+            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
@@ -140,6 +141,7 @@ pub enum Value<'a> {
     /// [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>),
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>),
+    BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
 
@@ -284,6 +286,9 @@ pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 = value_discrimin
 );
 pub(crate) const BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
     Value::BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction::_def()),
+);
+pub(crate) const BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
+    Value::BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction::_def()),
 );
 pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseCollectorFunction);
@@ -707,6 +712,10 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            Value::BuiltinPromiseFinallyFunction(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::PrimitiveObject(data) => {
@@ -938,6 +947,10 @@ impl<'a> Value<'a> {
                 data.get_index().hash(hasher);
             }
             Value::BuiltinPromiseResolvingFunction(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            Value::BuiltinPromiseFinallyFunction(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -1253,6 +1266,11 @@ impl Rootable for Value<'_> {
                     builtin_promise_resolving_function.unbind(),
                 ))
             }
+            Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
+                Err(HeapRootData::BuiltinPromiseFinallyFunction(
+                    builtin_promise_finally_function.unbind(),
+                ))
+            }
             Self::BuiltinPromiseCollectorFunction => {
                 Err(HeapRootData::BuiltinPromiseCollectorFunction)
             }
@@ -1391,6 +1409,9 @@ impl Rootable for Value<'_> {
                     builtin_promise_resolving_function,
                 ))
             }
+            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => Some(
+                Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function),
+            ),
             HeapRootData::BuiltinPromiseCollectorFunction => {
                 Some(Self::BuiltinPromiseCollectorFunction)
             }
@@ -1574,6 +1595,7 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
+            Value::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
@@ -1661,6 +1683,7 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
+            Value::BuiltinPromiseFinallyFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
@@ -1685,6 +1708,7 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::BuiltinGeneratorFunction
         | Object::BuiltinConstructorFunction(_)
         | Object::BuiltinPromiseResolvingFunction(_)
+        | Object::BuiltinPromiseFinallyFunction(_)
         | Object::BuiltinPromiseCollectorFunction
         | Object::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY._object_Function_,
         Object::Arguments(_) => BUILTIN_STRING_MEMORY._object_Arguments_,

@@ -41,6 +41,7 @@ use super::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
         FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
@@ -95,6 +96,7 @@ use crate::{
             },
             primitive_objects::PrimitiveObject,
             promise::Promise,
+            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
@@ -141,6 +143,8 @@ pub enum Object<'a> {
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>) =
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
@@ -699,6 +703,9 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 Value::BuiltinPromiseResolvingFunction(data.unbind())
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                Value::BuiltinPromiseFinallyFunction(data.unbind())
+            }
             Object::BuiltinPromiseCollectorFunction => Value::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Value::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(data) => Value::PrimitiveObject(data.unbind()),
@@ -793,6 +800,9 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             Value::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Object::BuiltinPromiseResolvingFunction(data))
             }
+            Value::BuiltinPromiseFinallyFunction(data) => {
+                Ok(Object::BuiltinPromiseFinallyFunction(data))
+            }
             Value::BuiltinPromiseCollectorFunction => Ok(Object::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Object::BuiltinProxyRevokerFunction),
             Value::PrimitiveObject(data) => Ok(Object::PrimitiveObject(data)),
@@ -872,6 +882,7 @@ impl Hash for Object<'_> {
             Object::BuiltinGeneratorFunction => {}
             Object::BuiltinConstructorFunction(data) => data.get_index().hash(state),
             Object::BuiltinPromiseResolvingFunction(data) => data.get_index().hash(state),
+            Object::BuiltinPromiseFinallyFunction(data) => data.get_index().hash(state),
             Object::BuiltinPromiseCollectorFunction => {}
             Object::BuiltinProxyRevokerFunction => {}
             Object::PrimitiveObject(data) => data.get_index().hash(state),
@@ -954,6 +965,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.get_backing_object(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.get_backing_object(agent),
+            Object::BuiltinPromiseFinallyFunction(data) => data.get_backing_object(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.get_backing_object(agent),
@@ -1044,6 +1056,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.get_or_create_backing_object(agent)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => data.get_or_create_backing_object(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.get_or_create_backing_object(agent),
@@ -1142,6 +1155,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.object_shape(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.object_shape(agent),
+            Object::BuiltinPromiseFinallyFunction(data) => data.object_shape(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.object_shape(agent),
@@ -1218,6 +1232,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_extensible(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.internal_extensible(agent),
+            Object::BuiltinPromiseFinallyFunction(data) => data.internal_extensible(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_extensible(agent),
@@ -1298,6 +1313,9 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(idx) => idx.internal_set_extensible(agent, value),
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_set_extensible(agent, value)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_set_extensible(agent, value)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -1398,6 +1416,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_prototype(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.internal_prototype(agent),
+            Object::BuiltinPromiseFinallyFunction(data) => data.internal_prototype(agent),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_prototype(agent),
@@ -1480,6 +1499,9 @@ impl<'a> InternalSlots<'a> for Object<'a> {
                 data.internal_set_prototype(agent, prototype)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_set_prototype(agent, prototype)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_set_prototype(agent, prototype)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -1586,6 +1608,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_get_prototype_of(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_get_prototype_of(agent, gc),
+            Object::BuiltinPromiseFinallyFunction(data) => data.try_get_prototype_of(agent, gc),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.try_get_prototype_of(agent, gc),
@@ -1686,6 +1709,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_get_prototype_of(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_get_prototype_of(agent, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_get_prototype_of(agent, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -1793,6 +1819,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_set_prototype_of(agent, prototype, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.try_set_prototype_of(agent, prototype, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.try_set_prototype_of(agent, prototype, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -1904,6 +1933,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_set_prototype_of(agent, prototype, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                data.internal_set_prototype_of(agent, prototype, gc)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_set_prototype_of(agent, prototype, gc),
@@ -2008,6 +2040,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_is_extensible(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_is_extensible(agent, gc),
+            Object::BuiltinPromiseFinallyFunction(data) => data.try_is_extensible(agent, gc),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.try_is_extensible(agent, gc),
@@ -2098,6 +2131,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_is_extensible(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.internal_is_extensible(agent, gc),
+            Object::BuiltinPromiseFinallyFunction(data) => data.internal_is_extensible(agent, gc),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_is_extensible(agent, gc),
@@ -2200,6 +2234,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_prevent_extensions(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_prevent_extensions(agent, gc),
+            Object::BuiltinPromiseFinallyFunction(data) => data.try_prevent_extensions(agent, gc),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.try_prevent_extensions(agent, gc),
@@ -2302,6 +2337,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_prevent_extensions(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_prevent_extensions(agent, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_prevent_extensions(agent, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -2416,6 +2454,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_get_own_property(agent, property_key, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.try_get_own_property(agent, property_key, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -2543,6 +2584,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.internal_get_own_property(agent, property_key, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_get_own_property(agent, property_key, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_get_own_property(agent, property_key, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -2673,6 +2717,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -2879,6 +2926,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor, gc)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => {
@@ -3035,6 +3085,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.try_has_property(agent, property_key, cache, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                data.try_has_property(agent, property_key, cache, gc)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.try_has_property(agent, property_key, cache, gc),
@@ -3144,6 +3197,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.internal_has_property(agent, property_key, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_has_property(agent, property_key, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_has_property(agent, property_key, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -3257,6 +3313,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_get(agent, property_key, receiver, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.try_get(agent, property_key, receiver, cache, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.try_get(agent, property_key, receiver, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -3377,6 +3436,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_get(agent, property_key, receiver, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                data.internal_get(agent, property_key, receiver, gc)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -3495,6 +3557,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -3691,6 +3756,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                data.internal_set(agent, property_key, value, receiver, gc)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => {
@@ -3838,6 +3906,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.try_delete(agent, property_key, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => data.try_delete(agent, property_key, gc),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.try_delete(agent, property_key, gc),
@@ -3945,6 +4014,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_delete(agent, property_key, gc)
             }
+            Object::BuiltinPromiseFinallyFunction(data) => {
+                data.internal_delete(agent, property_key, gc)
+            }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.internal_delete(agent, property_key, gc),
@@ -4047,6 +4119,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_own_property_keys(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_own_property_keys(agent, gc),
+            Object::BuiltinPromiseFinallyFunction(data) => data.try_own_property_keys(agent, gc),
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => data.try_own_property_keys(agent, gc),
@@ -4147,6 +4220,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_own_property_keys(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.internal_own_property_keys(agent, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.internal_own_property_keys(agent, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -4254,6 +4330,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.get_own_property_at_offset(agent, offset, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.get_own_property_at_offset(agent, offset, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.get_own_property_at_offset(agent, offset, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -4364,6 +4443,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.set_at_offset(agent, props, offset, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
+                data.set_at_offset(agent, props, offset, gc)
+            }
+            Object::BuiltinPromiseFinallyFunction(data) => {
                 data.set_at_offset(agent, props, offset, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
@@ -4505,6 +4587,7 @@ impl HeapMarkAndSweep for Object<'static> {
             Self::BuiltinGeneratorFunction => todo!(),
             Self::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
+            Self::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(data) => data.mark_values(queues),
@@ -4573,6 +4656,7 @@ impl HeapMarkAndSweep for Object<'static> {
             Self::BuiltinGeneratorFunction => todo!(),
             Self::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
             Self::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
+            Self::BuiltinPromiseFinallyFunction(data) => data.sweep_values(compactions),
             Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(data) => data.sweep_values(compactions),
@@ -4659,6 +4743,9 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::BuiltinPromiseResolvingFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::BuiltinPromiseResolvingFunction),
+            Self::BuiltinPromiseFinallyFunction(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::BuiltinPromiseFinallyFunction),
             Self::BuiltinPromiseCollectorFunction => Some(Self::BuiltinPromiseCollectorFunction),
             Self::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
             Self::PrimitiveObject(data) => data
@@ -4808,6 +4895,9 @@ impl TryFrom<HeapRootData> for Object<'_> {
                     builtin_promise_resolving_function,
                 ))
             }
+            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => Ok(
+                Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function),
+            ),
             HeapRootData::BuiltinPromiseCollectorFunction => {
                 Ok(Self::BuiltinPromiseCollectorFunction)
             }

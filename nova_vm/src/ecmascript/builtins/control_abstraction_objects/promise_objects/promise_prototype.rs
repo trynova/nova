@@ -4,7 +4,10 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::invoke,
+        abstract_operations::{
+            operations_on_objects::{invoke, species_constructor},
+            testing_and_comparison::{is_callable, is_constructor},
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
@@ -12,14 +15,21 @@ use crate::{
                 Promise,
                 data::{PromiseReactions, PromiseState},
             },
+            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object, String,
+            Value,
+        },
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
 
@@ -76,13 +86,76 @@ impl PromisePrototype {
         )
     }
 
+    /// ### [27.2.5.3 Promise.prototype.finally ( onFinally )](https://tc39.es/ecma262/#sec-promise.prototype.finally)
     fn finally<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.prototype.finally", gc.into_nogc()))
+        let on_finally = args.get(0).bind(gc.nogc());
+        // 1. Let promise be the this value.
+        let promise = this_value.bind(gc.nogc());
+        // 2. If promise is not an Object, throw a TypeError exception.
+        let Ok(promise) = Object::try_from(promise) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "'this' is not an Object",
+                gc.into_nogc(),
+            ));
+        };
+        let scoped_promise = promise.scope(agent, gc.nogc());
+        let scoped_on_finally = on_finally.scope(agent, gc.nogc());
+
+        // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
+        let promise_intrinsic = agent
+            .current_realm_record()
+            .intrinsics()
+            .promise()
+            .bind(gc.nogc());
+        let c = species_constructor(
+            agent,
+            promise.into_object().unbind(),
+            promise_intrinsic.into_function().unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 4. Assert: IsConstructor(C) is true.
+        debug_assert!(is_constructor(agent, c).is_some());
+
+        // SAFETY: not shared.
+        let on_finally = unsafe { scoped_on_finally.take(agent).bind(gc.nogc()) };
+        // SAFETY: not shared.
+        let promise = unsafe { scoped_promise.take(agent).bind(gc.nogc()) };
+
+        // 5. If IsCallable(onFinally) is false, then
+        let (then_finally, catch_finally) =
+            if let Some(on_finally) = is_callable(on_finally, gc.nogc()) {
+                // 6. Else,
+                // a. Let thenFinallyClosure be a new Abstract Closure with...
+                // b. Let thenFinally be CreateBuiltinFunction(thenFinallyClosure, 1, "", « »).
+                // c. Let catchFinallyClosure be a new Abstract Closure with...
+                // d. Let catchFinally be CreateBuiltinFunction(catchFinallyClosure, 1, "", « »).
+                let (then_finally, catch_finally) =
+                    BuiltinPromiseFinallyFunction::create_finally_functions(agent, c, on_finally);
+                (then_finally.into_value(), catch_finally.into_value())
+            } else {
+                // a. Let thenFinally be onFinally.
+                // b. Let catchFinally be onFinally.
+                (on_finally, on_finally)
+            };
+        // 7. Return ? Invoke(promise, "then", « thenFinally, catchFinally »).
+        invoke(
+            agent,
+            promise.into_value().unbind(),
+            BUILTIN_STRING_MEMORY.then.to_property_key(),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                then_finally.unbind(),
+                catch_finally.unbind(),
+            ])),
+            gc,
+        )
     }
 
     /// ### [27.2.5.4 Promise.prototype.then ( onFulfilled, onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.then)
