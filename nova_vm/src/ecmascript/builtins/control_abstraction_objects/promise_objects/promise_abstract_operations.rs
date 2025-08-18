@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub mod promise_capability_records;
+pub(crate) mod promise_finally_functions;
 pub(crate) mod promise_jobs;
 pub(crate) mod promise_reaction_records;
 pub(crate) mod promise_resolving_functions;

@@ -3443,6 +3443,7 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::BuiltinGeneratorFunction |
         Value::BuiltinConstructorFunction(_) |
         Value::BuiltinPromiseResolvingFunction(_) |
+        Value::BuiltinPromiseFinallyFunction(_) |
         Value::BuiltinPromiseCollectorFunction |
         Value::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY.function,
         Value::Proxy(proxy) => {

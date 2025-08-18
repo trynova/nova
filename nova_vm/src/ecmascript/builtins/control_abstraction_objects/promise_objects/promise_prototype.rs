@@ -15,6 +15,7 @@ use crate::{
                 Promise,
                 data::{PromiseReactions, PromiseState},
             },
+            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         },
         execution::{
             Agent, JsResult, Realm,
@@ -130,29 +131,15 @@ impl PromisePrototype {
 
         // 5. If IsCallable(onFinally) is false, then
         let (then_finally, catch_finally) =
-            if let Some(_on_finally) = is_callable(on_finally, gc.nogc()) {
+            if let Some(on_finally) = is_callable(on_finally, gc.nogc()) {
                 // 6. Else,
-                return Err(agent.todo("Promise.prototype.finally", gc.into_nogc()));
-                // a. Let thenFinallyClosure be a new Abstract Closure with
-                //    parameters (value) that captures onFinally and C and
-                //    performs the following steps when called:
-                //         i. Let result be ? Call(onFinally, undefined).
-                //         ii. Let p be ? PromiseResolve(C, result).
-                //         iii. Let returnValue be a new Abstract Closure with no parameters that captures value and performs the following steps when called:
-                //                 1. Return NormalCompletion(value).
-                //         iv. Let valueThunk be CreateBuiltinFunction(returnValue, 0, "", « »).
-                //         v. Return ? Invoke(p, "then", « valueThunk »).
+                // a. Let thenFinallyClosure be a new Abstract Closure with...
                 // b. Let thenFinally be CreateBuiltinFunction(thenFinallyClosure, 1, "", « »).
-                // c. Let catchFinallyClosure be a new Abstract Closure with
-                //    parameters (reason) that captures onFinally and C and
-                //    performs the following steps when called:
-                //         i. Let result be ? Call(onFinally, undefined).
-                //         ii. Let p be ? PromiseResolve(C, result).
-                //         iii. Let throwReason be a new Abstract Closure with no parameters that captures reason and performs the following steps when called:
-                //                 1. Return ThrowCompletion(reason).
-                //         iv. Let thrower be CreateBuiltinFunction(throwReason, 0, "", « »).
-                //         v. Return ? Invoke(p, "then", « thrower »).
+                // c. Let catchFinallyClosure be a new Abstract Closure with...
                 // d. Let catchFinally be CreateBuiltinFunction(catchFinallyClosure, 1, "", « »).
+                let (then_finally, catch_finally) =
+                    BuiltinPromiseFinallyFunction::create_finally_functions(agent, c, on_finally);
+                (then_finally.into_value(), catch_finally.into_value())
             } else {
                 // a. Let thenFinally be onFinally.
                 // b. Let catchFinally be onFinally.

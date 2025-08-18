@@ -427,8 +427,10 @@ impl FunctionPrototype {
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.
             // The representation must have the syntax of a NativeFunction.
-            Function::BoundFunction(_) | Function::BuiltinPromiseResolvingFunction(_) => {
-                // Promise resolving functions have no initial name.
+            Function::BoundFunction(_)
+            | Function::BuiltinPromiseResolvingFunction(_)
+            | Function::BuiltinPromiseFinallyFunction(_) => {
+                // Promise resolving and finally functions have no initial name.
                 Ok(
                     Value::from_static_str(agent, "function () { [ native code ] }", gc.nogc())
                         .unbind(),

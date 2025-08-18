@@ -66,6 +66,7 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             promise_objects::promise_abstract_operations::{
+                promise_finally_functions::BuiltinPromiseFinallyFunction,
                 promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
@@ -87,6 +88,7 @@ use crate::{
             BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
             BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+            BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
@@ -137,6 +139,7 @@ pub mod private {
                 primitive_objects::PrimitiveObject,
                 promise::Promise,
                 promise_objects::promise_abstract_operations::{
+                    promise_finally_functions::BuiltinPromiseFinallyFunction,
                     promise_reaction_records::PromiseReaction,
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
@@ -179,6 +182,7 @@ pub mod private {
     impl RootableSealed for BuiltinConstructorFunction<'_> {}
     impl RootableSealed for BuiltinFunction<'_> {}
     impl RootableSealed for BuiltinPromiseResolvingFunction<'_> {}
+    impl RootableSealed for BuiltinPromiseFinallyFunction<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for DataView<'_> {}
     #[cfg(feature = "date")]
@@ -465,6 +469,8 @@ pub enum HeapRootData {
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'static>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'static>) =
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'static>),
@@ -567,6 +573,7 @@ impl From<Object<'static>> for HeapRootData {
             Object::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
                 Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function)
             }
+            Object::BuiltinPromiseFinallyFunction(f) => Self::BuiltinPromiseFinallyFunction(f),
             Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(primitive_object) => Self::PrimitiveObject(primitive_object),
@@ -675,6 +682,9 @@ impl HeapMarkAndSweep for HeapRootData {
             }
             HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
                 builtin_promise_resolving_function.mark_values(queues)
+            }
+            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
+                builtin_promise_finally_function.mark_values(queues)
             }
             HeapRootData::BuiltinPromiseCollectorFunction => todo!(),
             HeapRootData::BuiltinProxyRevokerFunction => todo!(),
@@ -794,6 +804,9 @@ impl HeapMarkAndSweep for HeapRootData {
             }
             HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
                 builtin_promise_resolving_function.sweep_values(compactions)
+            }
+            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
+                builtin_promise_finally_function.sweep_values(compactions);
             }
             HeapRootData::BuiltinPromiseCollectorFunction => todo!(),
             HeapRootData::BuiltinProxyRevokerFunction => todo!(),

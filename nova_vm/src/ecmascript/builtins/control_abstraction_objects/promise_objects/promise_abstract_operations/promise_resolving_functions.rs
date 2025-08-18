@@ -11,10 +11,7 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, JsResult},
-        types::{
-            Function, FunctionInternalProperties, Object,
-            OrdinaryObject, String, Value,
-        },
+        types::{Function, FunctionInternalProperties, Object, OrdinaryObject, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -252,13 +249,23 @@ unsafe impl Bindable for PromiseResolvingFunctionHeapData<'_> {
 }
 
 impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.promise_capability.mark_values(queues);
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            object_index,
+            promise_capability,
+            resolve_type: _,
+        } = self;
+        object_index.mark_values(queues);
+        promise_capability.mark_values(queues);
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.promise_capability.sweep_values(compactions);
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            object_index,
+            promise_capability,
+            resolve_type: _,
+        } = self;
+        object_index.sweep_values(compactions);
+        promise_capability.sweep_values(compactions);
     }
 }

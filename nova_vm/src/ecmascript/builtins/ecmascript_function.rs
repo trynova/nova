@@ -911,6 +911,7 @@ pub(crate) fn make_constructor<'a>(
         Function::BuiltinGeneratorFunction
         | Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
+        | Function::BuiltinPromiseFinallyFunction(_)
         | Function::BuiltinPromiseCollectorFunction
         | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
@@ -1105,6 +1106,7 @@ pub(crate) fn set_function_name<'a>(
         Function::BuiltinGeneratorFunction
         | Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
+        | Function::BuiltinPromiseFinallyFunction(_)
         | Function::BuiltinPromiseCollectorFunction
         | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
