@@ -3436,116 +3436,187 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
-            Object::Object(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Array(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::Object(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::Array(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::ArrayBuffer(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
             #[cfg(feature = "date")]
-            Object::Date(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Error(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::BoundFunction(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::BuiltinFunction(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::Date(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::Error(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::BoundFunction(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::BuiltinFunction(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
             Object::ECMAScriptFunction(data) => {
-                data.try_set(agent, property_key, value, receiver, gc)
+                data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
-                data.try_set(agent, property_key, value, receiver, gc)
+                data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
-                data.try_set(agent, property_key, value, receiver, gc)
+                data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Arguments(data) => data.try_set(agent, property_key, value, receiver, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::FinalizationRegistry(data) => {
-                data.try_set(agent, property_key, value, receiver, gc)
+            Object::PrimitiveObject(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
             }
-            Object::Map(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Promise(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Proxy(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::Arguments(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::FinalizationRegistry(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::Map(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::Promise(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::Proxy(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "regexp")]
-            Object::RegExp(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::RegExp(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "set")]
-            Object::Set(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::Set(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => {
-                data.try_set(agent, property_key, value, receiver, gc)
+                data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             #[cfg(feature = "weak-refs")]
-            Object::WeakMap(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::WeakMap(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "weak-refs")]
-            Object::WeakRef(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::WeakRef(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "weak-refs")]
-            Object::WeakSet(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::WeakSet(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
             #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
-                TypedArray::Int8Array(data).try_set(agent, property_key, value, receiver, gc)
+                TypedArray::Int8Array(data).try_set(agent, property_key, value, receiver, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(data) => {
-                TypedArray::Uint8Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Uint8Array(data) => TypedArray::Uint8Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data).try_set(
                 agent,
                 property_key,
                 value,
                 receiver,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
-            Object::Int16Array(data) => {
-                TypedArray::Int16Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Int16Array(data) => TypedArray::Int16Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(data) => {
-                TypedArray::Uint16Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Uint16Array(data) => TypedArray::Uint16Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
-            Object::Int32Array(data) => {
-                TypedArray::Int32Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Int32Array(data) => TypedArray::Int32Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(data) => {
-                TypedArray::Uint32Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Uint32Array(data) => TypedArray::Uint32Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(data) => {
-                TypedArray::BigInt64Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::BigInt64Array(data) => TypedArray::BigInt64Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(data) => {
-                TypedArray::BigUint64Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::BigUint64Array(data) => TypedArray::BigUint64Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => {
                 TypedArray::Float16Array(data).try_set(agent, property_key, value, receiver, gc)
             }
             #[cfg(feature = "array-buffer")]
-            Object::Float32Array(data) => {
-                TypedArray::Float32Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Float32Array(data) => TypedArray::Float32Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
-            Object::Float64Array(data) => {
-                TypedArray::Float64Array(data).try_set(agent, property_key, value, receiver, gc)
-            }
+            Object::Float64Array(data) => TypedArray::Float64Array(data).try_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                cache,
+                gc,
+            ),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncGenerator(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::ArrayIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::AsyncGenerator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::ArrayIterator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
             #[cfg(feature = "set")]
-            Object::SetIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::MapIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::StringIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Generator(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::Module(data) => data.try_set(agent, property_key, value, receiver, gc),
-            Object::EmbedderObject(data) => data.try_set(agent, property_key, value, receiver, gc),
+            Object::SetIterator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::MapIterator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::StringIterator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::Generator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            Object::Module(data) => data.try_set(agent, property_key, value, receiver, cache, gc),
+            Object::EmbedderObject(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
         }
     }
 
@@ -4124,97 +4195,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        match self {
-            Object::Object(data) => data.set_cached(agent, props, gc),
-            Object::Array(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "date")]
-            Object::Date(data) => data.set_cached(agent, props, gc),
-            Object::Error(data) => data.set_cached(agent, props, gc),
-            Object::BoundFunction(data) => data.set_cached(agent, props, gc),
-            Object::BuiltinFunction(data) => data.set_cached(agent, props, gc),
-            Object::ECMAScriptFunction(data) => data.set_cached(agent, props, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
-            Object::BuiltinConstructorFunction(data) => data.set_cached(agent, props, gc),
-            Object::BuiltinPromiseResolvingFunction(data) => data.set_cached(agent, props, gc),
-            Object::BuiltinPromiseCollectorFunction => todo!(),
-            Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(data) => data.set_cached(agent, props, gc),
-            Object::Arguments(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(data) => data.set_cached(agent, props, gc),
-            Object::FinalizationRegistry(data) => data.set_cached(agent, props, gc),
-            Object::Map(data) => data.set_cached(agent, props, gc),
-            Object::Promise(data) => data.set_cached(agent, props, gc),
-            Object::Proxy(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "regexp")]
-            Object::RegExp(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "set")]
-            Object::Set(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakMap(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakRef(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakSet(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::Int8Array(data) => TypedArray::Int8Array(data).set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(data) => TypedArray::Uint8Array(data).set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(data) => {
-                TypedArray::Uint8ClampedArray(data).set_cached(agent, props, gc)
-            }
-            #[cfg(feature = "array-buffer")]
-            Object::Int16Array(data) => TypedArray::Int16Array(data).set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(data) => TypedArray::Uint16Array(data).set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::Int32Array(data) => TypedArray::Int32Array(data).set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(data) => TypedArray::Uint32Array(data).set_cached(agent, props, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(data) => {
-                TypedArray::BigInt64Array(data).set_cached(agent, props, gc)
-            }
-            #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(data) => {
-                TypedArray::BigUint64Array(data).set_cached(agent, props, gc)
-            }
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(data) => {
-                TypedArray::Float16Array(data).set_cached(agent, props, gc)
-            }
-            #[cfg(feature = "array-buffer")]
-            Object::Float32Array(data) => {
-                TypedArray::Float32Array(data).set_cached(agent, props, gc)
-            }
-            #[cfg(feature = "array-buffer")]
-            Object::Float64Array(data) => {
-                TypedArray::Float64Array(data).set_cached(agent, props, gc)
-            }
-            Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncGenerator(data) => data.set_cached(agent, props, gc),
-            Object::ArrayIterator(data) => data.set_cached(agent, props, gc),
-            #[cfg(feature = "set")]
-            Object::SetIterator(data) => data.set_cached(agent, props, gc),
-            Object::MapIterator(data) => data.set_cached(agent, props, gc),
-            Object::StringIterator(data) => data.set_cached(agent, props, gc),
-            Object::Generator(data) => data.set_cached(agent, props, gc),
-            Object::Module(data) => data.set_cached(agent, props, gc),
-            Object::EmbedderObject(data) => data.set_cached(agent, props, gc),
-        }
-    }
-
     fn get_own_property_at_offset<'gc>(
         self,
         agent: &Agent,
@@ -4330,7 +4310,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         props: &SetCachedProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
             Object::Object(data) => data.set_at_offset(agent, props, offset, gc),
             Object::Array(data) => data.set_at_offset(agent, props, offset, gc),

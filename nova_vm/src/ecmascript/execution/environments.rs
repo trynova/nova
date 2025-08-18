@@ -56,7 +56,9 @@ pub(crate) use private_environment::{
 use crate::{
     ecmascript::{
         builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
-        types::{InternalMethods, IntoValue, Object, Reference, String, TryHasResult, Value},
+        types::{
+            InternalMethods, IntoValue, Object, Reference, SetResult, String, TryHasResult, Value,
+        },
     },
     engine::{
         context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
@@ -435,27 +437,27 @@ impl<'e> Environment<'e> {
     /// Environment Record. The String value N is the text of the bound name.
     /// V is the value for the binding and is a value of any ECMAScript
     /// language type.
-    pub(crate) fn try_initialize_binding<'a>(
+    pub(crate) fn try_initialize_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
             Environment::Declarative(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(())
+                SetResult::Done.into()
             }
             Environment::Function(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(())
+                SetResult::Done.into()
             }
             Environment::Global(e) => e.try_initialize_binding(agent, name, cache, value, gc),
             Environment::Module(e) => {
                 e.initialize_binding(agent, name, value);
-                TryResult::Continue(())
+                SetResult::Done.into()
             }
             Environment::Object(e) => e.try_initialize_binding(agent, name, cache, value, gc),
         }
@@ -500,28 +502,33 @@ impl<'e> Environment<'e> {
     /// value for the binding and may be a value of any ECMAScript language
     /// type. S is a Boolean flag. If S is true and the binding cannot be set
     /// throw a TypeError exception.
-    pub(crate) fn try_set_mutable_binding<'a>(
+    pub(crate) fn try_set_mutable_binding<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         match self {
-            Environment::Declarative(e) => {
-                js_result_into_try(e.set_mutable_binding(agent, name, value, is_strict, gc))
-            }
-            Environment::Function(e) => {
-                js_result_into_try(e.set_mutable_binding(agent, name, value, is_strict, gc))
-            }
+            Environment::Declarative(e) => js_result_into_try(
+                e.set_mutable_binding(agent, name, value, is_strict, gc)
+                    .map(|_| SetResult::Done),
+            ),
+            Environment::Function(e) => js_result_into_try(
+                e.set_mutable_binding(agent, name, value, is_strict, gc)
+                    .map(|_| SetResult::Done),
+            ),
             Environment::Global(e) => {
                 e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)
             }
             Environment::Module(e) => {
                 debug_assert!(is_strict);
-                js_result_into_try(e.set_mutable_binding(agent, name, value, gc))
+                js_result_into_try(
+                    e.set_mutable_binding(agent, name, value, gc)
+                        .map(|_| SetResult::Done),
+                )
             }
             Environment::Object(e) => {
                 e.try_set_mutable_binding(agent, name, cache, value, is_strict, gc)

@@ -39,7 +39,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
-            PropertyKey, PropertyKeySet, String, TryGetResult, TryHasResult, Value,
+            PropertyKey, PropertyKeySet, SetResult, String, TryGetResult, TryHasResult, Value,
             try_get_result_into_value,
         },
     },
@@ -266,22 +266,23 @@ pub(crate) fn throw_set_error<'a>(
 /// either a normal completion containing UNUSED or a throw completion. It is
 /// used to set the value of a specific property of an object. V is the new
 /// value for the property.
-pub(crate) fn try_set<'a>(
+pub(crate) fn try_set<'gc>(
     agent: &mut Agent,
     o: Object,
     p: PropertyKey,
     v: Value,
     throw: bool,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, ()> {
+    cache: Option<PropertyLookupCache>,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
     // 1. Let success be ? O.[[Set]](P, V, O).
-    let success = o.try_set(agent, p, v, o.into_value(), gc)?;
+    let result = o.try_set(agent, p, v, o.into_value(), cache, gc)?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
-    if !success && throw {
+    if result.failed() && throw {
         return throw_set_error(agent, p, gc).into();
     }
     // 3. Return UNUSED.
-    TryResult::Continue(())
+    result.into()
 }
 
 /// ### Try [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
@@ -2588,13 +2589,13 @@ pub(crate) fn private_set<'a>(
 /// The abstract operation PrivateSet takes arguments O (an Object), P (a
 /// Private Name), and value (an ECMAScript language value) and returns either
 /// a normal completion containing unused or a throw completion.
-pub(crate) fn try_private_set<'a>(
+pub(crate) fn try_private_set<'gc>(
     agent: &mut Agent,
     o: Object,
     p: PrivateName,
     value: Value,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, ()> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
     if o.is_proxy() {
         return throw_no_proxy_private_names(agent, gc).into();
     }
@@ -2623,7 +2624,7 @@ pub(crate) fn try_private_set<'a>(
                 // a. Set entry.[[Value]] to value.
                 *entry_value = value.unbind();
                 // 6. Return unused.
-                TryResult::Continue(())
+                SetResult::Done.into()
             }
         }
         Some((None, Some(descriptor))) => {
@@ -2632,7 +2633,7 @@ pub(crate) fn try_private_set<'a>(
             assert!(descriptor.is_accessor_descriptor());
             // b. If entry.[[Set]] is undefined, throw a TypeError exception.
             // c. Let setter be entry.[[Set]].
-            let Some(_) = descriptor.setter_function(gc) else {
+            let Some(setter) = descriptor.setter_function(gc) else {
                 return agent
                     .throw_exception_with_static_message(
                         ExceptionType::TypeError,
@@ -2642,7 +2643,7 @@ pub(crate) fn try_private_set<'a>(
                     .into();
             };
             // d. Perform ? Call(setter, O, « value »).
-            TryError::GcError.into()
+            SetResult::Set(setter).into()
         }
         _ => {
             // 2. If entry is empty, throw a TypeError exception.

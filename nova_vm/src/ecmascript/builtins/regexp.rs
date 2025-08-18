@@ -6,7 +6,6 @@ pub(crate) mod abstract_operations;
 pub(crate) mod data;
 
 use core::ops::{Index, IndexMut};
-use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
@@ -15,9 +14,9 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetResult, TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
+            TryHasResult, Value,
         },
     },
     engine::{
@@ -311,8 +310,9 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If we're setting the last index and we have a backing object,
             // then we set the value there first and observe the result.
@@ -327,14 +327,19 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                     property_key,
                     value,
                     receiver,
+                    cache,
                     gc,
-                ));
+                ))
+                .into_boolean()
+                .unwrap();
                 if success {
                     // We successfully set the value, so set it in our direct
                     // data as well.
                     agent[self].last_index = new_last_index;
+                    SetResult::Done.into()
+                } else {
+                    SetResult::Unwritable.into()
                 }
-                TryResult::Continue(success)
             } else {
                 // Note: lastIndex property is writable, so setting its value
                 // always succeeds. We can just set this directly here.
@@ -348,15 +353,16 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                         property_key,
                         value,
                         receiver,
+                        cache,
                         gc,
                     ));
                 }
-                TryResult::Continue(true)
+                SetResult::Done.into()
             }
         } else {
             // If something else is being set, fall back onto the ordinary
             // abstract operation.
-            ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+            ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
         }
     }
 
@@ -372,13 +378,11 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // Note: lastIndex is an unconfigurable data property: It cannot
             // become a getter or setter and will thus never call into
             // JavaScript.
-            Ok(unwrap_try(self.try_set(
-                agent,
-                property_key,
-                value,
-                receiver,
-                gc.nogc(),
-            )))
+            Ok(
+                unwrap_try(self.try_set(agent, property_key, value, receiver, None, gc.nogc()))
+                    .into_boolean()
+                    .unwrap(),
+            )
         } else {
             // If something else is being set, fall back onto the ordinary
             // abstract operation.
@@ -400,60 +404,6 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 vec![BUILTIN_STRING_MEMORY.lastIndex.into()]
             },
         )
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        if props.p == BUILTIN_STRING_MEMORY.lastIndex.into() {
-            // If we're setting the last index and we have a backing object,
-            // then we set the value there first and observe the result.
-            let new_last_index = RegExpLastIndex::from_value(props.value);
-            if self.get_backing_object(agent).is_some() {
-                // Note: The lastIndex is an unconfigurable data property: It
-                // cannot be turned into a getter or setter and will thus never
-                // call into JavaScript.
-                let success = unwrap_try(ordinary_try_set(
-                    agent,
-                    self.into_object(),
-                    props.p,
-                    props.value,
-                    self.into_value(),
-                    gc,
-                ));
-                if success {
-                    // We successfully set the value, so set it in our direct
-                    // data as well.
-                    agent[self].last_index = new_last_index;
-                    SetCachedResult::Done.into()
-                } else {
-                    SetCachedResult::Unwritable.into()
-                }
-            } else {
-                // Note: lastIndex property is writable, so setting its value
-                // always succeeds. We can just set this directly here.
-                agent[self].last_index = new_last_index;
-                // If we we set a value that is not a valid index or undefined,
-                // we need to create the backing object and set the actual
-                // value there.
-                if !new_last_index.is_valid() && props.value.is_undefined() {
-                    unwrap_try(self.create_backing_object(agent).try_set(
-                        agent,
-                        props.p,
-                        props.value,
-                        self.into_value(),
-                        gc,
-                    ));
-                }
-                SetCachedResult::Done.into()
-            }
-        } else {
-            let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), props, gc)
-        }
     }
 }
 

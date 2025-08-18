@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::{collections::VecDeque, ops::ControlFlow};
+use std::collections::VecDeque;
 
 use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
@@ -25,9 +25,9 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult, try_result_into_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, NoCache,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetResult, TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String,
+            TryGetResult, TryHasResult, Value,
         },
     },
     engine::{
@@ -1206,9 +1206,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: PropertyKey,
         _: Value,
         _: Value,
-        _: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        TryError::GcError.into()
+        _: Option<PropertyLookupCache>,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
+        SetResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.9 [[Set]] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver)
@@ -1679,19 +1680,6 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     }
 
     #[inline(always)]
-
-    fn set_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        // TODO: Check if self is non-revoked, try to go through the Proxy
-        // without trigger the trap.
-        SetCachedResult::Proxy(self.bind(gc)).into()
-    }
-
-    #[inline(always)]
     fn get_own_property_at_offset<'gc>(
         self,
         _: &Agent,
@@ -1710,10 +1698,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &SetCachedProps,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         // TODO: Check if self is non-revoked, try to go through the Proxy
         // without trigger the trap.
-        SetCachedResult::Proxy(self.bind(gc)).into()
+        SetResult::Proxy(self.bind(gc)).into()
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{collections::TryReserveError, ops::ControlFlow};
+use std::collections::TryReserveError;
 
 use super::Function;
 use crate::{
@@ -17,9 +17,9 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, NoCache,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryGetResult, TryHasResult, Value, language::IntoObject,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String, TryGetResult,
+            TryHasResult, Value, language::IntoObject,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
@@ -91,13 +91,13 @@ pub(crate) fn function_set_cached<'a, 'gc>(
     agent: &mut Agent,
     props: &SetCachedProps,
     gc: NoGcScope<'gc, '_>,
-) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+) -> TryResult<'gc, SetResult<'gc>> {
     let bo = func.get_backing_object(agent);
     if bo.is_none()
         && (props.p == BUILTIN_STRING_MEMORY.length.into()
             || props.p == BUILTIN_STRING_MEMORY.name.into())
     {
-        SetCachedResult::Unwritable.into()
+        SetResult::Unwritable.into()
     } else {
         let shape = if let Some(bo) = bo {
             bo.object_shape(agent)
@@ -285,17 +285,18 @@ pub(crate) fn function_try_set<'gc, 'a>(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
-) -> TryResult<'gc, bool> {
+) -> TryResult<'gc, SetResult<'gc>> {
     if func.get_backing_object(agent).is_some() {
-        ordinary_try_set(agent, func.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(agent, func, property_key, value, receiver, cache, gc)
     } else if property_key == BUILTIN_STRING_MEMORY.length.into()
         || property_key == BUILTIN_STRING_MEMORY.name.into()
     {
         // length and name are not writable
-        TryResult::Continue(false)
+        SetResult::Unwritable.into()
     } else {
-        ordinary_try_set(agent, func.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(agent, func, property_key, value, receiver, cache, gc)
     }
 }
 

@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::ops::ControlFlow;
 
 use crate::{
     SmallInteger,
@@ -19,11 +18,11 @@ use crate::{
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
             FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
-            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, NoCache,
-            Number, Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
+            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, Number,
+            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
             SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, SetCachedProps, SetCachedResult, String, Symbol, TryGetResult,
-            TryHasResult, Value, bigint::HeapBigInt,
+            SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryGetResult, TryHasResult, Value,
+            bigint::HeapBigInt,
         },
     },
     engine::{
@@ -433,16 +432,17 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryResult::Continue(false);
+            return SetResult::Unwritable.into();
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
     }
 
     fn internal_set<'gc>(
@@ -551,22 +551,6 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 TryResult::Continue(ordinary_own_property_keys(agent, backing_object, gc))
             }
             None => TryResult::Continue(vec![]),
-        }
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        if String::try_from(agent[self].data)
-            .is_ok_and(|s| s.get_property_value(agent, props.p).is_some())
-        {
-            SetCachedResult::Unwritable.into()
-        } else {
-            let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), props, gc)
         }
     }
 }

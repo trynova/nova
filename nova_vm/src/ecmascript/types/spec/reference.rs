@@ -23,8 +23,8 @@ use crate::{
             get_global_object,
         },
         types::{
-            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyKey, String,
-            TryGetResult, Value,
+            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyKey, SetResult,
+            String, TryGetResult, Value,
         },
     },
     engine::{
@@ -284,13 +284,18 @@ impl<'a> Reference<'a> {
     /// ## Panics
     ///
     /// Panics if the reference is a variable reference or unresolvable.
-    pub(crate) fn this_value(&self) -> Value<'a> {
+    pub(crate) fn this_value(&self, agent: &Agent) -> Value<'a> {
         match self {
             Reference::PropertyExpression(v) | Reference::PropertyExpressionStrict(v) => v.base,
             Reference::Property(v) | Reference::PropertyStrict(v) => v.base,
             Reference::SuperExpression(v) | Reference::SuperExpressionStrict(v) => v.this_value,
             Reference::Super(v) | Reference::SuperStrict(v) => v.this_value,
-            _ => unreachable!("{:?}", self),
+            Reference::Variable(v) | Reference::VariableStrict(v) => match v.base {
+                Environment::Global(e) => e.get_binding_object(agent).into_value(),
+                Environment::Object(e) => e.get_binding_object(agent).into_value(),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
         }
     }
 
@@ -347,7 +352,10 @@ impl<'a> Reference<'a> {
         match self {
             Reference::Property(v) | Reference::PropertyStrict(v) => v.referenced_name,
             Reference::Super(v) | Reference::SuperStrict(v) => v.referenced_name,
-            _ => unreachable!(),
+            Reference::Unresolvable(name) | Reference::UnresolvableStrict(name) => {
+                unreachable!("{:?}", name.to_property_key())
+            }
+            _ => unreachable!("{self:?}"),
         }
     }
 
@@ -865,7 +873,7 @@ pub(crate) fn try_get_value<'gc>(
                 }
             } else if let Ok(base_obj) = base_obj {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                let this_value = reference.this_value().bind(gc);
+                let this_value = reference.this_value(agent).bind(gc);
                 base_obj
                     .try_get(agent, referenced_name, this_value, cache, gc)
                     .map_continue(|c| {
@@ -1095,12 +1103,13 @@ pub(crate) fn put_value<'a>(
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
 /// either a normal completion containing UNUSED or an abrupt completion.
-pub(crate) fn try_put_value<'a>(
+pub(crate) fn try_put_value<'gc>(
     agent: &mut Agent,
-    reference: &Reference<'a>,
+    reference: &mut Reference,
     w: Value,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, ()> {
+    cache: Option<PropertyLookupCache>,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     match reference {
         // 2. If IsUnresolvableReference(V) is true, then
@@ -1115,6 +1124,7 @@ pub(crate) fn try_put_value<'a>(
                 referenced_name.to_property_key(),
                 w.unbind(),
                 false,
+                cache,
                 gc,
             )
             // d. Return UNUSED.
@@ -1142,14 +1152,22 @@ pub(crate) fn try_put_value<'a>(
             // i. Set V.[[ReferencedName]] to ? ToPropertyKey(V.[[ReferencedName]]).
             let referenced_name =
                 option_into_try(to_property_key_simple(agent, referenced_name, gc))?;
+            reference.set_referenced_name_to_property_key(referenced_name);
             // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
-            let succeeded = base_obj.try_set(agent, referenced_name, w, this_value, gc)?;
+            let result = base_obj.try_set(agent, referenced_name, w, this_value, cache, gc)?;
             // d. If succeeded is false and V.[[Strict]] is true,
-            if !succeeded && reference.strict() {
+            if result.failed() && reference.strict() {
                 // throw a TypeError exception.
+                return throw_cannot_set_property(
+                    agent,
+                    base_obj.into_value(),
+                    referenced_name,
+                    gc,
+                )
+                .into();
             }
             // e. Return UNUSED.
-            TryResult::Continue(())
+            result.into()
         }
         Reference::Property(_)
         | Reference::PropertyStrict(_)
@@ -1164,9 +1182,15 @@ pub(crate) fn try_put_value<'a>(
                 return try_private_set(agent, base_obj, referenced_name, w, gc);
             }
             // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
-            let succeeded =
-                base_obj.try_set(agent, referenced_name, w, get_this_value(reference), gc)?;
-            if !succeeded && reference.strict() {
+            let result = base_obj.try_set(
+                agent,
+                referenced_name,
+                w,
+                get_this_value(reference),
+                None,
+                gc,
+            )?;
+            if result.failed() && reference.strict() {
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
                 return throw_cannot_set_property(
                     agent,
@@ -1177,7 +1201,7 @@ pub(crate) fn try_put_value<'a>(
                 .into();
             }
             // e. Return UNUSED.
-            TryResult::Continue(())
+            result.into()
         }
         Reference::Variable(v) | Reference::VariableStrict(v) => {
             // 4. Else,
@@ -1270,12 +1294,12 @@ pub(crate) fn initialize_referenced_binding<'a>(
 /// The abstract operation InitializeReferencedBinding takes arguments V (a
 /// Reference Record) and W (an ECMAScript language value) and returns either a
 /// normal completion containing unused or an abrupt completion.
-pub(crate) fn try_initialize_referenced_binding<'a>(
+pub(crate) fn try_initialize_referenced_binding<'gc>(
     agent: &mut Agent,
-    v: Reference<'a>,
+    v: Reference,
     w: Value,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, ()> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     // 2. Let base be V.[[Base]].
     // 3. Assert: base is an Environment Record.

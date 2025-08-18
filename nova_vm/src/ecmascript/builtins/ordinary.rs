@@ -21,8 +21,7 @@ use crate::{
         },
         execution::agent::{TryError, TryResult, unwrap_try},
         types::{
-            IntoValue, NoCache, SetCachedProps, SetCachedResult, TryGetResult, TryHasResult,
-            handle_try_get_result,
+            IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult, handle_try_get_result,
         },
     },
     engine::{
@@ -147,7 +146,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         props: &SetCachedProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         ordinary_set_at_offset(agent, props, self.into_object(), Some(self), offset, gc)
     }
 }
@@ -994,16 +993,15 @@ pub(crate) fn ordinary_get<'gc>(
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
-pub(crate) fn ordinary_try_set<'a>(
+pub(crate) fn ordinary_try_set<'o, 'gc>(
     agent: &mut Agent,
-    object: Object,
+    object: impl InternalMethods<'o>,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, bool> {
-    let property_key = property_key.bind(gc);
-
+    cache: Option<PropertyLookupCache>,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
     // 1. Let ownDesc be ! O.[[GetOwnProperty]](P).
     let own_descriptor = unwrap_try(object.try_get_own_property(agent, property_key, gc));
 
@@ -1014,6 +1012,7 @@ pub(crate) fn ordinary_try_set<'a>(
         property_key,
         value,
         receiver,
+        cache,
         own_descriptor,
         gc,
     )
@@ -1051,15 +1050,16 @@ pub(crate) fn ordinary_set<'a>(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
-fn ordinary_try_set_with_own_descriptor<'a>(
+fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     agent: &mut Agent,
-    object: Object,
+    object: impl InternalMethods<'o>,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
+    cache: Option<PropertyLookupCache>,
     own_descriptor: Option<PropertyDescriptor>,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, bool> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
@@ -1071,7 +1071,7 @@ fn ordinary_try_set_with_own_descriptor<'a>(
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
             // Note: Here we do not have guarantees: Parent could be a Proxy.
-            return parent.try_set(agent, property_key, value, receiver, gc);
+            return parent.try_set(agent, property_key, value, receiver, cache, gc);
         }
         // c. Else,
         else {
@@ -1089,12 +1089,12 @@ fn ordinary_try_set_with_own_descriptor<'a>(
     if own_descriptor.is_data_descriptor() {
         // a. If ownDesc.[[Writable]] is false, return false.
         if own_descriptor.writable == Some(false) {
-            return TryResult::Continue(false);
+            return SetResult::Unwritable.into();
         }
 
         // b. If Receiver is not an Object, return false.
         let Ok(receiver) = Object::try_from(receiver) else {
-            return TryResult::Continue(false);
+            return SetResult::Unwritable.into();
         };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
@@ -1103,15 +1103,15 @@ fn ordinary_try_set_with_own_descriptor<'a>(
         let existing_descriptor = receiver.try_get_own_property(agent, property_key, gc)?;
 
         // d. If existingDescriptor is not undefined, then
-        if let Some(existing_descriptor) = existing_descriptor {
+        let result = if let Some(existing_descriptor) = existing_descriptor {
             // i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
             if existing_descriptor.is_accessor_descriptor() {
-                return TryResult::Continue(false);
+                return SetResult::Accessor.into();
             }
 
             // ii. If existingDescriptor.[[Writable]] is false, return false.
             if existing_descriptor.writable == Some(false) {
-                return TryResult::Continue(false);
+                return SetResult::Unwritable.into();
             }
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
@@ -1122,24 +1122,32 @@ fn ordinary_try_set_with_own_descriptor<'a>(
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
             // Again: Receiver could be a Proxy.
-            return receiver.try_define_own_property(agent, property_key, value_descriptor, gc);
+            receiver.try_define_own_property(agent, property_key, value_descriptor, gc)
         }
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             // Again: Receiver could be a Proxy.
-            return try_create_data_property(agent, receiver, property_key, value, gc);
-        }
+            try_create_data_property(agent, receiver, property_key, value, gc)
+        };
+        return result.map_continue(|result| {
+            if result {
+                SetResult::Done
+            } else {
+                SetResult::Unwritable
+            }
+        });
     }
 
     // 3. Assert: IsAccessorDescriptor(ownDesc) is true.
     debug_assert!(own_descriptor.is_accessor_descriptor());
 
     // 4. Let setter be ownDesc.[[Set]].
+    let setter = own_descriptor.set.unwrap().bind(gc);
     // 5. If setter is undefined, return false.
-    let Some(_setter) = own_descriptor.set else {
-        return TryResult::Continue(false);
+    let Some(setter) = setter else {
+        return SetResult::Accessor.into();
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
@@ -1149,7 +1157,7 @@ fn ordinary_try_set_with_own_descriptor<'a>(
 
     // 7. Return true.
     // Some(true)
-    TryError::GcError.into()
+    SetResult::Set(setter).into()
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
@@ -1309,7 +1317,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
     bo: Option<OrdinaryObject>,
     offset: PropertyOffset,
     gc: NoGcScope<'a, '_>,
-) -> ControlFlow<SetCachedResult<'a>, NoCache> {
+) -> TryResult<'a, SetResult<'a>> {
     let o = o.bind(gc);
     let bo = bo.bind(gc);
     let p = props.p.bind(gc);
@@ -1324,7 +1332,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         //   [[Configurable]]: true
         // }.
         if bo.is_some_and(|bo| !ordinary_is_extensible(agent, bo)) {
-            return SetCachedResult::Unwritable.into();
+            return SetResult::Unwritable.into();
         }
         if o.into_value() == receiver {
             // ## 2.e.
@@ -1333,12 +1341,8 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             // i. Assert. Receiver does not currently have a property P.
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             let bo = bo.unwrap_or_else(|| o.get_or_create_backing_object(agent));
-            if bo
-                .property_storage()
-                .push(agent, o, p, Some(v), None, gc)
-                .is_err()
-            {
-                return NoCache.into();
+            if let Err(err) = bo.property_storage().push(agent, o, p, Some(v), None, gc) {
+                return agent.throw_allocation_exception(err, gc).into();
             }
             let shape = bo.object_shape(agent);
             if !shape.is_intrinsic(agent) {
@@ -1351,14 +1355,9 @@ pub(crate) fn ordinary_set_at_offset<'a>(
                     .cache
                     .insert_lookup_offset_if_not_found(agent, shape, bo.len(agent) - 1);
             }
-            return SetCachedResult::Done.into();
+            return SetResult::Done.into();
         } else {
-            // b. If Receiver is not an Object, return false.
-            let Ok(_receiver) = Object::try_from(receiver) else {
-                return SetCachedResult::Unwritable.into();
-            };
-            // TODO: better handling here.
-            return NoCache.into();
+            return handle_super_set_inner(agent, p, v, receiver, gc);
         }
     }
 
@@ -1377,21 +1376,17 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             Entry::Vacant(_) => true,
         };
         if !writable {
-            return SetCachedResult::Unwritable.into();
+            return SetResult::Unwritable.into();
         }
         if o.into_value() == receiver {
             // ## 2.d.
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
             *slot = v.unbind();
-            SetCachedResult::Done.into()
+            SetResult::Done.into()
         } else {
             // b. If Receiver is not an Object, return false.
-            if Object::try_from(receiver).is_err() {
-                return SetCachedResult::Unwritable.into();
-            }
-            // TODO: better handling here.
-            NoCache.into()
+            return handle_super_set_inner(agent, p, v, receiver, gc);
         }
     } else {
         let Entry::Occupied(e) = data.descriptors else {
@@ -1400,9 +1395,62 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         let d = e.get().get(&(offset as u32)).unwrap();
         debug_assert!(d.is_accessor_descriptor());
         d.setter_function(gc)
-            .map_or(SetCachedResult::Accessor, SetCachedResult::Set)
+            .map_or(SetResult::Accessor, SetResult::Set)
             .into()
     }
+}
+
+fn handle_super_set_inner<'gc>(
+    agent: &mut Agent,
+    p: PropertyKey,
+    v: Value,
+    receiver: Value,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, SetResult<'gc>> {
+    // b. If Receiver is not an Object, return false.
+    let Ok(receiver) = Object::try_from(receiver) else {
+        return SetResult::Unwritable.into();
+    };
+    // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
+    // Note: Here again we do not have guarantees; the receiver could be a
+    // Proxy.
+    let existing_descriptor = receiver.try_get_own_property(agent, p, gc)?;
+    // d. If existingDescriptor is not undefined, then
+    let result = if let Some(existing_descriptor) = existing_descriptor {
+        // i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
+        if existing_descriptor.is_accessor_descriptor() {
+            return SetResult::Accessor.into();
+        }
+
+        // ii. If existingDescriptor.[[Writable]] is false, return false.
+        if existing_descriptor.writable == Some(false) {
+            return SetResult::Unwritable.into();
+        }
+
+        // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
+        let value_desc = PropertyDescriptor {
+            value: Some(v.unbind()),
+            ..Default::default()
+        };
+
+        // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
+        // Again: Receiver could be a Proxy.
+        receiver.try_define_own_property(agent, p, value_desc, gc)
+    }
+    // e. Else,
+    else {
+        // i. Assert: Receiver does not currently have a property P.
+        // ii. Return ? CreateDataProperty(Receiver, P, V).
+        // Again: Receiver could be a Proxy.
+        try_create_data_property(agent, receiver, p, v, gc)
+    };
+    result.map_continue(|result| {
+        if result {
+            SetResult::Done
+        } else {
+            SetResult::Unwritable
+        }
+    })
 }
 
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)

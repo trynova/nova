@@ -396,10 +396,11 @@ where
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
     }
 
     /// ## \[\[Set\]\]
@@ -483,25 +484,6 @@ where
         ))
     }
 
-    /// ## \[\[Set]] method with caching.
-    ///
-    /// This method is a variant of the \[\[Set]] method which can never call
-    /// into JavaScript and thus cannot trigger garbage collection. If the
-    /// method would need to call a setter function or a Proxy trap, then the
-    /// method explicit returns a result signifying that need. The caller is
-    /// thus in charge of control flow.
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        // A cache-based lookup on an ordinary object can fully rely on the
-        // Object Shape and caches.
-        let shape = self.object_shape(agent);
-        shape.set_cached(agent, self.into_object(), props, gc)
-    }
-
     /// ## \[\[GetOwnProperty]] method with offset.
     ///
     /// This is a variant of the \[\[GetOwnProperty]] method that reads a
@@ -541,7 +523,7 @@ where
         props: &SetCachedProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         if offset.is_custom_property() {
             // We don't yet cache any of these accesses.
             todo!(
@@ -724,7 +706,8 @@ pub struct SetCachedProps<'a> {
 ///
 /// Early-return effectively means that a cached property lookup was found and
 /// the normal \[\[Set]] method variant need not be entered.
-pub enum SetCachedResult<'a> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetResult<'a> {
     /// Value was successfully set.
     Done,
     /// Value could not be set due to unwritable property or nonextensible
@@ -737,25 +720,29 @@ pub enum SetCachedResult<'a> {
     /// A Proxy trap call is needed.
     Proxy(Proxy<'a>),
 }
+bindable_handle!(SetResult);
+try_result_ok!(SetResult);
 
-impl<'a, T> From<SetCachedResult<'a>> for ControlFlow<SetCachedResult<'a>, T> {
-    fn from(value: SetCachedResult<'a>) -> Self {
-        ControlFlow::Break(value)
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SetCachedResult<'_> {
-    type Of<'a> = SetCachedResult<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+impl SetResult<'_> {
+    /// Returns true if the \[\[Set]] method finished successfully.
+    pub fn succeeded(&self) -> bool {
+        matches!(self, SetResult::Done)
     }
 
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    /// Returns true if the \[\[Set]] method finished unsuccessfully.
+    pub fn failed(&self) -> bool {
+        matches!(self, SetResult::Accessor | SetResult::Unwritable)
+    }
+
+    /// Converts the \[\[Set]] result into a boolean.
+    ///
+    /// Returns None if the method did not run to finish.
+    pub fn into_boolean(self) -> Option<bool> {
+        match self {
+            SetResult::Done => Some(true),
+            SetResult::Unwritable | SetResult::Accessor => Some(false),
+            SetResult::Set(_) | SetResult::Proxy(_) => None,
+        }
     }
 }
 
@@ -786,14 +773,17 @@ unsafe impl Bindable for SetProps<'_> {
 pub fn call_proxy_set<'a>(
     agent: &mut Agent,
     proxy: Proxy,
-    props: &SetProps,
+    p: PropertyKey,
+    value: Value,
+    receiver: Value,
+    strict: bool,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     let proxy = proxy.unbind();
-    let receiver = props.receiver.unbind();
-    let p = props.p.unbind();
-    let value = props.value.unbind();
-    if props.strict {
+    let receiver = receiver.unbind();
+    let p = p.unbind();
+    let value = value.unbind();
+    if strict {
         let scoped_p = p.scope(agent, gc.nogc());
         let scoped_o = receiver.scope(agent, gc.nogc());
         let succeeded = proxy.internal_set(agent, p, value, receiver.into_value(), gc.reborrow());

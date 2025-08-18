@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::ops::{Index, IndexMut};
-use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
@@ -16,13 +15,13 @@ use crate::{
             agent::{TryError, TryResult},
         },
         types::{
-            Function, FunctionInternalProperties, InternalMethods, InternalSlots, NoCache, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult,
-            String, TryGetResult, TryHasResult, Value, function_create_backing_object,
+            Function, FunctionInternalProperties, InternalMethods, InternalSlots, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
+            TryHasResult, Value, function_create_backing_object,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set, function_set_cached,
-            function_try_get, function_try_has_property, function_try_set,
+            function_internal_own_property_keys, function_internal_set, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
     engine::{
@@ -210,9 +209,10 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        function_try_set(self, agent, property_key, value, receiver, gc)
+    ) -> TryResult<'gc, SetResult<'gc>> {
+        function_try_set(self, agent, property_key, value, receiver, cache, gc)
     }
 
     fn internal_set<'gc>(
@@ -241,15 +241,6 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        function_set_cached(self, agent, props, gc)
     }
 
     fn internal_call<'gc>(

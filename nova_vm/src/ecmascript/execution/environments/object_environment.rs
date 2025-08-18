@@ -22,13 +22,15 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError, TryError, TryResult, js_result_into_try},
+            agent::{
+                ExceptionType, JsError, TryError, TryResult, js_result_into_try, try_result_into_js,
+            },
             environments::{Environment, ObjectEnvironment, OuterEnv},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, NoCache, Object, PropertyDescriptor,
-            PropertyKey, SetCachedProps, SetCachedResult, SetProps, String, TryGetResult,
-            TryHasResult, Value, call_proxy_set, try_get_result_into_value,
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, SetCachedProps, SetResult, String, TryGetResult, TryHasResult, Value,
+            call_proxy_set, try_get_result_into_value,
         },
     },
     engine::{
@@ -366,14 +368,14 @@ impl<'e> ObjectEnvironment<'e> {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn try_initialize_binding<'a>(
+    pub(crate) fn try_initialize_binding<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         cache: Option<PropertyLookupCache>,
         v: Value,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
         self.try_set_mutable_binding(agent, n, cache, v, false, gc)
@@ -422,61 +424,20 @@ impl<'e> ObjectEnvironment<'e> {
     /// N to the value V. A property named N normally already exists but if it
     /// does not or is not currently writable, error handling is determined by
     /// S.
-    pub(crate) fn try_set_mutable_binding<'a>(
+    pub(crate) fn try_set_mutable_binding<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         cache: Option<PropertyLookupCache>,
         v: Value,
         s: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<'gc, SetResult<'gc>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
         let n = PropertyKey::from(n).bind(gc);
 
-        if let Some(cache) = cache
-            && let ControlFlow::Break(b) =
-                Self::set_mutable_binding_cached_inner(agent, binding_object, n, cache, v, s, gc)
-        {
-            let b = match b {
-                Ok(b) => b,
-                Err(err) => return err.into(),
-            };
-            match b {
-                SetCachedResult::Done => {}
-                SetCachedResult::Unwritable | SetCachedResult::Accessor => {
-                    if s {
-                        // The key was unwritable and we're in strict mode;
-                        // need to throw an error.
-                        return throw_set_error(agent, n, gc).into();
-                    }
-                }
-                SetCachedResult::Set(_) | SetCachedResult::Proxy(_) => {
-                    return TryError::GcError.into();
-                }
-            }
-            return TryResult::Continue(());
-        }
-
-        Self::try_set_mutable_binding_inner(agent, binding_object, n, cache, v, s, gc)
-    }
-
-    /// Inner method for setting a mutable binding with no (matching) property
-    /// lookup cache.
-    ///
-    /// This ought to be the cold path.
-    #[inline(never)]
-    fn try_set_mutable_binding_inner<'a>(
-        agent: &mut Agent,
-        binding_object: Object,
-        n: PropertyKey,
-        cache: Option<PropertyLookupCache>,
-        v: Value,
-        s: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let still_exists = match try_has_property(agent, binding_object, n, cache, gc) {
             ControlFlow::Continue(c) => match c {
@@ -505,7 +466,7 @@ impl<'e> ObjectEnvironment<'e> {
                 _ => unreachable!(),
             })
         {
-            match object.set_at_offset(
+            let result = object.set_at_offset(
                 agent,
                 &SetCachedProps {
                     p: n.bind(gc),
@@ -515,25 +476,16 @@ impl<'e> ObjectEnvironment<'e> {
                 },
                 offset,
                 gc,
-            ) {
-                ControlFlow::Continue(_) => todo!(),
-                ControlFlow::Break(b) => match b {
-                    SetCachedResult::Done => TryResult::Continue(()),
-                    SetCachedResult::Unwritable | SetCachedResult::Accessor => {
-                        if s {
-                            return throw_set_error(agent, n, gc).into();
-                        }
-                        TryResult::Continue(())
-                    }
-                    // TODO: we can just call the setter.
-                    SetCachedResult::Set(_function) => TryError::GcError.into(),
-                    SetCachedResult::Proxy(_) => TryError::GcError.into(),
-                },
+            )?;
+            if result.failed() && s {
+                throw_set_error(agent, n, gc).into()
+            } else {
+                result.into()
             }
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             // 5. Return UNUSED.
-            try_set(agent, binding_object, n, v, s, gc)
+            try_set(agent, binding_object, n, v, s, cache, gc)
         }
     }
 
@@ -565,7 +517,7 @@ impl<'e> ObjectEnvironment<'e> {
         let v = v.bind(gc.nogc());
 
         if let Some(cache) = cache
-            && let ControlFlow::Break(b) = Self::set_mutable_binding_cached_inner(
+            && let Some(result) = try_result_into_js(Self::set_mutable_binding_cached_inner(
                 agent,
                 binding_object,
                 n,
@@ -573,18 +525,13 @@ impl<'e> ObjectEnvironment<'e> {
                 v,
                 s,
                 gc.nogc(),
-            )
+            ))
+            .unbind()?
+            .bind(gc.nogc())
         {
-            match b.unbind()?.bind(gc.nogc()) {
-                SetCachedResult::Done => {}
-                SetCachedResult::Unwritable | SetCachedResult::Accessor => {
-                    if s {
-                        // The key was unwritable and we're in strict mode;
-                        // need to throw an error.
-                        return throw_set_error(agent, n.unbind(), gc.into_nogc()).into();
-                    }
-                }
-                SetCachedResult::Set(setter) => {
+            match result {
+                SetResult::Done | SetResult::Unwritable | SetResult::Accessor => {}
+                SetResult::Set(setter) => {
                     call_function(
                         agent,
                         setter.unbind(),
@@ -593,16 +540,14 @@ impl<'e> ObjectEnvironment<'e> {
                         gc,
                     )?;
                 }
-                SetCachedResult::Proxy(proxy) => {
+                SetResult::Proxy(proxy) => {
                     call_proxy_set(
                         agent,
                         proxy.unbind(),
-                        &SetProps {
-                            receiver: binding_object.into_value().unbind(),
-                            p: n.unbind(),
-                            value: v.unbind(),
-                            strict: s,
-                        },
+                        n.unbind(),
+                        v.unbind(),
+                        binding_object.into_value().unbind(),
+                        s,
                         gc,
                     )?;
                 }
@@ -633,40 +578,32 @@ impl<'e> ObjectEnvironment<'e> {
         v: Value,
         s: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> ControlFlow<JsResult<'a, SetCachedResult<'a>>, NoCache> {
-        let still_exists = match try_has_property(agent, binding_object, n, Some(cache), gc) {
-            ControlFlow::Continue(c) => match c {
-                TryHasResult::Unset => false,
-                TryHasResult::Offset(_, _) => true,
-                TryHasResult::Custom(_, _) => true,
-                TryHasResult::Proxy(_) => return ControlFlow::Continue(NoCache),
-            },
-            ControlFlow::Break(_) => return ControlFlow::Continue(NoCache),
+    ) -> TryResult<'a, SetResult<'a>> {
+        let still_exists = match try_has_property(agent, binding_object, n, Some(cache), gc)? {
+            TryHasResult::Unset => false,
+            TryHasResult::Offset(_, _) => true,
+            TryHasResult::Custom(_, _) => true,
+            TryHasResult::Proxy(_) => return TryError::GcError.into(),
         };
         // 3. If stillExists is false and S is true,
         if !still_exists && s {
-            return ControlFlow::Break(Err(Self::throw_property_doesnt_exist_error(
+            return Self::throw_property_doesnt_exist_error(
                 agent,
                 BUILTIN_STRING_MEMORY.object,
                 n,
                 gc,
-            )));
+            )
+            .into();
         }
-        let ControlFlow::Break(b) = binding_object.set_cached(
-            agent,
-            &SetCachedProps {
-                p: n,
-                receiver: binding_object.into_value(),
-                cache,
-                value: v,
-            },
-            gc,
-        ) else {
-            // No cache exists! We've installed a request for caching and
-            // have to continue on our normal merry way.
-            return ControlFlow::Continue(NoCache);
-        };
-        ControlFlow::Break(Ok(b))
+        let result =
+            binding_object.try_set(agent, n, v, binding_object.into_value(), Some(cache), gc)?;
+        if result.failed() {
+            // The key was unwritable and we're in strict mode;
+            // need to throw an error.
+            throw_set_error(agent, n, gc).into()
+        } else {
+            result.into()
+        }
     }
 
     /// Inner method for setting a mutable binding with no (matching) property

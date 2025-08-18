@@ -20,9 +20,9 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, NoCache,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetCachedResult, String, TryGetResult, TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
+            TryHasResult, Value,
         },
     },
     engine::{
@@ -707,9 +707,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _: PropertyKey,
         _: Value,
         _: Value,
+        _: Option<PropertyLookupCache>,
         _: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        TryResult::Continue(false)
+    ) -> TryResult<'gc, SetResult<'gc>> {
+        SetResult::Unwritable.into()
     }
 
     fn internal_set<'gc>(
@@ -778,16 +779,6 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         exports.for_each(|export_key| own_property_keys.push(export_key));
         own_property_keys.push(WellKnownSymbolIndexes::ToStringTag.into());
         TryResult::Continue(own_property_keys)
-    }
-
-    #[inline(always)]
-    fn set_cached<'gc>(
-        self,
-        _: &mut Agent,
-        _: &SetCachedProps,
-        _: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        SetCachedResult::Unwritable.into()
     }
 
     #[inline(always)]

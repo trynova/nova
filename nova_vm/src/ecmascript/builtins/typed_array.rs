@@ -18,10 +18,10 @@ use crate::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
             INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
-            IntoObject, IntoValue, NoCache, Number, Numeric, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetCachedProps, SetCachedResult, String, TryGetResult,
-            TryHasResult, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
+            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, SetResult, String, TryGetResult, TryHasResult, UINT_8_ARRAY_DISCRIMINANT,
+            UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+            UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
     engine::{
@@ -738,8 +738,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         mut property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         ta_canonical_numeric_index_string(agent, &mut property_key, gc);
@@ -751,17 +752,25 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 try_typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
                 // 2. Return true.
-                return TryResult::Continue(true);
+                return SetResult::Done.into();
             } else {
                 // ii. If IsValidIntegerIndex(O, numericIndex) is false, return true.
                 let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
                 if result.is_none() {
-                    return TryResult::Continue(true);
+                    return SetResult::Done.into();
                 }
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_try_set(
+            agent,
+            self.into_object(),
+            property_key,
+            value,
+            receiver,
+            cache,
+            gc,
+        )
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
@@ -897,30 +906,6 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         }
         // 6. Return keys.
         TryResult::Continue(keys)
-    }
-
-    fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        let mut p = props.p;
-        // Note: we mutate P but only if it turns into a valid integer, in
-        // which case we never enter the get_cached path anyway.
-        ta_canonical_numeric_index_string(agent, &mut p, gc);
-        if let PropertyKey::Integer(numeric_index) = p {
-            // i. Return TypedArrayGetElement(O, numericIndex).
-            let numeric_index = numeric_index.into_i64();
-            // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
-            match try_typed_array_set_element_generic(agent, self, numeric_index, props.value, gc) {
-                TryResult::Continue(_) => SetCachedResult::Done.into(),
-                TryResult::Break(_) => NoCache.into(),
-            }
-        } else {
-            let shape = self.object_shape(agent);
-            shape.set_cached(agent, self.into_object(), props, gc)
-        }
     }
 }
 

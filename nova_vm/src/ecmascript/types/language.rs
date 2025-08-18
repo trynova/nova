@@ -22,8 +22,8 @@ pub(crate) use function::{
     ECMAScriptFunctionHeapData, FunctionInternalProperties, function_create_backing_object,
     function_internal_define_own_property, function_internal_delete, function_internal_get,
     function_internal_get_own_property, function_internal_has_property,
-    function_internal_own_property_keys, function_internal_set, function_set_cached,
-    function_try_get, function_try_has_property, function_try_set,
+    function_internal_own_property_keys, function_internal_set, function_try_get,
+    function_try_has_property, function_try_set,
 };
 pub use function::{Function, IntoFunction};
 pub use into_numeric::IntoNumeric;

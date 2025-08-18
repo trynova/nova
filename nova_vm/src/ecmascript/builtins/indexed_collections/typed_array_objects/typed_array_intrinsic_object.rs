@@ -2215,6 +2215,7 @@ impl TypedArrayPrototype {
                 pk,
                 from_value.unbind(),
                 true,
+                None,
                 gc.nogc(),
             ));
             // . Set k to k + 1.
@@ -3825,13 +3826,17 @@ fn slice_typed_array_same_buffer_different_type(
         let k_value =
             unwrap_try_get_value(o.try_get(agent, k.try_into().unwrap(), o.into_value(), None, gc));
         // 3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
-        debug_assert!(unwrap_try(a.try_set(
-            agent,
-            n.try_into().unwrap(),
-            k_value,
-            a.into_value(),
-            gc
-        )));
+        debug_assert!(
+            unwrap_try(a.try_set(
+                agent,
+                n.try_into().unwrap(),
+                k_value,
+                a.into_value(),
+                None,
+                gc
+            ))
+            .succeeded()
+        );
         // 4. Set k to k + 1.
         k += 1;
         // 5. Set n to n + 1.

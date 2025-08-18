@@ -9,11 +9,14 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, PrivateField, Realm},
+        execution::{
+            Agent, PrivateField, Realm,
+            agent::{TryError, TryResult},
+        },
         types::{
             BigInt, InternalMethods, InternalSlots, IntoObject, NoCache, Number, Numeric, Object,
-            OrdinaryObject, Primitive, PropertyKey, SetCachedProps, SetCachedResult, String,
-            Symbol, TryGetResult, Value,
+            OrdinaryObject, Primitive, PropertyKey, SetCachedProps, SetResult, String, Symbol,
+            TryGetResult, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -206,7 +209,7 @@ impl<'a> ObjectShape<'a> {
         o: Object,
         props: &SetCachedProps,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
+    ) -> TryResult<'gc, SetResult<'gc>> {
         let shape = self;
         if let Some((offset, prototype)) = props.cache.find_cached_property_offset(agent, shape) {
             // A cached lookup result was found.
@@ -221,37 +224,7 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(shape, props.p, props.receiver, props.cache);
-            NoCache.into()
-        }
-    }
-
-    pub(crate) fn set_cached_primitive<'gc>(
-        self,
-        agent: &mut Agent,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<SetCachedResult<'gc>, NoCache> {
-        let shape = self;
-        if let Some((offset, prototype)) = props.cache.find_cached_property_offset(agent, shape) {
-            // A cached lookup result was found.
-            if let Some(prototype) = prototype {
-                debug_assert!(!offset.is_unset());
-                // Property on the prototype; this may call a setter or such.
-                prototype.set_at_offset(agent, props, offset, gc)
-            } else {
-                debug_assert!(offset.is_unset());
-                // Unset property (it's not possible for there to be a cached
-                // property on the primitive directly; we don't cache those).
-                // Receiver is a primitive; it cannot be written to.
-                SetCachedResult::Unwritable.into()
-            }
-        } else {
-            // No cache found.
-            agent
-                .heap
-                .caches
-                .set_current_cache(shape, props.p, props.receiver, props.cache);
-            NoCache.into()
+            TryError::GcError.into()
         }
     }
 

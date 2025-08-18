@@ -54,11 +54,10 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
             IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, SetCachedProps,
-            SetCachedResult, SetProps, String, TryGetValueContinue, TryHasResult, Value,
-            call_proxy_set, get_this_value, get_value, initialize_referenced_binding,
-            is_private_reference, is_property_reference, is_super_reference,
-            is_unresolvable_reference, put_value, throw_cannot_set_property,
+            PropertyDescriptor, PropertyKey, PropertyKeySet, Reference, SetResult, String,
+            TryGetValueContinue, TryHasResult, Value, call_proxy_set, get_this_value, get_value,
+            initialize_referenced_binding, is_private_reference, is_property_reference,
+            is_super_reference, is_unresolvable_reference, put_value,
             throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
             try_put_value,
         },
@@ -1073,17 +1072,10 @@ impl Vm {
                 vm.reference = Some(vm.reference_stack.pop().unwrap());
             }
             Instruction::PutValue => {
-                let value = vm.result.take().unwrap();
-                let reference = vm.reference.take().unwrap();
-                with_vm_gc(
-                    agent,
-                    vm,
-                    |agent, gc| put_value(agent, &reference, value, gc),
-                    gc,
-                )?;
+                execute_put_value(agent, vm, executable, instr, false, gc)?;
             }
             Instruction::PutValueWithCache => {
-                put_value_with_cache(agent, vm, executable, instr, gc)?;
+                execute_put_value(agent, vm, executable, instr, true, gc)?;
             }
             Instruction::GetValueWithCache => {
                 execute_get_value(agent, vm, executable, instr, true, false, gc)?;
@@ -3840,6 +3832,96 @@ fn delete_evaluation<'a>(
     // choose to avoid the actual creation of that object.
 }
 
+fn execute_put_value<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    executable: Scoped<Executable>,
+    instr: &Instr,
+    cache: bool,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
+    let value = vm.result.take().unwrap().bind(gc.nogc());
+    let mut reference = vm.reference.take().unwrap().bind(gc.nogc());
+
+    let cache = if cache {
+        Some(executable.fetch_cache(agent, instr.get_first_index(), gc.nogc()))
+    } else {
+        None
+    };
+
+    let result = try_put_value(agent, &mut reference, value, cache, gc.nogc());
+    match result {
+        ControlFlow::Continue(SetResult::Done)
+        | ControlFlow::Continue(SetResult::Unwritable)
+        | ControlFlow::Continue(SetResult::Accessor) => {}
+        ControlFlow::Break(TryError::Err(err)) => {
+            return Err(err.unbind().bind(gc.into_nogc()));
+        }
+        _ => handle_set_value_break(
+            agent,
+            vm,
+            &reference.unbind(),
+            result.unbind(),
+            value.unbind(),
+            gc,
+        )?,
+    };
+    Ok(())
+}
+
+fn handle_set_value_break<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    reference: &Reference,
+    result: TryResult<SetResult>,
+    mut value: Value,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
+    match result {
+        ControlFlow::Continue(SetResult::Done)
+        | ControlFlow::Continue(SetResult::Unwritable)
+        | ControlFlow::Continue(SetResult::Accessor) => Ok(()),
+        ControlFlow::Continue(SetResult::Proxy(proxy)) => {
+            let p = reference.referenced_name_property_key();
+            let receiver = reference.this_value(agent);
+            let strict = reference.strict();
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| call_proxy_set(agent, proxy, p, value, receiver, strict, gc),
+                gc,
+            )
+        }
+        ControlFlow::Continue(SetResult::Set(setter)) => {
+            let receiver = reference.this_value(agent);
+            with_vm_gc(
+                agent,
+                vm,
+                |agent, gc| {
+                    call_function(
+                        agent,
+                        setter,
+                        receiver,
+                        Some(ArgumentsList::from_mut_value(&mut value)),
+                        gc,
+                    )
+                },
+                gc,
+            )
+            .map(|_| ())
+        }
+        ControlFlow::Break(TryError::Err(err)) => {
+            return Err(err.unbind().bind(gc.into_nogc()));
+        }
+        ControlFlow::Break(TryError::GcError) => with_vm_gc(
+            agent,
+            vm,
+            |agent, gc| put_value(agent, &reference, value, gc),
+            gc,
+        ),
+    }
+}
+
 fn execute_get_value<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
@@ -3957,120 +4039,4 @@ fn handle_get_value_break<'a>(
         },
         gc,
     )
-}
-
-fn put_value_with_cache<'gc>(
-    agent: &mut Agent,
-    vm: &mut Vm,
-    executable: Scoped<Executable>,
-    instr: &Instr,
-    gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, ()> {
-    // 1. If V is not a Reference Record, return V.
-    let reference = vm.reference.take().unwrap().bind(gc.nogc());
-    let value = vm.result.take().unwrap().bind(gc.nogc());
-
-    assert!(reference.is_static_property_reference());
-
-    // O[[Set]](P, V, O)
-    let o = reference.base_value().bind(gc.nogc());
-    let p = reference.referenced_name_property_key().bind(gc.nogc());
-    if o.is_null() || o.is_undefined() {
-        return Err(throw_cannot_set_property(
-            agent,
-            o.unbind(),
-            p.unbind(),
-            gc.into_nogc(),
-        ));
-    }
-    let receiver = reference.this_value().bind(gc.nogc());
-    let cache = executable.fetch_cache(agent, instr.get_first_index(), gc.nogc());
-    if let ControlFlow::Break(b) = o.set_cached(
-        agent,
-        &SetCachedProps {
-            p,
-            receiver,
-            cache,
-            value,
-        },
-        gc.nogc(),
-    ) {
-        if matches!(b, SetCachedResult::Done) {
-            return Ok(());
-        }
-        return handle_set_cached_break(
-            agent,
-            vm,
-            &SetProps {
-                receiver: o.unbind(),
-                p: p.unbind(),
-                value: value.unbind(),
-                strict: reference.strict(),
-            },
-            b.unbind(),
-            gc,
-        );
-    }
-
-    let result = try_put_value(agent, &reference, value, gc.nogc());
-    agent.heap.caches.clear_current_cache_to_populate();
-
-    if try_result_into_js(result).unbind()?.is_none() {
-        let value = value.unbind();
-        let reference = reference.unbind();
-        with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| put_value(agent, &reference, value, gc),
-            gc,
-        )?;
-    }
-
-    Ok(())
-}
-
-fn handle_set_cached_break<'a>(
-    agent: &mut Agent,
-    vm: &mut Vm,
-    props: &SetProps,
-    b: SetCachedResult,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    match b {
-        SetCachedResult::Done => {}
-        SetCachedResult::Unwritable | SetCachedResult::Accessor => {
-            if props.strict {
-                return Err(throw_cannot_set_property(
-                    agent,
-                    props.receiver,
-                    props.p,
-                    gc.into_nogc(),
-                ));
-            }
-        }
-        SetCachedResult::Set(setter) => {
-            let mut value = props.value;
-            with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| {
-                    call_function(
-                        agent,
-                        setter,
-                        props.receiver,
-                        Some(ArgumentsList::from_mut_value(&mut value)),
-                        gc,
-                    )
-                },
-                gc,
-            )?;
-        }
-        SetCachedResult::Proxy(proxy) => with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| call_proxy_set(agent, proxy, props, gc),
-            gc,
-        )?,
-    }
-    Ok(())
 }
