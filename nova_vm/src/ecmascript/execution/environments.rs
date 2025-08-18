@@ -341,6 +341,7 @@ impl<'e> Environment<'e> {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<'a, ()> {
         match self {
@@ -359,7 +360,9 @@ impl<'e> Environment<'e> {
                 e.create_mutable_binding(agent, name, is_deletable);
                 TryResult::Continue(())
             }
-            Environment::Object(e) => e.try_create_mutable_binding(agent, name, is_deletable, gc),
+            Environment::Object(e) => {
+                e.try_create_mutable_binding(agent, name, is_deletable, cache, gc)
+            }
         }
     }
 

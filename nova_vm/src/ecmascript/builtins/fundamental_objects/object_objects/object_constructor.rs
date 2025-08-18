@@ -798,7 +798,8 @@ impl ObjectConstructor {
         let mut i = 0;
         for &key in own_keys.iter() {
             // a. Let desc be ? obj.[[GetOwnProperty]](key).
-            let TryResult::Continue(desc) = obj.try_get_own_property(agent, key, gc.nogc()) else {
+            let TryResult::Continue(desc) = obj.try_get_own_property(agent, key, None, gc.nogc())
+            else {
                 break;
             };
             // b. Let descriptor be FromPropertyDescriptor(desc).
@@ -1286,7 +1287,7 @@ fn try_object_define_properties<'gc, T: 'gc + InternalMethods<'gc>>(
     // 4. For each element nextKey of keys, do
     for next_key in keys {
         // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
-        let prop_desc = props.try_get_own_property(agent, next_key, gc)?;
+        let prop_desc = props.try_get_own_property(agent, next_key, None, gc)?;
         // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
         let Some(prop_desc) = prop_desc else {
             continue;
@@ -1304,7 +1305,7 @@ fn try_object_define_properties<'gc, T: 'gc + InternalMethods<'gc>>(
     // 5. For each element property of descriptors, do
     for (property_key, property_descriptor) in descriptors {
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        try_define_property_or_throw(agent, o, property_key, property_descriptor, gc)?;
+        try_define_property_or_throw(agent, o, property_key, property_descriptor, None, gc)?;
     }
     // 6. Return O.
     TryResult::Continue(o)
@@ -1433,6 +1434,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
                 agent,
                 property_key.unbind(),
                 PropertyDescriptor::new_data_descriptor(scoped_v.get(agent)),
+                None,
                 gc.nogc(),
             ));
             // c. Return undefined.
@@ -1533,6 +1535,7 @@ fn get_own_property_descriptors_slow<'gc>(
                 descriptors.get(agent).bind(gc),
                 key.get(gc),
                 descriptor.unbind().into_value(),
+                None,
                 gc,
             )));
         }

@@ -12,7 +12,7 @@ use crate::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
         execution::{
             Agent, JsResult,
-            agent::{TryError, TryResult, unwrap_try},
+            agent::{TryResult, js_result_into_try, unwrap_try},
         },
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
@@ -415,6 +415,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let o = self.bind(gc);
@@ -446,7 +447,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
             TryResult::Continue(o.get_backing_object(agent).and_then(|backing_o| {
-                ordinary_get_own_property(agent, o.into_object(), backing_o, property_key, gc)
+                ordinary_get_own_property(
+                    agent,
+                    o.into_object(),
+                    backing_o,
+                    property_key,
+                    cache,
+                    gc,
+                )
             }))
         }
     }
@@ -512,6 +520,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         agent: &mut Agent,
         mut property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         // 1. If P is a String, then
@@ -557,17 +566,15 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            match ordinary_define_own_property(
+            js_result_into_try(ordinary_define_own_property(
                 agent,
                 self.into_object(),
                 backing_object,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
-            ) {
-                Ok(b) => TryResult::Continue(b),
-                Err(_) => TryError::GcError.into(),
-            }
+            ))
         }
     }
 
@@ -636,9 +643,9 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 backing_object,
                 property_key,
                 property_descriptor.unbind(),
-                gc.nogc(),
+                None,
+                gc.into_nogc(),
             )
-            .map_err(|err| agent.throw_allocation_exception(err, gc.into_nogc()))
         }
     }
 

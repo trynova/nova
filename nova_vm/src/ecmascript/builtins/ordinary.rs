@@ -31,7 +31,7 @@ use crate::{
     },
     heap::{
         HeapSweepWeakReference,
-        element_array::{PropertyStorageMut, PropertyStorageRef},
+        element_array::{ElementStorageRef, PropertyStorageMut, PropertyStorageRef},
     },
 };
 use crate::{
@@ -263,11 +263,34 @@ pub(crate) fn ordinary_get_own_property<'a>(
     object: Object,
     backing_object: OrdinaryObject,
     property_key: PropertyKey,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'a, '_>,
 ) -> Option<PropertyDescriptor<'a>> {
-    // 1. If O does not have an own property with key P, return undefined.
-    // 3. Let X be O's own property whose key is P.
-    let (value, x, offset) = backing_object.property_storage().get(agent, property_key)?;
+    let (value, x, offset) = if let Some(cache) = cache
+        && let shape = backing_object.object_shape(agent)
+        && let Some((offset, _)) = cache.find_cached_property_offset(agent, shape)
+    {
+        // A cache-based lookup on an ordinary object can fully rely on the
+        // Object Shape and caches.
+        // Found a cached result.
+        // 1. If O does not have an own property with key P,
+        if offset.is_unset() || offset.is_prototype_property() {
+            // return undefined.
+            return None;
+        }
+        let offset = offset.get_property_offset() as u32;
+        let ElementStorageRef {
+            values,
+            descriptors,
+        } = backing_object.get_elements_storage(agent);
+        let value = &values[offset as usize];
+        let x = descriptors.and_then(|d| d.get(&offset));
+        (value, x, offset)
+    } else {
+        // 1. If O does not have an own property with key P, return undefined.
+        // 3. Let X be O's own property whose key is P.
+        backing_object.property_storage().get(agent, property_key)?
+    };
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();
@@ -321,18 +344,19 @@ pub(crate) fn ordinary_get_own_property<'a>(
 }
 
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
-pub(crate) fn ordinary_define_own_property(
+pub(crate) fn ordinary_define_own_property<'gc>(
     agent: &mut Agent,
     o: Object,
     backing_object: OrdinaryObject,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
-    gc: NoGcScope,
-) -> Result<bool, TryReserveError> {
+    cache: Option<PropertyLookupCache>,
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, bool> {
     // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
     // meaning that we know that this method cannot call into JavaScript.
     // 1. Let current be ! O.[[GetOwnProperty]](P).
-    let current = ordinary_get_own_property(agent, o, backing_object, property_key, gc);
+    let current = ordinary_get_own_property(agent, o, backing_object, property_key, cache, gc);
 
     // 2. Let extensible be ! IsExtensible(O).
     let extensible = backing_object.internal_extensible(agent);
@@ -347,6 +371,7 @@ pub(crate) fn ordinary_define_own_property(
         current,
         gc,
     )
+    .map_err(|err| agent.throw_allocation_exception(err, gc))
 }
 
 /// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
@@ -854,7 +879,7 @@ pub(crate) fn ordinary_try_get<'gc>(
 
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = backing_object
-        .and_then(|bo| ordinary_get_own_property(agent, object, bo, property_key, gc))
+        .and_then(|bo| ordinary_get_own_property(agent, object, bo, property_key, None, gc))
     else {
         // 2. If desc is undefined, then
 
@@ -1003,7 +1028,7 @@ pub(crate) fn ordinary_try_set<'o, 'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, SetResult<'gc>> {
     // 1. Let ownDesc be ! O.[[GetOwnProperty]](P).
-    let own_descriptor = unwrap_try(object.try_get_own_property(agent, property_key, gc));
+    let own_descriptor = unwrap_try(object.try_get_own_property(agent, property_key, cache, gc));
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_try_set_with_own_descriptor(
@@ -1100,7 +1125,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         // Note: Here again we do not have guarantees; the receiver could be a
         // Proxy.
-        let existing_descriptor = receiver.try_get_own_property(agent, property_key, gc)?;
+        let existing_descriptor = receiver.try_get_own_property(agent, property_key, cache, gc)?;
 
         // d. If existingDescriptor is not undefined, then
         let result = if let Some(existing_descriptor) = existing_descriptor {
@@ -1122,14 +1147,14 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
             // Again: Receiver could be a Proxy.
-            receiver.try_define_own_property(agent, property_key, value_descriptor, gc)
+            receiver.try_define_own_property(agent, property_key, value_descriptor, cache, gc)
         }
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             // Again: Receiver could be a Proxy.
-            try_create_data_property(agent, receiver, property_key, value, gc)
+            try_create_data_property(agent, receiver, property_key, value, cache, gc)
         };
         return result.map_continue(|result| {
             if result {
@@ -1223,7 +1248,7 @@ fn ordinary_set_with_own_descriptor<'a>(
         let property_key = scoped_property_key.get(agent).bind(gc.nogc());
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         let existing_descriptor = if let TryResult::Continue(desc) =
-            receiver.try_get_own_property(agent, property_key, gc.nogc())
+            receiver.try_get_own_property(agent, property_key, None, gc.nogc())
         {
             desc
         } else {
@@ -1357,7 +1382,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             }
             return SetResult::Done.into();
         } else {
-            return handle_super_set_inner(agent, p, v, receiver, gc);
+            return handle_super_set_inner(agent, p, v, receiver, None, gc);
         }
     }
 
@@ -1386,7 +1411,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             SetResult::Done.into()
         } else {
             // b. If Receiver is not an Object, return false.
-            return handle_super_set_inner(agent, p, v, receiver, gc);
+            return handle_super_set_inner(agent, p, v, receiver, None, gc);
         }
     } else {
         let Entry::Occupied(e) = data.descriptors else {
@@ -1405,6 +1430,7 @@ fn handle_super_set_inner<'gc>(
     p: PropertyKey,
     v: Value,
     receiver: Value,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, SetResult<'gc>> {
     // b. If Receiver is not an Object, return false.
@@ -1414,7 +1440,7 @@ fn handle_super_set_inner<'gc>(
     // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
     // Note: Here again we do not have guarantees; the receiver could be a
     // Proxy.
-    let existing_descriptor = receiver.try_get_own_property(agent, p, gc)?;
+    let existing_descriptor = receiver.try_get_own_property(agent, p, cache, gc)?;
     // d. If existingDescriptor is not undefined, then
     let result = if let Some(existing_descriptor) = existing_descriptor {
         // i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
@@ -1435,14 +1461,14 @@ fn handle_super_set_inner<'gc>(
 
         // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
         // Again: Receiver could be a Proxy.
-        receiver.try_define_own_property(agent, p, value_desc, gc)
+        receiver.try_define_own_property(agent, p, value_desc, cache, gc)
     }
     // e. Else,
     else {
         // i. Assert: Receiver does not currently have a property P.
         // ii. Return ? CreateDataProperty(Receiver, P, V).
         // Again: Receiver could be a Proxy.
-        try_create_data_property(agent, receiver, p, v, gc)
+        try_create_data_property(agent, receiver, p, v, cache, gc)
     };
     result.map_continue(|result| {
         if result {
@@ -1462,7 +1488,7 @@ pub(crate) fn ordinary_delete(
     gc: NoGcScope,
 ) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = ordinary_get_own_property(agent, o, backing_object, property_key, gc);
+    let descriptor = ordinary_get_own_property(agent, o, backing_object, property_key, None, gc);
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {

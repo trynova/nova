@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{
         execution::{
             Agent, ExecutionContext, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, TryError, TryResult},
+            agent::{ExceptionType, TryResult},
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
@@ -585,12 +585,14 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
             agent,
             property_key,
+            cache,
             gc,
         ))
     }
@@ -600,18 +602,17 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        match function_internal_define_own_property(
+        function_internal_define_own_property(
             self,
             agent,
             property_key,
             property_descriptor,
+            cache,
             gc,
-        ) {
-            Ok(b) => TryResult::Continue(b),
-            Err(_) => TryError::GcError.into(),
-        }
+        )
     }
 
     fn try_has_property<'gc>(

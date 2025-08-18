@@ -168,6 +168,7 @@ impl JSONObject {
                 root,
                 root_name.unwrap(),
                 unfiltered,
+                None,
                 gc.nogc(),
             ));
 
@@ -1281,7 +1282,7 @@ pub(crate) fn value_from_json<'gc>(
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
                 let js_value = value_from_json(agent, value, gc);
                 unwrap_try(try_create_data_property(
-                    agent, array_obj, prop, js_value, gc,
+                    agent, array_obj, prop, js_value, None, gc,
                 ));
             }
             array_obj.into_value()
@@ -1299,7 +1300,9 @@ pub(crate) fn value_from_json<'gc>(
             for (key, value) in json_object.iter() {
                 let prop = PropertyKey::from_str(agent, key, gc);
                 let js_value = value_from_json(agent, value, gc);
-                unwrap_try(try_create_data_property(agent, object, prop, js_value, gc));
+                unwrap_try(try_create_data_property(
+                    agent, object, prop, js_value, None, gc,
+                ));
             }
             object.into()
         }

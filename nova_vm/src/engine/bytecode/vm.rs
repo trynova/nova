@@ -1366,6 +1366,7 @@ impl Vm {
                             enumerable: Some(false),
                             configurable: Some(false),
                         },
+                        None,
                         gc.nogc(),
                     ));
                 }
@@ -1453,6 +1454,7 @@ impl Vm {
                         configurable: Some(true),
                         ..Default::default()
                     },
+                    None,
                     gc.nogc(),
                 ));
 
@@ -1514,6 +1516,7 @@ impl Vm {
                         configurable: Some(true),
                         ..Default::default()
                     },
+                    None,
                     gc.nogc(),
                 ));
 
@@ -2444,6 +2447,7 @@ impl Vm {
                     agent,
                     name.unbind(),
                     false,
+                    None,
                     gc.nogc(),
                 ));
             }
@@ -2824,6 +2828,7 @@ impl Vm {
                                 array.get(agent),
                                 key,
                                 value.unbind(),
+                                None,
                                 gc.nogc(),
                             ));
                             idx += 1;

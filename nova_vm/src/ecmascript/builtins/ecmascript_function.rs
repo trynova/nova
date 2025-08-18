@@ -20,7 +20,7 @@ use crate::{
             ThisBindingStatus,
             agent::{
                 ExceptionType::{self, SyntaxError},
-                TryError, TryResult, get_active_script_or_module,
+                TryResult, get_active_script_or_module,
             },
             new_function_environment,
         },
@@ -361,12 +361,14 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
             agent,
             property_key,
+            cache,
             gc,
         ))
     }
@@ -376,18 +378,17 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        match function_internal_define_own_property(
+        function_internal_define_own_property(
             self,
             agent,
             property_key,
             property_descriptor,
+            cache,
             gc,
-        ) {
-            Ok(b) => TryResult::Continue(b),
-            Err(_) => TryError::GcError.into(),
-        }
+        )
     }
 
     fn try_has_property<'gc>(

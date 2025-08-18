@@ -160,6 +160,7 @@ impl ArrayConstructor {
                     array,
                     PropertyKey::from(SmallInteger::zero()),
                     len,
+                    None,
                     gc,
                 ));
                 // ii. Let intLen be 1𝔽.

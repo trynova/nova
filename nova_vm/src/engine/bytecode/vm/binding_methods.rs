@@ -90,6 +90,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                                     rest.get(agent),
                                     PropertyKey::from(idx),
                                     result.unbind(),
+                                    None,
                                     gc.nogc(),
                                 ));
                                 idx += 1;

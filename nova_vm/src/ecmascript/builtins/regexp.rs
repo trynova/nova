@@ -181,6 +181,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
@@ -191,6 +192,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 self.into_object(),
                 backing_object,
                 property_key,
+                cache,
                 gc,
             ))
         } else if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {

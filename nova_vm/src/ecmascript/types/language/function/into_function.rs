@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::collections::TryReserveError;
-
 use super::Function;
 use crate::{
     ecmascript::{
@@ -14,7 +12,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{TryResult, unwrap_try},
+            agent::{TryResult, js_result_into_try, unwrap_try},
         },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
@@ -112,6 +110,7 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<PropertyDescriptor<'gc>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
@@ -120,6 +119,7 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
             func.into_object().bind(gc),
             backing_object,
             property_key,
+            cache,
             gc,
         )
     } else if property_key == BUILTIN_STRING_MEMORY.length.into() {
@@ -143,24 +143,26 @@ pub(crate) fn function_internal_get_own_property<'a, 'gc>(
     }
 }
 
-pub(crate) fn function_internal_define_own_property<'a>(
+pub(crate) fn function_internal_define_own_property<'a, 'gc>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
-    gc: NoGcScope,
-) -> Result<bool, TryReserveError> {
+    cache: Option<PropertyLookupCache>,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, bool> {
     let backing_object = func
         .get_backing_object(agent)
         .unwrap_or_else(|| func.create_backing_object(agent));
-    ordinary_define_own_property(
+    js_result_into_try(ordinary_define_own_property(
         agent,
         func.into_object(),
         backing_object,
         property_key,
         property_descriptor,
+        cache,
         gc,
-    )
+    ))
 }
 
 pub(crate) fn function_try_has_property<'a, 'gc>(

@@ -545,7 +545,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
-        let existing_prop = try_has_own_property(agent, global_object, n, gc)?;
+        let existing_prop = try_has_own_property(agent, global_object, n, None, gc)?;
         // 6. If existingProp is true, then
         if existing_prop {
             // a. Let status be ? ObjRec.DeleteBinding(N).
@@ -709,6 +709,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         let env = self.bind(gc);
@@ -719,7 +720,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
-        let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
+        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
             return TryResult::Continue(false);
@@ -776,6 +777,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         let env = self.bind(gc);
@@ -786,7 +788,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
-        let has_property = try_has_own_property(agent, global_object, n, gc)?;
+        let has_property = try_has_own_property(agent, global_object, n, cache, gc)?;
         // 4. If hasProperty is true, return true.
         if has_property {
             TryResult::Continue(true)
@@ -842,6 +844,7 @@ impl<'e> GlobalEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         let env = self.bind(gc);
@@ -852,7 +855,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
+        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
         let Some(existing_prop) = existing_prop else {
             return try_is_extensible(agent, global_object, gc);
@@ -942,13 +945,13 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let has_property = try_has_own_property(agent, global_object, n, gc)?;
+        let has_property = try_has_own_property(agent, global_object, n, Some(cache), gc)?;
         // 4. Let extensible be ? IsExtensible(globalObject).
         let extensible = try_is_extensible(agent, global_object, gc)?;
         // 5. If hasProperty is false and extensible is true, then
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            obj_rec.try_create_mutable_binding(agent, name, is_deletable, gc)?;
+            obj_rec.try_create_mutable_binding(agent, name, is_deletable, Some(cache), gc)?;
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
             obj_rec.try_initialize_binding(agent, name, Some(cache), Value::Undefined, gc)?;
         }
@@ -1051,6 +1054,7 @@ impl<'e> GlobalEnvironment<'e> {
         name: String,
         value: Value,
         d: bool,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<'a, ()> {
         let env = self.bind(gc);
@@ -1061,7 +1065,7 @@ impl<'e> GlobalEnvironment<'e> {
         let global_object = obj_rec.get_binding_object(agent);
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
+        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then
         let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
             // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.
@@ -1086,7 +1090,7 @@ impl<'e> GlobalEnvironment<'e> {
             }
         };
         // 6. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
-        try_define_property_or_throw(agent, global_object, n, desc, gc)?;
+        try_define_property_or_throw(agent, global_object, n, desc, cache, gc)?;
         // 7. Perform ? Set(globalObject, N, V, false).
         try_set(agent, global_object, n, value, false, None, gc)?;
 

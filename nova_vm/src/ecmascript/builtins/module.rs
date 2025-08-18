@@ -219,6 +219,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        _cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match property_key {
@@ -339,6 +340,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         match property_key {
@@ -365,7 +367,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
-                let current = self.try_get_own_property(agent, property_key, gc)?;
+                let current = self.try_get_own_property(agent, property_key, cache, gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return TryResult::Continue(false);

@@ -207,6 +207,7 @@ impl FunctionPrototype {
             agent,
             scoped_target.get(agent).into_object(),
             BUILTIN_STRING_MEMORY.length.into(),
+            None,
             gc.nogc(),
         ) {
             result

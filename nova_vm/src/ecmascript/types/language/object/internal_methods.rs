@@ -22,7 +22,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult,
-            agent::{TryError, TryResult, try_result_ok, unwrap_try},
+            agent::{TryError, TryResult, js_result_into_try, try_result_ok, unwrap_try},
         },
         types::{Function, IntoValue, PropertyDescriptor, Value, throw_cannot_set_property},
     },
@@ -181,6 +181,7 @@ where
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -190,6 +191,7 @@ where
                 self.into_object().bind(gc),
                 backing_object,
                 property_key,
+                cache,
                 gc,
             ),
             None => None,
@@ -207,6 +209,7 @@ where
         Ok(unwrap_try(self.try_get_own_property(
             agent,
             property_key,
+            None,
             gc.into_nogc(),
         )))
     }
@@ -223,22 +226,21 @@ where
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        match ordinary_define_own_property(
+        js_result_into_try(ordinary_define_own_property(
             agent,
             self.into_object(),
             backing_object,
             property_key,
             property_descriptor,
+            cache,
             gc,
-        ) {
-            Ok(b) => TryResult::Continue(b),
-            Err(_) => TryError::GcError.into(),
-        }
+        ))
     }
 
     /// ## \[\[DefineOwnProperty\]\]
@@ -254,6 +256,7 @@ where
             agent,
             property_key,
             property_descriptor,
+            None,
             gc.into_nogc(),
         )))
     }

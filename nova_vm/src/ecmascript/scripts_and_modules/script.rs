@@ -1029,6 +1029,7 @@ mod test {
         let foo = unwrap_try(agent.current_global_object(gc.nogc()).try_get_own_property(
             &mut agent,
             key,
+            None,
             gc.nogc(),
         ))
         .unwrap()
@@ -1061,6 +1062,7 @@ mod test {
         let foo = unwrap_try(agent.current_global_object(gc.nogc()).try_get_own_property(
             &mut agent,
             key,
+            None,
             gc.nogc(),
         ))
         .unwrap()
@@ -1074,7 +1076,7 @@ mod test {
             ControlFlow::Continue(TryHasResult::Offset(0, result))
         );
         assert_eq!(
-            unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
+            unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
                 .unwrap()
                 .value,
             Some(Value::from(3))
@@ -1136,7 +1138,7 @@ mod test {
             ControlFlow::Continue(TryHasResult::Custom(0, result.into_object()))
         );
         assert_eq!(
-            unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
+            unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
                 .unwrap()
                 .value,
             Some(Value::from_static_str(&mut agent, "a", gc.nogc()))
@@ -1147,7 +1149,7 @@ mod test {
             ControlFlow::Continue(TryHasResult::Offset(1, result.into_object()))
         );
         assert_eq!(
-            unwrap_try(result.try_get_own_property(&mut agent, key, gc.nogc()))
+            unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
                 .unwrap()
                 .value,
             Some(Value::from(3))
@@ -1424,6 +1426,7 @@ mod test {
         let i: Value = unwrap_try(agent.current_global_object(gc.nogc()).try_get_own_property(
             &mut agent,
             key,
+            None,
             gc.nogc(),
         ))
         .unwrap()

@@ -3615,6 +3615,7 @@ impl ArrayPrototype {
                 a.get(agent),
                 pk,
                 from_value.unbind(),
+                None,
                 gc.nogc(),
             ));
             //    e. Set k to k + 1.
@@ -3772,6 +3773,7 @@ impl ArrayPrototype {
                 scoped_a.get(agent),
                 pi,
                 i_value.unbind(),
+                None,
                 gc.nogc(),
             ));
             // d. Set i to i + 1.
@@ -3787,6 +3789,7 @@ impl ArrayPrototype {
                 scoped_a.get(agent),
                 pi,
                 e.get(agent).unbind(),
+                None,
                 gc.nogc(),
             ));
             // d. Set i to i + 1.
@@ -3808,6 +3811,7 @@ impl ArrayPrototype {
                 scoped_a.get(agent),
                 pi,
                 from_value.unbind(),
+                None,
                 gc.nogc(),
             ));
             // d. Set i to i + 1.
@@ -4104,6 +4108,7 @@ impl ArrayPrototype {
                 a.get(agent),
                 pk,
                 from_value.unbind(),
+                None,
                 gc.nogc(),
             ));
             // e. Set k to k + 1.

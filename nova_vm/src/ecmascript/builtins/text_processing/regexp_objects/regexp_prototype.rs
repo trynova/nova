@@ -545,6 +545,7 @@ impl RegExpPrototype {
                     a.get(agent),
                     n.into(),
                     match_str.into_value(),
+                    None,
                     gc.nogc(),
                 ));
                 // 3. If matchStr is the empty String, then

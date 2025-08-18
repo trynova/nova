@@ -107,6 +107,7 @@ impl GeneratorFunctionConstructor {
                 configurable: Some(false),
                 ..Default::default()
             },
+            None,
             gc,
         ));
         // }).

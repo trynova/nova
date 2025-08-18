@@ -280,6 +280,7 @@ impl<'e> ObjectEnvironment<'e> {
         agent: &mut Agent,
         n: String,
         d: bool,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<'a, ()> {
         let env_rec = &agent[self];
@@ -300,6 +301,7 @@ impl<'e> ObjectEnvironment<'e> {
                 enumerable: Some(true),
                 configurable: Some(d),
             },
+            cache,
             gc,
         )
         // NOTE

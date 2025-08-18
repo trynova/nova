@@ -557,6 +557,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         self,
         _: &mut Agent,
         _: PropertyKey,
+        _: Option<PropertyLookupCache>,
         _: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         TryError::GcError.into()
@@ -771,6 +772,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         _: &mut Agent,
         _: PropertyKey,
         _: PropertyDescriptor,
+        _: Option<PropertyLookupCache>,
         _: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         TryError::GcError.into()

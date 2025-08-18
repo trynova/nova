@@ -13,7 +13,7 @@ use crate::{
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics,
-            agent::{TryError, TryResult, unwrap_try},
+            agent::{TryError, TryResult, js_result_into_try, unwrap_try},
         },
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
@@ -235,6 +235,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         let o = self.bind(gc);
@@ -244,8 +245,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 1. Let desc be OrdinaryGetOwnProperty(S, P).
         // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = o.get_backing_object(agent)
-            && let Some(property_descriptor) =
-                ordinary_get_own_property(agent, o.into_object(), backing_object, property_key, gc)
+            && let Some(property_descriptor) = ordinary_get_own_property(
+                agent,
+                o.into_object(),
+                backing_object,
+                property_key,
+                cache,
+                gc,
+            )
         {
             return TryResult::Continue(Some(property_descriptor));
         }
@@ -263,6 +270,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -289,17 +297,15 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        match ordinary_define_own_property(
+        js_result_into_try(ordinary_define_own_property(
             agent,
             self.into_object(),
             backing_object,
             property_key,
             property_descriptor,
+            cache,
             gc,
-        ) {
-            Ok(b) => TryResult::Continue(b),
-            Err(_) => TryError::GcError.into(),
-        }
+        ))
     }
 
     fn try_has_property<'gc>(

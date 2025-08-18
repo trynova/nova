@@ -742,7 +742,7 @@ impl<'a> ObjectPropertiesIteratorRecord<'a> {
                 self.set_remaining_keys(remaining_keys);
             }
             while let Some((object, next_key)) = self.next_remaining_key(agent, gc) {
-                let desc = object.try_get_own_property(agent, next_key, gc)?;
+                let desc = object.try_get_own_property(agent, next_key, None, gc)?;
                 if let Some(desc) = desc {
                     self.mark_key_visited(agent, next_key);
                     if desc.enumerable == Some(true) {

@@ -302,6 +302,7 @@ pub(crate) fn try_create_data_property<'a, 'gc>(
     object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     value: Value,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, bool> {
     // 1. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true }.
@@ -314,7 +315,7 @@ pub(crate) fn try_create_data_property<'a, 'gc>(
         configurable: Some(true),
     };
     // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
-    object.try_define_own_property(agent, property_key, new_desc, gc)
+    object.try_define_own_property(agent, property_key, new_desc, cache, gc)
 }
 
 /// ### [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
@@ -354,9 +355,10 @@ pub(crate) fn try_create_data_property_or_throw<'a, 'gc>(
     object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     value: Value,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, ()> {
-    let success = try_create_data_property(agent, object, property_key, value, gc)?;
+    let success = try_create_data_property(agent, object, property_key, value, cache, gc)?;
     if !success {
         agent
             .throw_exception(
@@ -421,10 +423,11 @@ pub(crate) fn try_define_property_or_throw<'a, 'gc>(
     object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     desc: PropertyDescriptor,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, ()> {
     // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
-    let success = object.try_define_own_property(agent, property_key, desc, gc)?;
+    let success = object.try_define_own_property(agent, property_key, desc, cache, gc)?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
         agent
@@ -683,10 +686,11 @@ pub(crate) fn try_has_own_property<'gc>(
     agent: &mut Agent,
     o: Object,
     p: PropertyKey,
+    cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let desc = o.try_get_own_property(agent, p, gc)?;
+    let desc = o.try_get_own_property(agent, p, cache, gc)?;
     // 2. If desc is undefined, return false.
     // 3. Return true.
     TryResult::Continue(desc.is_some())
@@ -816,6 +820,7 @@ pub(crate) fn set_integrity_level<'a, T: Level>(
                     configurable: Some(false),
                     ..Default::default()
                 },
+                None,
                 gc.nogc(),
             ))
             .unbind()?
@@ -855,13 +860,14 @@ pub(crate) fn set_integrity_level<'a, T: Level>(
         let mut i = 0;
         for &k in keys.iter() {
             // i. Let currentDesc be ? O.[[GetOwnProperty]](k).
-            let current_desc =
-                if let TryResult::Continue(result) = o.try_get_own_property(agent, k, gc.nogc()) {
-                    result
-                } else {
-                    broke = true;
-                    break;
-                };
+            let current_desc = if let TryResult::Continue(result) =
+                o.try_get_own_property(agent, k, None, gc.nogc())
+            {
+                result
+            } else {
+                broke = true;
+                break;
+            };
             // ii. If currentDesc is not undefined, then
             if let Some(current_desc) = current_desc {
                 // 1. If IsAccessorDescriptor(currentDesc) is true, then
@@ -881,9 +887,16 @@ pub(crate) fn set_integrity_level<'a, T: Level>(
                     }
                 };
                 // 3. Perform ? DefinePropertyOrThrow(O, k, desc).
-                if try_result_into_js(try_define_property_or_throw(agent, o, k, desc, gc.nogc()))
-                    .unbind()?
-                    .is_none()
+                if try_result_into_js(try_define_property_or_throw(
+                    agent,
+                    o,
+                    k,
+                    desc,
+                    None,
+                    gc.nogc(),
+                ))
+                .unbind()?
+                .is_none()
                 {
                     broke = true;
                     break;
@@ -962,7 +975,7 @@ pub(crate) fn test_integrity_level<'a, T: Level>(
     // 5. For each element k of keys, do
     for &k in keys.iter() {
         // a. Let currentDesc be ? O.[[GetOwnProperty]](k).
-        let TryResult::Continue(result) = o.try_get_own_property(agent, k, gc.nogc()) else {
+        let TryResult::Continue(result) = o.try_get_own_property(agent, k, None, gc.nogc()) else {
             broke = true;
             break;
         };
@@ -1526,7 +1539,7 @@ pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
                     return None;
                 }
                 // i. Let desc be ? O.[[GetOwnProperty]](key).
-                let desc = unwrap_try(o.try_get_own_property(agent, key, gc));
+                let desc = unwrap_try(o.try_get_own_property(agent, key, None, gc));
                 // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
                 if desc?.enumerable != Some(true) {
                     return None;
@@ -1633,7 +1646,7 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
             continue;
         }
         // i. Let desc be ? O.[[GetOwnProperty]](key).
-        let TryResult::Continue(desc) = o.try_get_own_property(agent, key, gc.nogc()) else {
+        let TryResult::Continue(desc) = o.try_get_own_property(agent, key, None, gc.nogc()) else {
             broke = true;
             break;
         };
@@ -1808,7 +1821,7 @@ pub(crate) fn enumerable_own_keys<'gc>(
             continue;
         }
         // i. Let desc be ? O.[[GetOwnProperty]](key).
-        let TryResult::Continue(desc) = o.try_get_own_property(agent, key, gc.nogc()) else {
+        let TryResult::Continue(desc) = o.try_get_own_property(agent, key, None, gc.nogc()) else {
             broke = true;
             break;
         };
@@ -2077,7 +2090,7 @@ pub(crate) fn copy_data_properties<'a>(
     let mut i = 0;
     for &next_key in keys.iter() {
         // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
-        let TryResult::Continue(desc) = from.try_get_own_property(agent, next_key, gc.nogc())
+        let TryResult::Continue(desc) = from.try_get_own_property(agent, next_key, None, gc.nogc())
         else {
             broke = true;
             break;
@@ -2097,7 +2110,7 @@ pub(crate) fn copy_data_properties<'a>(
             };
             // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
             assert!(
-                try_create_data_property(agent, target, next_key, prop_value, gc.nogc())
+                try_create_data_property(agent, target, next_key, prop_value, None, gc.nogc())
                     .is_continue()
             );
         }
@@ -2148,6 +2161,7 @@ fn copy_data_properties_slow<'a>(
                 target.get(agent),
                 next_key.get(gc.nogc()).unbind(),
                 prop_value,
+                None,
                 gc.nogc(),
             ));
         }
@@ -2187,7 +2201,7 @@ pub(crate) fn try_copy_data_properties_into_object<'gc, 'b>(
         // c. If excluded is false, then
         //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
         //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
-        if let Some(dest) = from.try_get_own_property(agent, next_key, gc)?
+        if let Some(dest) = from.try_get_own_property(agent, next_key, None, gc)?
             && dest.enumerable.unwrap()
         {
             // 1. Let propValue be ? Get(from, nextKey).
@@ -2262,7 +2276,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
 
         // c. If excluded is false, then
         //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
-        let TryResult::Continue(desc) = from.try_get_own_property(agent, next_key, gc.nogc())
+        let TryResult::Continue(desc) = from.try_get_own_property(agent, next_key, None, gc.nogc())
         else {
             broke = true;
             break;
@@ -2361,6 +2375,7 @@ fn copy_data_properties_into_object_slow<'a>(
                 object.get(agent),
                 next_key.get(gc.nogc()),
                 prop_value,
+                None,
                 gc.nogc(),
             ));
         }
@@ -3051,26 +3066,27 @@ pub(crate) fn setter_that_ignores_prototype_properties<'a>(
         ));
     }
     // 3. Let desc be ? thisValue.[[GetOwnProperty]](p).
-    let desc =
-        if let TryResult::Continue(desc) = this_value.try_get_own_property(agent, p, gc.nogc()) {
-            desc
-        } else {
-            let scoped_this_value = this_value.scope(agent, gc.nogc());
-            let scoped_p = p.scope(agent, gc.nogc());
-            let scoped_v = v.scope(agent, gc.nogc());
-            let desc = this_value
-                .unbind()
-                .internal_get_own_property(agent, p.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            // SAFETY: none are shared.
-            unsafe {
-                v = scoped_v.take(agent).bind(gc.nogc());
-                p = scoped_p.take(agent).bind(gc.nogc());
-                this_value = scoped_this_value.take(agent).bind(gc.nogc());
-            }
-            desc
-        };
+    let desc = if let TryResult::Continue(desc) =
+        this_value.try_get_own_property(agent, p, None, gc.nogc())
+    {
+        desc
+    } else {
+        let scoped_this_value = this_value.scope(agent, gc.nogc());
+        let scoped_p = p.scope(agent, gc.nogc());
+        let scoped_v = v.scope(agent, gc.nogc());
+        let desc = this_value
+            .unbind()
+            .internal_get_own_property(agent, p.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // SAFETY: none are shared.
+        unsafe {
+            v = scoped_v.take(agent).bind(gc.nogc());
+            p = scoped_p.take(agent).bind(gc.nogc());
+            this_value = scoped_this_value.take(agent).bind(gc.nogc());
+        }
+        desc
+    };
     // 4. If desc is undefined, then
     if desc.is_none() {
         // a. Perform ? CreateDataPropertyOrThrow(thisValue, p, v).

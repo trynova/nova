@@ -671,6 +671,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         a,
         index,
         Number::try_from(last_index).unwrap().into_value(),
+        None,
         gc,
     ));
     let input = String::from_static_str(agent, "input", gc).to_property_key();
@@ -680,6 +681,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         a,
         input,
         s.into_value(),
+        None,
         gc,
     ));
     // 24. Let match be the Match Record { [[StartIndex]]: lastIndex, [[EndIndex]]: e }.
@@ -709,6 +711,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         a,
         key,
         groups.map_or(Value::Undefined, |g| g.into_value()),
+        None,
         gc,
     ));
     // 33. Let matchedGroupNames be a new empty List.
@@ -746,6 +749,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
             a,
             PropertyKey::try_from(i).unwrap(),
             captured_value,
+            None,
             gc,
         ));
         // e. If the ith capture of R was defined with a GroupName, then

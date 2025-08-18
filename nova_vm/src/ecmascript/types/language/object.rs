@@ -2391,108 +2391,129 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self {
-            Object::Object(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Array(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::Object(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::Array(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::ArrayBuffer(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "date")]
-            Object::Date(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Error(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::BoundFunction(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::BuiltinFunction(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::ECMAScriptFunction(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::Date(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::Error(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::BoundFunction(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            Object::BuiltinFunction(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            Object::ECMAScriptFunction(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
-                data.try_get_own_property(agent, property_key, gc)
+                data.try_get_own_property(agent, property_key, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
-                data.try_get_own_property(agent, property_key, gc)
+                data.try_get_own_property(agent, property_key, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
-            Object::PrimitiveObject(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Arguments(data) => data.try_get_own_property(agent, property_key, gc),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::FinalizationRegistry(data) => {
-                data.try_get_own_property(agent, property_key, gc)
+            Object::PrimitiveObject(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
             }
-            Object::Map(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Promise(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Proxy(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::Arguments(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::FinalizationRegistry(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            Object::Map(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::Promise(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::Proxy(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "regexp")]
-            Object::RegExp(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::RegExp(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "set")]
-            Object::Set(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::Set(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::SharedArrayBuffer(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
             #[cfg(feature = "weak-refs")]
-            Object::WeakMap(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::WeakMap(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "weak-refs")]
-            Object::WeakRef(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::WeakRef(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "weak-refs")]
-            Object::WeakSet(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::WeakSet(data) => data.try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
-                TypedArray::Int8Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Int8Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
-                TypedArray::Uint8Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Uint8Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(data) => {
-                TypedArray::Uint8ClampedArray(data).try_get_own_property(agent, property_key, gc)
-            }
+            Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data)
+                .try_get_own_property(agent, property_key, cache, gc),
             #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
-                TypedArray::Int16Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Int16Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
-                TypedArray::Uint16Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Uint16Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
-                TypedArray::Int32Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Int32Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
-                TypedArray::Uint32Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Uint32Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
-                TypedArray::BigInt64Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::BigInt64Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(data) => {
-                TypedArray::BigUint64Array(data).try_get_own_property(agent, property_key, gc)
-            }
+            Object::BigUint64Array(data) => TypedArray::BigUint64Array(data).try_get_own_property(
+                agent,
+                property_key,
+                cache,
+                gc,
+            ),
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => {
                 TypedArray::Float16Array(data).try_get_own_property(agent, property_key, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
-                TypedArray::Float32Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Float32Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
-                TypedArray::Float64Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Float64Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncGenerator(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::ArrayIterator(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::AsyncGenerator(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            Object::ArrayIterator(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
             #[cfg(feature = "set")]
-            Object::SetIterator(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::MapIterator(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::StringIterator(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Generator(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::Module(data) => data.try_get_own_property(agent, property_key, gc),
-            Object::EmbedderObject(data) => data.try_get_own_property(agent, property_key, gc),
+            Object::SetIterator(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::MapIterator(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::StringIterator(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            Object::Generator(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::Module(data) => data.try_get_own_property(agent, property_key, cache, gc),
+            Object::EmbedderObject(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
         }
     }
 
@@ -2617,95 +2638,97 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         match self {
             Object::Object(idx) => {
-                idx.try_define_own_property(agent, property_key, property_descriptor, gc)
+                idx.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Array(idx) => {
-                idx.try_define_own_property(agent, property_key, property_descriptor, gc)
+                idx.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(idx) => {
-                idx.try_define_own_property(agent, property_key, property_descriptor, gc)
+                idx.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "date")]
             Object::Date(idx) => {
-                idx.try_define_own_property(agent, property_key, property_descriptor, gc)
+                idx.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Error(idx) => {
-                idx.try_define_own_property(agent, property_key, property_descriptor, gc)
+                idx.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BoundFunction(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BuiltinFunction(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::ECMAScriptFunction(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BuiltinPromiseResolvingFunction(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::BuiltinPromiseCollectorFunction => todo!(),
             Object::BuiltinProxyRevokerFunction => todo!(),
             Object::PrimitiveObject(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Arguments(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::DataView(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::FinalizationRegistry(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Map(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Promise(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Proxy(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "set")]
             Object::Set(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "weak-refs")]
             Object::WeakMap(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "weak-refs")]
             Object::WeakRef(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "weak-refs")]
             Object::WeakSet(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => TypedArray::Int8Array(data).try_define_own_property(
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -2713,16 +2736,18 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data)
-                .try_define_own_property(agent, property_key, property_descriptor, gc),
+                .try_define_own_property(agent, property_key, property_descriptor, cache, gc),
             #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => TypedArray::Int16Array(data).try_define_own_property(
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -2730,6 +2755,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -2737,6 +2763,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -2744,6 +2771,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -2751,11 +2779,12 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
-                .try_define_own_property(agent, property_key, property_descriptor, gc),
+                .try_define_own_property(agent, property_key, property_descriptor, cache, gc),
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => TypedArray::Float16Array(data).try_define_own_property(
                 agent,
@@ -2768,6 +2797,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             #[cfg(feature = "array-buffer")]
@@ -2775,33 +2805,34 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 agent,
                 property_key,
                 property_descriptor,
+                cache,
                 gc,
             ),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::ArrayIterator(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             #[cfg(feature = "set")]
             Object::SetIterator(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::MapIterator(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::StringIterator(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Generator(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Module(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::EmbedderObject(data) => {
-                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
         }
     }

@@ -185,6 +185,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
                 configurable: Some(false),
                 ..Default::default()
             },
+            None,
             gc,
         ));
         // }).

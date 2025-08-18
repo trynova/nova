@@ -337,18 +337,21 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self {
-            Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
-            Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),
-            Function::ECMAScriptFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, cache, gc),
+            Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, cache, gc),
+            Function::ECMAScriptFunction(x) => {
+                x.try_get_own_property(agent, property_key, cache, gc)
+            }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_get_own_property(agent, property_key, gc)
+                x.try_get_own_property(agent, property_key, cache, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_get_own_property(agent, property_key, gc)
+                x.try_get_own_property(agent, property_key, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -360,24 +363,25 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
         match self {
             Function::BoundFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::ECMAScriptFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+                x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
