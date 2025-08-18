@@ -2486,7 +2486,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             ),
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(data) => {
-                TypedArray::Float16Array(data).try_get_own_property(agent, property_key, gc)
+                TypedArray::Float16Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
