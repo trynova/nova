@@ -546,23 +546,25 @@ where
     }
 
     /// ## \[\[Call\]\]
+    #[allow(unused_variables)]
     fn internal_call<'gc>(
         self,
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments_list: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments_list: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         unreachable!()
     }
 
     /// ## \[\[Construct\]\]
+    #[allow(unused_variables)]
     fn internal_construct<'gc>(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
         unreachable!()
     }
