@@ -716,6 +716,7 @@ impl WorkQueues {
             && promise_reaction_records.is_empty()
             && promise_resolving_functions.is_empty()
             && promise_finally_functions.is_empty()
+            && promise_all_records.is_empty()
             && promises.is_empty()
             && proxys.is_empty()
             && realms.is_empty()
