@@ -2,10 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_all_record::PromiseAllRecord;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionHandler;
-use crate::ecmascript::builtins::promise_objects::promise_prototype::inner_promise_then;
-use crate::ecmascript::builtins::Array;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -14,11 +10,18 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             ordinary::ordinary_create_from_constructor,
             promise::{
                 Promise,
                 data::{PromiseHeapData, PromiseState},
+            },
+            promise_objects::{
+                promise_abstract_operations::{
+                    promise_all_record::PromiseAllRecord,
+                    promise_reaction_records::PromiseReactionHandler,
+                },
+                promise_prototype::inner_promise_then,
             },
         },
         execution::{
@@ -224,7 +227,7 @@ impl PromiseConstructor {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let C be the this value.
         if this_value
@@ -297,39 +300,6 @@ impl PromiseConstructor {
             .promise()
             .unbind()
             .bind(gc.nogc());
-
-        // let result_callback_closure: for<'a, 'b, 'c, 'd, 'e, '_gc> fn(
-        //     &'a mut Agent,
-        //     Value<'b>,
-        //     ArgumentsList<'c, 'd>,
-        //     GcScope<'_gc, 'e>,
-        // ) -> Result<
-        //     Value<'_gc>,
-        //     JsError<'_gc>,
-        // > = |_agent, _this_value, arguments, _gc| {
-        //     let result_value = arguments.get(0);
-        //     eprintln!("Promise fulfilled with result: {:?}", result_value);
-        //     Ok(result_value.unbind())
-        // };
-
-        // let result_callback = create_builtin_function(
-        //     agent,
-        //     Behaviour::Regular(result_callback_closure),
-        //     BuiltinFunctionArgs::new(0, "Promise.all callback"),
-        //     gc.nogc(),
-        // );
-
-        // let fulfill_handler = PromiseReactionHandler::JobCallback(result_callback.into());
-        // let reject_handler = PromiseReactionHandler::Empty;
-
-        // inner_promise_then(
-        //     agent,
-        //     promise_to_await,
-        //     fulfill_handler,
-        //     reject_handler,
-        //     Some(result_capability),
-        //     gc.nogc(),
-        // );
 
         let undefined_values = (vec![Value::Undefined.bind(gc.nogc()); 2]).bind(gc.nogc());
         let result_array =
