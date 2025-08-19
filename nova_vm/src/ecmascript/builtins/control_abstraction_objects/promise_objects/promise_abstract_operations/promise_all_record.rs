@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         builtins::{
@@ -57,37 +55,15 @@ impl PromiseAll<'_> {
     }
 }
 
-impl Index<PromiseAll<'_>> for Agent {
-    type Output = PromiseAllRecord<'static>;
-
-    fn index(&self, index: PromiseAll) -> &Self::Output {
-        &self.heap.promise_all_records[index]
+impl AsRef<[PromiseAllRecord<'static>]> for Agent {
+    fn as_ref(&self) -> &[PromiseAllRecord<'static>] {
+        &self.heap.promise_all_records
     }
 }
 
-impl IndexMut<PromiseAll<'_>> for Agent {
-    fn index_mut(&mut self, index: PromiseAll) -> &mut Self::Output {
-        &mut self.heap.promise_all_records[index]
-    }
-}
-
-impl Index<PromiseAll<'_>> for Vec<Option<PromiseAllRecord<'static>>> {
-    type Output = PromiseAllRecord<'static>;
-
-    fn index(&self, index: PromiseAll) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("PromiseAllRecord out of bounds")
-            .as_ref()
-            .expect("PromiseAllRecord slot empty")
-    }
-}
-
-impl IndexMut<PromiseAll<'_>> for Vec<Option<PromiseAllRecord<'static>>> {
-    fn index_mut(&mut self, index: PromiseAll) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("PromiseAllRecord out of bounds")
-            .as_mut()
-            .expect("PromiseAllRecord slot empty")
+impl AsMut<[PromiseAllRecord<'static>]> for Agent {
+    fn as_mut(&mut self) -> &mut [PromiseAllRecord<'static>] {
+        &mut self.heap.promise_all_records
     }
 }
 
@@ -153,8 +129,8 @@ unsafe impl Bindable for PromiseAll<'_> {
 
 impl<'a> CreateHeapData<PromiseAllRecord<'a>, PromiseAll<'a>> for Heap {
     fn create(&mut self, data: PromiseAllRecord<'a>) -> PromiseAll<'a> {
-        self.promise_all_records.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<PromiseAllRecord<'static>>>();
-        PromiseAll(BaseIndex::last(&self.promise_all_records))
+        self.promise_all_records.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<PromiseAllRecord<'static>>();
+        PromiseAll(BaseIndex::last_t(&self.promise_all_records))
     }
 }
