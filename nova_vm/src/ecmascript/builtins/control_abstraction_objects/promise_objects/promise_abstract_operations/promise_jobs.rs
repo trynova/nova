@@ -292,18 +292,17 @@ impl PromiseReactionJob {
                 mut promise_all,
                 index,
             } => {
-                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
-                match agent[reaction].reaction_type {
+                let reaction_type = agent[reaction].reaction_type;
+                let capability = agent[reaction].capability.clone().unwrap();
+                match reaction_type {
                     PromiseReactionType::Fulfill => {
-                        promise_all.on_promise_fufilled(
-                            agent,
-                            index,
-                            argument.clone().unbind(),
-                            gc.reborrow(),
-                        );
-                        (Ok(argument), capability)
+                        let arg_unbound = argument.unbind();
+                        promise_all.on_promise_fufilled(agent, index, arg_unbound, gc.reborrow());
+                        (Ok(arg_unbound.bind(gc.nogc())), capability.bind(gc.nogc()))
                     }
-                    PromiseReactionType::Reject => (Err(JsError::new(argument)), capability),
+                    PromiseReactionType::Reject => {
+                        (Err(JsError::new(argument)), capability.bind(gc.nogc()))
+                    }
                 }
             }
         };
