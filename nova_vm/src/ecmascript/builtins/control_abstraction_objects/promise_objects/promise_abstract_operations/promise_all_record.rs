@@ -11,11 +11,14 @@ use crate::{
         execution::Agent,
         types::{IntoValue, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
 };
+
+pub(crate) type BuiltinPromiseAllRecordIndex<'a> = BaseIndex<'a, PromiseAllRecord<'static>>;
+bindable_handle!(BuiltinPromiseAllRecordIndex);
 
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseAllRecord<'a> {
@@ -26,9 +29,9 @@ pub struct PromiseAllRecord<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseAll<'a>(pub(crate) BaseIndex<'a, PromiseAllRecord<'a>>);
+pub struct PromiseAll<'a>(pub(crate) BuiltinPromiseAllRecordIndex<'a>);
 
-impl<'a> PromiseAllRecord<'a> {
+impl<'a> PromiseAll<'a> {
     pub(crate) fn on_promise_fufilled(
         &mut self,
         agent: &mut Agent,
@@ -36,22 +39,42 @@ impl<'a> PromiseAllRecord<'a> {
         value: Value<'a>,
         mut gc: GcScope<'a, '_>,
     ) {
-        value.bind(gc.nogc());
-        let elements = self.result_array.as_mut_slice(agent);
+        let promise_all_index = self.bind(gc.nogc());
+        let value = value.bind(gc.nogc());
+        let data = promise_all_index.get_mut(agent); // splitting heap borrow
+        let result_array = data.result_array.bind(gc.nogc()); // note: this copies the handle from the heap to stack; on stack we must always bind to make sure we don't use the handle after GC.
+        let elements = result_array.as_mut_slice(...array_heap...); // we want to split the heap borrow so we can get the elements slice as mutable at the same time as we get data as mutable. ArrayHeap is the thing you want to pass here here, IIRC.
         elements[index as usize] = Some(value.unbind());
 
-        self.remaining_unresolved_promise_count -= 1;
-        if self.remaining_unresolved_promise_count == 0 {
-            eprintln!("Promise fulfilled: {:#?}", elements);
-            let capability = PromiseCapability::from_promise(self.promise.unbind(), true);
-            capability.resolve(agent, self.result_array.into_value().unbind(), gc);
+        data.remaining_unresolved_promise_count -= 1;
+        if data.remaining_unresolved_promise_count == 0 {
+            let capability = PromiseCapability::from_promise(data.promise, false);
+            capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
     }
-}
 
-impl PromiseAll<'_> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    fn get(self, agent: &Agent) -> &PromiseAllRecord<'_> {
+        agent
+            .heap
+            .promise_all_records
+            .get(self.get_index())
+            .expect("PromiseAllRecord not found")
+    }
+
+    fn get_mut(self, agent: &mut Agent) -> &mut PromiseAllRecord<'static> {
+        agent
+            .heap
+            .promise_all_records
+            .get_mut(self.get_index())
+            .expect("PromiseAllRecord not found")
+    }
+
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
     }
 }
 
