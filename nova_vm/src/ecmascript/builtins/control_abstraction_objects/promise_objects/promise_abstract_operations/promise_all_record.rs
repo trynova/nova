@@ -37,15 +37,20 @@ impl<'a> PromiseAll<'a> {
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
+        gc: GcScope<'a, '_>,
     ) {
         let promise_all_index = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
-        let data = promise_all_index.get_mut(agent); // splitting heap borrow
-        let result_array = data.result_array.bind(gc.nogc()); // note: this copies the handle from the heap to stack; on stack we must always bind to make sure we don't use the handle after GC.
-        let elements = result_array.as_mut_slice(...array_heap...); // we want to split the heap borrow so we can get the elements slice as mutable at the same time as we get data as mutable. ArrayHeap is the thing you want to pass here here, IIRC.
+
+        let result_array = {
+            let data = promise_all_index.get_mut(agent);
+            data.result_array.bind(gc.nogc())
+        };
+
+        let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
 
+        let data = promise_all_index.get_mut(agent);
         data.remaining_unresolved_promise_count -= 1;
         if data.remaining_unresolved_promise_count == 0 {
             let capability = PromiseCapability::from_promise(data.promise, false);
