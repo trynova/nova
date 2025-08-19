@@ -1797,6 +1797,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
         #[cfg(feature = "regexp")]
         ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
+        #[cfg(feature = "regexp")]
+        ProtoIntrinsics::RegExpStringIterator => unreachable!(),
         #[cfg(feature = "set")]
         ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
         #[cfg(feature = "set")]
@@ -1984,6 +1986,8 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             }
             ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
             ProtoIntrinsics::StringIterator => None,
+            #[cfg(feature = "regexp")]
+            ProtoIntrinsics::RegExpStringIterator => None,
             ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
             ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
             ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),

@@ -66,13 +66,15 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            text_processing::{
+                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+                string_objects::string_iterator_objects::StringIterator,
+            },
         },
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
-            BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-            BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
+            ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+            BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
@@ -80,7 +82,8 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, IntoValue,
             MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
             Object, OrdinaryObject, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value,
+            PROXY_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, Symbol, Value,
         },
     },
     engine::{
@@ -99,7 +102,6 @@ pub(crate) enum WeakKey<'a> {
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
-    BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
@@ -158,13 +160,13 @@ pub(crate) enum WeakKey<'a> {
     Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
-    AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
+    RegExpStringIterator(RegExpStringIterator<'a>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
     Module(Module<'a>) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
@@ -185,7 +187,6 @@ impl<'a> From<WeakKey<'a>> for Value<'a> {
             WeakKey::BoundFunction(d) => Self::BoundFunction(d),
             WeakKey::BuiltinFunction(d) => Self::BuiltinFunction(d),
             WeakKey::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d),
-            WeakKey::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             WeakKey::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d),
             WeakKey::BuiltinPromiseResolvingFunction(d) => Self::BuiltinPromiseResolvingFunction(d),
             WeakKey::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
@@ -241,13 +242,14 @@ impl<'a> From<WeakKey<'a>> for Value<'a> {
             WeakKey::Float32Array(d) => Self::Float32Array(d),
             #[cfg(feature = "array-buffer")]
             WeakKey::Float64Array(d) => Self::Float64Array(d),
-            WeakKey::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
             WeakKey::AsyncGenerator(d) => Self::AsyncGenerator(d),
             WeakKey::ArrayIterator(d) => Self::ArrayIterator(d),
             #[cfg(feature = "set")]
             WeakKey::SetIterator(d) => Self::SetIterator(d),
             WeakKey::MapIterator(d) => Self::MapIterator(d),
             WeakKey::StringIterator(d) => Self::StringIterator(d),
+            #[cfg(feature = "regexp")]
+            WeakKey::RegExpStringIterator(d) => Self::RegExpStringIterator(d),
             WeakKey::Generator(d) => Self::Generator(d),
             WeakKey::Module(d) => Self::Module(d),
             WeakKey::EmbedderObject(d) => Self::EmbedderObject(d),
@@ -263,7 +265,6 @@ impl<'a> From<Object<'a>> for WeakKey<'a> {
             Object::BoundFunction(d) => Self::BoundFunction(d),
             Object::BuiltinFunction(d) => Self::BuiltinFunction(d),
             Object::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d),
-            Object::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             Object::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d),
             Object::BuiltinPromiseResolvingFunction(d) => Self::BuiltinPromiseResolvingFunction(d),
             Object::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
@@ -318,13 +319,14 @@ impl<'a> From<Object<'a>> for WeakKey<'a> {
             Object::Float32Array(d) => Self::Float32Array(d),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(d) => Self::Float64Array(d),
-            Object::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
             Object::AsyncGenerator(d) => Self::AsyncGenerator(d),
             Object::ArrayIterator(d) => Self::ArrayIterator(d),
             #[cfg(feature = "set")]
             Object::SetIterator(d) => Self::SetIterator(d),
             Object::MapIterator(d) => Self::MapIterator(d),
             Object::StringIterator(d) => Self::StringIterator(d),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(d) => Self::RegExpStringIterator(d),
             Object::Generator(d) => Self::Generator(d),
             Object::Module(d) => Self::Module(d),
             Object::EmbedderObject(d) => Self::EmbedderObject(d),
@@ -342,7 +344,6 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
             WeakKey::BoundFunction(d) => Ok(Self::BoundFunction(d)),
             WeakKey::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
             WeakKey::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
-            WeakKey::BuiltinGeneratorFunction => Ok(Self::BuiltinGeneratorFunction),
             WeakKey::BuiltinConstructorFunction(d) => Ok(Self::BuiltinConstructorFunction(d)),
             WeakKey::BuiltinPromiseResolvingFunction(d) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(d))
@@ -399,13 +400,14 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
             WeakKey::Float32Array(d) => Ok(Self::Float32Array(d)),
             #[cfg(feature = "array-buffer")]
             WeakKey::Float64Array(d) => Ok(Self::Float64Array(d)),
-            WeakKey::AsyncFromSyncIterator => Ok(Self::AsyncFromSyncIterator),
             WeakKey::AsyncGenerator(d) => Ok(Self::AsyncGenerator(d)),
             WeakKey::ArrayIterator(d) => Ok(Self::ArrayIterator(d)),
             #[cfg(feature = "set")]
             WeakKey::SetIterator(d) => Ok(Self::SetIterator(d)),
             WeakKey::MapIterator(d) => Ok(Self::MapIterator(d)),
             WeakKey::StringIterator(d) => Ok(Self::StringIterator(d)),
+            #[cfg(feature = "regexp")]
+            WeakKey::RegExpStringIterator(d) => Ok(Self::RegExpStringIterator(d)),
             WeakKey::Generator(d) => Ok(Self::Generator(d)),
             WeakKey::Module(d) => Ok(Self::Module(d)),
             WeakKey::EmbedderObject(d) => Ok(Self::EmbedderObject(d)),
@@ -469,7 +471,6 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::BoundFunction(d) => d.mark_values(queues),
             Self::BuiltinFunction(d) => d.mark_values(queues),
             Self::ECMAScriptFunction(d) => d.mark_values(queues),
-            Self::BuiltinGeneratorFunction => {}
             Self::BuiltinConstructorFunction(d) => d.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(d) => d.mark_values(queues),
             Self::BuiltinPromiseFinallyFunction(d) => d.mark_values(queues),
@@ -524,13 +525,14 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::Float32Array(d) => d.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(d) => d.mark_values(queues),
-            Self::AsyncFromSyncIterator => {}
             Self::AsyncGenerator(d) => d.mark_values(queues),
             Self::ArrayIterator(d) => d.mark_values(queues),
             #[cfg(feature = "set")]
             Self::SetIterator(d) => d.mark_values(queues),
             Self::MapIterator(d) => d.mark_values(queues),
             Self::StringIterator(d) => d.mark_values(queues),
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(d) => d.mark_values(queues),
             Self::Generator(d) => d.mark_values(queues),
             Self::Module(d) => d.mark_values(queues),
             Self::EmbedderObject(d) => d.mark_values(queues),
@@ -544,7 +546,6 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::BoundFunction(d) => d.sweep_values(compactions),
             Self::BuiltinFunction(d) => d.sweep_values(compactions),
             Self::ECMAScriptFunction(d) => d.sweep_values(compactions),
-            Self::BuiltinGeneratorFunction => {}
             Self::BuiltinConstructorFunction(d) => d.sweep_values(compactions),
             Self::BuiltinPromiseResolvingFunction(d) => d.sweep_values(compactions),
             Self::BuiltinPromiseFinallyFunction(d) => d.sweep_values(compactions),
@@ -599,13 +600,14 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::Float32Array(d) => d.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(d) => d.sweep_values(compactions),
-            Self::AsyncFromSyncIterator => {}
             Self::AsyncGenerator(d) => d.sweep_values(compactions),
             Self::ArrayIterator(d) => d.sweep_values(compactions),
             #[cfg(feature = "set")]
             Self::SetIterator(d) => d.sweep_values(compactions),
             Self::MapIterator(d) => d.sweep_values(compactions),
             Self::StringIterator(d) => d.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(d) => d.sweep_values(compactions),
             Self::Generator(d) => d.sweep_values(compactions),
             Self::Module(d) => d.sweep_values(compactions),
             Self::EmbedderObject(d) => d.sweep_values(compactions),
@@ -627,7 +629,6 @@ impl HeapSweepWeakReference for WeakKey<'static> {
             Self::ECMAScriptFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::ECMAScriptFunction),
-            Self::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
             Self::BuiltinConstructorFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::BuiltinConstructorFunction),
@@ -713,7 +714,6 @@ impl HeapSweepWeakReference for WeakKey<'static> {
             Self::Float64Array(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::Float64Array),
-            Self::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
             Self::AsyncGenerator(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::AsyncGenerator),
@@ -730,6 +730,10 @@ impl HeapSweepWeakReference for WeakKey<'static> {
             Self::StringIterator(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::StringIterator),
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::RegExpStringIterator),
             Self::Generator(data) => data.sweep_weak_reference(compactions).map(Self::Generator),
             Self::Module(data) => data.sweep_weak_reference(compactions).map(Self::Module),
             Self::EmbedderObject(data) => data

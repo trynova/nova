@@ -221,6 +221,8 @@ pub enum ProtoIntrinsics {
     SharedArrayBuffer,
     String,
     StringIterator,
+    #[cfg(feature = "regexp")]
+    RegExpStringIterator,
     Symbol,
     SyntaxError,
     TypeError,
@@ -404,6 +406,10 @@ impl Intrinsics {
             ProtoIntrinsics::RangeError => self.range_error_prototype().into(),
             ProtoIntrinsics::ReferenceError => self.reference_error_prototype().into(),
             ProtoIntrinsics::StringIterator => self.string_iterator_prototype().into(),
+            #[cfg(feature = "regexp")]
+            ProtoIntrinsics::RegExpStringIterator => {
+                self.reg_exp_string_iterator_prototype().into()
+            }
             ProtoIntrinsics::String => self.string_prototype().into(),
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),

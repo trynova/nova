@@ -52,7 +52,10 @@ use crate::ecmascript::{
         promise::Promise,
         promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         proxy::Proxy,
-        text_processing::string_objects::string_iterator_objects::StringIterator,
+        text_processing::{
+            regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+            string_objects::string_iterator_objects::StringIterator,
+        },
     },
     execution::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
@@ -132,6 +135,8 @@ pub struct HeapBits {
     pub realms: Box<[bool]>,
     #[cfg(feature = "regexp")]
     pub regexps: Box<[bool]>,
+    #[cfg(feature = "regexp")]
+    pub regexp_string_iterators: Box<[bool]>,
     pub scripts: Box<[bool]>,
     #[cfg(feature = "set")]
     pub sets: Box<[bool]>,
@@ -215,6 +220,8 @@ pub(crate) struct WorkQueues {
     pub realms: Vec<Realm<'static>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
+    #[cfg(feature = "regexp")]
+    pub regexp_string_iterators: Vec<RegExpStringIterator<'static>>,
     pub scripts: Vec<Script<'static>>,
     #[cfg(feature = "set")]
     pub sets: Vec<Set<'static>>,
@@ -298,6 +305,8 @@ impl HeapBits {
         let realms = vec![false; heap.realms.len()];
         #[cfg(feature = "regexp")]
         let regexps = vec![false; heap.regexps.len()];
+        #[cfg(feature = "regexp")]
+        let regexp_string_iterators = vec![false; heap.regexp_string_iterators.len()];
         let scripts = vec![false; heap.scripts.len()];
         #[cfg(feature = "set")]
         let sets = vec![false; heap.sets.len()];
@@ -378,6 +387,8 @@ impl HeapBits {
             realms: realms.into_boxed_slice(),
             #[cfg(feature = "regexp")]
             regexps: regexps.into_boxed_slice(),
+            #[cfg(feature = "regexp")]
+            regexp_string_iterators: regexp_string_iterators.into_boxed_slice(),
             scripts: scripts.into_boxed_slice(),
             #[cfg(feature = "set")]
             sets: sets.into_boxed_slice(),
@@ -466,6 +477,8 @@ impl WorkQueues {
             realms: Vec::with_capacity(heap.realms.len() / 4),
             #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
+            #[cfg(feature = "regexp")]
+            regexp_string_iterators: Vec::with_capacity(heap.regexp_string_iterators.len() / 4),
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             #[cfg(feature = "set")]
             sets: Vec::with_capacity(heap.sets.len() / 4),
@@ -552,6 +565,8 @@ impl WorkQueues {
             realms,
             #[cfg(feature = "regexp")]
             regexps,
+            #[cfg(feature = "regexp")]
+            regexp_string_iterators,
             scripts,
             #[cfg(feature = "set")]
             sets,
@@ -651,6 +666,7 @@ impl WorkQueues {
             && proxys.is_empty()
             && realms.is_empty()
             && regexps.is_empty()
+            && regexp_string_iterators.is_empty()
             && scripts.is_empty()
             && sets.is_empty()
             && set_iterators.is_empty()
@@ -998,6 +1014,8 @@ pub(crate) struct CompactionLists {
     pub realms: CompactionList,
     #[cfg(feature = "regexp")]
     pub regexps: CompactionList,
+    #[cfg(feature = "regexp")]
+    pub regexp_string_iterators: CompactionList,
     pub scripts: CompactionList,
     #[cfg(feature = "set")]
     pub sets: CompactionList,
@@ -1095,6 +1113,8 @@ impl CompactionLists {
             promises: CompactionList::from_mark_bits(&bits.promises),
             #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
+            #[cfg(feature = "regexp")]
+            regexp_string_iterators: CompactionList::from_mark_bits(&bits.regexp_string_iterators),
             #[cfg(feature = "set")]
             sets: CompactionList::from_mark_bits(&bits.sets),
             #[cfg(feature = "set")]

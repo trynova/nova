@@ -3401,7 +3401,6 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::FinalizationRegistry(_) |
         Value::Map(_) |
         Value::Promise(_) |
-        Value::AsyncFromSyncIterator |
         Value::AsyncGenerator(_) |
         Value::ArrayIterator(_) |
         Value::MapIterator(_) |
@@ -3410,7 +3409,7 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "regexp")]
-        Value::RegExp(_) => BUILTIN_STRING_MEMORY.object,
+        Value::RegExp(_) | Value::RegExpStringIterator(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "weak-refs")]
         Value::WeakMap(_) |
         Value::WeakRef(_) |
@@ -3440,7 +3439,6 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
-        Value::BuiltinGeneratorFunction |
         Value::BuiltinConstructorFunction(_) |
         Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseFinallyFunction(_) |

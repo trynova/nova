@@ -82,7 +82,10 @@ use crate::{
             promise::data::PromiseHeapData,
             promise_objects::promise_abstract_operations::promise_finally_functions::PromiseFinallyFunctionHeapData,
             proxy::data::ProxyHeapData,
-            text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
+            text_processing::{
+                regexp_objects::regexp_string_iterator_objects::RegExpStringIteratorRecord,
+                string_objects::string_iterator_objects::StringIteratorHeapData,
+            },
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
@@ -174,6 +177,8 @@ pub struct Heap {
     pub realms: Vec<Option<RealmRecord<'static>>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData<'static>>>,
+    #[cfg(feature = "regexp")]
+    pub(crate) regexp_string_iterators: Vec<RegExpStringIteratorRecord<'static>>,
     #[cfg(feature = "set")]
     pub sets: Vec<Option<SetHeapData<'static>>>,
     #[cfg(feature = "set")]
@@ -320,6 +325,8 @@ impl Heap {
             realms: Vec::with_capacity(1),
             #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(1024),
+            #[cfg(feature = "regexp")]
+            regexp_string_iterators: Vec::with_capacity(0),
             scripts: Vec::with_capacity(1),
             #[cfg(feature = "set")]
             sets: Vec::with_capacity(128),

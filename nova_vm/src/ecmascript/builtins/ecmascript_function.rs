@@ -908,8 +908,7 @@ pub(crate) fn make_constructor<'a>(
             // 2. Else,
             // a. Set F.[[Construct]] to the definition specified in 10.3.2.
         }
-        Function::BuiltinGeneratorFunction
-        | Function::BuiltinConstructorFunction(_)
+        Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
         | Function::BuiltinPromiseFinallyFunction(_)
         | Function::BuiltinPromiseCollectorFunction
@@ -1103,8 +1102,7 @@ pub(crate) fn set_function_name<'a>(
             function.name = Some(name.unbind());
             // 7. Return UNUSED.
         }
-        Function::BuiltinGeneratorFunction
-        | Function::BuiltinConstructorFunction(_)
+        Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
         | Function::BuiltinPromiseFinallyFunction(_)
         | Function::BuiltinPromiseCollectorFunction

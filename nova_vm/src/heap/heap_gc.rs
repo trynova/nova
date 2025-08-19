@@ -59,7 +59,10 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            text_processing::{
+                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+                string_objects::string_iterator_objects::StringIterator,
+            },
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
@@ -165,6 +168,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             realms,
             #[cfg(feature = "regexp")]
             regexps,
+            #[cfg(feature = "regexp")]
+            regexp_string_iterators,
             scripts,
             #[cfg(feature = "set")]
             sets,
@@ -783,6 +788,23 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
+        #[cfg(feature = "regexp")]
+        {
+            let mut regexp_string_iterator_marks: Box<[RegExpStringIterator]> =
+                queues.regexp_string_iterators.drain(..).collect();
+            regexp_string_iterator_marks.sort();
+            regexp_string_iterator_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.regexp_string_iterators.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    regexp_string_iterators.get(index).mark_values(&mut queues);
+                }
+            });
+        }
         #[cfg(feature = "set")]
         {
             let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
@@ -1313,6 +1335,8 @@ fn sweep(
         realms,
         #[cfg(feature = "regexp")]
         regexps,
+        #[cfg(feature = "regexp")]
+        regexp_string_iterators,
         scripts,
         #[cfg(feature = "set")]
         sets,
@@ -1761,6 +1785,16 @@ fn sweep(
         if !regexps.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
+            });
+        }
+        #[cfg(feature = "regexp")]
+        if !regexp_string_iterators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    regexp_string_iterators,
+                    &compactions,
+                    &bits.regexp_string_iterators,
+                );
             });
         }
         if !scripts.is_empty() {

@@ -436,9 +436,9 @@ impl FunctionPrototype {
                         .unbind(),
                 )
             }
-            Function::BuiltinGeneratorFunction
-            | Function::BuiltinPromiseCollectorFunction
-            | Function::BuiltinProxyRevokerFunction => unreachable!(),
+            Function::BuiltinPromiseCollectorFunction | Function::BuiltinProxyRevokerFunction => {
+                unreachable!()
+            }
         }
 
         // NOTE: NativeFunction means the following string:

@@ -3,12 +3,19 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ast::ast::RegExpFlags;
+use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, set, try_create_data_property_or_throw, try_get},
-            type_conversion::{to_boolean, to_length, to_string},
+            operations_on_objects::{
+                call_function, construct, get, length_of_array_like, set, species_constructor,
+                try_create_data_property_or_throw, try_get,
+            },
+            testing_and_comparison::is_callable,
+            type_conversion::{
+                to_boolean, to_integer_or_infinity, to_length, to_object, to_string,
+            },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -18,22 +25,26 @@ use crate::{
                 advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
                 reg_exp_test, require_internal_slot_reg_exp,
             },
+            text_processing::string_objects::string_prototype::get_substitution,
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, TryGetResult, Value,
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
+
+use super::regexp_string_iterator_objects::create_reg_exp_string_iterator;
 
 pub(crate) struct RegExpPrototype;
 
@@ -586,13 +597,134 @@ impl RegExpPrototype {
         }
     }
 
+    /// ### [22.2.6.9 RegExp.prototype \[ %Symbol.matchAll% \] ( string )](https://tc39.es/ecma262/#sec-regexp-prototype-%symbol.matchall%)
+    ///
+    /// The value of the "name" property of this method is "\[Symbol.matchAll]".
     fn match_all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.matchAll", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(r) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "this is not an object",
+                gc.into_nogc(),
+            ));
+        };
+        let scoped_r = r.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let C be ? SpeciesConstructor(R, %RegExp%).
+        let regexp_intrinsic_constructor = agent
+            .current_realm_record()
+            .intrinsics()
+            .reg_exp()
+            .into_function()
+            .bind(gc.nogc());
+        let c = species_constructor(
+            agent,
+            scoped_r.get(agent),
+            regexp_intrinsic_constructor.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let c = if c
+            == agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp()
+                .into_function()
+        {
+            None
+        } else {
+            Some(c.scope(agent, gc.nogc()))
+        };
+        // 5. Let flags be ? ToString(? Get(R, "flags")).
+        let flags = get(
+            agent,
+            scoped_r.get(agent),
+            BUILTIN_STRING_MEMORY.flags.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = to_string(agent, flags.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let scoped_flags = flags.scope(agent, gc.nogc());
+        let c = if let Some(c) = c {
+            unsafe { c.take(agent) }.bind(gc.nogc())
+        } else {
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp()
+                .into_function()
+                .bind(gc.nogc())
+        };
+        // 6. Let matcher be ? Construct(C, « R, flags »).
+        let matcher = construct(
+            agent,
+            c.unbind(),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                scoped_r.get(agent).into_value(),
+                flags.into_value().unbind(),
+            ])),
+            None,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .scope(agent, gc.nogc());
+        // 7. Let lastIndex be ? ToLength(? Get(R, "lastIndex")).
+        let last_index = get(
+            agent,
+            scoped_r.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let last_index = to_length(agent, last_index.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 8. Perform ? Set(matcher, "lastIndex", lastIndex, true).
+        set(
+            agent,
+            matcher.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            last_index.try_into().unwrap(),
+            true,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = scoped_flags.get(agent).bind(gc.nogc());
+        let flags = flags.as_bytes(agent);
+        // 9. If flags contains "g", let global be true.
+        // 10. Else, let global be false.
+        let global = flags.contains(&b'g');
+        // 11. If flags contains "u" or flags contains "v", let fullUnicode be true.
+        // 12. Else, let fullUnicode be false.
+        let full_unicode = flags.contains(&b'u') | flags.contains(&b'v');
+        // 13. Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
+        Ok(create_reg_exp_string_iterator(
+            agent,
+            matcher.get(agent),
+            s.get(agent),
+            global,
+            full_unicode,
+            gc.into_nogc(),
+        )
+        .into_value())
     }
 
     /// ### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)
@@ -613,13 +745,338 @@ impl RegExpPrototype {
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
+    /// ## [22.2.6.11 RegExp.prototype \[ %Symbol.replace% \] ( string, replaceValue )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.replace%)
+    ///
+    /// The value of the "name" property of this method is "\[Symbol.replace]".
     fn replace<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.replace", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        let replace_value = args.get(1).scope(agent, gc.nogc());
+        // 1. Let rx be the this value.
+        let rx = this_value.bind(gc.nogc());
+        // 2. If rx is not an Object, throw a TypeError exception.
+        let Ok(rx) = Object::try_from(rx) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "this is not an object",
+                gc.into_nogc(),
+            ));
+        };
+        let rx = rx.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let lengthS be the length of S.
+        let length_s = s.get(agent).utf16_len(agent);
+        #[derive(Clone)]
+        enum ReplaceValue<'a> {
+            Functional(Scoped<'a, Function<'static>>),
+            String(Scoped<'a, String<'static>>),
+        }
+        // 5. Let functionalReplace be IsCallable(replaceValue).
+        let (replace_value, functional_replace) = if let Some(functional_replace) =
+            is_callable(replace_value.get(agent), gc.nogc())
+        {
+            // SAFETY: replace_value is not shared.
+            (
+                ReplaceValue::Functional(unsafe {
+                    replace_value.replace_self(agent, functional_replace.unbind())
+                }),
+                true,
+            )
+        } else {
+            // 6. If functionalReplace is false, then
+            // a. Set replaceValue to ? ToString(replaceValue).
+            let string = to_string(agent, replace_value.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // SAFETY: replace_value is not shared.
+            (
+                ReplaceValue::String(unsafe { replace_value.replace_self(agent, string.unbind()) }),
+                false,
+            )
+        };
+        // 7. Let flags be ? ToString(? Get(rx, "flags")).
+        let flags = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.flags.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = to_string(agent, flags.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 8. If flags contains "g", let global be true; otherwise let global be false.
+        let flags = flags.as_bytes(agent);
+        let global = flags.contains(&b'g');
+        // b. If flags contains "u" or flags contains "v", let fullUnicode be
+        //    true; otherwise let fullUnicode be false.
+        let full_unicode = flags.contains(&b'u') | flags.contains(&b'v');
+        // 9. If global is true, then
+        if global {
+            // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
+            set(
+                agent,
+                rx.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                0.into(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+        }
+        // 10. Let results be a new empty List.
+        let mut results = vec![];
+        // 11. Let done be false.
+        // 12. Repeat, while done is false,
+        loop {
+            // a. Let result be ? RegExpExec(rx, S).
+            let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // b. If result is null, then
+            let Some(result) = result else {
+                // i. Set done to true.
+                break;
+            };
+            // c. Else,
+            // i. Append result to results.
+            results.push(result.scope(agent, gc.nogc()));
+            // ii. If global is false, then
+            if !global {
+                // 1. Set done to true.
+                break;
+            }
+            // iii. Else,
+            // 1. Let matchStr be ? ToString(? Get(result, "0")).
+            let match_str = get(agent, result.unbind(), 0.into(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            let match_str = to_string(agent, match_str.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // 2. If matchStr is the empty String, then
+            if match_str.is_empty_string() {
+                // a. Let thisIndex be ℝ(? ToLength(? Get(rx, "lastIndex"))).
+                let this_index = get(
+                    agent,
+                    rx.get(agent),
+                    BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let this_index = to_length(agent, this_index.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                let this_index = usize::try_from(this_index).expect("thisIndex not valid usize");
+                // b. If flags contains "u" or flags contains "v", let
+                //    fullUnicode be true; otherwise let fullUnicode be false.
+                // c. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
+                let next_index =
+                    advance_string_index(agent, s.get(agent), this_index, full_unicode);
+                // d. Perform ? Set(rx, "lastIndex", 𝔽(nextIndex), true).
+                set(
+                    agent,
+                    rx.get(agent),
+                    BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                    Number::try_from(next_index).unwrap().into_value(),
+                    true,
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+            }
+        }
+        // 13. Let accumulatedResult be the empty String.
+        let mut accumulated_result = Wtf8Buf::new();
+        // 14. Let nextSourcePosition be 0.
+        let mut next_source_position = 0;
+        // 15. For each element result of results, do
+        for result in results {
+            // a. Let resultLength be ? LengthOfArrayLike(result).
+            let result_length = length_of_array_like(agent, result.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc()) as u64;
+            // b. Let nCaptures be max(resultLength - 1, 0).
+            let n_captures = result_length.saturating_sub(1);
+            // c. Let matched be ? ToString(? Get(result, "0")).
+            let matched = get(agent, result.get(agent), 0.into(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            let matched = to_string(agent, matched.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // d. Let matchLength be the length of matched.
+            let match_length = matched.utf16_len(agent);
+            let matched = matched.scope(agent, gc.nogc());
+            // e. Let position be ? ToIntegerOrInfinity(? Get(result, "index")).
+            let position = get(
+                agent,
+                result.get(agent),
+                BUILTIN_STRING_MEMORY.index.into(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            let position = to_integer_or_infinity(agent, position.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // f. Set position to the result of clamping position between 0 and lengthS.
+            let position = position.into_i64().clamp(0, length_s as i64) as usize;
+            // g. Let captures be a new empty List.
+            let mut captures =
+                Vec::with_capacity(n_captures as usize + if functional_replace { 3 } else { 0 });
+            // h. Let n be 1.
+            // i. Repeat, while n ≤ nCaptures,
+            for n in 1..=n_captures {
+                // i. Let capN be ? Get(result, ! ToString(𝔽(n))).
+                let cap_n = get(
+                    agent,
+                    result.get(agent),
+                    n.try_into().unwrap(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                // ii. If capN is not undefined, then
+                let cap_n = if cap_n.is_undefined() {
+                    None
+                } else {
+                    // 1. Set capN to ? ToString(capN).
+                    Some(
+                        to_string(agent, cap_n.unbind(), gc.reborrow())
+                            .unbind()?
+                            .scope(agent, gc.nogc()),
+                    )
+                };
+                // iii. Append capN to captures.
+                captures.push(cap_n);
+                // iv. NOTE: When n = 1, the preceding step puts the first
+                //     element into captures (at index 0). More generally, the
+                //     nth capture (the characters captured by the nth set of
+                //     capturing parentheses) is at captures[n - 1].
+                // v. Set n to n + 1.
+            }
+            // j. Let namedCaptures be ? Get(result, "groups").
+            let named_captures = get(
+                agent,
+                result.get(agent),
+                BUILTIN_STRING_MEMORY.groups.to_property_key(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // k. If functionalReplace is true, then
+            let replacement_string = match replace_value.clone() {
+                ReplaceValue::Functional(replace_value) => {
+                    // i. Let replacerArgs be the list-concatenation of
+                    //    « matched », captures, and « 𝔽(position), S ».
+                    let mut replacer_args = captures
+                        .into_iter()
+                        .map(|s| {
+                            s.map_or(Value::Undefined, |s| {
+                                s.get(agent).into_value().bind(gc.nogc())
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    replacer_args.insert(0, matched.get(agent).into_value());
+                    replacer_args.push(Number::try_from(position).unwrap().into_value());
+                    // ii. If namedCaptures is not undefined, then
+                    if !named_captures.is_undefined() {
+                        // 1. Append namedCaptures to replacerArgs.
+                        replacer_args.push(named_captures);
+                    }
+                    // iii. Let replacementValue be ? Call(replaceValue, undefined, replacerArgs).
+                    let replacement_value = call_function(
+                        agent,
+                        replace_value.get(agent),
+                        Value::Undefined,
+                        Some(ArgumentsList::from_mut_slice(&mut replacer_args.unbind())),
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc());
+                    // iv. Let replacementString be ? ToString(replacementValue).
+                    to_string(agent, replacement_value.unbind(), gc.reborrow())
+                        .unbind()?
+                        .bind(gc.nogc())
+                }
+                ReplaceValue::String(replace_value) => {
+                    // l. Else,
+                    // i. If namedCaptures is not undefined, then
+                    let named_captures = if named_captures.is_undefined() {
+                        None
+                    } else {
+                        // 1. Set namedCaptures to ? ToObject(namedCaptures).
+                        Some(
+                            to_object(agent, named_captures, gc.nogc())
+                                .unbind()?
+                                .bind(gc.nogc()),
+                        )
+                    };
+                    // ii. Let replacementString be
+                    //     ? GetSubstitution(
+                    get_substitution(
+                        agent,
+                        // matched,
+                        matched,
+                        // S,
+                        s.clone(),
+                        // position,
+                        position,
+                        // captures,
+                        captures,
+                        // namedCaptures,
+                        named_captures.unbind(),
+                        // replaceValue
+                        replace_value,
+                        gc.reborrow(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                    // ).
+                }
+            };
+            // m. If position ≥ nextSourcePosition, then
+            if position >= next_source_position {
+                // i. NOTE: position should not normally move backwards. If it
+                //    does, it is an indication of an ill-behaving RegExp
+                //    subclass or use of an access triggered side-effect to
+                //    change the global flag or other characteristics of rx. In
+                //    such cases, the corresponding substitution is ignored.
+                // ii. Set accumulatedResult to the string-concatenation of
+                //     accumulatedResult, the substring of S from
+                //     nextSourcePosition to position, and replacementString.
+                let s = s.get(agent).bind(gc.nogc());
+                let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
+                let position_utf8 = s.utf8_index(agent, position).unwrap();
+                accumulated_result.push_wtf8(
+                    s.as_wtf8(agent)
+                        .slice(next_source_position_utf8, position_utf8),
+                );
+                accumulated_result.push_wtf8(replacement_string.as_wtf8(agent));
+                // iii. Set nextSourcePosition to position + matchLength.
+                next_source_position = position + match_length;
+            }
+        }
+        // 16. If nextSourcePosition ≥ lengthS, return accumulatedResult.
+        if next_source_position < length_s {
+            // 17. Return the string-concatenation of accumulatedResult and the
+            // substring of S from nextSourcePosition.
+            let s = s.get(agent).bind(gc.nogc());
+            let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
+            accumulated_result.push_wtf8(s.as_wtf8(agent).slice_from(next_source_position_utf8));
+        }
+        Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into_value())
     }
 
     fn search<'gc>(
