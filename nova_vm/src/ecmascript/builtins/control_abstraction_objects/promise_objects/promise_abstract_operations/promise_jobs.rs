@@ -288,37 +288,19 @@ impl PromiseReactionJob {
                     }
                 }
             }
-            PromiseReactionHandler::PromiseAll { promise_all, index } => {
+            PromiseReactionHandler::PromiseAll {
+                mut promise_all,
+                index,
+            } => {
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
                 match agent[reaction].reaction_type {
                     PromiseReactionType::Fulfill => {
-                        // Take out the record to drop the vec borrow before we use `agent`/`gc`
-                        let rec = {
-                            let slot = agent
-                                .heap
-                                .promise_all_records
-                                .get_mut(promise_all.get_index())
-                                .expect("PromiseAllRecord out of bounds");
-                            slot.take().expect("PromiseAllRecord slot empty")
-                        };
-
-                        // Bind to current scope and mutate
-                        let mut rec_bound = rec.unbind().bind(gc.nogc());
-                        rec_bound.on_promise_fufilled(
+                        promise_all.on_promise_fufilled(
                             agent,
                             index,
                             argument.clone().unbind(),
                             gc.reborrow(),
                         );
-
-                        // Write back with 'static lifetime
-                        agent
-                            .heap
-                            .promise_all_records
-                            .get_mut(promise_all.get_index())
-                            .unwrap()
-                            .replace(rec_bound.unbind());
-
                         (Ok(argument), capability)
                     }
                     PromiseReactionType::Reject => (Err(JsError::new(argument)), capability),
