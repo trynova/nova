@@ -13,11 +13,11 @@ keywords.workspace = true
 categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]
-clap = { workspace = true}
+clap = { workspace = true }
 cliclack = { workspace = true }
 ctrlc = { workspace = true }
 console = { workspace = true }
-nova_vm = { path = "../nova_vm", version = "0.2.0" }
+nova_vm = { path = "../nova_vm", version = "0.3.0" }
 oxc_ast = { workspace = true }
 oxc-miette = { workspace = true }
 oxc_parser = { workspace = true }

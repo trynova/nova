@@ -5,16 +5,12 @@ exclude = ["nova_lint"]
 
 [workspace.package]
 edition = "2024"
-version = "0.2.1"
+version = "0.3.0"
 license = "MPL-2.0"
 homepage = "https://trynova.dev/"
 repository = "https://github.com/trynova/nova/"
 readme = "README.md"
-keywords = [
-    "javascript",
-    "typescript",
-    "interpreter",
-]
+keywords = ["javascript", "typescript", "interpreter"]
 categories = ["development-tools"]
 authors = ["The Nova Team"]
 
