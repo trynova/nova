@@ -58,7 +58,10 @@ use crate::{
             ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
             primitive_objects::PrimitiveObject,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
+            promise_objects::promise_abstract_operations::{
+                promise_all_record::PromiseAll,
+                promise_finally_functions::BuiltinPromiseFinallyFunction,
+            },
             proxy::Proxy,
             text_processing::{
                 regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
@@ -647,6 +650,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 promise_reaction_records.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut promise_all_record_marks: Box<[PromiseAll]> =
+            queues.promise_all_records.drain(..).collect();
+        promise_all_record_marks.sort();
+        promise_all_record_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.promise_all_records.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                promise_all_records.get(index).mark_values(&mut queues);
             }
         });
         let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
