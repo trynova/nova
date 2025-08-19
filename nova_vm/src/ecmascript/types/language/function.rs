@@ -10,8 +10,7 @@ use super::{
     String, TryGetResult, TryHasResult, Value,
     value::{
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
@@ -49,7 +48,6 @@ pub enum Function<'a> {
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
-    BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
@@ -67,7 +65,6 @@ impl core::fmt::Debug for Function<'_> {
             Self::BoundFunction(d) => write!(f, "BoundFunction({d:?})"),
             Self::BuiltinFunction(d) => write!(f, "BuiltinFunction({d:?})"),
             Self::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({d:?})"),
-            Self::BuiltinGeneratorFunction => todo!(),
             Self::BuiltinConstructorFunction(d) => {
                 write!(f, "BuiltinConstructorFunction({d:?})")
             }
@@ -96,7 +93,6 @@ impl<'a> TryFrom<Object<'a>> for Function<'a> {
             Object::BoundFunction(d) => Ok(Self::BoundFunction(d)),
             Object::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
             Object::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
-            Object::BuiltinGeneratorFunction => Ok(Self::BuiltinGeneratorFunction),
             Object::BuiltinConstructorFunction(data) => Ok(Self::BuiltinConstructorFunction(data)),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
@@ -115,7 +111,6 @@ impl<'a> TryFrom<Value<'a>> for Function<'a> {
             Value::BoundFunction(d) => Ok(Self::BoundFunction(d)),
             Value::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
             Value::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
-            Value::BuiltinGeneratorFunction => Ok(Self::BuiltinGeneratorFunction),
             Value::BuiltinConstructorFunction(data) => Ok(Self::BuiltinConstructorFunction(data)),
             Value::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
@@ -133,7 +128,6 @@ impl<'a> From<Function<'a>> for Object<'a> {
             Function::BoundFunction(d) => Self::BoundFunction(d),
             Function::BuiltinFunction(d) => Self::BuiltinFunction(d),
             Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d),
-            Function::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             Function::BuiltinConstructorFunction(data) => Self::BuiltinConstructorFunction(data),
             Function::BuiltinPromiseResolvingFunction(data) => {
                 Self::BuiltinPromiseResolvingFunction(data)
@@ -153,7 +147,6 @@ impl<'a> From<Function<'a>> for Value<'a> {
             Function::BoundFunction(d) => Self::BoundFunction(d.unbind()),
             Function::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
             Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
-            Function::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             Function::BuiltinConstructorFunction(data) => {
                 Self::BuiltinConstructorFunction(data.unbind())
             }
@@ -177,7 +170,6 @@ impl Function<'_> {
             Function::ECMAScriptFunction(f) => f.is_constructor(agent),
             Function::BuiltinPromiseResolvingFunction(_) => false,
             Function::BuiltinPromiseFinallyFunction(_) => false,
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(_) => true,
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -215,7 +207,6 @@ impl<'a> InternalSlots<'a> for Function<'a> {
             Function::BoundFunction(d) => d.get_backing_object(agent),
             Function::BuiltinFunction(d) => d.get_backing_object(agent),
             Function::ECMAScriptFunction(d) => d.get_backing_object(agent),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(d) => d.get_backing_object(agent),
             Function::BuiltinPromiseResolvingFunction(d) => d.get_backing_object(agent),
             Function::BuiltinPromiseFinallyFunction(d) => d.get_backing_object(agent),
@@ -243,7 +234,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::ECMAScriptFunction(x) => x.try_get_prototype_of(agent, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_get_prototype_of(agent, gc),
@@ -262,7 +252,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::ECMAScriptFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinPromiseResolvingFunction(x) => {
                 x.try_set_prototype_of(agent, prototype, gc)
@@ -284,7 +273,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinFunction(x) => x.try_is_extensible(agent, gc),
             Function::ECMAScriptFunction(x) => x.try_is_extensible(agent, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_is_extensible(agent, gc),
@@ -302,7 +290,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::ECMAScriptFunction(x) => x.try_prevent_extensions(agent, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_prevent_extensions(agent, gc),
@@ -324,7 +311,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::ECMAScriptFunction(x) => {
                 x.try_get_own_property(agent, property_key, cache, gc)
             }
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.try_get_own_property(agent, property_key, cache, gc)
             }
@@ -357,7 +343,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::ECMAScriptFunction(x) => {
                 x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
@@ -383,7 +368,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_has_property(agent, property_key, cache, gc),
             Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, cache, gc),
             Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, cache, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.try_has_property(agent, property_key, cache, gc)
             }
@@ -408,7 +392,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.internal_has_property(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.internal_has_property(agent, property_key, gc),
             Function::ECMAScriptFunction(x) => x.internal_has_property(agent, property_key, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.internal_has_property(agent, property_key, gc)
             }
@@ -435,7 +418,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
             Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
             Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, cache, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.try_get(agent, property_key, receiver, cache, gc)
             }
@@ -461,7 +443,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
             Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver, gc),
             Function::ECMAScriptFunction(x) => x.internal_get(agent, property_key, receiver, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.internal_get(agent, property_key, receiver, gc)
             }
@@ -495,7 +476,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::ECMAScriptFunction(x) => {
                 x.try_set(agent, property_key, value, receiver, cache, gc)
             }
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.try_set(agent, property_key, value, receiver, cache, gc)
             }
@@ -526,7 +506,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::ECMAScriptFunction(x) => {
                 x.internal_set(agent, property_key, value, receiver, gc)
             }
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.internal_set(agent, property_key, value, receiver, gc)
             }
@@ -551,7 +530,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_delete(agent, property_key, gc),
             Function::ECMAScriptFunction(x) => x.try_delete(agent, property_key, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_delete(agent, property_key, gc),
@@ -569,7 +547,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),
             Function::ECMAScriptFunction(x) => x.try_own_property_keys(agent, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_own_property_keys(agent, gc),
@@ -588,7 +565,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
             Function::BuiltinFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
             Function::ECMAScriptFunction(f) => f.get_own_property_at_offset(agent, offset, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(f) => {
                 f.get_own_property_at_offset(agent, offset, gc)
             }
@@ -614,7 +590,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(f) => f.set_at_offset(agent, props, offset, gc),
             Function::BuiltinFunction(f) => f.set_at_offset(agent, props, offset, gc),
             Function::ECMAScriptFunction(f) => f.set_at_offset(agent, props, offset, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(f) => f.set_at_offset(agent, props, offset, gc),
             Function::BuiltinPromiseResolvingFunction(f) => {
                 f.set_at_offset(agent, props, offset, gc)
@@ -636,7 +611,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
             Function::BuiltinFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
             Function::ECMAScriptFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.internal_call(agent, this_argument, arguments, gc)
             }
@@ -664,7 +638,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::ECMAScriptFunction(x) => {
                 x.internal_construct(agent, arguments, new_target, gc)
             }
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
                 x.internal_construct(agent, arguments, new_target, gc)
             }
@@ -686,7 +659,6 @@ impl HeapMarkAndSweep for Function<'static> {
             Function::BoundFunction(x) => x.mark_values(queues),
             Function::BuiltinFunction(x) => x.mark_values(queues),
             Function::ECMAScriptFunction(x) => x.mark_values(queues),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.mark_values(queues),
             Function::BuiltinPromiseResolvingFunction(x) => x.mark_values(queues),
             Function::BuiltinPromiseFinallyFunction(x) => x.mark_values(queues),
@@ -700,7 +672,6 @@ impl HeapMarkAndSweep for Function<'static> {
             Function::BoundFunction(x) => x.sweep_values(compactions),
             Function::BuiltinFunction(x) => x.sweep_values(compactions),
             Function::ECMAScriptFunction(x) => x.sweep_values(compactions),
-            Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => x.sweep_values(compactions),
             Function::BuiltinPromiseResolvingFunction(x) => x.sweep_values(compactions),
             Function::BuiltinPromiseFinallyFunction(x) => x.sweep_values(compactions),
@@ -735,7 +706,6 @@ impl Rootable for Function<'_> {
             Self::BoundFunction(d) => Err(HeapRootData::BoundFunction(d.unbind())),
             Self::BuiltinFunction(d) => Err(HeapRootData::BuiltinFunction(d.unbind())),
             Self::ECMAScriptFunction(d) => Err(HeapRootData::ECMAScriptFunction(d.unbind())),
-            Self::BuiltinGeneratorFunction => Err(HeapRootData::BuiltinGeneratorFunction),
             Self::BuiltinConstructorFunction(d) => {
                 Err(HeapRootData::BuiltinConstructorFunction(d.unbind()))
             }
@@ -773,7 +743,6 @@ impl Rootable for Function<'_> {
             HeapRootData::ECMAScriptFunction(ecmascript_function) => {
                 Some(Self::ECMAScriptFunction(ecmascript_function))
             }
-            HeapRootData::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
             HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Some(
                 Self::BuiltinConstructorFunction(builtin_constructor_function),
             ),

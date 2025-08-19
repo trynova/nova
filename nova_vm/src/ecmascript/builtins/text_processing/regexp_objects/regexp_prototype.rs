@@ -7,7 +7,10 @@ use oxc_ast::ast::RegExpFlags;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, set, try_create_data_property_or_throw, try_get},
+            operations_on_objects::{
+                construct, get, set, species_constructor, try_create_data_property_or_throw,
+                try_get,
+            },
             type_conversion::{to_boolean, to_length, to_string},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -24,8 +27,8 @@ use crate::{
             agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, TryGetResult, Value,
         },
     },
     engine::{
@@ -34,6 +37,8 @@ use crate::{
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
+
+use super::regexp_string_iterator_objects::create_reg_exp_string_iterator;
 
 pub(crate) struct RegExpPrototype;
 
@@ -586,13 +591,134 @@ impl RegExpPrototype {
         }
     }
 
+    /// ### [22.2.6.9 RegExp.prototype \[ %Symbol.matchAll% \] ( string )](https://tc39.es/ecma262/#sec-regexp-prototype-%symbol.matchall%)
+    ///
+    /// The value of the "name" property of this method is "\[Symbol.matchAll]".
     fn match_all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.matchAll", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(r) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "R is not an object",
+                gc.into_nogc(),
+            ));
+        };
+        let scoped_r = r.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let C be ? SpeciesConstructor(R, %RegExp%).
+        let regexp_intrinsic_constructor = agent
+            .current_realm_record()
+            .intrinsics()
+            .reg_exp()
+            .into_function()
+            .bind(gc.nogc());
+        let c = species_constructor(
+            agent,
+            scoped_r.get(agent),
+            regexp_intrinsic_constructor.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let c = if c
+            == agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp()
+                .into_function()
+        {
+            None
+        } else {
+            Some(c.scope(agent, gc.nogc()))
+        };
+        // 5. Let flags be ? ToString(? Get(R, "flags")).
+        let flags = get(
+            agent,
+            scoped_r.get(agent),
+            BUILTIN_STRING_MEMORY.flags.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = to_string(agent, flags.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let scoped_flags = flags.scope(agent, gc.nogc());
+        let c = if let Some(c) = c {
+            unsafe { c.take(agent) }.bind(gc.nogc())
+        } else {
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp()
+                .into_function()
+                .bind(gc.nogc())
+        };
+        // 6. Let matcher be ? Construct(C, « R, flags »).
+        let matcher = construct(
+            agent,
+            c.unbind(),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                scoped_r.get(agent).into_value(),
+                flags.into_value().unbind(),
+            ])),
+            None,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .scope(agent, gc.nogc());
+        // 7. Let lastIndex be ? ToLength(? Get(R, "lastIndex")).
+        let last_index = get(
+            agent,
+            scoped_r.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let last_index = to_length(agent, last_index.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 8. Perform ? Set(matcher, "lastIndex", lastIndex, true).
+        set(
+            agent,
+            matcher.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            last_index.try_into().unwrap(),
+            true,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = scoped_flags.get(agent).bind(gc.nogc());
+        let flags = flags.as_bytes(agent);
+        // 9. If flags contains "g", let global be true.
+        // 10. Else, let global be false.
+        let global = flags.contains(&b'g');
+        // 11. If flags contains "u" or flags contains "v", let fullUnicode be true.
+        // 12. Else, let fullUnicode be false.
+        let full_unicode = flags.contains(&b'u') | flags.contains(&b'v');
+        // 13. Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
+        Ok(create_reg_exp_string_iterator(
+            agent,
+            matcher.get(agent),
+            s.get(agent),
+            global,
+            full_unicode,
+            gc.into_nogc(),
+        )
+        .into_value())
     }
 
     /// ### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)

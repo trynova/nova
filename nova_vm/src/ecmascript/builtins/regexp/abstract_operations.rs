@@ -617,8 +617,9 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     }
     // b. Let inputIndex be the index into input of the character that was
     //    obtained from element lastIndex of S.
+    let input_index = last_index;
     // c. Let r be matcher(input, inputIndex).
-    let result = matcher.captures_at(s_bytes, last_index);
+    let result = matcher.captures_at(s_bytes, input_index);
     // d. If r is failure, then
     let Some(result) = result else {
         // i. If global is true or sticky is true, then
@@ -640,6 +641,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         return Ok(None);
         // ii. Set lastIndex to AdvanceStringIndex(S, lastIndex, fullUnicode).
     }
+    let last_index = full_match.start();
     // e. Else,
     // i. Assert: r is a MatchState.
     // ii. Set matchSucceeded to true.

@@ -37,9 +37,8 @@ use super::{
     Function, Value,
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-        ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
-        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
+        ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
@@ -47,7 +46,7 @@ use super::{
         FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
         MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-        STRING_ITERATOR_DISCRIMINANT,
+        REGEXP_STRING_ITERATOR_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
     },
 };
 #[cfg(feature = "date")]
@@ -98,7 +97,10 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            text_processing::{
+                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+                string_objects::string_iterator_objects::StringIterator,
+            },
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
         types::{IntoValue, PropertyDescriptor},
@@ -138,7 +140,6 @@ pub enum Object<'a> {
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
-    BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
@@ -197,13 +198,13 @@ pub enum Object<'a> {
     Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
-    AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
+    RegExpStringIterator(RegExpStringIterator<'a>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
     Module(Module<'a>) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
@@ -696,7 +697,6 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::BoundFunction(data) => Value::BoundFunction(data.unbind()),
             Object::BuiltinFunction(data) => Value::BuiltinFunction(data.unbind()),
             Object::ECMAScriptFunction(data) => Value::ECMAScriptFunction(data.unbind()),
-            Object::BuiltinGeneratorFunction => Value::BuiltinGeneratorFunction,
             Object::BuiltinConstructorFunction(data) => {
                 Value::BuiltinConstructorFunction(data.unbind())
             }
@@ -758,13 +758,14 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::Float32Array(data) => Value::Float32Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data.unbind()),
-            Object::AsyncFromSyncIterator => Value::AsyncFromSyncIterator,
             Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => Value::SetIterator(data.unbind()),
             Object::MapIterator(data) => Value::MapIterator(data.unbind()),
             Object::StringIterator(data) => Value::StringIterator(data.unbind()),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => Value::RegExpStringIterator(data.unbind()),
             Object::Generator(data) => Value::Generator(data.unbind()),
             Object::Module(data) => Value::Module(data.unbind()),
             Object::EmbedderObject(data) => Value::EmbedderObject(data.unbind()),
@@ -795,7 +796,6 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             Value::BoundFunction(x) => Ok(Object::from(x)),
             Value::BuiltinFunction(x) => Ok(Object::from(x)),
             Value::ECMAScriptFunction(x) => Ok(Object::from(x)),
-            Value::BuiltinGeneratorFunction => Ok(Object::BuiltinGeneratorFunction),
             Value::BuiltinConstructorFunction(data) => Ok(Object::BuiltinConstructorFunction(data)),
             Value::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Object::BuiltinPromiseResolvingFunction(data))
@@ -851,13 +851,14 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             Value::Float32Array(data) => Ok(Object::Float32Array(data)),
             #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => Ok(Object::Float64Array(data)),
-            Value::AsyncFromSyncIterator => Ok(Object::AsyncFromSyncIterator),
             Value::AsyncGenerator(data) => Ok(Object::AsyncGenerator(data)),
             Value::ArrayIterator(data) => Ok(Object::ArrayIterator(data)),
             #[cfg(feature = "set")]
             Value::SetIterator(data) => Ok(Object::SetIterator(data)),
             Value::MapIterator(data) => Ok(Object::MapIterator(data)),
             Value::StringIterator(data) => Ok(Object::StringIterator(data)),
+            #[cfg(feature = "regexp")]
+            Value::RegExpStringIterator(data) => Ok(Object::RegExpStringIterator(data)),
             Value::Generator(data) => Ok(Object::Generator(data)),
             Value::Module(data) => Ok(Object::Module(data)),
             Value::EmbedderObject(data) => Ok(Object::EmbedderObject(data)),
@@ -879,7 +880,6 @@ impl Hash for Object<'_> {
             Object::BoundFunction(data) => data.get_index().hash(state),
             Object::BuiltinFunction(data) => data.get_index().hash(state),
             Object::ECMAScriptFunction(data) => data.get_index().hash(state),
-            Object::BuiltinGeneratorFunction => {}
             Object::BuiltinConstructorFunction(data) => data.get_index().hash(state),
             Object::BuiltinPromiseResolvingFunction(data) => data.get_index().hash(state),
             Object::BuiltinPromiseFinallyFunction(data) => data.get_index().hash(state),
@@ -935,13 +935,14 @@ impl Hash for Object<'_> {
             Object::Float32Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.into_index().hash(state),
-            Object::AsyncFromSyncIterator => {}
             Object::AsyncGenerator(data) => data.get_index().hash(state),
             Object::ArrayIterator(data) => data.get_index().hash(state),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.get_index().hash(state),
             Object::MapIterator(data) => data.get_index().hash(state),
             Object::StringIterator(data) => data.get_index().hash(state),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.get_index().hash(state),
             Object::Generator(data) => data.get_index().hash(state),
             Object::Module(data) => data.get_index().hash(state),
             Object::EmbedderObject(data) => data.get_index().hash(state),
@@ -962,7 +963,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.get_backing_object(agent),
             Object::BuiltinFunction(data) => data.get_backing_object(agent),
             Object::ECMAScriptFunction(data) => data.get_backing_object(agent),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.get_backing_object(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.get_backing_object(agent),
             Object::BuiltinPromiseFinallyFunction(data) => data.get_backing_object(agent),
@@ -1018,13 +1018,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float32Array(data) => TypedArray::Float32Array(data).get_backing_object(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).get_backing_object(agent),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.get_backing_object(agent),
             Object::ArrayIterator(data) => data.get_backing_object(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.get_backing_object(agent),
             Object::MapIterator(data) => data.get_backing_object(agent),
             Object::StringIterator(data) => data.get_backing_object(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.get_backing_object(agent),
             Object::Generator(data) => data.get_backing_object(agent),
             Object::Module(data) => data.get_backing_object(agent),
             Object::EmbedderObject(data) => data.get_backing_object(agent),
@@ -1051,7 +1052,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.get_or_create_backing_object(agent),
             Object::BuiltinFunction(data) => data.get_or_create_backing_object(agent),
             Object::ECMAScriptFunction(data) => data.get_or_create_backing_object(agent),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.get_or_create_backing_object(agent),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.get_or_create_backing_object(agent)
@@ -1127,13 +1127,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).get_or_create_backing_object(agent)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.get_or_create_backing_object(agent),
             Object::ArrayIterator(data) => data.get_or_create_backing_object(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.get_or_create_backing_object(agent),
             Object::MapIterator(data) => data.get_or_create_backing_object(agent),
             Object::StringIterator(data) => data.get_or_create_backing_object(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.get_or_create_backing_object(agent),
             Object::Generator(data) => data.get_or_create_backing_object(agent),
             Object::Module(data) => data.get_or_create_backing_object(agent),
             Object::EmbedderObject(data) => data.get_or_create_backing_object(agent),
@@ -1152,7 +1153,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.object_shape(agent),
             Object::BuiltinFunction(data) => data.object_shape(agent),
             Object::ECMAScriptFunction(data) => data.object_shape(agent),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.object_shape(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.object_shape(agent),
             Object::BuiltinPromiseFinallyFunction(data) => data.object_shape(agent),
@@ -1204,13 +1204,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float32Array(data) => TypedArray::Float32Array(data).object_shape(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).object_shape(agent),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.object_shape(agent),
             Object::ArrayIterator(data) => data.object_shape(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.object_shape(agent),
             Object::MapIterator(data) => data.object_shape(agent),
             Object::StringIterator(data) => data.object_shape(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.object_shape(agent),
             Object::Generator(data) => data.object_shape(agent),
             Object::Module(data) => data.object_shape(agent),
             Object::EmbedderObject(data) => data.object_shape(agent),
@@ -1229,7 +1230,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_extensible(agent),
             Object::BuiltinFunction(data) => data.internal_extensible(agent),
             Object::ECMAScriptFunction(data) => data.internal_extensible(agent),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_extensible(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.internal_extensible(agent),
             Object::BuiltinPromiseFinallyFunction(data) => data.internal_extensible(agent),
@@ -1285,13 +1285,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_extensible(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_extensible(agent),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_extensible(agent),
             Object::ArrayIterator(data) => data.internal_extensible(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_extensible(agent),
             Object::MapIterator(data) => data.internal_extensible(agent),
             Object::StringIterator(data) => data.internal_extensible(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_extensible(agent),
             Object::Generator(data) => data.internal_extensible(agent),
             Object::Module(data) => data.internal_extensible(agent),
             Object::EmbedderObject(data) => data.internal_extensible(agent),
@@ -1310,7 +1311,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_set_extensible(agent, value),
             Object::BuiltinFunction(idx) => idx.internal_set_extensible(agent, value),
             Object::ECMAScriptFunction(idx) => idx.internal_set_extensible(agent, value),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(idx) => idx.internal_set_extensible(agent, value),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_set_extensible(agent, value)
@@ -1388,7 +1388,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set_extensible(agent, value)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_set_extensible(agent, value),
             Object::ArrayIterator(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "set")]
@@ -1396,6 +1395,8 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::MapIterator(data) => data.internal_set_extensible(agent, value),
             Object::Generator(data) => data.internal_set_extensible(agent, value),
             Object::StringIterator(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_set_extensible(agent, value),
             Object::Module(data) => data.internal_set_extensible(agent, value),
             Object::EmbedderObject(data) => data.internal_set_extensible(agent, value),
         }
@@ -1413,7 +1414,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_prototype(agent),
             Object::BuiltinFunction(data) => data.internal_prototype(agent),
             Object::ECMAScriptFunction(data) => data.internal_prototype(agent),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_prototype(agent),
             Object::BuiltinPromiseResolvingFunction(data) => data.internal_prototype(agent),
             Object::BuiltinPromiseFinallyFunction(data) => data.internal_prototype(agent),
@@ -1469,13 +1469,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_prototype(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_prototype(agent),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_prototype(agent),
             Object::ArrayIterator(data) => data.internal_prototype(agent),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_prototype(agent),
             Object::MapIterator(data) => data.internal_prototype(agent),
             Object::StringIterator(data) => data.internal_prototype(agent),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_prototype(agent),
             Object::Generator(data) => data.internal_prototype(agent),
             Object::Module(data) => data.internal_prototype(agent),
             Object::EmbedderObject(data) => data.internal_prototype(agent),
@@ -1494,7 +1495,6 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_set_prototype(agent, prototype),
             Object::BuiltinFunction(data) => data.internal_set_prototype(agent, prototype),
             Object::ECMAScriptFunction(data) => data.internal_set_prototype(agent, prototype),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_set_prototype(agent, prototype)
             }
@@ -1574,13 +1574,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set_prototype(agent, prototype)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_set_prototype(agent, prototype),
             Object::ArrayIterator(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::MapIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::StringIterator(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::Generator(data) => data.internal_set_prototype(agent, prototype),
             Object::Module(data) => data.internal_set_prototype(agent, prototype),
             Object::EmbedderObject(data) => data.internal_set_prototype(agent, prototype),
@@ -1605,7 +1606,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.try_get_prototype_of(agent, gc),
             Object::BuiltinFunction(data) => data.try_get_prototype_of(agent, gc),
             Object::ECMAScriptFunction(data) => data.try_get_prototype_of(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_get_prototype_of(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_get_prototype_of(agent, gc),
             Object::BuiltinPromiseFinallyFunction(data) => data.try_get_prototype_of(agent, gc),
@@ -1677,13 +1677,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_get_prototype_of(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_get_prototype_of(agent, gc),
             Object::ArrayIterator(data) => data.try_get_prototype_of(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::MapIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::StringIterator(data) => data.try_get_prototype_of(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::Generator(data) => data.try_get_prototype_of(agent, gc),
             Object::Module(data) => data.try_get_prototype_of(agent, gc),
             Object::EmbedderObject(data) => data.try_get_prototype_of(agent, gc),
@@ -1706,7 +1707,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_get_prototype_of(agent, gc),
             Object::BuiltinFunction(data) => data.internal_get_prototype_of(agent, gc),
             Object::ECMAScriptFunction(data) => data.internal_get_prototype_of(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_get_prototype_of(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_get_prototype_of(agent, gc)
@@ -1784,13 +1784,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_get_prototype_of(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_get_prototype_of(agent, gc),
             Object::ArrayIterator(data) => data.internal_get_prototype_of(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::MapIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::StringIterator(data) => data.internal_get_prototype_of(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Generator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Module(data) => data.internal_get_prototype_of(agent, gc),
             Object::EmbedderObject(data) => data.internal_get_prototype_of(agent, gc),
@@ -1814,7 +1815,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::BuiltinFunction(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::ECMAScriptFunction(data) => data.try_set_prototype_of(agent, prototype, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.try_set_prototype_of(agent, prototype, gc)
             }
@@ -1894,13 +1894,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_set_prototype_of(agent, prototype, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::ArrayIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::MapIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::StringIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Generator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Module(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::EmbedderObject(data) => data.try_set_prototype_of(agent, prototype, gc),
@@ -1926,7 +1927,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.internal_set_prototype_of(agent, prototype, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_set_prototype_of(agent, prototype, gc)
             }
@@ -2008,13 +2008,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set_prototype_of(agent, prototype, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::ArrayIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::MapIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::StringIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.internal_set_prototype_of(agent, prototype, gc)
+            }
             Object::Generator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Module(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::EmbedderObject(data) => data.internal_set_prototype_of(agent, prototype, gc),
@@ -2037,7 +2040,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.try_is_extensible(agent, gc),
             Object::BuiltinFunction(data) => data.try_is_extensible(agent, gc),
             Object::ECMAScriptFunction(data) => data.try_is_extensible(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_is_extensible(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_is_extensible(agent, gc),
             Object::BuiltinPromiseFinallyFunction(data) => data.try_is_extensible(agent, gc),
@@ -2099,13 +2101,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_is_extensible(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_is_extensible(agent, gc),
             Object::ArrayIterator(data) => data.try_is_extensible(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_is_extensible(agent, gc),
             Object::MapIterator(data) => data.try_is_extensible(agent, gc),
             Object::StringIterator(data) => data.try_is_extensible(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.try_is_extensible(agent, gc),
             Object::Generator(data) => data.try_is_extensible(agent, gc),
             Object::Module(data) => data.try_is_extensible(agent, gc),
             Object::EmbedderObject(data) => data.try_is_extensible(agent, gc),
@@ -2128,7 +2131,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_is_extensible(agent, gc),
             Object::BuiltinFunction(data) => data.internal_is_extensible(agent, gc),
             Object::ECMAScriptFunction(data) => data.internal_is_extensible(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_is_extensible(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.internal_is_extensible(agent, gc),
             Object::BuiltinPromiseFinallyFunction(data) => data.internal_is_extensible(agent, gc),
@@ -2202,13 +2204,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_is_extensible(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_is_extensible(agent, gc),
             Object::ArrayIterator(data) => data.internal_is_extensible(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_is_extensible(agent, gc),
             Object::MapIterator(data) => data.internal_is_extensible(agent, gc),
             Object::StringIterator(data) => data.internal_is_extensible(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_is_extensible(agent, gc),
             Object::Generator(data) => data.internal_is_extensible(agent, gc),
             Object::Module(data) => data.internal_is_extensible(agent, gc),
             Object::EmbedderObject(data) => data.internal_is_extensible(agent, gc),
@@ -2231,7 +2234,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.try_prevent_extensions(agent, gc),
             Object::BuiltinFunction(data) => data.try_prevent_extensions(agent, gc),
             Object::ECMAScriptFunction(data) => data.try_prevent_extensions(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_prevent_extensions(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_prevent_extensions(agent, gc),
             Object::BuiltinPromiseFinallyFunction(data) => data.try_prevent_extensions(agent, gc),
@@ -2305,13 +2307,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_prevent_extensions(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_prevent_extensions(agent, gc),
             Object::ArrayIterator(data) => data.try_prevent_extensions(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::MapIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::StringIterator(data) => data.try_prevent_extensions(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::Generator(data) => data.try_prevent_extensions(agent, gc),
             Object::Module(data) => data.try_prevent_extensions(agent, gc),
             Object::EmbedderObject(data) => data.try_prevent_extensions(agent, gc),
@@ -2334,7 +2337,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_prevent_extensions(agent, gc),
             Object::BuiltinFunction(data) => data.internal_prevent_extensions(agent, gc),
             Object::ECMAScriptFunction(data) => data.internal_prevent_extensions(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_prevent_extensions(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_prevent_extensions(agent, gc)
@@ -2412,13 +2414,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_prevent_extensions(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_prevent_extensions(agent, gc),
             Object::ArrayIterator(data) => data.internal_prevent_extensions(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::MapIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::StringIterator(data) => data.internal_prevent_extensions(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Generator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Module(data) => data.internal_prevent_extensions(agent, gc),
             Object::EmbedderObject(data) => data.internal_prevent_extensions(agent, gc),
@@ -2449,7 +2452,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.try_get_own_property(agent, property_key, cache, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.try_get_own_property(agent, property_key, cache, gc)
             }
@@ -2537,7 +2539,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_get_own_property(agent, property_key, cache, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => {
                 data.try_get_own_property(agent, property_key, cache, gc)
             }
@@ -2548,6 +2549,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::SetIterator(data) => data.try_get_own_property(agent, property_key, cache, gc),
             Object::MapIterator(data) => data.try_get_own_property(agent, property_key, cache, gc),
             Object::StringIterator(data) => {
+                data.try_get_own_property(agent, property_key, cache, gc)
+            }
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
                 data.try_get_own_property(agent, property_key, cache, gc)
             }
             Object::Generator(data) => data.try_get_own_property(agent, property_key, cache, gc),
@@ -2579,7 +2584,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.internal_get_own_property(agent, property_key, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_get_own_property(agent, property_key, gc)
             }
@@ -2664,13 +2668,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_get_own_property(agent, property_key, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::ArrayIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::StringIterator(data) => data.internal_get_own_property(agent, property_key, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.internal_get_own_property(agent, property_key, gc)
+            }
             Object::Generator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Module(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::EmbedderObject(data) => data.internal_get_own_property(agent, property_key, gc),
@@ -2712,7 +2719,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
@@ -2856,7 +2862,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 cache,
                 gc,
             ),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
@@ -2871,6 +2876,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::StringIterator(data) => {
+                data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
+            }
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
             Object::Generator(data) => {
@@ -2919,7 +2928,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -3029,7 +3037,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -3044,6 +3051,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Object::StringIterator(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Object::Generator(data) => {
@@ -3078,7 +3089,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.try_has_property(agent, property_key, cache, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.try_has_property(agent, property_key, cache, gc)
             }
@@ -3162,13 +3172,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_has_property(agent, property_key, cache, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::ArrayIterator(data) => data.try_has_property(agent, property_key, cache, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::MapIterator(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::StringIterator(data) => data.try_has_property(agent, property_key, cache, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.try_has_property(agent, property_key, cache, gc)
+            }
             Object::Generator(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::Module(data) => data.try_has_property(agent, property_key, cache, gc),
             Object::EmbedderObject(data) => data.try_has_property(agent, property_key, cache, gc),
@@ -3192,7 +3205,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_has_property(agent, property_key, gc),
             Object::BuiltinFunction(data) => data.internal_has_property(agent, property_key, gc),
             Object::ECMAScriptFunction(data) => data.internal_has_property(agent, property_key, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_has_property(agent, property_key, gc)
             }
@@ -3274,13 +3286,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_has_property(agent, property_key, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_has_property(agent, property_key, gc),
             Object::ArrayIterator(data) => data.internal_has_property(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::StringIterator(data) => data.internal_has_property(agent, property_key, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.internal_has_property(agent, property_key, gc)
+            }
             Object::Generator(data) => data.internal_has_property(agent, property_key, gc),
             Object::Module(data) => data.internal_has_property(agent, property_key, gc),
             Object::EmbedderObject(data) => data.internal_has_property(agent, property_key, gc),
@@ -3308,7 +3323,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.try_get(agent, property_key, receiver, cache, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.try_get(agent, property_key, receiver, cache, gc)
             }
@@ -3396,13 +3410,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_get(agent, property_key, receiver, cache, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::ArrayIterator(data) => data.try_get(agent, property_key, receiver, cache, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::MapIterator(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::StringIterator(data) => data.try_get(agent, property_key, receiver, cache, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.try_get(agent, property_key, receiver, cache, gc)
+            }
             Object::Generator(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::Module(data) => data.try_get(agent, property_key, receiver, cache, gc),
             Object::EmbedderObject(data) => data.try_get(agent, property_key, receiver, cache, gc),
@@ -3429,7 +3446,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.internal_get(agent, property_key, receiver, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_get(agent, property_key, receiver, gc)
             }
@@ -3511,13 +3527,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_get(agent, property_key, receiver, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::ArrayIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::MapIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::StringIterator(data) => data.internal_get(agent, property_key, receiver, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.internal_get(agent, property_key, receiver, gc)
+            }
             Object::Generator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Module(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::EmbedderObject(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -3552,7 +3571,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
@@ -3695,7 +3713,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 cache,
                 gc,
             ),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
@@ -3710,6 +3727,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::StringIterator(data) => {
+                data.try_set(agent, property_key, value, receiver, cache, gc)
+            }
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
                 data.try_set(agent, property_key, value, receiver, cache, gc)
             }
             Object::Generator(data) => {
@@ -3749,7 +3770,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ECMAScriptFunction(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
@@ -3859,7 +3879,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 receiver,
                 gc,
             ),
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
@@ -3874,6 +3893,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
             Object::StringIterator(data) => {
+                data.internal_set(agent, property_key, value, receiver, gc)
+            }
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
             Object::Generator(data) => data.internal_set(agent, property_key, value, receiver, gc),
@@ -3901,7 +3924,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.try_delete(agent, property_key, gc),
             Object::BuiltinFunction(data) => data.try_delete(agent, property_key, gc),
             Object::ECMAScriptFunction(data) => data.try_delete(agent, property_key, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_delete(agent, property_key, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.try_delete(agent, property_key, gc)
@@ -3977,13 +3999,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_delete(agent, property_key, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_delete(agent, property_key, gc),
             Object::ArrayIterator(data) => data.try_delete(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_delete(agent, property_key, gc),
             Object::MapIterator(data) => data.try_delete(agent, property_key, gc),
             Object::StringIterator(data) => data.try_delete(agent, property_key, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.try_delete(agent, property_key, gc),
             Object::Generator(data) => data.try_delete(agent, property_key, gc),
             Object::Module(data) => data.try_delete(agent, property_key, gc),
             Object::EmbedderObject(data) => data.try_delete(agent, property_key, gc),
@@ -4007,7 +4030,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_delete(agent, property_key, gc),
             Object::BuiltinFunction(data) => data.internal_delete(agent, property_key, gc),
             Object::ECMAScriptFunction(data) => data.internal_delete(agent, property_key, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.internal_delete(agent, property_key, gc)
             }
@@ -4087,13 +4109,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_delete(agent, property_key, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_delete(agent, property_key, gc),
             Object::ArrayIterator(data) => data.internal_delete(agent, property_key, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::StringIterator(data) => data.internal_delete(agent, property_key, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::Generator(data) => data.internal_delete(agent, property_key, gc),
             Object::Module(data) => data.internal_delete(agent, property_key, gc),
             Object::EmbedderObject(data) => data.internal_delete(agent, property_key, gc),
@@ -4116,7 +4139,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.try_own_property_keys(agent, gc),
             Object::BuiltinFunction(data) => data.try_own_property_keys(agent, gc),
             Object::ECMAScriptFunction(data) => data.try_own_property_keys(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.try_own_property_keys(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => data.try_own_property_keys(agent, gc),
             Object::BuiltinPromiseFinallyFunction(data) => data.try_own_property_keys(agent, gc),
@@ -4188,13 +4210,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).try_own_property_keys(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.try_own_property_keys(agent, gc),
             Object::ArrayIterator(data) => data.try_own_property_keys(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_own_property_keys(agent, gc),
             Object::MapIterator(data) => data.try_own_property_keys(agent, gc),
             Object::StringIterator(data) => data.try_own_property_keys(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.try_own_property_keys(agent, gc),
             Object::Generator(data) => data.try_own_property_keys(agent, gc),
             Object::Module(data) => data.try_own_property_keys(agent, gc),
             Object::EmbedderObject(data) => data.try_own_property_keys(agent, gc),
@@ -4217,7 +4240,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.internal_own_property_keys(agent, gc),
             Object::BuiltinFunction(data) => data.internal_own_property_keys(agent, gc),
             Object::ECMAScriptFunction(data) => data.internal_own_property_keys(agent, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => data.internal_own_property_keys(agent, gc),
             Object::BuiltinPromiseResolvingFunction(data) => {
                 data.internal_own_property_keys(agent, gc)
@@ -4295,13 +4317,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_own_property_keys(agent, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.internal_own_property_keys(agent, gc),
             Object::ArrayIterator(data) => data.internal_own_property_keys(agent, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::MapIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::StringIterator(data) => data.internal_own_property_keys(agent, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::Generator(data) => data.internal_own_property_keys(agent, gc),
             Object::Module(data) => data.internal_own_property_keys(agent, gc),
             Object::EmbedderObject(data) => data.internal_own_property_keys(agent, gc),
@@ -4325,7 +4348,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::BuiltinFunction(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::ECMAScriptFunction(data) => data.get_own_property_at_offset(agent, offset, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.get_own_property_at_offset(agent, offset, gc)
             }
@@ -4407,13 +4429,16 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).get_own_property_at_offset(agent, offset, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::ArrayIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::MapIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::StringIterator(data) => data.get_own_property_at_offset(agent, offset, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => {
+                data.get_own_property_at_offset(agent, offset, gc)
+            }
             Object::Generator(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::Module(data) => data.get_own_property_at_offset(agent, offset, gc),
             Object::EmbedderObject(data) => data.get_own_property_at_offset(agent, offset, gc),
@@ -4438,7 +4463,6 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BoundFunction(data) => data.set_at_offset(agent, props, offset, gc),
             Object::BuiltinFunction(data) => data.set_at_offset(agent, props, offset, gc),
             Object::ECMAScriptFunction(data) => data.set_at_offset(agent, props, offset, gc),
-            Object::BuiltinGeneratorFunction => todo!(),
             Object::BuiltinConstructorFunction(data) => {
                 data.set_at_offset(agent, props, offset, gc)
             }
@@ -4518,13 +4542,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).set_at_offset(agent, props, offset, gc)
             }
-            Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncGenerator(data) => data.set_at_offset(agent, props, offset, gc),
             Object::ArrayIterator(data) => data.set_at_offset(agent, props, offset, gc),
             #[cfg(feature = "set")]
             Object::SetIterator(data) => data.set_at_offset(agent, props, offset, gc),
             Object::MapIterator(data) => data.set_at_offset(agent, props, offset, gc),
             Object::StringIterator(data) => data.set_at_offset(agent, props, offset, gc),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(data) => data.set_at_offset(agent, props, offset, gc),
             Object::Generator(data) => data.set_at_offset(agent, props, offset, gc),
             Object::Module(data) => data.set_at_offset(agent, props, offset, gc),
             Object::EmbedderObject(data) => data.set_at_offset(agent, props, offset, gc),
@@ -4584,7 +4609,6 @@ impl HeapMarkAndSweep for Object<'static> {
             Self::BoundFunction(data) => data.mark_values(queues),
             Self::BuiltinFunction(data) => data.mark_values(queues),
             Self::ECMAScriptFunction(data) => data.mark_values(queues),
-            Self::BuiltinGeneratorFunction => todo!(),
             Self::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
@@ -4634,13 +4658,14 @@ impl HeapMarkAndSweep for Object<'static> {
             Self::Float32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(data) => data.mark_values(queues),
-            Self::AsyncFromSyncIterator => todo!(),
             Self::AsyncGenerator(data) => data.mark_values(queues),
             Self::ArrayIterator(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
             Self::SetIterator(data) => data.mark_values(queues),
             Self::MapIterator(data) => data.mark_values(queues),
             Self::StringIterator(data) => data.mark_values(queues),
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(data) => data.mark_values(queues),
             Self::Generator(data) => data.mark_values(queues),
             Self::Module(data) => data.mark_values(queues),
             Self::EmbedderObject(data) => data.mark_values(queues),
@@ -4653,7 +4678,6 @@ impl HeapMarkAndSweep for Object<'static> {
             Self::BoundFunction(data) => data.sweep_values(compactions),
             Self::BuiltinFunction(data) => data.sweep_values(compactions),
             Self::ECMAScriptFunction(data) => data.sweep_values(compactions),
-            Self::BuiltinGeneratorFunction => todo!(),
             Self::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
             Self::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
             Self::BuiltinPromiseFinallyFunction(data) => data.sweep_values(compactions),
@@ -4709,13 +4733,14 @@ impl HeapMarkAndSweep for Object<'static> {
             Self::Float32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(data) => data.sweep_values(compactions),
-            Self::AsyncFromSyncIterator => todo!(),
             Self::AsyncGenerator(data) => data.sweep_values(compactions),
             Self::ArrayIterator(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
             Self::SetIterator(data) => data.sweep_values(compactions),
             Self::MapIterator(data) => data.sweep_values(compactions),
             Self::StringIterator(data) => data.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(data) => data.sweep_values(compactions),
             Self::Generator(data) => data.sweep_values(compactions),
             Self::Module(data) => data.sweep_values(compactions),
             Self::EmbedderObject(data) => data.sweep_values(compactions),
@@ -4736,7 +4761,6 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::ECMAScriptFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::ECMAScriptFunction),
-            Self::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
             Self::BuiltinConstructorFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::BuiltinConstructorFunction),
@@ -4822,7 +4846,6 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Float64Array(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::Float64Array),
-            Self::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
             Self::AsyncGenerator(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::AsyncGenerator),
@@ -4839,6 +4862,10 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::StringIterator(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::StringIterator),
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(data) => data
+                .sweep_weak_reference(compactions)
+                .map(Self::RegExpStringIterator),
             Self::Generator(data) => data.sweep_weak_reference(compactions).map(Self::Generator),
             Self::Module(data) => data.sweep_weak_reference(compactions).map(Self::Module),
             Self::EmbedderObject(data) => data
@@ -4886,7 +4913,6 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::ECMAScriptFunction(ecmascript_function) => {
                 Ok(Self::ECMAScriptFunction(ecmascript_function))
             }
-            HeapRootData::BuiltinGeneratorFunction => Ok(Self::BuiltinGeneratorFunction),
             HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Ok(
                 Self::BuiltinConstructorFunction(builtin_constructor_function),
             ),
@@ -4958,13 +4984,16 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Float32Array(base_index) => Ok(Self::Float32Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
-            HeapRootData::AsyncFromSyncIterator => Ok(Self::AsyncFromSyncIterator),
             HeapRootData::AsyncGenerator(r#gen) => Ok(Self::AsyncGenerator(r#gen)),
             HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => Ok(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Ok(Self::MapIterator(map_iterator)),
             HeapRootData::StringIterator(map_iterator) => Ok(Self::StringIterator(map_iterator)),
+            #[cfg(feature = "regexp")]
+            HeapRootData::RegExpStringIterator(map_iterator) => {
+                Ok(Self::RegExpStringIterator(map_iterator))
+            }
             HeapRootData::Generator(generator) => Ok(Self::Generator(generator)),
             HeapRootData::Module(module) => Ok(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {

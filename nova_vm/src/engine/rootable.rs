@@ -71,7 +71,10 @@ use crate::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            text_processing::{
+                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+                string_objects::string_iterator_objects::StringIterator,
+            },
         },
         execution::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
@@ -83,10 +86,8 @@ use crate::{
         },
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
-            BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+            ASYNC_GENERATOR_DISCRIMINANT, BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
             BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-            BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
@@ -94,8 +95,9 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
             IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT,
             NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, STRING_DISCRIMINANT,
-            STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
+            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, REGEXP_STRING_ITERATOR_DISCRIMINANT,
+            STRING_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value,
+            bigint::HeapBigInt,
         },
     },
     heap::HeapMarkAndSweep,
@@ -144,6 +146,7 @@ pub mod private {
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
                 proxy::Proxy,
+                text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
@@ -210,6 +213,8 @@ pub mod private {
     impl RootableSealed for Realm<'_> {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp<'_> {}
+    #[cfg(feature = "regexp")]
+    impl RootableSealed for RegExpStringIterator<'_> {}
     impl RootableSealed for Script<'_> {}
     #[cfg(feature = "set")]
     impl RootableSealed for Set<'_> {}
@@ -464,7 +469,6 @@ pub enum HeapRootData {
     BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'static>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction<'static>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
-    BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction<'static>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'static>) =
@@ -523,7 +527,6 @@ pub enum HeapRootData {
     Float32Array(TypedArrayIndex<'static>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'static>) = FLOAT_64_ARRAY_DISCRIMINANT,
-    AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'static>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -531,6 +534,7 @@ pub enum HeapRootData {
     MapIterator(MapIterator<'static>) = MAP_ITERATOR_DISCRIMINANT,
     Generator(Generator<'static>) = GENERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'static>) = STRING_ITERATOR_DISCRIMINANT,
+    RegExpStringIterator(RegExpStringIterator<'static>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
     Module(Module<'static>) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject<'static>) = EMBEDDER_OBJECT_DISCRIMINANT,
     // Non-Value types go here. If the 128 variants here are not enough, we can
@@ -566,7 +570,6 @@ impl From<Object<'static>> for HeapRootData {
             Object::ECMAScriptFunction(ecmascript_function) => {
                 Self::ECMAScriptFunction(ecmascript_function)
             }
-            Object::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
             Object::BuiltinConstructorFunction(builtin_constructor_function) => {
                 Self::BuiltinConstructorFunction(builtin_constructor_function)
             }
@@ -589,6 +592,7 @@ impl From<Object<'static>> for HeapRootData {
             Object::Map(map) => Self::Map(map),
             Object::Promise(promise) => Self::Promise(promise),
             Object::Proxy(proxy) => Self::Proxy(proxy),
+            #[cfg(feature = "regexp")]
             Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
             #[cfg(feature = "set")]
             Object::Set(set) => Self::Set(set),
@@ -611,13 +615,15 @@ impl From<Object<'static>> for HeapRootData {
             Object::Float16Array(base_index) => Self::Float16Array(base_index),
             Object::Float32Array(base_index) => Self::Float32Array(base_index),
             Object::Float64Array(base_index) => Self::Float64Array(base_index),
-            Object::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
+
             Object::AsyncGenerator(r#gen) => Self::AsyncGenerator(r#gen),
             Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
             #[cfg(feature = "set")]
             Object::SetIterator(set_iterator) => Self::SetIterator(set_iterator),
             Object::MapIterator(map_iterator) => Self::MapIterator(map_iterator),
             Object::StringIterator(generator) => Self::StringIterator(generator),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(generator) => Self::RegExpStringIterator(generator),
             Object::Generator(generator) => Self::Generator(generator),
             Object::Module(module) => Self::Module(module),
             Object::EmbedderObject(embedder_object) => Self::EmbedderObject(embedder_object),
@@ -676,7 +682,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::ECMAScriptFunction(ecmascript_function) => {
                 ecmascript_function.mark_values(queues)
             }
-            HeapRootData::BuiltinGeneratorFunction => todo!(),
+
             HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => {
                 builtin_constructor_function.mark_values(queues)
             }
@@ -742,13 +748,15 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Float32Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
-            HeapRootData::AsyncFromSyncIterator => todo!(),
+
             HeapRootData::AsyncGenerator(r#gen) => r#gen.mark_values(queues),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.mark_values(queues),
             HeapRootData::MapIterator(map_iterator) => map_iterator.mark_values(queues),
             HeapRootData::StringIterator(generator) => generator.mark_values(queues),
+            #[cfg(feature = "regexp")]
+            HeapRootData::RegExpStringIterator(generator) => generator.mark_values(queues),
             HeapRootData::Generator(generator) => generator.mark_values(queues),
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
@@ -798,7 +806,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::ECMAScriptFunction(ecmascript_function) => {
                 ecmascript_function.sweep_values(compactions)
             }
-            HeapRootData::BuiltinGeneratorFunction => todo!(),
+
             HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => {
                 builtin_constructor_function.sweep_values(compactions)
             }
@@ -866,13 +874,14 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Float32Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.sweep_values(compactions),
-            HeapRootData::AsyncFromSyncIterator => todo!(),
             HeapRootData::AsyncGenerator(r#gen) => r#gen.sweep_values(compactions),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
             #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.sweep_values(compactions),
             HeapRootData::MapIterator(map_iterator) => map_iterator.sweep_values(compactions),
             HeapRootData::StringIterator(generator) => generator.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
+            HeapRootData::RegExpStringIterator(generator) => generator.sweep_values(compactions),
             HeapRootData::Generator(generator) => generator.sweep_values(compactions),
             HeapRootData::Module(module) => module.sweep_values(compactions),
             HeapRootData::EmbedderObject(embedder_object) => {

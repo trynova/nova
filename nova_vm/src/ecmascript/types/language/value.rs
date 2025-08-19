@@ -44,7 +44,10 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            text_processing::{
+                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+                string_objects::string_iterator_objects::StringIterator,
+            },
         },
         execution::{
             Agent, JsResult,
@@ -134,9 +137,6 @@ pub enum Value<'a> {
     BoundFunction(BoundFunction<'a>),
     BuiltinFunction(BuiltinFunction<'a>),
     ECMAScriptFunction(ECMAScriptFunction<'a>),
-    // TODO: Figure out if all the special function types are wanted or if we'd
-    // prefer to just keep them as internal variants of the three above ones.
-    BuiltinGeneratorFunction,
     /// Default class constructor created in step 14 of
     /// [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>),
@@ -211,14 +211,14 @@ pub enum Value<'a> {
     Float64Array(TypedArrayIndex<'a>),
 
     // Iterator objects
-    // TODO: Figure out if these are needed at all.
-    AsyncFromSyncIterator,
     AsyncGenerator(AsyncGenerator<'a>),
     ArrayIterator(ArrayIterator<'a>),
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>),
     MapIterator(MapIterator<'a>),
     StringIterator(StringIterator<'a>),
+    #[cfg(feature = "regexp")]
+    RegExpStringIterator(RegExpStringIterator<'a>),
     Generator(Generator<'a>),
 
     // ECMAScript Module
@@ -279,8 +279,6 @@ pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
 #[cfg(feature = "regexp")]
 pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_def()));
 
-pub(crate) const BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinGeneratorFunction);
 pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
     Value::BuiltinConstructorFunction(BuiltinConstructorFunction::_def()),
 );
@@ -352,8 +350,6 @@ pub(crate) const FLOAT_32_ARRAY_DISCRIMINANT: u8 =
 #[cfg(feature = "array-buffer")]
 pub(crate) const FLOAT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Float64Array(TypedArrayIndex::from_u32_index(0)));
-pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::AsyncFromSyncIterator);
 pub(crate) const ASYNC_GENERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncGenerator(AsyncGenerator::_def()));
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
@@ -365,6 +361,8 @@ pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::MapIterator(MapIterator::_def()));
 pub(crate) const STRING_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::StringIterator(StringIterator::_def()));
+pub(crate) const REGEXP_STRING_ITERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::RegExpStringIterator(RegExpStringIterator::_def()));
 pub(crate) const GENERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::Generator(Generator::_def()));
 pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
@@ -703,7 +701,6 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -855,7 +852,6 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
-            Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncGenerator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -874,6 +870,11 @@ impl<'a> Value<'a> {
                 data.get_index().hash(hasher);
             }
             Value::StringIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            #[cfg(feature = "regexp")]
+            Value::RegExpStringIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -941,7 +942,6 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1093,7 +1093,6 @@ impl<'a> Value<'a> {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
-            Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncGenerator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1112,6 +1111,11 @@ impl<'a> Value<'a> {
                 data.get_index().hash(hasher);
             }
             Value::StringIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            #[cfg(feature = "regexp")]
+            Value::RegExpStringIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
@@ -1257,7 +1261,6 @@ impl Rootable for Value<'_> {
             Self::ECMAScriptFunction(ecmascript_function) => Err(HeapRootData::ECMAScriptFunction(
                 ecmascript_function.unbind(),
             )),
-            Self::BuiltinGeneratorFunction => Err(HeapRootData::BuiltinGeneratorFunction),
             Self::BuiltinConstructorFunction(builtin_constructor_function) => Err(
                 HeapRootData::BuiltinConstructorFunction(builtin_constructor_function.unbind()),
             ),
@@ -1341,7 +1344,6 @@ impl Rootable for Value<'_> {
             }
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index.unbind())),
-            Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
             Self::AsyncGenerator(r#gen) => Err(HeapRootData::AsyncGenerator(r#gen.unbind())),
 
             Self::ArrayIterator(array_iterator) => {
@@ -1357,6 +1359,10 @@ impl Rootable for Value<'_> {
             Self::Generator(generator) => Err(HeapRootData::Generator(generator.unbind())),
             Self::StringIterator(generator) => {
                 Err(HeapRootData::StringIterator(generator.unbind()))
+            }
+            #[cfg(feature = "regexp")]
+            Self::RegExpStringIterator(data) => {
+                Err(HeapRootData::RegExpStringIterator(data.unbind()))
             }
             Self::Module(module) => Err(HeapRootData::Module(module.unbind())),
             Self::EmbedderObject(embedder_object) => {
@@ -1400,7 +1406,6 @@ impl Rootable for Value<'_> {
             HeapRootData::ECMAScriptFunction(ecmascript_function) => {
                 Some(Self::ECMAScriptFunction(ecmascript_function))
             }
-            HeapRootData::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
             HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Some(
                 Self::BuiltinConstructorFunction(builtin_constructor_function),
             ),
@@ -1474,7 +1479,6 @@ impl Rootable for Value<'_> {
             HeapRootData::Float32Array(base_index) => Some(Self::Float32Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
-            HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
             HeapRootData::AsyncGenerator(r#gen) => Some(Self::AsyncGenerator(r#gen)),
 
             HeapRootData::ArrayIterator(array_iterator) => {
@@ -1484,6 +1488,10 @@ impl Rootable for Value<'_> {
             HeapRootData::SetIterator(set_iterator) => Some(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Some(Self::MapIterator(map_iterator)),
             HeapRootData::StringIterator(generator) => Some(Self::StringIterator(generator)),
+            #[cfg(feature = "regexp")]
+            HeapRootData::RegExpStringIterator(generator) => {
+                Some(Self::RegExpStringIterator(generator))
+            }
             HeapRootData::Generator(generator) => Some(Self::Generator(generator)),
             HeapRootData::Module(module) => Some(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {
@@ -1592,19 +1600,19 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::Float32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => data.mark_values(queues),
-            Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
-            Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncGenerator(data) => data.mark_values(queues),
             Value::ArrayIterator(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
             Value::SetIterator(data) => data.mark_values(queues),
             Value::MapIterator(data) => data.mark_values(queues),
             Value::StringIterator(data) => data.mark_values(queues),
+            #[cfg(feature = "regexp")]
+            Value::RegExpStringIterator(data) => data.mark_values(queues),
             Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
@@ -1680,19 +1688,19 @@ impl HeapMarkAndSweep for Value<'static> {
             Value::Float32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => data.sweep_values(compactions),
-            Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseFinallyFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
-            Value::AsyncFromSyncIterator => todo!(),
             Value::AsyncGenerator(data) => data.sweep_values(compactions),
             Value::ArrayIterator(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
             Value::SetIterator(data) => data.sweep_values(compactions),
             Value::MapIterator(data) => data.sweep_values(compactions),
             Value::StringIterator(data) => data.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
+            Value::RegExpStringIterator(data) => data.sweep_values(compactions),
             Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),
@@ -1705,7 +1713,6 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::BoundFunction(_)
         | Object::BuiltinFunction(_)
         | Object::ECMAScriptFunction(_)
-        | Object::BuiltinGeneratorFunction
         | Object::BuiltinConstructorFunction(_)
         | Object::BuiltinPromiseResolvingFunction(_)
         | Object::BuiltinPromiseFinallyFunction(_)
@@ -1714,7 +1721,10 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::Arguments(_) => BUILTIN_STRING_MEMORY._object_Arguments_,
         Object::Array(_) => BUILTIN_STRING_MEMORY._object_Array_,
         Object::Error(_) => BUILTIN_STRING_MEMORY._object_Error_,
+        #[cfg(feature = "regexp")]
         Object::RegExp(_) => BUILTIN_STRING_MEMORY._object_RegExp_,
+        #[cfg(feature = "regexp")]
+        Object::RegExpStringIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         Object::Module(_) => BUILTIN_STRING_MEMORY._object_Module_,
         Object::Object(_)
         | Object::PrimitiveObject(_)
@@ -1741,7 +1751,6 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::BigUint64Array(_)
         | Object::Float32Array(_)
         | Object::Float64Array(_)
-        | Object::AsyncFromSyncIterator
         | Object::AsyncGenerator(_)
         | Object::ArrayIterator(_)
         | Object::SetIterator(_)
