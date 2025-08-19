@@ -174,7 +174,7 @@ pub struct Heap {
     pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
     pub promise_finally_functions: Vec<PromiseFinallyFunctionHeapData<'static>>,
     pub promises: Vec<Option<PromiseHeapData<'static>>>,
-    pub promise_all_records: Vec<Option<PromiseAllRecord<'static>>>,
+    pub promise_all_records: Vec<PromiseAllRecord<'static>>,
     pub proxys: Vec<Option<ProxyHeapData<'static>>>,
     pub realms: Vec<Option<RealmRecord<'static>>>,
     #[cfg(feature = "regexp")]
