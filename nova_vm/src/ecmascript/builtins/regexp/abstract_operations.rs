@@ -666,12 +666,11 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     let a = array_create(agent, n, n, None, gc).unwrap();
     // 21. Assert: The mathematical value of A's "length" property is n + 1.
     debug_assert_eq!(a.len(agent) as usize, n);
-    let index = String::from_static_str(agent, "index", gc).to_property_key();
     // 22. Perform ! CreateDataPropertyOrThrow(A, "index", 𝔽(lastIndex)).
     unwrap_try(try_create_data_property_or_throw(
         agent,
         a,
-        index,
+        BUILTIN_STRING_MEMORY.index.to_property_key(),
         Number::try_from(last_index).unwrap().into_value(),
         None,
         gc,

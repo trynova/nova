@@ -214,6 +214,7 @@ getUTCMonth
 getUTCSeconds
 global
 globalThis
+groups
 groupBy
 grow
 growable
@@ -226,6 +227,7 @@ hypot
 ignoreCase
 imul
 includes
+index
 indexOf
 Infinity
 Int16Array
