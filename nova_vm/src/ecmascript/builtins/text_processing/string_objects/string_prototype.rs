@@ -2803,7 +2803,9 @@ fn string_pad<'gc>(
     let fill_count = fill_len / fill_string_len;
     let overflow_len = fill_len % fill_string_len;
     let fill_buf = fill_string.as_wtf8(agent);
-    let wtf8_index = fill_string.utf8_index(agent, overflow_len).unwrap();
+    let wtf8_index = fill_string
+        .utf8_index(agent, overflow_len)
+        .unwrap_or(overflow_len * 3);
     let mut buf = Wtf8Buf::with_capacity(s.len(agent) + fill_count * fill_buf.len() + wtf8_index);
 
     // 6. If placement is start, return the string-concatenation of
