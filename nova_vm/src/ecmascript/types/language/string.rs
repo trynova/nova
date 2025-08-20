@@ -800,6 +800,13 @@ unsafe impl Bindable for String<'_> {
 }
 
 impl Scoped<'_, String<'static>> {
+    pub fn is_empty_string(&self) -> bool {
+        match self.inner {
+            StringRootRepr::SmallString(s) => s.is_empty(),
+            StringRootRepr::HeapRef(_) => false,
+        }
+    }
+
     pub fn to_string_lossy<'string, 'agent: 'string>(
         &'string self,
         agent: &'agent Agent,

@@ -10,7 +10,7 @@ pub(crate) mod abstract_operations;
 mod data;
 
 use core::ops::{Index, IndexMut, RangeInclusive};
-use std::collections::hash_map::Entry;
+use std::collections::{TryReserveError, hash_map::Entry};
 
 use crate::{
     ecmascript::{
@@ -60,6 +60,47 @@ pub struct Array<'a>(ArrayIndex<'a>);
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl<'a> Array<'a> {
+    /// Allocate a new Array in the Agent heap with 0 capacity.
+    pub fn new(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
+        agent
+            .heap
+            .create(ArrayHeapData {
+                object_index: None,
+                elements: ElementsVector::EMPTY,
+            })
+            .bind(gc)
+    }
+
+    /// Allocate a new Array in the Agent heap with 0 capacity.
+    pub fn with_capacity(
+        agent: &mut Agent,
+        capacity: u32,
+        gc: NoGcScope<'a, '_>,
+    ) -> Result<Self, TryReserveError> {
+        let elements = agent
+            .heap
+            .elements
+            .allocate_elements_with_capacity(capacity as usize)?;
+        Ok(agent
+            .heap
+            .create(ArrayHeapData {
+                object_index: None,
+                elements,
+            })
+            .bind(gc))
+    }
+
+    /// Push a Value into this Array.
+    ///
+    /// > Note: this should only be used in places where the next index is
+    /// > populated using code such as `! CreateDataPropertyOrThrow(A, "0", S)`,
+    /// > ie. when the operation is known to be infallible.
+    pub fn push(self, agent: &mut Agent, value: Value<'a>) -> Result<(), TryReserveError> {
+        let data = &mut agent.heap.arrays[self];
+        let elements = &mut agent.heap.elements;
+        data.elements.push(elements, Some(value), None)
+    }
+
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {

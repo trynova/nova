@@ -14,12 +14,13 @@ use crate::{
             },
             testing_and_comparison::is_callable,
             type_conversion::{
-                to_boolean, to_integer_or_infinity, to_length, to_object, to_string,
+                to_boolean, to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
             },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic, array_create,
+            ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
+            array_create,
             ordinary::caches::PropertyLookupCache,
             regexp::{
                 advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
@@ -1097,13 +1098,313 @@ impl RegExpPrototype {
         Err(agent.todo("RegExp.prototype.source", gc.into_nogc()))
     }
 
+    /// ### [22.2.6.14 RegExp.prototype \[ %Symbol.split% \] ( string, limit )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.split%)
+    ///
+    /// > NOTE 1: This method returns an Array into which substrings of the
+    /// > result of converting `string` to a String have been stored. The
+    /// > substrings are determined by searching from left to right for matches
+    /// > of the this value regular expression; these occurrences are not part
+    /// > of any String in the returned array, but serve to divide up the
+    /// > String value.
+    /// >
+    /// > The `this value` may be an empty regular expression or a regular
+    /// > expression that can match an empty String. In this case, the regular
+    /// > expression does not match the empty substring at the beginning or end
+    /// > of the input String, nor does it match the empty substring at the end
+    /// > of the previous separator match. (For example, if the regular
+    /// > expression matches the empty String, the String is split up into
+    /// > individual code unit elements; the length of the result array equals
+    /// > the length of the String, and each substring contains one code unit.)
+    /// > Only the first match at a given index of the String is considered,
+    /// > even if backtracking could yield a non-empty substring match at that
+    /// > index. (For example, `/a*?/[Symbol.split]("ab")` evaluates to the
+    /// > array `["a", "b"]`, while `/a*/[Symbol.split]("ab")` evaluates to the
+    /// > array `["","b"]`.)
+    /// >
+    /// > If `string` is (or converts to) the empty String, the result depends
+    /// > on whether the regular expression can match the empty String. If it
+    /// > can, the result array contains no elements. Otherwise, the result
+    /// > array contains one element, which is the empty String.
+    /// >
+    /// > If the regular expression contains capturing parentheses, then each
+    /// > time separator is matched the results (including any undefined
+    /// > results) of the capturing parentheses are spliced into the output
+    /// > array. For example,
+    /// >
+    /// > ```javascript
+    /// > /<(\/)?([^<>]+)>/[Symbol.split]("A<B>bold</B>and<CODE>coded</CODE>")
+    /// > ```
+    /// >
+    /// > evaluates to the array
+    /// >
+    /// > ```javascript
+    /// > ["A", undefined, "B", "bold", "/", "B", "and", undefined, "CODE", "coded", "/", "CODE", ""]
+    /// > ```
+    /// >
+    /// > If `limit` is not undefined, then the output array is truncated so
+    /// > that it contains no more than `limit` elements.
+    ///
+    /// The value of the "name" property of this method is "\[Symbol.split]".
+    ///
+    /// > NOTE 2: This method ignores the value of the "global" and "sticky"
+    /// > properties of this RegExp object.
     fn split<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.split", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        let limit = args.get(1).scope(agent, gc.nogc());
+        // 1. Let rx be the this value.
+        let rx = this_value.bind(gc.nogc());
+        // 2. If rx is not an Object, throw a TypeError exception.
+        let Ok(rx) = Object::try_from(rx) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        let rx = rx.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let C be ? SpeciesConstructor(rx, %RegExp%).
+        let regexp_intrinsic_constructor = agent
+            .current_realm_record()
+            .intrinsics()
+            .reg_exp()
+            .into_function()
+            .bind(gc.nogc());
+        let c = species_constructor(
+            agent,
+            rx.get(agent),
+            regexp_intrinsic_constructor.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .scope(agent, gc.nogc());
+        // 5. Let flags be ? ToString(? Get(rx, "flags")).
+        let flags = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.flags.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let flags = to_string(agent, flags.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let flag_bytes = flags.as_bytes(agent);
+        // 6. If flags contains "u" or flags contains "v", let unicodeMatching be true.
+        // 7. Else, let unicodeMatching be false.
+        let unicode_matching = flag_bytes.contains(&b'u') | flag_bytes.contains(&b'v');
+        // 8. If flags contains "y", let newFlags be flags.
+        let new_flags = if flag_bytes.contains(&b'y') {
+            flags
+        } else {
+            // 9. Else, let newFlags be the string-concatenation of flags and "y".
+            let mut buf = Wtf8Buf::with_capacity(flag_bytes.len() + 1);
+            buf.push_wtf8(flags.as_wtf8(agent));
+            buf.push_char('y');
+            String::from_wtf8_buf(agent, buf, gc.nogc())
+        };
+        // SAFETY: not shared.
+        let c = unsafe { c.take(agent) }.bind(gc.nogc());
+        // 10. Let splitter be ? Construct(C, « rx, newFlags »).
+        let splitter = construct(
+            agent,
+            c.unbind(),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                rx.get(agent).into_value(),
+                new_flags.into_value().unbind(),
+            ])),
+            None,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .scope(agent, gc.nogc());
+        // 11. Let A be ! ArrayCreate(0).
+        let a = Array::new(agent, gc.nogc()).scope(agent, gc.nogc());
+        // 12. Let lengthA be 0.
+        let mut length_a: u32 = 0;
+        // SAFETY: not shared.
+        let limit = unsafe { limit.take(agent) }.bind(gc.nogc());
+        // 13. If limit is undefined,
+        let lim = if limit.is_undefined() {
+            // let lim be 2**32 - 1;
+            u32::MAX
+        } else {
+            // else let lim be ℝ(? ToUint32(limit)).
+            to_uint32(agent, limit.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
+        };
+        // 14. If lim = 0, return A.
+        if lim == 0 {
+            // SAFETY: not shared.
+            return Ok(unsafe { a.take(agent) }.into_value());
+        }
+        // 15. If S is the empty String, then
+        if s.is_empty_string() {
+            // a. Let z be ? RegExpExec(splitter, S).
+            let z = reg_exp_exec(agent, splitter.get(agent), s.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // b. If z is not null, return A.
+            if z.is_some() {
+                // SAFETY: not shared.
+                return Ok(unsafe { a.take(agent) }.into_value());
+            }
+            let gc = gc.into_nogc();
+            let a = unsafe { a.take(agent) }.bind(gc);
+            let s = unsafe { s.take(agent) }.bind(gc);
+            // c. Perform ! CreateDataPropertyOrThrow(A, "0", S).
+            if let Err(err) = a.push(agent, s.into_value()) {
+                return Err(agent.throw_allocation_exception(err, gc));
+            }
+            // d. Return A.
+            return Ok(a.into_value());
+        }
+        // 16. Let size be the length of S.
+        let size = s.get(agent).utf16_len(agent);
+        // 17. Let p be 0.
+        let mut p = 0;
+        // 18. Let q be p.
+        let mut q = 0;
+        // 19. Repeat, while q < size,
+        while q < size {
+            // a. Perform ? Set(splitter, "lastIndex", 𝔽(q), true).
+            let f_q = Number::try_from(q).unwrap();
+            set(
+                agent,
+                splitter.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                f_q.into_value(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // b. Let z be ? RegExpExec(splitter, S).
+            let z = reg_exp_exec(agent, splitter.get(agent), s.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // c. If z is null, then
+            if let Some(z) = z {
+                let z = z.scope(agent, gc.nogc());
+                // d. Else,
+                // i. Let e be ℝ(? ToLength(? Get(splitter, "lastIndex"))).
+                let e = get(
+                    agent,
+                    splitter.get(agent),
+                    BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let e = to_length(agent, e.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc()) as u64;
+                let e = usize::try_from(e).unwrap();
+                // ii. Set e to min(e, size).
+                let e = e.min(size);
+                // iii. If e = p, then
+                if e == p {
+                    // 1. Set q to AdvanceStringIndex(S, q, unicodeMatching).
+                    q = advance_string_index(agent, s.get(agent), q, unicode_matching);
+                } else {
+                    // iv. Else,
+                    let s_local = s.get(agent).bind(gc.nogc());
+                    let a_local = a.get(agent).bind(gc.nogc());
+                    let p_utf8 = s_local
+                        .utf8_index(agent, p)
+                        .expect("p splits two surrogates into unmatched pairs");
+                    let q_utf8 = s_local
+                        .utf8_index(agent, q)
+                        .expect("q splits two surrogates into unmatched pairs");
+                    // 1. Let T be the substring of S from p to q.
+                    let t = s_local.as_wtf8(agent).slice(p_utf8, q_utf8);
+                    let mut t_buf = Wtf8Buf::with_capacity(t.len());
+                    t_buf.push_wtf8(t);
+                    let t = String::from_wtf8_buf(agent, t_buf, gc.nogc());
+                    // 2. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), T).
+                    if let Err(err) = a_local.push(agent, t.into_value()) {
+                        return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+                    };
+                    // 3. Set lengthA to lengthA + 1.
+                    length_a += 1;
+                    // 4. If lengthA = lim,
+                    if length_a == lim {
+                        // return A.
+                        return Ok(a_local.into_value().unbind());
+                    }
+                    // 5. Set p to e.
+                    p = e;
+                    // 6. Let numberOfCaptures be ? LengthOfArrayLike(z).
+                    let number_of_captures =
+                        length_of_array_like(agent, z.get(agent), gc.reborrow())
+                            .unbind()?
+                            .bind(gc.nogc()) as u64;
+                    // 7. Set numberOfCaptures to max(numberOfCaptures - 1, 0).
+                    let number_of_captures = number_of_captures.saturating_sub(1);
+                    // 8. Let i be 1.
+                    let mut i = 1;
+                    // 9. Repeat, while i ≤ numberOfCaptures,
+                    while i <= number_of_captures {
+                        // a. Let nextCapture be ? Get(z, ! ToString(𝔽(i))).
+                        let next_capture = get(
+                            agent,
+                            z.get(agent),
+                            PropertyKey::try_from(i).unwrap(),
+                            gc.reborrow(),
+                        )
+                        .unbind()?
+                        .bind(gc.nogc());
+                        // b. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), nextCapture).
+                        if let Err(err) = a.get(agent).push(agent, next_capture) {
+                            return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+                        };
+                        // c. Set i to i + 1.
+                        i += 1;
+                        // d. Set lengthA to lengthA + 1.
+                        length_a += 1;
+                        // e. If lengthA = lim, return A.
+                        if length_a == lim {
+                            // SAFETY: not shared.
+                            return Ok(unsafe { a.take(agent) }.into_value());
+                        }
+                    }
+                    // 10. Set q to p.
+                    q = p;
+                }
+            } else {
+                // i. Set q to AdvanceStringIndex(S, q, unicodeMatching).
+                q = advance_string_index(agent, s.get(agent), q, unicode_matching);
+            }
+        }
+        let gc = gc.into_nogc();
+        let a = unsafe { a.take(agent) }.bind(gc);
+        let result = if p == size {
+            a.push(agent, String::EMPTY_STRING.into_value())
+        } else {
+            let s = unsafe { s.take(agent) }.bind(gc);
+            let p_utf8 = s
+                .utf8_index(agent, p)
+                .expect("p splits two surrogates into unmatched pairs");
+            // 20. Let T be the substring of S from p to size.
+            let t = s.as_wtf8(agent).slice(p_utf8, size);
+            let mut t_buf = Wtf8Buf::with_capacity(t.len());
+            t_buf.push_wtf8(t);
+            let t = String::from_wtf8_buf(agent, t_buf, gc);
+            // 21. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), T).
+            a.push(agent, t.into_value())
+        };
+        if let Err(err) = result {
+            return Err(agent.throw_allocation_exception(err, gc));
+        };
+
+        // 22. Return A.
+        Ok(a.into_value())
     }
 
     /// ### [22.2.6.15 get RegExp.prototype.sticky](https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky)

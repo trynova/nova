@@ -205,16 +205,18 @@ pub struct ElementsVector<'a> {
 
 impl Default for ElementsVector<'static> {
     fn default() -> Self {
-        Self {
-            elements_index: ElementIndex::from_u32_index(0),
-            cap: ElementArrayKey::Empty,
-            len: 0,
-            len_writable: true,
-        }
+        Self::EMPTY
     }
 }
 
 impl<'gc> ElementsVector<'gc> {
+    pub(crate) const EMPTY: Self = Self {
+        elements_index: ElementIndex::from_u32_index(0),
+        cap: ElementArrayKey::Empty,
+        len: 0,
+        len_writable: true,
+    };
+
     pub(crate) fn cap(&self) -> u32 {
         self.cap.cap()
     }
