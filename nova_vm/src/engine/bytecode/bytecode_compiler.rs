@@ -15,14 +15,14 @@ mod labelled_statement;
 mod template_literals;
 mod with_statement;
 
-use super::{executable::ArrowFunctionExpression, FunctionExpression, Instruction, SendableRef};
+use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     syntax_directed_operations::{
         function_definitions::ContainsExpression,
         scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
     },
-    types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+    types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
 };
 #[cfg(feature = "typescript")]
 use crate::{ecmascript::builtins::ordinary::shape::ObjectShapeRecord, heap::CreateHeapData};
@@ -30,7 +30,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_property_key_simple,
         builtins::ordinary::shape::ObjectShape,
-        execution::{agent::ExceptionType, Agent},
+        execution::{Agent, agent::ExceptionType},
         types::{IntoObject, IntoPrimitive, Primitive, PropertyKey},
     },
     engine::context::{Bindable, NoGcScope},
