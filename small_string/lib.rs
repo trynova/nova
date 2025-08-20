@@ -192,12 +192,16 @@ impl SmallString {
             return Some(utf16_idx);
         }
         let mut current_utf16_index = 0;
-        for (idx, _ch) in self.as_wtf8().code_points().enumerate() {
+        let mut scratch = [0u16; 2];
+        for (idx, ch) in self.as_wtf8().code_points().enumerate() {
             match current_utf16_index.cmp(&utf16_idx) {
                 Ordering::Equal => return Some(idx),
                 Ordering::Greater => return None,
                 Ordering::Less => {
-                    current_utf16_index += 1;
+                    current_utf16_index += ch
+                        .to_char()
+                        .map(|ch| ch.encode_utf16(&mut scratch).len())
+                        .unwrap_or(1)
                 }
             }
         }
