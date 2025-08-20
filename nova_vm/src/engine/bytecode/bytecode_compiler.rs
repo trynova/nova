@@ -2167,10 +2167,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 x.expression.compile(ctx);
                 None
             }
-            ast::Expression::JSXElement(_)
-            | ast::Expression::JSXFragment(_)
-            | ast::Expression::TSTypeAssertion(_)
-            | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSTypeAssertion(x) => {
+                x.expression.compile(ctx);
+                None
+            }
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSInstantiationExpression(x) => {
+                x.expression.compile(ctx);
+                None
+            }
+            ast::Expression::JSXElement(_) | ast::Expression::JSXFragment(_) => unreachable!(),
+            #[cfg(not(feature = "typescript"))]
+            ast::Expression::TSTypeAssertion(_) | ast::Expression::TSInstantiationExpression(_) => {
+                unreachable!()
+            }
         }
     }
 }
