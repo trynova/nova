@@ -12,7 +12,7 @@ use crate::{
                 call_function, construct, get, length_of_array_like, set, species_constructor,
                 try_create_data_property_or_throw, try_get,
             },
-            testing_and_comparison::is_callable,
+            testing_and_comparison::{is_callable, same_value},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
             },
@@ -1080,13 +1080,93 @@ impl RegExpPrototype {
         Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into_value())
     }
 
+    /// ### [22.2.6.12 RegExp.prototype \[ %Symbol.search% \] ( string )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.search%)
+    ///
+    /// The value of the "name" property of this method is "\[Symbol.search]".
+    ///
+    /// > NOTE: The "lastIndex" and "global" properties of this RegExp object are
+    /// > ignored when performing the search. The "lastIndex" property is left
+    /// > unchanged.
     fn search<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.search", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        // 1. Let rx be the this value.
+        let rx = this_value.bind(gc.nogc());
+        // 2. If rx is not an Object, throw a TypeError exception.
+        let Ok(rx) = Object::try_from(rx) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        let rx = rx.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let previousLastIndex be ? Get(rx, "lastIndex").
+        let previous_last_index = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let scoped_previous_last_index = previous_last_index.scope(agent, gc.nogc());
+        // 5. If previousLastIndex is not +0𝔽, then
+        if previous_last_index != Number::pos_zero().into_value() {
+            // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
+            set(
+                agent,
+                rx.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                Number::pos_zero().into_value(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?;
+        }
+        // 6. Let result be ? RegExpExec(rx, S).
+        let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
+            .unbind()?
+            .map(|r| r.scope(agent, gc.nogc()));
+        // 7. Let currentLastIndex be ? Get(rx, "lastIndex").
+        let current_last_index = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let previous_last_index = unsafe { scoped_previous_last_index.take(agent) }.bind(gc.nogc());
+        // 8. If SameValue(currentLastIndex, previousLastIndex) is false, then
+        if !same_value(agent, current_last_index, previous_last_index) {
+            // a. Perform ? Set(rx, "lastIndex", previousLastIndex, true).
+            set(
+                agent,
+                rx.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                previous_last_index.unbind(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?;
+        }
+        if let Some(result) = result.map(|r| unsafe { r.take(agent) }.bind(gc.nogc())) {
+            // 10. Return ? Get(result, "index").
+            get(
+                agent,
+                result.unbind(),
+                BUILTIN_STRING_MEMORY.index.to_property_key(),
+                gc,
+            )
+        } else {
+            // 9. If result is null, return -1𝔽.
+            Ok(Number::from(-1).into_value())
+        }
     }
 
     fn get_source<'gc>(
