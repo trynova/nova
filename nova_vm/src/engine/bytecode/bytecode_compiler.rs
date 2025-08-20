@@ -2191,15 +2191,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
                 _ => None,
             },
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSNonNullExpression(x) => match x.expression.compile(ctx) {
-                Some(ExpressionOutput::Place(pk)) => Some(pk),
-                _ => None,
-            },
+            ast::SimpleAssignmentTarget::TSNonNullExpression(x) => {
+                match x.expression.compile(ctx) {
+                    Some(ExpressionOutput::Place(pk)) => Some(pk),
+                    _ => None,
+                }
+            }
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => match x.expression.compile(ctx) {
-                Some(ExpressionOutput::Place(pk)) => Some(pk),
-                _ => None,
-            },
+            ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => {
+                match x.expression.compile(ctx) {
+                    Some(ExpressionOutput::Place(pk)) => Some(pk),
+                    _ => None,
+                }
+            }
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
