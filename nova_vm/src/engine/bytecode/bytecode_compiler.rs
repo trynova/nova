@@ -2147,9 +2147,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             }
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
             #[cfg(feature = "typescript")]
-            ast::Expression::TSAsExpression(x) => return x.expression.compile(ctx),
+            ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
             #[cfg(feature = "typescript")]
-            ast::Expression::TSSatisfiesExpression(x) => return x.expression.compile(ctx),
+            ast::Expression::TSSatisfiesExpression(x) => x.expression.compile(ctx),
             #[cfg(not(feature = "typescript"))]
             ast::Expression::TSAsExpression(_)
             | ast::Expression::TSNonNullExpression(_)
@@ -2157,11 +2157,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 unreachable!()
             }
             #[cfg(feature = "typescript")]
-            ast::Expression::TSNonNullExpression(x) => return x.expression.compile(ctx),
+            ast::Expression::TSNonNullExpression(x) => x.expression.compile(ctx),
             #[cfg(feature = "typescript")]
-            ast::Expression::TSTypeAssertion(x) => return x.expression.compile(ctx),
+            ast::Expression::TSTypeAssertion(x) => x.expression.compile(ctx),
             #[cfg(feature = "typescript")]
-            ast::Expression::TSInstantiationExpression(x) => return x.expression.compile(ctx),
+            ast::Expression::TSInstantiationExpression(x) => x.expression.compile(ctx),
             ast::Expression::JSXElement(_) | ast::Expression::JSXFragment(_) => unreachable!(),
             #[cfg(not(feature = "typescript"))]
             ast::Expression::TSTypeAssertion(_) | ast::Expression::TSInstantiationExpression(_) => {
@@ -2186,18 +2186,30 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             }
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => Some(x.compile(ctx)),
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSAsExpression(x) => x.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSAsExpression(x) => match x.expression.compile(ctx) {
+                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                _ => None,
+            },
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSNonNullExpression(x) => x.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSNonNullExpression(x) => match x.expression.compile(ctx) {
+                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                _ => None,
+            },
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => x.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => match x.expression.compile(ctx) {
+                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                _ => None,
+            },
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSAsExpression(_) => unreachable!(),
 
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSTypeAssertion(x) => x.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSTypeAssertion(x) => match x.expression.compile(ctx) {
+                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                _ => None,
+            },
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         };
