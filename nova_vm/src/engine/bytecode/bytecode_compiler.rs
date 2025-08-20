@@ -2147,30 +2147,24 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             }
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
             #[cfg(feature = "typescript")]
-            ast::Expression::TSAsExpression(x) => {
-                x.expression.compile(ctx);
-                None
-            }
+            ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
             #[cfg(feature = "typescript")]
-            ast::Expression::TSSatisfiesExpression(x) => {
-                x.expression.compile(ctx);
-                None
-            }
+            ast::Expression::TSSatisfiesExpression(x) => x.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSNonNullExpression(x) => x.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSTypeAssertion(x) => x.expression.compile(ctx),
+            #[cfg(feature = "typescript")]
+            ast::Expression::TSInstantiationExpression(x) => x.expression.compile(ctx),
+            ast::Expression::JSXElement(_) | ast::Expression::JSXFragment(_) => unreachable!(),
             #[cfg(not(feature = "typescript"))]
-            ast::Expression::TSAsExpression(_)
+            ast::Expression::TSTypeAssertion(_)
+            | ast::Expression::TSInstantiationExpression(_)
+            | ast::Expression::TSAsExpression(_)
             | ast::Expression::TSNonNullExpression(_)
             | ast::Expression::TSSatisfiesExpression(_) => {
                 unreachable!()
             }
-            #[cfg(feature = "typescript")]
-            ast::Expression::TSNonNullExpression(x) => {
-                x.expression.compile(ctx);
-                None
-            }
-            ast::Expression::JSXElement(_)
-            | ast::Expression::JSXFragment(_)
-            | ast::Expression::TSTypeAssertion(_)
-            | ast::Expression::TSInstantiationExpression(_) => unreachable!(),
         }
     }
 }
@@ -2190,26 +2184,35 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             }
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => Some(x.compile(ctx)),
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSAsExpression(x) => {
-                x.expression.compile(ctx);
-                None
-            }
+            ast::SimpleAssignmentTarget::TSAsExpression(x) => match x.expression.compile(ctx) {
+                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                _ => None,
+            },
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSNonNullExpression(x) => {
-                x.expression.compile(ctx);
-                None
+                match x.expression.compile(ctx) {
+                    Some(ExpressionOutput::Place(pk)) => Some(pk),
+                    _ => None,
+                }
             }
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => {
-                x.expression.compile(ctx);
-                None
+                match x.expression.compile(ctx) {
+                    Some(ExpressionOutput::Place(pk)) => Some(pk),
+                    _ => None,
+                }
             }
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
-            | ast::SimpleAssignmentTarget::TSAsExpression(_) => unreachable!(),
+            | ast::SimpleAssignmentTarget::TSAsExpression(_)
+            | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
 
-            ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
+            #[cfg(feature = "typescript")]
+            ast::SimpleAssignmentTarget::TSTypeAssertion(x) => match x.expression.compile(ctx) {
+                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                _ => None,
+            },
         };
         compile_get_value_keep_reference(ctx, identifier);
         ctx.add_instruction(Instruction::ToNumeric);
@@ -3563,22 +3566,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             Self::ExportDefaultDeclaration(x) => x.compile(ctx),
             Self::ExportNamedDeclaration(x) => x.compile(ctx),
             #[cfg(feature = "typescript")]
+            Self::TSEnumDeclaration(x) => x.compile(ctx),
+            #[cfg(feature = "typescript")]
             Self::TSTypeAliasDeclaration(_) | Self::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
-            Self::TSTypeAliasDeclaration(_) | Self::TSInterfaceDeclaration(_) => {
+            Self::TSTypeAliasDeclaration(_)
+            | Self::TSInterfaceDeclaration(_)
+            | Self::TSEnumDeclaration(_) => {
                 unreachable!()
             }
-            Self::TSEnumDeclaration(_)
-            | Self::TSExportAssignment(_)
+            // TODO: Implement TypeScript-specific statement compilation
+            Self::TSExportAssignment(_)
             | Self::TSImportEqualsDeclaration(_)
             | Self::TSModuleDeclaration(_)
             | Self::TSNamespaceExportDeclaration(_) => {
-                #[cfg(feature = "typescript")]
-                match self {
-                    Self::TSEnumDeclaration(enum_decl) => enum_decl.compile(ctx),
-                    _ => unreachable!(),
-                }
-                #[cfg(not(feature = "typescript"))]
                 unreachable!()
             }
         }
