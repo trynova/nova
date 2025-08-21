@@ -4,7 +4,7 @@
 
 use core::{cmp::max, str::FromStr};
 use small_string::SmallString;
-use std::{borrow::Cow, ops::Deref};
+use std::{borrow::Cow, cmp::Ordering, ops::Deref};
 use unicode_normalization::{
     IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
@@ -14,7 +14,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_array_from_list, get, get_method, get_object_method, invoke,
+                call_function, create_array_from_list, get, get_object_method, invoke,
             },
             testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
             type_conversion::{
@@ -1064,13 +1064,131 @@ impl StringPrototype {
         }
     }
 
+    /// ### [22.1.3.12 String.prototype.localeCompare ( that \[ , reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-string.prototype.localecompare)
+    ///
+    /// An ECMAScript implementation that includes the ECMA-402
+    /// Internationalization API must implement this method as specified in the
+    /// ECMA-402 specification. If an ECMAScript implementation does not
+    /// include the ECMA-402 API the following specification of this method is
+    /// used:
+    ///
+    /// This method returns a Number other than NaN representing the result of
+    /// an implementation-defined locale-sensitive String comparison of the
+    /// this value (converted to a String S) with that (converted to a String
+    /// thatValue). The result is intended to correspond with a sort order of
+    /// String values according to conventions of the host environment's
+    /// current locale, and will be negative when S is ordered before
+    /// thatValue, positive when S is ordered after thatValue, and zero in all
+    /// other cases (representing no relative ordering between S and
+    /// thatValue).
+    ///
+    /// Before performing the comparisons, this method performs the following
+    /// steps to prepare the Strings:
+    ///
+    /// ```text
+    /// 1. Let O be ? RequireObjectCoercible(this value).
+    /// 2. Let S be ? ToString(O).
+    /// 3. Let thatValue be ? ToString(that).
+    /// ```
+    ///
+    /// The meaning of the optional second and third parameters to this method
+    /// are defined in the ECMA-402 specification; implementations that do not
+    /// include ECMA-402 support must not assign any other interpretation to
+    /// those parameter positions.
+    ///
+    /// The actual return values are implementation-defined to permit encoding
+    /// additional information in them, but this method, when considered as a
+    /// method of two arguments, is required to be a consistent comparator
+    /// defining a total ordering on the set of all Strings. This method is
+    /// also required to recognize and honour canonical equivalence according
+    /// to the Unicode Standard, including returning +0𝔽 when comparing
+    /// distinguishable Strings that are canonically equivalent.
+    ///
+    /// > NOTE 1: This method itself is not directly suitable as an argument to
+    /// > `Array.prototype.sort` because the latter requires a function of two
+    /// > arguments.
+    ///
+    /// > NOTE 2: This method may rely on whatever language- and/or
+    /// > locale-sensitive comparison functionality is available to the
+    /// > ECMAScript environment from the host environment, and is intended to
+    /// > compare according to the conventions of the host environment's
+    /// > current locale. However, regardless of comparison capabilities, this
+    /// > method must recognize and honour canonical equivalence according to
+    /// > the Unicode Standard—for example, the following comparisons must all
+    /// > return +0𝔽:
+    /// >
+    /// > ```javascript
+    /// > // Å ANGSTROM SIGN vs.
+    /// > // Å LATIN CAPITAL LETTER A + COMBINING RING ABOVE
+    /// > "\u212B".localeCompare("A\u030A")
+    /// >
+    /// > // Ω OHM SIGN vs.
+    /// > // Ω GREEK CAPITAL LETTER OMEGA
+    /// > "\u2126".localeCompare("\u03A9")
+    /// >
+    /// > // ṩ LATIN SMALL LETTER S WITH DOT BELOW AND DOT ABOVE vs.
+    /// > // ṩ LATIN SMALL LETTER S + COMBINING DOT ABOVE + COMBINING DOT BELOW
+    /// > "\u1E69".localeCompare("s\u0307\u0323")
+    /// >
+    /// > // ḍ̇ LATIN SMALL LETTER D WITH DOT ABOVE + COMBINING DOT BELOW vs.
+    /// > // ḍ̇ LATIN SMALL LETTER D WITH DOT BELOW + COMBINING DOT ABOVE
+    /// > "\u1E0B\u0323".localeCompare("\u1E0D\u0307")
+    /// >
+    /// > // 가 HANGUL CHOSEONG KIYEOK + HANGUL JUNGSEONG A vs.
+    /// > // 가 HANGUL SYLLABLE GA
+    /// > "\u1100\u1161".localeCompare("\uAC00")
+    /// > ```
+    /// >
+    /// > For a definition and discussion of canonical equivalence see the
+    /// > Unicode Standard, chapters 2 and 3, as well as Unicode Standard Annex
+    /// > #15, Unicode Normalization Forms and Unicode Technical Note #5,
+    /// > Canonical Equivalence in Applications. Also see Unicode Technical
+    /// > Standard #10, Unicode Collation Algorithm.
+    /// >
+    /// > It is recommended that this method should not honour Unicode
+    /// > compatibility equivalents or compatibility decompositions as defined
+    /// > in the Unicode Standard, chapter 3, section 3.7.
+    ///
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn locale_compare<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.localeCompare", gc.into_nogc()))
+        let this_value = this_value.bind(gc.nogc());
+        let that = args.get(0).bind(gc.nogc());
+        let (s, that_value) = if let (Ok(s), Ok(that_value)) =
+            (String::try_from(this_value), String::try_from(that))
+        {
+            (s, that_value)
+        } else {
+            let scoped_that = that.scope(agent, gc.nogc());
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, this_value, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, o.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            let that = scoped_that.get(agent).bind(gc.nogc());
+            // SAFETY: not shared.
+            let s = unsafe { scoped_that.replace_self(agent, s.unbind()) };
+            // 3. Let thatValue be ? ToString(that).
+            let that_value = to_string(agent, that.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            let s = unsafe { s.take(agent) }.bind(gc.nogc());
+            (s, that_value)
+        };
+        match s.as_wtf8(agent).cmp(that_value.as_wtf8(agent)) {
+            Ordering::Less => Ok((-1).into()),
+            Ordering::Equal => Ok(0.into()),
+            Ordering::Greater => Ok(1.into()),
+        }
     }
 
     /// ### [22.1.3.13 String.prototype.match ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.match)
@@ -1094,10 +1212,11 @@ impl StringPrototype {
             .unbind()?
             .bind(gc.nogc());
         let o = o.scope(agent, gc.nogc());
-        // 2. If regexp is neither undefined nor null, then
-        if !regexp.is_undefined() && !regexp.is_null() {
+        // See: https://github.com/tc39/ecma262/pull/3009
+        // 2. If regexp is an Object, then
+        if let Ok(regexp) = Object::try_from(regexp) {
             // a. Let matcher be ? GetMethod(regexp, %Symbol.match%).
-            let matcher = get_method(
+            let matcher = get_object_method(
                 agent,
                 regexp.unbind(),
                 WellKnownSymbolIndexes::Match.to_property_key(),
@@ -1142,13 +1261,127 @@ impl StringPrototype {
         )
     }
 
+    /// ### [22.1.3.14 String.prototype.matchAll ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.matchall)
+    ///
+    /// This method performs a regular expression match of the String
+    /// representing the this value against regexp and returns an iterator that
+    /// yields match results. Each match result is an Array containing the
+    /// matched portion of the String as the first element, followed by the
+    /// portions matched by any capturing groups. If the regular expression
+    /// never matches, the returned iterator does not yield any match results.
+    ///
+    /// > NOTE 1: This method is intentionally generic, it does not require
+    /// > that its this value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
+    ///
+    /// > NOTE 2: Similarly to `String.prototype.split`,
+    /// > `String.prototype.matchAll` is designed to typically act without
+    /// > mutating its inputs.
     fn match_all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.matchAll", gc.into_nogc()))
+        let regexp = args.get(0).bind(gc.nogc());
+        let scoped_regexp = regexp.scope(agent, gc.nogc());
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value, gc.nogc())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // See: https://github.com/tc39/ecma262/pull/3009
+        // 2. If regexp is an Object, then
+        if let Ok(mut regexp) = Object::try_from(regexp) {
+            // a. Let isRegExp be ? IsRegExp(regexp).
+            let is_reg_exp = is_reg_exp(agent, regexp.unbind().into_value(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+
+            // SAFETY: regexp is an Object.
+            regexp = unsafe {
+                Object::try_from(scoped_regexp.get(agent).bind(gc.nogc())).unwrap_unchecked()
+            };
+
+            // b. If isRegExp is true, then
+            if is_reg_exp {
+                // i. Let flags be ? Get(regexp, "flags").
+                let flags = get(
+                    agent,
+                    regexp.unbind(),
+                    BUILTIN_STRING_MEMORY.flags.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                // ii. Perform ? RequireObjectCoercible(flags).
+                let flags = require_object_coercible(agent, flags, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // iii. If ? ToString(flags) does not contain "g",
+                let flags = to_string(agent, flags.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                if !flags.as_bytes(agent).contains(&b'g') {
+                    // throw a TypeError exception.
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "replaceAll must be called with a global RegExp",
+                        gc.into_nogc(),
+                    ));
+                }
+                // SAFETY: regexp is an Object.
+                regexp = unsafe {
+                    Object::try_from(scoped_regexp.get(agent).bind(gc.nogc())).unwrap_unchecked()
+                };
+            }
+            // c. Let matcher be ? GetMethod(regexp, %Symbol.matchAll%).
+            let matcher = get_object_method(
+                agent,
+                regexp.unbind(),
+                WellKnownSymbolIndexes::MatchAll.to_property_key(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // d. If matcher is not undefined, then
+            if let Some(matcher) = matcher {
+                // i. Return ? Call(matcher, regexp, « O »).
+                return call_function(
+                    agent,
+                    matcher.unbind(),
+                    // SAFETY: not shared.
+                    unsafe { scoped_regexp.take(agent) },
+                    Some(ArgumentsList::from_mut_value(
+                        // SAFETY: not shared.
+                        &mut unsafe { o.take(agent) },
+                    )),
+                    gc,
+                );
+            }
+        }
+        // 3. Let S be ? ToString(O).
+        // SAFETY: not shared.
+        let s = to_string(agent, unsafe { o.take(agent) }, gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let rx be ? RegExpCreate(regexp, "g").
+        let rx = reg_exp_create(
+            agent,
+            scoped_regexp,
+            Some(String::from_small_string("g")),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let s = unsafe { s.take(agent) }.bind(gc.nogc());
+        // 5. Return ? Invoke(rx, %Symbol.matchAll%, « S »).
+        invoke(
+            agent,
+            rx.into_value().unbind(),
+            WellKnownSymbolIndexes::MatchAll.to_property_key(),
+            Some(ArgumentsList::from_mut_value(&mut s.into_value().unbind())),
+            gc,
+        )
     }
 
     /// ### [22.1.3.15 String.prototype.normalize ( \[ form \] )](https://tc39.es/ecma262/#sec-string.prototype.normalize)
@@ -1366,6 +1599,7 @@ impl StringPrototype {
             .scope(agent, nogc);
 
         let scoped_search_value = search_value.scope(agent, nogc);
+        // See: https://github.com/tc39/ecma262/pull/3009
         // 2. If searchValue is an Object, then
         if let Ok(search_value) = Object::try_from(search_value) {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
@@ -1487,16 +1721,49 @@ impl StringPrototype {
         let scoped_search_value = search_value.scope(agent, nogc);
 
         // 2. If searchValue is an Object, then
-        if let Ok(search_value) = Object::try_from(search_value) {
+        if let Ok(mut search_value) = Object::try_from(search_value) {
             // a. Let isRegExp be ? IsRegExp(searchValue).
-            let is_reg_exp = false;
+            let is_reg_exp = is_reg_exp(agent, search_value.unbind().into_value(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+
+            // SAFETY: searchValue is an Object.
+            search_value = unsafe {
+                Object::try_from(scoped_search_value.get(agent).bind(gc.nogc())).unwrap_unchecked()
+            };
 
             // b. If isRegExp is true, then
             if is_reg_exp {
                 // i. Let flags be ? Get(searchValue, "flags").
+                let flags = get(
+                    agent,
+                    search_value.unbind(),
+                    BUILTIN_STRING_MEMORY.flags.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 // ii. Perform ? RequireObjectCoercible(flags).
-                // iii. If ? ToString(flags) does not contain "g", throw a TypeError exception.
-                todo!();
+                let flags = require_object_coercible(agent, flags, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // iii. If ? ToString(flags) does not contain "g",
+                let flags = to_string(agent, flags.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                if !flags.as_bytes(agent).contains(&b'g') {
+                    // throw a TypeError exception.
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "replaceAll must be called with a global RegExp",
+                        gc.into_nogc(),
+                    ));
+                }
+                // SAFETY: searchValue is an Object.
+                search_value = unsafe {
+                    Object::try_from(scoped_search_value.get(agent).bind(gc.nogc()))
+                        .unwrap_unchecked()
+                };
             }
 
             // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
@@ -1625,13 +1892,69 @@ impl StringPrototype {
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
+    /// ### [22.1.3.21 String.prototype.search ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.search)
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn search<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.search", gc.into_nogc()))
+        let regexp = args.get(0).bind(gc.nogc());
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let mut o = require_object_coercible(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let scoped_regexp = regexp.scope(agent, gc.nogc());
+        // See: https://github.com/tc39/ecma262/pull/3009
+        // 2. If regexp is an Object, then
+        if let Ok(regexp) = Object::try_from(regexp) {
+            let scoped_o = o.scope(agent, gc.nogc());
+            // a. Let searcher be ? GetMethod(regexp, %Symbol.search%).
+            let searcher = get_object_method(
+                agent,
+                regexp.unbind(),
+                WellKnownSymbolIndexes::Search.to_property_key(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
+            // b. If searcher is not undefined, then
+            if let Some(searcher) = searcher {
+                let regexp = unsafe { scoped_regexp.take(agent) }.bind(gc.nogc());
+                // i. Return ? Call(searcher, regexp, « O »).
+                return call_function(
+                    agent,
+                    searcher.unbind(),
+                    regexp.unbind(),
+                    Some(ArgumentsList::from_mut_value(&mut o.unbind())),
+                    gc,
+                );
+            }
+        }
+        // 3. Let string be ? ToString(O).
+        let string = to_string(agent, o.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let rx be ? RegExpCreate(regexp, undefined).
+        let rx = reg_exp_create(agent, scoped_regexp, None, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let string = unsafe { string.take(agent) }.bind(gc.nogc());
+        // 5. Return ? Invoke(rx, %Symbol.search%, « string »).
+        invoke(
+            agent,
+            rx.into_value().unbind(),
+            WellKnownSymbolIndexes::Search.to_property_key(),
+            Some(ArgumentsList::from_mut_value(
+                &mut string.into_value().unbind(),
+            )),
+            gc,
+        )
     }
 
     fn slice<'gc>(
