@@ -4,7 +4,7 @@
 
 use core::{cmp::max, str::FromStr};
 use small_string::SmallString;
-use std::{borrow::Cow, ops::Deref};
+use std::{borrow::Cow, cmp::Ordering, ops::Deref};
 use unicode_normalization::{
     IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
@@ -1064,13 +1064,131 @@ impl StringPrototype {
         }
     }
 
+    /// ### [22.1.3.12 String.prototype.localeCompare ( that \[ , reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-string.prototype.localecompare)
+    ///
+    /// An ECMAScript implementation that includes the ECMA-402
+    /// Internationalization API must implement this method as specified in the
+    /// ECMA-402 specification. If an ECMAScript implementation does not
+    /// include the ECMA-402 API the following specification of this method is
+    /// used:
+    ///
+    /// This method returns a Number other than NaN representing the result of
+    /// an implementation-defined locale-sensitive String comparison of the
+    /// this value (converted to a String S) with that (converted to a String
+    /// thatValue). The result is intended to correspond with a sort order of
+    /// String values according to conventions of the host environment's
+    /// current locale, and will be negative when S is ordered before
+    /// thatValue, positive when S is ordered after thatValue, and zero in all
+    /// other cases (representing no relative ordering between S and
+    /// thatValue).
+    ///
+    /// Before performing the comparisons, this method performs the following
+    /// steps to prepare the Strings:
+    ///
+    /// ```text
+    /// 1. Let O be ? RequireObjectCoercible(this value).
+    /// 2. Let S be ? ToString(O).
+    /// 3. Let thatValue be ? ToString(that).
+    /// ```
+    ///
+    /// The meaning of the optional second and third parameters to this method
+    /// are defined in the ECMA-402 specification; implementations that do not
+    /// include ECMA-402 support must not assign any other interpretation to
+    /// those parameter positions.
+    ///
+    /// The actual return values are implementation-defined to permit encoding
+    /// additional information in them, but this method, when considered as a
+    /// method of two arguments, is required to be a consistent comparator
+    /// defining a total ordering on the set of all Strings. This method is
+    /// also required to recognize and honour canonical equivalence according
+    /// to the Unicode Standard, including returning +0𝔽 when comparing
+    /// distinguishable Strings that are canonically equivalent.
+    ///
+    /// > NOTE 1: This method itself is not directly suitable as an argument to
+    /// > `Array.prototype.sort` because the latter requires a function of two
+    /// > arguments.
+    ///
+    /// > NOTE 2: This method may rely on whatever language- and/or
+    /// > locale-sensitive comparison functionality is available to the
+    /// > ECMAScript environment from the host environment, and is intended to
+    /// > compare according to the conventions of the host environment's
+    /// > current locale. However, regardless of comparison capabilities, this
+    /// > method must recognize and honour canonical equivalence according to
+    /// > the Unicode Standard—for example, the following comparisons must all
+    /// > return +0𝔽:
+    /// >
+    /// > ```javascript
+    /// > // Å ANGSTROM SIGN vs.
+    /// > // Å LATIN CAPITAL LETTER A + COMBINING RING ABOVE
+    /// > "\u212B".localeCompare("A\u030A")
+    /// >
+    /// > // Ω OHM SIGN vs.
+    /// > // Ω GREEK CAPITAL LETTER OMEGA
+    /// > "\u2126".localeCompare("\u03A9")
+    /// >
+    /// > // ṩ LATIN SMALL LETTER S WITH DOT BELOW AND DOT ABOVE vs.
+    /// > // ṩ LATIN SMALL LETTER S + COMBINING DOT ABOVE + COMBINING DOT BELOW
+    /// > "\u1E69".localeCompare("s\u0307\u0323")
+    /// >
+    /// > // ḍ̇ LATIN SMALL LETTER D WITH DOT ABOVE + COMBINING DOT BELOW vs.
+    /// > // ḍ̇ LATIN SMALL LETTER D WITH DOT BELOW + COMBINING DOT ABOVE
+    /// > "\u1E0B\u0323".localeCompare("\u1E0D\u0307")
+    /// >
+    /// > // 가 HANGUL CHOSEONG KIYEOK + HANGUL JUNGSEONG A vs.
+    /// > // 가 HANGUL SYLLABLE GA
+    /// > "\u1100\u1161".localeCompare("\uAC00")
+    /// > ```
+    /// >
+    /// > For a definition and discussion of canonical equivalence see the
+    /// > Unicode Standard, chapters 2 and 3, as well as Unicode Standard Annex
+    /// > #15, Unicode Normalization Forms and Unicode Technical Note #5,
+    /// > Canonical Equivalence in Applications. Also see Unicode Technical
+    /// > Standard #10, Unicode Collation Algorithm.
+    /// >
+    /// > It is recommended that this method should not honour Unicode
+    /// > compatibility equivalents or compatibility decompositions as defined
+    /// > in the Unicode Standard, chapter 3, section 3.7.
+    ///
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn locale_compare<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.localeCompare", gc.into_nogc()))
+        let this_value = this_value.bind(gc.nogc());
+        let that = args.get(0).bind(gc.nogc());
+        let (s, that_value) = if let (Ok(s), Ok(that_value)) =
+            (String::try_from(this_value), String::try_from(that))
+        {
+            (s, that_value)
+        } else {
+            let scoped_that = that.scope(agent, gc.nogc());
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, this_value, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, o.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            let that = scoped_that.get(agent).bind(gc.nogc());
+            // SAFETY: not shared.
+            let s = unsafe { scoped_that.replace_self(agent, s.unbind()) };
+            // 3. Let thatValue be ? ToString(that).
+            let that_value = to_string(agent, that.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            let s = unsafe { s.take(agent) }.bind(gc.nogc());
+            (s, that_value)
+        };
+        match s.as_wtf8(agent).cmp(that_value.as_wtf8(agent)) {
+            Ordering::Less => Ok((-1).into()),
+            Ordering::Equal => Ok(0.into()),
+            Ordering::Greater => Ok(1.into()),
+        }
     }
 
     /// ### [22.1.3.13 String.prototype.match ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.match)
