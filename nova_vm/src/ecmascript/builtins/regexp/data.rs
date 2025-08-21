@@ -135,7 +135,7 @@ impl<'a> RegExpHeapData<'a> {
         RegexBuilder::new(pattern)
             .dot_matches_new_line((flags & RegExpFlags::M).bits() > 0)
             .case_insensitive((flags & RegExpFlags::I).bits() > 0)
-            .unicode((flags & (RegExpFlags::U | RegExpFlags::V)).bits() > 0)
+            .unicode(true)
             .dot_matches_new_line((flags & RegExpFlags::S).bits() > 0)
             .octal(false) // TODO: !strict
             .build()
