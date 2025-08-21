@@ -1169,13 +1169,51 @@ impl RegExpPrototype {
         }
     }
 
+    /// ### [22.2.6.13 get RegExp.prototype.source](https://tc39.es/ecma262/#sec-get-regexp.prototype.source)
+    ///
+    /// RegExp.prototype.source is an accessor property whose set accessor
+    /// function is undefined.
     fn get_source<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.source", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(r) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        // 3. If R does not have an [[OriginalSource]] internal slot, then
+        let Object::RegExp(r) = r else {
+            // a. If SameValue(R, %RegExp.prototype%) is true, return "(?:)".
+            if r == agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp_prototype()
+                .into_object()
+            {
+                return Ok(String::from_small_string("(?:)").into_value());
+            }
+            // b. Otherwise, throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected RegExp object or %RegExp.prototype% intrinsic object",
+                gc.into_nogc(),
+            ));
+        };
+        // 4. Assert: R has an [[OriginalFlags]] internal slot.
+        // 5. Let src be R.[[OriginalSource]].
+        let src = r.original_source(agent);
+        // 6. Let flags be R.[[OriginalFlags]].
+        let flags = r.original_flags(agent);
+        if src.is_empty_string() {
+            Ok(String::from_small_string("(?:)").into_value())
+        } else {
+            // 7. Return EscapeRegExpPattern(src, flags).
+            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into_value())
+        }
     }
 
     /// ### [22.2.6.14 RegExp.prototype \[ %Symbol.split% \] ( string, limit )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.split%)
@@ -1740,4 +1778,73 @@ fn reg_exp_has_flag<'a>(
 
 fn throw_not_an_object<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<'a> {
     agent.throw_exception_with_static_message(ExceptionType::TypeError, "not an object", gc)
+}
+
+/// ### [22.2.6.13.1 EscapeRegExpPattern ( P, F )](https://tc39.es/ecma262/#sec-escaperegexppattern)
+///
+/// The abstract operation EscapeRegExpPattern takes arguments P (a String) and
+/// F (a String) and returns a String.
+///
+/// > NOTE: Despite having similar names, RegExp.escape and EscapeRegExpPattern
+/// > do not perform similar actions. The former escapes a string for
+/// > representation inside a pattern, while this function escapes a pattern
+/// > for representation as a string.
+fn escape_reg_exp_pattern<'a>(
+    agent: &mut Agent,
+    p: String,
+    f: RegExpFlags,
+    gc: NoGcScope<'a, '_>,
+) -> String<'a> {
+    // 1. If F contains "v", then
+    let _pattern_symbol = if f.contains(RegExpFlags::V) {
+        // a. Let patternSymbol be Pattern[+UnicodeMode, +UnicodeSetsMode].
+        true
+    } else if f.contains(RegExpFlags::U) {
+        // 2. Else if F contains "u", then
+        // a. Let patternSymbol be Pattern[+UnicodeMode, ~UnicodeSetsMode].
+        true
+    } else {
+        // 3. Else,
+        // a. Let patternSymbol be Pattern[~UnicodeMode, ~UnicodeSetsMode].
+        false
+    };
+    // 4. Let S be a String in the form of a patternSymbol equivalent to P
+    //    interpreted as UTF-16 encoded Unicode code points (6.1.4), in which
+    //    certain code points are escaped as described below. S may or may not
+    //    differ from P; however, the Abstract Closure that would result from
+    //    evaluating S as a patternSymbol must behave identically to the
+    //    Abstract Closure given by the constructed object's [[RegExpMatcher]]
+    //    internal slot. Multiple calls to this abstract operation using the
+    //    same values for P and F must produce identical results.
+    // 5. The code points / or any LineTerminator occurring in the pattern
+    //    shall be escaped in S as necessary to ensure that the
+    //    string-concatenation of "/", S, "/", and F can be parsed (in an
+    //    appropriate lexical context) as a RegularExpressionLiteral that
+    //    behaves identically to the constructed regular expression. For
+    //    example, if P is "/", then S could be "\/" or "\u002F", among other
+    //    possibilities, but not "/", because /// followed by F would be parsed
+    //    as a SingleLineComment rather than a RegularExpressionLiteral. If P
+    //    is the empty String, this specification can be met by letting S be
+    //    "(?:)".
+
+    let p_wtf8 = p.as_wtf8(agent);
+    let byte_length = p_wtf8.len();
+    let mut s = Wtf8Buf::with_capacity(byte_length + (byte_length >> 4));
+    for cp in p_wtf8.code_points() {
+        if let Some(c) = cp.to_char() {
+            match c {
+                '\u{0008}' => s.push_str("\\b"),
+                '\t' => s.push_str("\\t"),
+                '\n' => s.push_str("\\n"),
+                '\u{000C}' => s.push_str("\\f"),
+                '\u{000D}' => s.push_str("\\r"),
+                '/' => s.push_str("\\/"),
+                _ => s.push_char(c),
+            }
+        } else {
+            s.push(cp);
+        }
+    }
+    String::from_wtf8_buf(agent, s, gc)
+    // 6. Return S.
 }

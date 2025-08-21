@@ -11,7 +11,9 @@ use oxc_regular_expression::{LiteralParser, Options};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, try_create_data_property_or_throw, try_get},
+            operations_on_objects::{
+                call_function, throw_set_error, try_create_data_property_or_throw, try_get,
+            },
             testing_and_comparison::is_callable,
             type_conversion::{to_length, to_string, try_to_length},
         },
@@ -242,6 +244,14 @@ pub(crate) fn reg_exp_initialize<'a>(
     agent[obj].reg_exp_matcher = reg_exp_matcher;
 
     // 22. Perform ? Set(obj, "lastIndex", +0𝔽, true).
+    if !obj.set_last_index(agent, RegExpLastIndex::ZERO, gc.nogc()) {
+        return throw_set_error(
+            agent,
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.into_nogc(),
+        )
+        .into();
+    }
     // 23. Return obj.
     Ok(obj.unbind())
 }
@@ -546,12 +556,8 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
         s.utf8_index(agent, last_index).unwrap_or(last_index)
     };
     // 8. Let matcher be R.[[RegExpMatcher]].
-    if agent[r].reg_exp_matcher.is_none() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::SyntaxError,
-            "RegExp engine failed to compile the given pattern",
-            gc,
-        ));
+    if let Err(err) = &agent[r].reg_exp_matcher {
+        return Err(agent.throw_exception(ExceptionType::SyntaxError, err.to_string(), gc));
     };
     // 9. If flags contains "u" or flags contains "v", let fullUnicode be true;
     //    else let fullUnicode be false.
