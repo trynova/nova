@@ -288,10 +288,7 @@ impl PromiseReactionJob {
                     }
                 }
             }
-            PromiseReactionHandler::PromiseAll {
-                mut promise_all,
-                index,
-            } => {
+            PromiseReactionHandler::PromiseAll { promise_all, index } => {
                 let reaction_type = agent[reaction].reaction_type;
                 let capability = agent[reaction].capability.clone().unwrap();
                 match reaction_type {
