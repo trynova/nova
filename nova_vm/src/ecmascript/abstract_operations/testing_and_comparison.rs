@@ -179,7 +179,7 @@ pub(crate) fn is_reg_exp<'a>(
     )?;
 
     // 3. If matcher is not undefined, return ToBoolean(matcher).
-    if matcher.is_undefined() {
+    if !matcher.is_undefined() {
         return Ok(to_boolean(agent, matcher));
     }
 
