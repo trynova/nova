@@ -1658,13 +1658,68 @@ impl StringPrototype {
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
+    /// ### [22.1.3.21 String.prototype.search ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.search)
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn search<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.search", gc.into_nogc()))
+        let regexp = args.get(0).bind(gc.nogc());
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let mut o = require_object_coercible(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let scoped_regexp = regexp.scope(agent, gc.nogc());
+        // 2. If regexp is neither undefined nor null, then
+        if !regexp.is_undefined() && !regexp.is_null() {
+            let scoped_o = o.scope(agent, gc.nogc());
+            // a. Let searcher be ? GetMethod(regexp, %Symbol.search%).
+            let searcher = get_method(
+                agent,
+                regexp.unbind(),
+                WellKnownSymbolIndexes::Search.to_property_key(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
+            // b. If searcher is not undefined, then
+            if let Some(searcher) = searcher {
+                let regexp = unsafe { scoped_regexp.take(agent) }.bind(gc.nogc());
+                // i. Return ? Call(searcher, regexp, « O »).
+                return call_function(
+                    agent,
+                    searcher.unbind(),
+                    regexp.unbind(),
+                    Some(ArgumentsList::from_mut_value(&mut o.unbind())),
+                    gc,
+                );
+            }
+        }
+        // 3. Let string be ? ToString(O).
+        let string = to_string(agent, o.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let rx be ? RegExpCreate(regexp, undefined).
+        let rx = reg_exp_create(agent, scoped_regexp, None, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        let string = unsafe { string.take(agent) }.bind(gc.nogc());
+        // 5. Return ? Invoke(rx, %Symbol.search%, « string »).
+        invoke(
+            agent,
+            rx.into_value().unbind(),
+            WellKnownSymbolIndexes::Search.to_property_key(),
+            Some(ArgumentsList::from_mut_value(
+                &mut string.into_value().unbind(),
+            )),
+            gc,
+        )
     }
 
     fn slice<'gc>(
