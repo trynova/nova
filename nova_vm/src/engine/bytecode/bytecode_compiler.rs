@@ -3568,17 +3568,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             #[cfg(feature = "typescript")]
             Self::TSEnumDeclaration(x) => x.compile(ctx),
             #[cfg(feature = "typescript")]
-            Self::TSTypeAliasDeclaration(_) | Self::TSInterfaceDeclaration(_) => {}
+            Self::TSTypeAliasDeclaration(_)
+            | Self::TSInterfaceDeclaration(_)
+            | Self::TSModuleDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
             Self::TSTypeAliasDeclaration(_)
             | Self::TSInterfaceDeclaration(_)
+            | Self::TSModuleDeclaration(_)
             | Self::TSEnumDeclaration(_) => {
                 unreachable!()
             }
             // TODO: Implement TypeScript-specific statement compilation
             Self::TSExportAssignment(_)
             | Self::TSImportEqualsDeclaration(_)
-            | Self::TSModuleDeclaration(_)
             | Self::TSNamespaceExportDeclaration(_) => {
                 unreachable!()
             }
