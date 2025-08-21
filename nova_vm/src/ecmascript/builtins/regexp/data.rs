@@ -121,14 +121,17 @@ impl From<usize> for RegExpLastIndex {
 #[derive(Debug)]
 pub struct RegExpHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
-    pub(super) reg_exp_matcher: Option<Regex>,
+    pub(super) reg_exp_matcher: Result<Regex, regex::Error>,
     pub(super) original_source: String<'a>,
     pub(super) original_flags: RegExpFlags,
     pub(super) last_index: RegExpLastIndex,
 }
 
 impl<'a> RegExpHeapData<'a> {
-    pub(crate) fn compile_pattern(pattern: &str, flags: RegExpFlags) -> Option<Regex> {
+    pub(crate) fn compile_pattern(
+        pattern: &str,
+        flags: RegExpFlags,
+    ) -> Result<Regex, regex::Error> {
         RegexBuilder::new(pattern)
             .dot_matches_new_line((flags & RegExpFlags::M).bits() > 0)
             .case_insensitive((flags & RegExpFlags::I).bits() > 0)
@@ -136,7 +139,6 @@ impl<'a> RegExpHeapData<'a> {
             .dot_matches_new_line((flags & RegExpFlags::S).bits() > 0)
             .octal(false) // TODO: !strict
             .build()
-            .ok()
     }
 
     pub(crate) fn new(agent: &Agent, source: String<'a>, flags: RegExpFlags) -> Self {
@@ -170,7 +172,7 @@ impl Default for RegExpHeapData<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
-            reg_exp_matcher: None,
+            reg_exp_matcher: Err(regex::Error::CompiledTooBig(usize::MAX)),
             original_source: String::EMPTY_STRING,
             original_flags: RegExpFlags::empty(),
             last_index: Default::default(),

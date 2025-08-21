@@ -889,13 +889,13 @@ fn quote_json_string(agent: &Agent, product: &mut Wtf8Buf, value: String) {
             // | U+0008     | Backspace              | \b              |
             0x0008 => product.push_str("\\b"),
             // | U+0009     | CHARACTER TABULATION   | \t              |
-            0x0009 => product.push_str("\\t'"),
+            0x0009 => product.push_str("\\t"),
             // | U+000A     | LINE FEED (LF)         | \n              |
-            0x000A => product.push_str("\\n'"),
+            0x000A => product.push_str("\\n"),
             // | U+000C     | FORM FEED (FF)         | \f              |
-            0x000C => product.push_str("\\f'"),
+            0x000C => product.push_str("\\f"),
             // | U+000D     | CARRIAGE RETURN (CR)   | \r              |
-            0x000D => product.push_str("\\r'"),
+            0x000D => product.push_str("\\r"),
             // | U+0022     | QUOTATION MARK         | \"              |
             0x0022 => product.push_str("\\\""),
             // | U+005C     | REVERSE SOLIDUS        | \\              |
@@ -918,7 +918,7 @@ fn quote_json_string(agent: &Agent, product: &mut Wtf8Buf, value: String) {
                     if v < 10 { v as u8 + 48 } else { v as u8 + 87 }
                 }
 
-                buf[0] = 0x005C;
+                buf[0] = b'\\';
                 buf[1] = b'u';
                 buf[5] = u16_to_char_code(unit % 16);
                 buf[4] = u16_to_char_code((unit >> 4) % 16);

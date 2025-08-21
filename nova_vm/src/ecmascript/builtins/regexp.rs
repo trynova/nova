@@ -14,7 +14,7 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
             TryHasResult, Value,
         },
@@ -60,6 +60,44 @@ impl<'a> RegExp<'a> {
     /// ### \[\[OriginalFlags]]
     pub(crate) fn original_flags(self, agent: &Agent) -> RegExpFlags {
         agent[self].original_flags
+    }
+
+    pub(crate) fn set_last_index(
+        self,
+        agent: &mut Agent,
+        last_index: RegExpLastIndex,
+        gc: NoGcScope,
+    ) -> bool {
+        debug_assert!(last_index.is_valid());
+        // If we're setting the last index and we have a backing object,
+        // then we set the value there first and observe the result.
+        if self.get_backing_object(agent).is_some() {
+            // Note: The lastIndex is an unconfigurable data property: It
+            // cannot be turned into a getter or setter and will thus never
+            // call into JavaScript.
+            let success = unwrap_try(ordinary_try_set(
+                agent,
+                self.into_object(),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                last_index.get_value().unwrap().into_value(),
+                self.into_value(),
+                None,
+                gc,
+            ))
+            .into_boolean()
+            .unwrap();
+            if success {
+                // We successfully set the value, so set it in our direct
+                // data as well.
+                agent[self].last_index = last_index;
+            }
+            success
+        } else {
+            // Note: lastIndex property is writable, so setting its value
+            // always succeeds. We can just set this directly here.
+            agent[self].last_index = last_index;
+            true
+        }
     }
 
     /// ### \[\[LastIndex]]

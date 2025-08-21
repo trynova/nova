@@ -12,7 +12,7 @@ use crate::{
                 call_function, construct, get, length_of_array_like, set, species_constructor,
                 try_create_data_property_or_throw, try_get,
             },
-            testing_and_comparison::is_callable,
+            testing_and_comparison::{is_callable, same_value},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
             },
@@ -1080,22 +1080,140 @@ impl RegExpPrototype {
         Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into_value())
     }
 
+    /// ### [22.2.6.12 RegExp.prototype \[ %Symbol.search% \] ( string )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.search%)
+    ///
+    /// The value of the "name" property of this method is "\[Symbol.search]".
+    ///
+    /// > NOTE: The "lastIndex" and "global" properties of this RegExp object are
+    /// > ignored when performing the search. The "lastIndex" property is left
+    /// > unchanged.
     fn search<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.search", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        // 1. Let rx be the this value.
+        let rx = this_value.bind(gc.nogc());
+        // 2. If rx is not an Object, throw a TypeError exception.
+        let Ok(rx) = Object::try_from(rx) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        let rx = rx.scope(agent, gc.nogc());
+        // 3. Let S be ? ToString(string).
+        let s = to_string(agent, string.unbind(), gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let previousLastIndex be ? Get(rx, "lastIndex").
+        let previous_last_index = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let scoped_previous_last_index = previous_last_index.scope(agent, gc.nogc());
+        // 5. If previousLastIndex is not +0𝔽, then
+        if previous_last_index != Number::pos_zero().into_value() {
+            // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
+            set(
+                agent,
+                rx.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                Number::pos_zero().into_value(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?;
+        }
+        // 6. Let result be ? RegExpExec(rx, S).
+        let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
+            .unbind()?
+            .map(|r| r.scope(agent, gc.nogc()));
+        // 7. Let currentLastIndex be ? Get(rx, "lastIndex").
+        let current_last_index = get(
+            agent,
+            rx.get(agent),
+            BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let previous_last_index = unsafe { scoped_previous_last_index.take(agent) }.bind(gc.nogc());
+        // 8. If SameValue(currentLastIndex, previousLastIndex) is false, then
+        if !same_value(agent, current_last_index, previous_last_index) {
+            // a. Perform ? Set(rx, "lastIndex", previousLastIndex, true).
+            set(
+                agent,
+                rx.get(agent),
+                BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
+                previous_last_index.unbind(),
+                true,
+                gc.reborrow(),
+            )
+            .unbind()?;
+        }
+        if let Some(result) = result.map(|r| unsafe { r.take(agent) }.bind(gc.nogc())) {
+            // 10. Return ? Get(result, "index").
+            get(
+                agent,
+                result.unbind(),
+                BUILTIN_STRING_MEMORY.index.to_property_key(),
+                gc,
+            )
+        } else {
+            // 9. If result is null, return -1𝔽.
+            Ok(Number::from(-1).into_value())
+        }
     }
 
+    /// ### [22.2.6.13 get RegExp.prototype.source](https://tc39.es/ecma262/#sec-get-regexp.prototype.source)
+    ///
+    /// RegExp.prototype.source is an accessor property whose set accessor
+    /// function is undefined.
     fn get_source<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("RegExp.prototype.source", gc.into_nogc()))
+        // 1. Let R be the this value.
+        let r = this_value.bind(gc.nogc());
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(r) else {
+            return Err(throw_not_an_object(agent, gc.into_nogc()));
+        };
+        // 3. If R does not have an [[OriginalSource]] internal slot, then
+        let Object::RegExp(r) = r else {
+            // a. If SameValue(R, %RegExp.prototype%) is true, return "(?:)".
+            if r == agent
+                .current_realm_record()
+                .intrinsics()
+                .reg_exp_prototype()
+                .into_object()
+            {
+                return Ok(String::from_small_string("(?:)").into_value());
+            }
+            // b. Otherwise, throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected RegExp object or %RegExp.prototype% intrinsic object",
+                gc.into_nogc(),
+            ));
+        };
+        // 4. Assert: R has an [[OriginalFlags]] internal slot.
+        // 5. Let src be R.[[OriginalSource]].
+        let src = r.original_source(agent);
+        // 6. Let flags be R.[[OriginalFlags]].
+        let flags = r.original_flags(agent);
+        if src.is_empty_string() {
+            Ok(String::from_small_string("(?:)").into_value())
+        } else {
+            // 7. Return EscapeRegExpPattern(src, flags).
+            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into_value())
+        }
     }
 
     /// ### [22.2.6.14 RegExp.prototype \[ %Symbol.split% \] ( string, limit )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.split%)
@@ -1660,4 +1778,73 @@ fn reg_exp_has_flag<'a>(
 
 fn throw_not_an_object<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<'a> {
     agent.throw_exception_with_static_message(ExceptionType::TypeError, "not an object", gc)
+}
+
+/// ### [22.2.6.13.1 EscapeRegExpPattern ( P, F )](https://tc39.es/ecma262/#sec-escaperegexppattern)
+///
+/// The abstract operation EscapeRegExpPattern takes arguments P (a String) and
+/// F (a String) and returns a String.
+///
+/// > NOTE: Despite having similar names, RegExp.escape and EscapeRegExpPattern
+/// > do not perform similar actions. The former escapes a string for
+/// > representation inside a pattern, while this function escapes a pattern
+/// > for representation as a string.
+fn escape_reg_exp_pattern<'a>(
+    agent: &mut Agent,
+    p: String,
+    f: RegExpFlags,
+    gc: NoGcScope<'a, '_>,
+) -> String<'a> {
+    // 1. If F contains "v", then
+    let _pattern_symbol = if f.contains(RegExpFlags::V) {
+        // a. Let patternSymbol be Pattern[+UnicodeMode, +UnicodeSetsMode].
+        true
+    } else if f.contains(RegExpFlags::U) {
+        // 2. Else if F contains "u", then
+        // a. Let patternSymbol be Pattern[+UnicodeMode, ~UnicodeSetsMode].
+        true
+    } else {
+        // 3. Else,
+        // a. Let patternSymbol be Pattern[~UnicodeMode, ~UnicodeSetsMode].
+        false
+    };
+    // 4. Let S be a String in the form of a patternSymbol equivalent to P
+    //    interpreted as UTF-16 encoded Unicode code points (6.1.4), in which
+    //    certain code points are escaped as described below. S may or may not
+    //    differ from P; however, the Abstract Closure that would result from
+    //    evaluating S as a patternSymbol must behave identically to the
+    //    Abstract Closure given by the constructed object's [[RegExpMatcher]]
+    //    internal slot. Multiple calls to this abstract operation using the
+    //    same values for P and F must produce identical results.
+    // 5. The code points / or any LineTerminator occurring in the pattern
+    //    shall be escaped in S as necessary to ensure that the
+    //    string-concatenation of "/", S, "/", and F can be parsed (in an
+    //    appropriate lexical context) as a RegularExpressionLiteral that
+    //    behaves identically to the constructed regular expression. For
+    //    example, if P is "/", then S could be "\/" or "\u002F", among other
+    //    possibilities, but not "/", because /// followed by F would be parsed
+    //    as a SingleLineComment rather than a RegularExpressionLiteral. If P
+    //    is the empty String, this specification can be met by letting S be
+    //    "(?:)".
+
+    let p_wtf8 = p.as_wtf8(agent);
+    let byte_length = p_wtf8.len();
+    let mut s = Wtf8Buf::with_capacity(byte_length + (byte_length >> 4));
+    for cp in p_wtf8.code_points() {
+        if let Some(c) = cp.to_char() {
+            match c {
+                '\u{0008}' => s.push_str("\\b"),
+                '\t' => s.push_str("\\t"),
+                '\n' => s.push_str("\\n"),
+                '\u{000C}' => s.push_str("\\f"),
+                '\u{000D}' => s.push_str("\\r"),
+                '/' => s.push_str("\\/"),
+                _ => s.push_char(c),
+            }
+        } else {
+            s.push(cp);
+        }
+    }
+    String::from_wtf8_buf(agent, s, gc)
+    // 6. Return S.
 }
