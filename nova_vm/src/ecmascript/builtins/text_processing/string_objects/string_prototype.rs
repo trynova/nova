@@ -1487,16 +1487,49 @@ impl StringPrototype {
         let scoped_search_value = search_value.scope(agent, nogc);
 
         // 2. If searchValue is an Object, then
-        if let Ok(search_value) = Object::try_from(search_value) {
+        if let Ok(mut search_value) = Object::try_from(search_value) {
             // a. Let isRegExp be ? IsRegExp(searchValue).
-            let is_reg_exp = false;
+            let is_reg_exp = is_reg_exp(agent, search_value.unbind().into_value(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+
+            // SAFETY: searchValue is an Object.
+            search_value = unsafe {
+                Object::try_from(scoped_search_value.get(agent).bind(gc.nogc())).unwrap_unchecked()
+            };
 
             // b. If isRegExp is true, then
             if is_reg_exp {
                 // i. Let flags be ? Get(searchValue, "flags").
+                let flags = get(
+                    agent,
+                    search_value.unbind(),
+                    BUILTIN_STRING_MEMORY.flags.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
                 // ii. Perform ? RequireObjectCoercible(flags).
-                // iii. If ? ToString(flags) does not contain "g", throw a TypeError exception.
-                todo!();
+                let flags = require_object_coercible(agent, flags, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // iii. If ? ToString(flags) does not contain "g",
+                let flags = to_string(agent, flags.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                if !flags.as_bytes(agent).contains(&b'g') {
+                    // throw a TypeError exception.
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "replaceAll must be called with a global RegExp",
+                        gc.into_nogc(),
+                    ));
+                }
+                // SAFETY: searchValue is an Object.
+                search_value = unsafe {
+                    Object::try_from(scoped_search_value.get(agent).bind(gc.nogc()))
+                        .unwrap_unchecked()
+                };
             }
 
             // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
