@@ -14,7 +14,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_array_from_list, get, get_method, get_object_method, invoke,
+                call_function, create_array_from_list, get, get_object_method, invoke,
             },
             testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
             type_conversion::{
@@ -1094,10 +1094,11 @@ impl StringPrototype {
             .unbind()?
             .bind(gc.nogc());
         let o = o.scope(agent, gc.nogc());
-        // 2. If regexp is neither undefined nor null, then
-        if !regexp.is_undefined() && !regexp.is_null() {
+        // See: https://github.com/tc39/ecma262/pull/3009
+        // 2. If regexp is an Object, then
+        if let Ok(regexp) = Object::try_from(regexp) {
             // a. Let matcher be ? GetMethod(regexp, %Symbol.match%).
-            let matcher = get_method(
+            let matcher = get_object_method(
                 agent,
                 regexp.unbind(),
                 WellKnownSymbolIndexes::Match.to_property_key(),
@@ -1366,6 +1367,7 @@ impl StringPrototype {
             .scope(agent, nogc);
 
         let scoped_search_value = search_value.scope(agent, nogc);
+        // See: https://github.com/tc39/ecma262/pull/3009
         // 2. If searchValue is an Object, then
         if let Ok(search_value) = Object::try_from(search_value) {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
@@ -1675,11 +1677,12 @@ impl StringPrototype {
             .unbind()?
             .bind(gc.nogc());
         let scoped_regexp = regexp.scope(agent, gc.nogc());
-        // 2. If regexp is neither undefined nor null, then
-        if !regexp.is_undefined() && !regexp.is_null() {
+        // See: https://github.com/tc39/ecma262/pull/3009
+        // 2. If regexp is an Object, then
+        if let Ok(regexp) = Object::try_from(regexp) {
             let scoped_o = o.scope(agent, gc.nogc());
             // a. Let searcher be ? GetMethod(regexp, %Symbol.search%).
-            let searcher = get_method(
+            let searcher = get_object_method(
                 agent,
                 regexp.unbind(),
                 WellKnownSymbolIndexes::Search.to_property_key(),
