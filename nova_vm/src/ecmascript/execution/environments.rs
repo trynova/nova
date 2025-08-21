@@ -1119,9 +1119,6 @@ impl Environments {
         &self,
         index: DeclarativeEnvironment,
     ) -> &DeclarativeEnvironmentRecord {
-        if self.declarative.get(index.into_index()).is_none() {
-            eprintln!("env: {index:?}");
-        }
         self.declarative
             .get(index.into_index())
             .expect("DeclarativeEnvironment did not match to any vector index")
