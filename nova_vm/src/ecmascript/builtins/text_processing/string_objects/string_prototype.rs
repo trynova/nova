@@ -1143,13 +1143,127 @@ impl StringPrototype {
         )
     }
 
+    /// ### [22.1.3.14 String.prototype.matchAll ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.matchall)
+    ///
+    /// This method performs a regular expression match of the String
+    /// representing the this value against regexp and returns an iterator that
+    /// yields match results. Each match result is an Array containing the
+    /// matched portion of the String as the first element, followed by the
+    /// portions matched by any capturing groups. If the regular expression
+    /// never matches, the returned iterator does not yield any match results.
+    ///
+    /// > NOTE 1: This method is intentionally generic, it does not require
+    /// > that its this value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
+    ///
+    /// > NOTE 2: Similarly to `String.prototype.split`,
+    /// > `String.prototype.matchAll` is designed to typically act without
+    /// > mutating its inputs.
     fn match_all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("String.prototype.matchAll", gc.into_nogc()))
+        let regexp = args.get(0).bind(gc.nogc());
+        let scoped_regexp = regexp.scope(agent, gc.nogc());
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value, gc.nogc())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // See: https://github.com/tc39/ecma262/pull/3009
+        // 2. If regexp is an Object, then
+        if let Ok(mut regexp) = Object::try_from(regexp) {
+            // a. Let isRegExp be ? IsRegExp(regexp).
+            let is_reg_exp = is_reg_exp(agent, regexp.unbind().into_value(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+
+            // SAFETY: regexp is an Object.
+            regexp = unsafe {
+                Object::try_from(scoped_regexp.get(agent).bind(gc.nogc())).unwrap_unchecked()
+            };
+
+            // b. If isRegExp is true, then
+            if is_reg_exp {
+                // i. Let flags be ? Get(regexp, "flags").
+                let flags = get(
+                    agent,
+                    regexp.unbind(),
+                    BUILTIN_STRING_MEMORY.flags.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                // ii. Perform ? RequireObjectCoercible(flags).
+                let flags = require_object_coercible(agent, flags, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
+                // iii. If ? ToString(flags) does not contain "g",
+                let flags = to_string(agent, flags.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+                if !flags.as_bytes(agent).contains(&b'g') {
+                    // throw a TypeError exception.
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "replaceAll must be called with a global RegExp",
+                        gc.into_nogc(),
+                    ));
+                }
+                // SAFETY: regexp is an Object.
+                regexp = unsafe {
+                    Object::try_from(scoped_regexp.get(agent).bind(gc.nogc())).unwrap_unchecked()
+                };
+            }
+            // c. Let matcher be ? GetMethod(regexp, %Symbol.matchAll%).
+            let matcher = get_object_method(
+                agent,
+                regexp.unbind(),
+                WellKnownSymbolIndexes::MatchAll.to_property_key(),
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc());
+            // d. If matcher is not undefined, then
+            if let Some(matcher) = matcher {
+                // i. Return ? Call(matcher, regexp, « O »).
+                return call_function(
+                    agent,
+                    matcher.unbind(),
+                    // SAFETY: not shared.
+                    unsafe { scoped_regexp.take(agent) },
+                    Some(ArgumentsList::from_mut_value(
+                        // SAFETY: not shared.
+                        &mut unsafe { o.take(agent) },
+                    )),
+                    gc,
+                );
+            }
+        }
+        // 3. Let S be ? ToString(O).
+        // SAFETY: not shared.
+        let s = to_string(agent, unsafe { o.take(agent) }, gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
+        // 4. Let rx be ? RegExpCreate(regexp, "g").
+        let rx = reg_exp_create(
+            agent,
+            scoped_regexp,
+            Some(String::from_small_string("g")),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        let s = unsafe { s.take(agent) }.bind(gc.nogc());
+        // 5. Return ? Invoke(rx, %Symbol.matchAll%, « S »).
+        invoke(
+            agent,
+            rx.into_value().unbind(),
+            WellKnownSymbolIndexes::MatchAll.to_property_key(),
+            Some(ArgumentsList::from_mut_value(&mut s.into_value().unbind())),
+            gc,
+        )
     }
 
     /// ### [22.1.3.15 String.prototype.normalize ( \[ form \] )](https://tc39.es/ecma262/#sec-string.prototype.normalize)
