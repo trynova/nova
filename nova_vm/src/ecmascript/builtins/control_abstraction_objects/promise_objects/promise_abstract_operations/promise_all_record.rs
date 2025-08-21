@@ -11,46 +11,43 @@ use crate::{
         execution::Agent,
         types::{IntoValue, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
 };
 
-pub(crate) type BuiltinPromiseAllRecordIndex<'a> = BaseIndex<'a, PromiseAllRecord<'static>>;
-bindable_handle!(BuiltinPromiseAllRecordIndex);
-
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseAllRecord<'a> {
-    pub remaining_unresolved_promise_count: u32,
+    pub(crate) remaining_unresolved_promise_count: u32,
     pub result_array: Array<'a>,
     pub promise: Promise<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseAll<'a>(pub(crate) BuiltinPromiseAllRecordIndex<'a>);
+pub struct PromiseAll<'a>(BaseIndex<'a, PromiseAllRecord<'static>>);
 
 impl<'a> PromiseAll<'a> {
     pub(crate) fn on_promise_fufilled(
-        &mut self,
+        self,
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
         gc: GcScope<'a, '_>,
     ) {
-        let promise_all_index = self.bind(gc.nogc());
+        let promise_all = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
 
         let result_array = {
-            let data = promise_all_index.get_mut(agent);
+            let data = promise_all.get_mut(agent);
             data.result_array.bind(gc.nogc())
         };
 
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
 
-        let data = promise_all_index.get_mut(agent);
+        let data = promise_all.get_mut(agent);
         data.remaining_unresolved_promise_count -= 1;
         if data.remaining_unresolved_promise_count == 0 {
             let capability = PromiseCapability::from_promise(data.promise, false);
@@ -62,7 +59,7 @@ impl<'a> PromiseAll<'a> {
         self.0.into_index()
     }
 
-    fn get(self, agent: &Agent) -> &PromiseAllRecord<'_> {
+    fn get(self, agent: &Agent) -> &PromiseAllRecord<'a> {
         agent
             .heap
             .promise_all_records
