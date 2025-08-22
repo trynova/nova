@@ -11,7 +11,7 @@ use crate::{
         execution::Agent,
         types::{IntoValue, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
@@ -116,20 +116,6 @@ impl HeapMarkAndSweep for PromiseAllRecord<'static> {
     }
 }
 
-unsafe impl Bindable for PromiseAllRecord<'_> {
-    type Of<'a> = PromiseAllRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
 impl HeapMarkAndSweep for PromiseAll<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.promise_all_records.push(*self);
@@ -140,19 +126,8 @@ impl HeapMarkAndSweep for PromiseAll<'static> {
     }
 }
 
-unsafe impl Bindable for PromiseAll<'_> {
-    type Of<'a> = PromiseAll<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseAllRecord);
+bindable_handle!(PromiseAll);
 
 impl<'a> CreateHeapData<PromiseAllRecord<'a>, PromiseAll<'a>> for Heap {
     fn create(&mut self, data: PromiseAllRecord<'a>) -> PromiseAll<'a> {
