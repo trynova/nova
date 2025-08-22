@@ -280,7 +280,7 @@ impl PromiseConstructor {
                 agent,
                 promise.unbind(),
                 PromiseReactionHandler::PromiseAll {
-                    index: index as u32,
+                    index,
                     promise_all: promise_all_record,
                 },
                 PromiseReactionHandler::Empty,
