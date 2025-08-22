@@ -39,10 +39,7 @@ impl<'a> PromiseAll<'a> {
         let promise_all = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
 
-        let result_array = {
-            let data = promise_all.get_mut(agent);
-            data.result_array.bind(gc.nogc())
-        };
+        let result_array = self.get_result_array(agent, gc.nogc());
 
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
@@ -53,6 +50,11 @@ impl<'a> PromiseAll<'a> {
             let capability = PromiseCapability::from_promise(data.promise, false);
             capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
+    }
+
+    pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
+        let data = self.get(agent);
+        data.result_array.bind(gc).unbind()
     }
 
     pub(crate) const fn get_index(self) -> usize {
