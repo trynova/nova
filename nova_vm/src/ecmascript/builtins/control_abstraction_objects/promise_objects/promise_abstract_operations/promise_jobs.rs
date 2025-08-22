@@ -294,7 +294,7 @@ impl PromiseReactionJob {
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
                         let arg_unbound = argument.unbind();
-                        promise_all.on_promise_fufilled(agent, index, arg_unbound, gc.reborrow());
+                        promise_all.on_promise_fulfilled(agent, index, arg_unbound, gc.reborrow());
                         (Ok(arg_unbound.bind(gc.nogc())), capability.bind(gc.nogc()))
                     }
                     PromiseReactionType::Reject => {

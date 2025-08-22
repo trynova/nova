@@ -29,7 +29,7 @@ pub struct PromiseAllRecord<'a> {
 pub struct PromiseAll<'a>(BaseIndex<'a, PromiseAllRecord<'static>>);
 
 impl<'a> PromiseAll<'a> {
-    pub(crate) fn on_promise_fufilled(
+    pub(crate) fn on_promise_fulfilled(
         self,
         agent: &mut Agent,
         index: u32,
