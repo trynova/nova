@@ -271,22 +271,20 @@ impl PromiseConstructor {
             let storage = promise_array.get_storage(agent);
             let element = storage.values[index as usize].bind(gc.nogc());
 
-            let capability = PromiseCapability::new(agent, gc.nogc()).bind(gc.nogc());
-            let Some(Value::Promise(promise)) = element else {
-                continue;
+            if let Some(Value::Promise(promise)) = element {
+                let capability = PromiseCapability::new(agent, gc.nogc()).bind(gc.nogc());
+                inner_promise_then(
+                    agent,
+                    promise.unbind(),
+                    PromiseReactionHandler::PromiseAll {
+                        index,
+                        promise_all: promise_all_record,
+                    },
+                    PromiseReactionHandler::Empty,
+                    Some(capability.unbind()),
+                    gc.nogc(),
+                );
             };
-
-            inner_promise_then(
-                agent,
-                promise.unbind(),
-                PromiseReactionHandler::PromiseAll {
-                    index,
-                    promise_all: promise_all_record,
-                },
-                PromiseReactionHandler::Empty,
-                Some(capability.unbind()),
-                gc.nogc(),
-            );
         }
 
         Ok(result_promise.unbind().into_value())
