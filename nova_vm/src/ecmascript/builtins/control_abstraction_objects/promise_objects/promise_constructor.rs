@@ -268,13 +268,11 @@ impl PromiseConstructor {
         });
 
         for index in 0..array_len {
-            let element = {
-                let promise_array_slice = promise_array.as_slice(agent);
-                promise_array_slice[index as usize]
-            };
+            let storage = promise_array.get_storage(agent);
+            let element = storage.values[index as usize].bind(gc.nogc());
 
-            let capability = PromiseCapability::new(agent, gc.nogc());
-            let Some(Value::Promise(promise)) = element.unbind() else {
+            let capability = PromiseCapability::new(agent, gc.nogc()).bind(gc.nogc());
+            let Some(Value::Promise(promise)) = element else {
                 continue;
             };
 
