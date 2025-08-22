@@ -244,8 +244,7 @@ impl PromiseConstructor {
         }
 
         let first_arg = arguments.get(0).bind(gc.nogc());
-
-        let Ok(promise_array) = Array::try_from(first_arg.unbind()) else {
+        let Ok(promise_array) = Array::try_from(first_arg.unbind()).bind(gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Expected an array of promises",
@@ -253,86 +252,44 @@ impl PromiseConstructor {
             ));
         };
 
-        let array_slice = promise_array.as_slice(agent);
-        if array_slice.is_empty() {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Array is empty",
-                gc.into_nogc(),
-            ));
-        }
-
-        let Some(first_element) = array_slice[0] else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "First element is None",
-                gc.into_nogc(),
-            ));
-        };
-
-        let Value::Promise(promise_to_await) = first_element.unbind() else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "First element is not a Promise",
-                gc.into_nogc(),
-            ));
-        };
-
-        let Some(second_element) = array_slice[1] else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Second element is None",
-                gc.into_nogc(),
-            ));
-        };
-        let Value::Promise(second_promise) = second_element.unbind() else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Second element is not a Promise",
-                gc.into_nogc(),
-            ));
-        };
-
+        let array_len = promise_array.len(agent);
         let result_capability = PromiseCapability::new(agent, gc.nogc());
-        let second_capability = PromiseCapability::new(agent, gc.nogc());
+        let result_promise = result_capability.promise().bind(gc.nogc());
 
-        let result_promise = PromiseCapability::new(agent, gc.nogc())
-            .promise()
-            .unbind()
-            .bind(gc.nogc());
-
-        let undefined_values = (vec![Value::Undefined.bind(gc.nogc()); 2]).bind(gc.nogc());
+        let undefined_values =
+            (vec![Value::Undefined.bind(gc.nogc()); array_len as usize]).bind(gc.nogc());
         let result_array =
             Array::from_slice(agent, &undefined_values.unbind(), gc.nogc()).bind(gc.nogc());
+
         let promise_all_record = agent.heap.create(PromiseAllRecord {
-            remaining_unresolved_promise_count: 2,
+            remaining_unresolved_promise_count: array_len,
             result_array: result_array.unbind(),
             promise: result_promise.unbind(),
         });
 
-        inner_promise_then(
-            agent,
-            promise_to_await.unbind(),
-            PromiseReactionHandler::PromiseAll {
-                index: 0,
-                promise_all: promise_all_record,
-            },
-            PromiseReactionHandler::Empty,
-            Some(result_capability.unbind()),
-            gc.nogc(),
-        );
+        for index in 0..array_len {
+            let element = {
+                let promise_array_slice = promise_array.as_slice(agent);
+                promise_array_slice[index as usize]
+            };
 
-        inner_promise_then(
-            agent,
-            second_promise.unbind(),
-            PromiseReactionHandler::PromiseAll {
-                index: 1,
-                promise_all: promise_all_record,
-            },
-            PromiseReactionHandler::Empty,
-            Some(second_capability.unbind()),
-            gc.nogc(),
-        );
+            let capability = PromiseCapability::new(agent, gc.nogc());
+            let Some(Value::Promise(promise)) = element.unbind() else {
+                continue;
+            };
+
+            inner_promise_then(
+                agent,
+                promise.unbind(),
+                PromiseReactionHandler::PromiseAll {
+                    index: index as u32,
+                    promise_all: promise_all_record,
+                },
+                PromiseReactionHandler::Empty,
+                Some(capability.unbind()),
+                gc.nogc(),
+            );
+        }
 
         Ok(result_promise.unbind().into_value())
     }
