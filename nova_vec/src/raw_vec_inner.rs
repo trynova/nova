@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{
-    alloc::{alloc_zeroed, handle_alloc_error, realloc, Layout, LayoutError},
-    cmp, hint,
+    alloc::{alloc_zeroed, realloc, Layout, LayoutError},
+    hint,
     marker::PhantomData,
     ptr::NonNull,
 };
@@ -24,7 +24,7 @@ impl<T: ?Sized> Unique<T> {
     ///
     /// `ptr` must be non-null.
     #[inline]
-    pub const unsafe fn new_unchecked(ptr: *mut T) -> Self {
+    pub const unsafe fn _new_unchecked(ptr: *mut T) -> Self {
         // SAFETY: the caller must guarantee that `ptr` is non-null.
         unsafe {
             Unique {
@@ -36,7 +36,7 @@ impl<T: ?Sized> Unique<T> {
 
     /// Creates a new `Unique` if `ptr` is non-null.
     #[inline]
-    pub fn new(ptr: *mut T) -> Option<Self> {
+    pub fn _new(ptr: *mut T) -> Option<Self> {
         if let Some(pointer) = NonNull::new(ptr) {
             Some(Unique {
                 pointer,
@@ -61,7 +61,7 @@ impl<T: ?Sized> Unique<T> {
     /// (unbound) lifetime is needed, use `&*my_ptr.as_ptr()`.
     #[must_use]
     #[inline]
-    pub const unsafe fn as_ref(&self) -> &T {
+    pub const unsafe fn _as_ref(&self) -> &T {
         // SAFETY: the caller must guarantee that `self` meets all the
         // requirements for a reference.
         unsafe { self.pointer.as_ref() }
@@ -74,7 +74,7 @@ impl<T: ?Sized> Unique<T> {
     /// (unbound) lifetime is needed, use `&mut *my_ptr.as_ptr()`.
     #[must_use]
     #[inline]
-    pub unsafe fn as_mut(&mut self) -> &mut T {
+    pub unsafe fn _as_mut(&mut self) -> &mut T {
         // SAFETY: the caller must guarantee that `self` meets all the
         // requirements for a mutable reference.
         unsafe { self.pointer.as_mut() }
@@ -83,10 +83,10 @@ impl<T: ?Sized> Unique<T> {
     /// Casts to a pointer of another type.
     #[must_use = "`self` will be dropped if the result is not used"]
     #[inline]
-    pub const fn cast<U>(self) -> Unique<U> {
+    pub const fn _cast<U>(self) -> Unique<U> {
         // FIXME(const-hack): replace with `From`
         // SAFETY: is `NonNull`
-        unsafe { Unique::new_unchecked(self.pointer.cast().as_ptr()) }
+        unsafe { Unique::_new_unchecked(self.pointer.cast().as_ptr()) }
     }
 }
 
@@ -134,119 +134,124 @@ impl<T: ?Sized> From<NonNull<T>> for Unique<T> {
     }
 }
 
-#[repr(C, packed)]
-pub(crate) struct NovaRawVecInner {
+#[repr(transparent)]
+#[derive(Debug)]
+pub(crate) struct RawSoAVecInner {
     ptr: Unique<u8>,
-    cap: u32,
 }
 
-impl NovaRawVecInner {
-    #[must_use]
-    pub(crate) const fn new<T>() -> Self {
-        let align = core::mem::align_of::<T>();
-        if align <= u32::MAX as usize {
-            Self::new_in(core::mem::align_of::<T>())
-        } else {
-            panic!("Struct align is too large")
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum AllocError {
+    CapacityOverflow,
+    AllocationFailure,
+    LayoutError(LayoutError),
+}
+
+impl RawSoAVecInner {
+    // #[must_use]
+    // pub(crate) const fn new<T>() -> Result<Self, AllocError> {
+    //     let align = core::mem::align_of::<T>();
+    //     if align <= u32::MAX as usize {
+    //         Ok(Self::new_in(core::mem::align_of::<T>()))
+    //     } else {
+    //         Err(AllocError::CapacityOverflow)
+    //     }
+    // }
 
     #[inline]
     const fn new_in(align: usize) -> Self {
         let ptr = unsafe { core::mem::transmute(align) };
         // `cap: 0` means "unallocated". zero-sized types are ignored.
-        Self { ptr, cap: 0 }
+        Self { ptr }
     }
 
     #[must_use]
     #[inline]
-    pub(crate) fn with_capacity(capacity: u32, elem_layout: Layout) -> Self {
-        let Ok(layout) = layout_array(capacity, elem_layout) else {
-            capacity_overflow()
-        };
-
+    pub(crate) fn with_layout(layout: Layout) -> Result<Self, AllocError> {
         // Don't allocate here because `Drop` will not deallocate when `capacity` is 0.
         if layout.size() == 0 {
-            return Self::new_in(elem_layout.align());
+            return Ok(Self::new_in(layout.align()));
         }
 
         if let Err(_) = alloc_guard(layout.size()) {
-            capacity_overflow()
+            return Err(AllocError::AllocationFailure);
         }
 
         // SAFETY: Checked size and alignment.
         let result = unsafe { alloc_zeroed(layout) };
         let ptr = match NonNull::new(result) {
             Some(ptr) => ptr,
-            None => handle_alloc_error(layout),
+            None => return Err(AllocError::AllocationFailure),
         };
 
         // Allocators currently return a `NonNull<[u8]>` whose length
         // matches the size requested. If that ever changes, the capacity
         // here should change to `ptr.len() / mem::size_of::<T>()`.
-        Self {
-            ptr: Unique::from(ptr.cast()),
-            cap: capacity,
-        }
+        Ok(Self {
+            ptr: Unique::from(ptr),
+        })
     }
 
-    #[cold]
-    pub(crate) fn grow_amortized(&mut self, len: u32, additional: u32, elem_layout: Layout) {
-        // This is ensured by the calling contexts.
-        debug_assert!(additional > 0);
+    // #[must_use]
+    // #[inline]
+    // fn _with_capacity(capacity: u32, elem_layout: Layout) -> Self {
+    //     let Ok(layout) = layout_array(capacity, elem_layout) else {
+    //         capacity_overflow()
+    //     };
 
-        if elem_layout.size() == 0 {
-            // Since we return a capacity of `usize::MAX` when `elem_size` is
+    //     // Don't allocate here because `Drop` will not deallocate when `capacity` is 0.
+    //     if layout.size() == 0 {
+    //         return Self::new_in(elem_layout.align());
+    //     }
+
+    //     if let Err(_) = alloc_guard(layout.size()) {
+    //         capacity_overflow()
+    //     }
+
+    //     // SAFETY: Checked size and alignment.
+    //     let result = unsafe { alloc_zeroed(layout) };
+    //     let ptr = match NonNull::new(result) {
+    //         Some(ptr) => ptr,
+    //         None => handle_alloc_error(layout),
+    //     };
+
+    //     // Allocators currently return a `NonNull<[u8]>` whose length
+    //     // matches the size requested. If that ever changes, the capacity
+    //     // here should change to `ptr.len() / mem::size_of::<T>()`.
+    //     Self {
+    //         ptr: Unique::from(ptr.cast()),
+    //         cap: capacity,
+    //     }
+    // }
+
+    #[cold]
+    pub(crate) fn grow_amortized_inner(
+        &mut self,
+        new_layout: Layout,
+        old_layout: Option<Layout>,
+    ) -> Result<(), AllocError> {
+        if new_layout.size() == 0 {
+            // Since we return a capacity of `u32::MAX` when `elem_size` is
             // 0, getting to here necessarily means the `RawVec` is overfull.
-            capacity_overflow();
+            return Err(AllocError::CapacityOverflow);
         }
 
-        // Nothing we can really do about these checks, sadly.
-        let Some(required_cap) = len.checked_add(additional) else {
-            capacity_overflow()
+        let Some(ptr) = finish_grow(new_layout, old_layout.map(|l| (self.ptr.pointer, l))) else {
+            return Err(AllocError::AllocationFailure);
         };
+        // SAFETY: finish_grow would have resulted in a capacity overflow if we
+        // tried to allocate more than `isize::MAX` items
 
-        // This guarantees exponential growth. The doubling cannot overflow
-        // because `cap <= isize::MAX` and the type of `cap` is `usize`.
-        let cap = cmp::max(self.cap * 2, required_cap);
-        let cap = cmp::max(min_non_zero_cap(elem_layout.size()), cap);
-
-        let Ok(new_layout) = layout_array(cap, elem_layout) else {
-            capacity_overflow()
-        };
-
-        let Some(ptr) = finish_grow(new_layout, self.current_memory(elem_layout)) else {
-            capacity_overflow()
-        };
-        // SAFETY: finish_grow would have resulted in a capacity overflow if we tried to allocate more than `isize::MAX` items
-
-        unsafe { self.set_ptr_and_cap(ptr, cap) };
+        unsafe { self.set_ptr(ptr) };
+        Ok(())
     }
 
     #[inline]
-    unsafe fn set_ptr_and_cap(&mut self, ptr: NonNull<u8>, cap: u32) {
+    unsafe fn set_ptr(&mut self, ptr: NonNull<u8>) {
         // Allocators currently return a `NonNull<[u8]>` whose length matches
         // the size requested. If that ever changes, the capacity here should
         // change to `ptr.len() / mem::size_of::<T>()`.
         self.ptr = Unique::from(ptr.cast());
-        self.cap = cap;
-    }
-
-    #[inline]
-    fn current_memory(&self, elem_layout: Layout) -> Option<(NonNull<u8>, Layout)> {
-        if elem_layout.size() == 0 || self.cap == 0 {
-            None
-        } else {
-            // We could use Layout::array here which ensures the absence of isize and usize overflows
-            // and could hypothetically handle differences between stride and size, but this memory
-            // has already been allocated so we know it can't overflow and currently Rust does not
-            // support such types. So we can do better by skipping some checks and avoid an unwrap.
-            unsafe {
-                let alloc_size = elem_layout.size().unchecked_mul(self.cap as usize);
-                let layout = Layout::from_size_align_unchecked(alloc_size, elem_layout.align());
-                Some((self.ptr.pointer, layout))
-            }
-        }
     }
 
     /// # Safety
@@ -256,28 +261,16 @@ impl NovaRawVecInner {
     /// after this function returns.
     /// Ideally this function would take `self` by move, but it cannot because it exists to be
     /// called from a `Drop` impl.
-    pub(crate) unsafe fn deallocate(&mut self, elem_layout: Layout) {
-        if let Some((mut ptr, layout)) = self.current_memory(elem_layout) {
-            unsafe {
-                std::alloc::dealloc(ptr.as_mut(), layout);
-            }
+    pub(crate) unsafe fn deallocate(&mut self, layout: Layout) {
+        unsafe {
+            std::alloc::dealloc(self.ptr.as_ptr(), layout);
         }
     }
 
     #[inline]
-    pub(crate) const fn capacity(&self) -> u32 {
-        self.cap
+    pub(crate) const fn ptr(&self) -> NonNull<u8> {
+        self.ptr.pointer
     }
-}
-
-#[inline]
-fn layout_array(cap: u32, elem_layout: Layout) -> Result<Layout, LayoutError> {
-    Layout::from_size_align(elem_layout.size() * cap as usize, elem_layout.align())
-}
-
-#[inline(never)]
-fn capacity_overflow() -> ! {
-    panic!("capacity overflow");
 }
 
 #[inline]
@@ -286,16 +279,6 @@ fn alloc_guard(alloc_size: usize) -> Result<(), ()> {
         Err(())
     } else {
         Ok(())
-    }
-}
-
-const fn min_non_zero_cap(size: usize) -> u32 {
-    if size == 1 {
-        8
-    } else if size <= 1024 {
-        4
-    } else {
-        1
     }
 }
 
@@ -308,12 +291,12 @@ fn finish_grow(
         return None;
     }
 
-    let memory = if let Some((mut ptr, old_layout)) = current_memory {
+    let memory = if let Some((ptr, old_layout)) = current_memory {
         debug_assert_eq!(old_layout.align(), new_layout.align());
         unsafe {
             // The allocator checks for alignment equality
             hint::assert_unchecked(old_layout.align() == new_layout.align());
-            realloc(ptr.as_mut(), old_layout, new_layout.size())
+            realloc(ptr.as_ptr(), old_layout, new_layout.size())
         }
     } else {
         unsafe { std::alloc::alloc(new_layout) }
