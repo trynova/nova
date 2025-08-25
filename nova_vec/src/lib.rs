@@ -202,4 +202,105 @@ mod tests {
         debug_assert_eq!(first.b, 2);
         debug_assert_eq!(first.c, 255);
     }
+
+    #[test]
+    fn basic_usage_with_zst() {
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Foo {
+            b: u32,
+            a: (),
+        }
+
+        impl SoAble for Foo {
+            type TupleRepr = (u32, ());
+
+            fn to_tuple(value: Self) -> Self::TupleRepr {
+                let Self { a, b } = value;
+                (b, a)
+            }
+
+            fn from_tuple(value: Self::TupleRepr) -> Self {
+                let (b, a) = value;
+                Self { b, a }
+            }
+        }
+
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Bar {
+            c: u8,
+            b: (),
+            a: u64,
+        }
+
+        impl SoAble for Bar {
+            type TupleRepr = (u8, (), u64);
+
+            fn to_tuple(value: Self) -> Self::TupleRepr {
+                let Self { c, b, a } = value;
+                (c, b, a)
+            }
+
+            fn from_tuple(value: Self::TupleRepr) -> Self {
+                let (c, b, a) = value;
+                Self { c, b, a }
+            }
+        }
+
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Baz {
+            c: (),
+            b: (),
+            a: (),
+        }
+
+        impl SoAble for Baz {
+            type TupleRepr = ((), (), ());
+
+            fn to_tuple(value: Self) -> Self::TupleRepr {
+                let Self { c, b, a } = value;
+                (c, b, a)
+            }
+
+            fn from_tuple(value: Self::TupleRepr) -> Self {
+                let (c, b, a) = value;
+                Self { c, b, a }
+            }
+        }
+
+        let mut foo = SoAVec::<Foo>::with_capacity(5).unwrap();
+        foo.reserve(9).unwrap();
+        foo.push(Foo { a: (), b: 2 }).unwrap();
+        let first = foo.get_cloned(0).unwrap();
+        debug_assert_eq!(first.a, ());
+        debug_assert_eq!(first.b, 2);
+
+        let mut bar = SoAVec::<Bar>::with_capacity(7).unwrap();
+        bar.reserve(11).unwrap();
+        bar.push(Bar {
+            a: 0,
+            b: (),
+            c: 255,
+        })
+        .unwrap();
+        let first = bar.get_cloned(0).unwrap();
+        debug_assert_eq!(first.a, 0);
+        debug_assert_eq!(first.b, ());
+        debug_assert_eq!(first.c, 255);
+
+        let mut baz = SoAVec::<Baz>::with_capacity(7).unwrap();
+        baz.reserve(11).unwrap();
+        baz.push(Baz {
+            a: (),
+            b: (),
+            c: (),
+        })
+        .unwrap();
+        let first = baz.get_cloned(0).unwrap();
+        debug_assert_eq!(first.a, ());
+        debug_assert_eq!(first.b, ());
+        debug_assert_eq!(first.c, ());
+    }
 }

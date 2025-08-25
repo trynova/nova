@@ -22,11 +22,7 @@ impl<T: SoAble> Drop for RawSoAVec<T> {
         // SAFETY: Drop
         unsafe {
             let capacity = self.capacity();
-            if capacity > 0 {
-                eprintln!(
-                    "Drop layout: {:?}",
-                    T::TupleRepr::layout(capacity).unwrap_unchecked()
-                );
+            if capacity > 0 && size_of::<T>() > 0 {
                 self.inner
                     .deallocate(T::TupleRepr::layout(capacity).unwrap_unchecked())
             }
@@ -37,7 +33,11 @@ impl<T: SoAble> Drop for RawSoAVec<T> {
 impl<T: SoAble> RawSoAVec<T> {
     #[inline(always)]
     pub(crate) fn capacity(&self) -> u32 {
-        self.cap
+        if size_of::<T>() == 0 {
+            u32::MAX
+        } else {
+            self.cap
+        }
     }
 
     #[inline(always)]
@@ -55,7 +55,7 @@ impl<T: SoAble> RawSoAVec<T> {
             inner: RawSoAVecInner::with_layout(
                 T::TupleRepr::layout(capacity).map_err(AllocError::LayoutError)?,
             )?,
-            cap: capacity,
+            cap: if size_of::<T>() == 0 { 0 } else { capacity },
             len: 0,
             marker: PhantomData,
         })
@@ -87,7 +87,6 @@ impl<T: SoAble> RawSoAVec<T> {
         );
 
         let new_layout = T::TupleRepr::layout(cap).map_err(AllocError::LayoutError)?;
-        eprintln!("New layout: {new_layout:?}");
 
         if new_layout.size() == 0 {
             // Since we return a capacity of `usize::MAX` when `elem_size` is

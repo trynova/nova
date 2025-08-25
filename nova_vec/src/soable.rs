@@ -165,8 +165,6 @@ impl<T, U, V> SoATuple for (T, U, V) {
                 .unwrap_unchecked()
                 .pad_to_align()
         };
-        eprintln!("New T layout: {new_t_layout_padded_to_u:?}");
-        eprintln!("New U layout: {new_u_layout_padded_to_v:?}");
         let old_u_ptr = ptr
             .byte_offset(old_t_layout_padded_to_u.size() as isize)
             .cast::<U>();
