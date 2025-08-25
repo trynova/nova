@@ -13,7 +13,7 @@ pub trait SoAble {
 pub trait SoATuple {
     fn layout(capacity: u32) -> Result<Layout, LayoutError>;
 
-    unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32);
+    unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32);
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32);
 
@@ -28,28 +28,18 @@ impl<T, U> SoATuple for (T, U) {
             .pad_to_align())
     }
 
-    unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32) {
-        if old_capacity == 0 {
+    unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32) {
+        if size_of::<Self>() == 0 || len == 0 {
             return;
         }
         debug_assert!(ptr.cast::<Self>().is_aligned());
         debug_assert!(old_capacity < new_capacity);
         // SAFETY: old allocation; the layout has been checked.
-        let old_t_layout_aligned = unsafe {
-            layout_array(old_capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
+        let old_t_layout_aligned =
+            unsafe { layout_array_align_to_next_field::<T, U>(old_capacity).unwrap_unchecked() };
         // SAFETY: new allocation; the layout has been checked.
-        let new_t_layout_aligned = unsafe {
-            layout_array(new_capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
+        let new_t_layout_aligned =
+            unsafe { layout_array_align_to_next_field::<T, U>(new_capacity).unwrap_unchecked() };
         let old_u_ptr = ptr
             .byte_offset(old_t_layout_aligned.size() as isize)
             .cast::<U>();
@@ -58,31 +48,25 @@ impl<T, U> SoATuple for (T, U) {
             .byte_offset(new_t_layout_aligned.size() as isize)
             .cast::<U>();
         debug_assert!(new_u_ptr.is_aligned());
-        // SAFETY: old data is located at old_u_ptr and its length is old_capacity
+        // SAFETY: old data is located at old_u_ptr and its length is len
         unsafe {
-            // Write old data to new allocation area.
-            core::ptr::copy(
-                old_u_ptr.as_ptr(),
-                new_u_ptr.as_ptr(),
-                old_capacity as usize,
-            );
+            // Copy old data to new allocation area.
+            core::ptr::copy(old_u_ptr.as_ptr(), new_u_ptr.as_ptr(), len as usize);
             // Zero out the old data.
-            old_u_ptr.write_bytes(0, old_capacity as usize);
+            old_u_ptr.write_bytes(0, len as usize);
         };
     }
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32) {
+        if size_of::<Self>() == 0 {
+            return;
+        }
         debug_assert!(ptr.cast::<Self>().is_aligned());
         // SAFETY: old allocation; the layout has been checked.
-        let t_layout_aligned = unsafe {
-            layout_array(capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
-        let t_ptr = ptr.cast::<T>().offset(len as isize);
+        let t_layout_aligned =
+            unsafe { layout_array_align_to_next_field::<T, U>(capacity).unwrap_unchecked() };
 
+        let t_ptr = ptr.cast::<T>().offset(len as isize);
         let u_ptr = ptr
             .byte_offset(t_layout_aligned.size() as isize)
             .cast::<U>()
@@ -95,13 +79,8 @@ impl<T, U> SoATuple for (T, U) {
     unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         // SAFETY: old allocation; the layout has been checked.
-        let t_layout_aligned = unsafe {
-            layout_array(capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
+        let t_layout_aligned =
+            unsafe { layout_array_align_to_next_field::<T, U>(capacity).unwrap_unchecked() };
         let t_ptr = ptr.cast::<T>().offset(index as isize);
 
         let u_ptr = ptr
@@ -123,47 +102,27 @@ impl<T, U, V> SoATuple for (T, U, V) {
             .pad_to_align())
     }
 
-    unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32) {
-        if old_capacity == 0 {
+    unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32) {
+        if size_of::<Self>() == 0 || len == 0 {
             return;
         }
         debug_assert!(ptr.cast::<Self>().is_aligned());
         debug_assert!(old_capacity < new_capacity);
         // SAFETY: old allocation; the layout has been checked.
-        let old_t_layout_padded_to_u = unsafe {
-            layout_array(old_capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
-        // SAFETY: new allocation; the layout has been checked.
-        let new_t_layout_padded_to_u = unsafe {
-            layout_array(new_capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
+        let old_t_layout_padded_to_u =
+            unsafe { layout_array_align_to_next_field::<T, U>(old_capacity).unwrap_unchecked() };
         // SAFETY: old allocation; the layout has been checked.
         let old_u_layout_padded_to_v = unsafe {
-            old_t_layout_padded_to_u
-                .extend(layout_array(old_capacity, Layout::new::<U>()).unwrap_unchecked())
+            extend_layout_array_align_to_next_field::<U, V>(old_t_layout_padded_to_u, old_capacity)
                 .unwrap_unchecked()
-                .0
-                .align_to(core::mem::align_of::<V>())
-                .unwrap_unchecked()
-                .pad_to_align()
         };
         // SAFETY: new allocation; the layout has been checked.
+        let new_t_layout_padded_to_u =
+            unsafe { layout_array_align_to_next_field::<T, U>(new_capacity).unwrap_unchecked() };
+        // SAFETY: new allocation; the layout has been checked.
         let new_u_layout_padded_to_v = unsafe {
-            new_t_layout_padded_to_u
-                .extend(layout_array(new_capacity, Layout::new::<U>()).unwrap_unchecked())
+            extend_layout_array_align_to_next_field::<U, V>(new_t_layout_padded_to_u, new_capacity)
                 .unwrap_unchecked()
-                .0
-                .align_to(core::mem::align_of::<V>())
-                .unwrap_unchecked()
-                .pad_to_align()
         };
         let old_u_ptr = ptr
             .byte_offset(old_t_layout_padded_to_u.size() as isize)
@@ -181,44 +140,28 @@ impl<T, U, V> SoATuple for (T, U, V) {
             .byte_offset(new_u_layout_padded_to_v.size() as isize)
             .cast::<V>();
         debug_assert!(new_v_ptr.is_aligned());
-        // SAFETY: old data is located at old_u_ptr and its length is old_capacity
+        // SAFETY: old data is located at old_*_ptr and its length is len
         unsafe {
-            core::ptr::copy(
-                old_v_ptr.as_ptr(),
-                new_v_ptr.as_ptr(),
-                old_capacity as usize,
-            );
-            old_v_ptr.write_bytes(0, old_capacity as usize);
-            // Write old data to new allocation area.
-            core::ptr::copy(
-                old_u_ptr.as_ptr(),
-                new_u_ptr.as_ptr(),
-                old_capacity as usize,
-            );
+            // Copy old data to new allocation area.
+            core::ptr::copy(old_v_ptr.as_ptr(), new_v_ptr.as_ptr(), len as usize);
             // Zero out the old data.
-            old_u_ptr.write_bytes(0, old_capacity as usize);
+            old_v_ptr.write_bytes(0, len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(old_u_ptr.as_ptr(), new_u_ptr.as_ptr(), len as usize);
+            // Zero out the old data.
+            old_u_ptr.write_bytes(0, len as usize);
         };
     }
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32) {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         // SAFETY: old allocation; the layout has been checked.
-        let t_layout_padded_to_u = unsafe {
-            layout_array(capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
+        let t_layout_padded_to_u =
+            unsafe { layout_array_align_to_next_field::<T, U>(capacity).unwrap_unchecked() };
         // SAFETY: old allocation; the layout has been checked.
         let u_layout_padded_to_v = unsafe {
-            t_layout_padded_to_u
-                .extend(layout_array(capacity, Layout::new::<U>()).unwrap_unchecked())
+            extend_layout_array_align_to_next_field::<U, V>(t_layout_padded_to_u, capacity)
                 .unwrap_unchecked()
-                .0
-                .align_to(core::mem::align_of::<V>())
-                .unwrap_unchecked()
-                .pad_to_align()
         };
         let t_ptr = ptr.cast::<T>().offset(len as isize);
 
@@ -240,33 +183,23 @@ impl<T, U, V> SoATuple for (T, U, V) {
     unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         // SAFETY: old allocation; the layout has been checked.
-        let t_layout_aligned = unsafe {
-            layout_array(capacity, Layout::new::<T>())
-                .unwrap_unchecked()
-                .align_to(core::mem::align_of::<U>())
-                .unwrap_unchecked()
-                .pad_to_align()
-        };
+        let t_layout_padded_to_u =
+            unsafe { layout_array_align_to_next_field::<T, U>(capacity).unwrap_unchecked() };
         // SAFETY: old allocation; the layout has been checked.
-        let u_layout_aligned = unsafe {
-            t_layout_aligned
-                .extend(layout_array(capacity, Layout::new::<U>()).unwrap_unchecked())
+        let u_layout_padded_to_v = unsafe {
+            extend_layout_array_align_to_next_field::<U, V>(t_layout_padded_to_u, capacity)
                 .unwrap_unchecked()
-                .0
-                .align_to(core::mem::align_of::<V>())
-                .unwrap_unchecked()
-                .pad_to_align()
         };
 
         let t_ptr = ptr.cast::<T>().offset(index as isize);
         debug_assert!(t_ptr.is_aligned());
         let u_ptr = ptr
-            .byte_offset(t_layout_aligned.size() as isize)
+            .byte_offset(t_layout_padded_to_u.size() as isize)
             .cast::<U>()
             .offset(index as isize);
         debug_assert!(u_ptr.is_aligned());
         let v_ptr = ptr
-            .byte_offset(u_layout_aligned.size() as isize)
+            .byte_offset(u_layout_padded_to_v.size() as isize)
             .cast::<V>()
             .offset(index as isize);
         debug_assert!(v_ptr.is_aligned());
@@ -274,6 +207,26 @@ impl<T, U, V> SoATuple for (T, U, V) {
         debug_assert!(u_ptr.is_aligned());
         (t_ptr.read(), u_ptr.read(), v_ptr.read())
     }
+}
+
+#[inline]
+fn layout_array_align_to_next_field<T, U>(cap: u32) -> Result<Layout, LayoutError> {
+    Ok(
+        Layout::from_size_align(size_of::<T>().saturating_mul(cap as usize), align_of::<T>())?
+            .align_to(align_of::<U>())?
+            .pad_to_align(),
+    )
+}
+
+fn extend_layout_array_align_to_next_field<T, U>(
+    layout: Layout,
+    cap: u32,
+) -> Result<Layout, LayoutError> {
+    Ok(layout
+        .extend(layout_array(cap, Layout::new::<T>())?)?
+        .0
+        .align_to(core::mem::align_of::<U>())?
+        .pad_to_align())
 }
 
 #[inline]

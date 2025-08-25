@@ -97,7 +97,7 @@ impl<T: SoAble> RawSoAVec<T> {
         let old_cap = self.capacity();
         self.inner
             .grow_amortized_inner(new_layout, self.current_memory())?;
-        unsafe { T::TupleRepr::grow(self.inner.ptr(), cap, old_cap) };
+        unsafe { T::TupleRepr::grow(self.inner.ptr(), cap, old_cap, self.len) };
         self.cap = cap;
         Ok(())
     }
