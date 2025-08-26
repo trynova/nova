@@ -1,13 +1,44 @@
 use std::{
     alloc::{Layout, LayoutError},
+    marker::PhantomData,
     ptr::NonNull,
 };
 
 pub trait SoAble: Sized {
     type TupleRepr: SoATuple;
+    type RefTuple<'a>: Copy
+    where
+        Self: 'a;
+    type MutTuple<'a>
+    where
+        Self: 'a;
+    type SliceTuple<'a>: Copy
+    where
+        Self: 'a;
+    type SliceMutTuple<'a>
+    where
+        Self: 'a;
 
-    fn to_tuple(value: Self) -> Self::TupleRepr;
+    fn into_tuple(value: Self) -> Self::TupleRepr;
     fn from_tuple(value: Self::TupleRepr) -> Self;
+    fn as_ref<'a>(
+        _: PhantomData<&'a Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+    ) -> Self::RefTuple<'a>;
+    fn as_mut<'a>(
+        _: PhantomData<&'a mut Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+    ) -> Self::MutTuple<'a>;
+    fn as_slice<'a>(
+        _: PhantomData<&'a Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+        len: u32,
+    ) -> Self::SliceTuple<'a>;
+    fn as_mut_slice<'a>(
+        _: PhantomData<&'a mut Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+        len: u32,
+    ) -> Self::SliceMutTuple<'a>;
 }
 
 pub trait SoATuple {
@@ -419,62 +450,4 @@ fn extend_layout_array<T>(layout: Layout, cap: u32) -> Result<(Layout, usize), L
 fn layout_array<T>(cap: u32) -> Result<Layout, LayoutError> {
     let elem_layout = Layout::new::<T>();
     Layout::from_size_align(elem_layout.size() * cap as usize, elem_layout.align())
-}
-
-pub trait So2A: SoATuple {
-    type First;
-    type Second;
-
-    unsafe fn ptrs(
-        ptr: NonNull<u8>,
-        index: u32,
-        capacity: u32,
-    ) -> (NonNull<Self::First>, NonNull<Self::Second>);
-}
-impl<T, U> So2A for (T, U) {
-    type First = T;
-    type Second = U;
-
-    #[inline]
-    unsafe fn ptrs(
-        ptr: NonNull<u8>,
-        index: u32,
-        capacity: u32,
-    ) -> (NonNull<Self::First>, NonNull<Self::Second>) {
-        Self::get_pointers(ptr, index, capacity)
-    }
-}
-
-pub trait So3A: SoATuple {
-    type First;
-    type Second;
-    type Third;
-
-    unsafe fn ptrs(
-        ptr: NonNull<u8>,
-        index: u32,
-        capacity: u32,
-    ) -> (
-        NonNull<Self::First>,
-        NonNull<Self::Second>,
-        NonNull<Self::Third>,
-    );
-}
-impl<T, U, V> So3A for (T, U, V) {
-    type First = T;
-    type Second = U;
-    type Third = V;
-
-    #[inline]
-    unsafe fn ptrs(
-        ptr: NonNull<u8>,
-        index: u32,
-        capacity: u32,
-    ) -> (
-        NonNull<Self::First>,
-        NonNull<Self::Second>,
-        NonNull<Self::Third>,
-    ) {
-        Self::get_pointers(ptr, index, capacity)
-    }
 }
