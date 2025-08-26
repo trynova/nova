@@ -3,15 +3,38 @@ use std::{
     ptr::NonNull,
 };
 
-pub trait SoAble {
+pub trait SoAble: Sized {
     type TupleRepr: SoATuple;
 
     fn to_tuple(value: Self) -> Self::TupleRepr;
     fn from_tuple(value: Self::TupleRepr) -> Self;
 }
 
+impl<T, U> SoAble for (T, U) {
+    type TupleRepr = Self;
+
+    fn to_tuple(value: Self) -> Self::TupleRepr {
+        value
+    }
+
+    fn from_tuple(value: Self::TupleRepr) -> Self {
+        value
+    }
+}
+
 pub trait SoATuple {
     type Offsets: Copy;
+    type Pointers: Copy;
+
+    // #[allow(unused_variables)]
+    // fn phantom_get<'a>(soa: &'a NonNull<u8>) -> PhantomData<Self::Ref<'a>> {
+    //     unreachable!()
+    // }
+
+    // #[allow(unused_variables)]
+    // fn phantom_get_mut<'a>(soa: &'a mut NonNull<u8>) -> PhantomData<Self::Mut<'a>> {
+    //     unreachable!()
+    // }
 
     fn layout(capacity: u32) -> Result<Layout, LayoutError>;
 
@@ -21,11 +44,12 @@ pub trait SoATuple {
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32);
 
-    unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self;
+    unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers;
 }
 
 impl<T, U> SoATuple for (T, U) {
     type Offsets = usize;
+    type Pointers = (NonNull<T>, NonNull<U>);
 
     fn layout(capacity: u32) -> Result<Layout, LayoutError> {
         Ok(layout_array::<T>(capacity)?
@@ -83,7 +107,7 @@ impl<T, U> SoATuple for (T, U) {
         u_ptr.write(data.1);
     }
 
-    unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+    unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         let u_offset = Self::get_offsets(capacity);
 
@@ -92,12 +116,13 @@ impl<T, U> SoATuple for (T, U) {
         let u_ptr = ptr.byte_add(u_offset).cast::<U>().add(index as usize);
         debug_assert!(u_ptr.is_aligned());
 
-        (t_ptr.read(), u_ptr.read())
+        (t_ptr, u_ptr)
     }
 }
 
 impl<T, U, V> SoATuple for (T, U, V) {
     type Offsets = (usize, usize);
+    type Pointers = (NonNull<T>, NonNull<U>, NonNull<V>);
 
     fn layout(capacity: u32) -> Result<Layout, LayoutError> {
         Ok(layout_array::<T>(capacity)?
@@ -167,7 +192,7 @@ impl<T, U, V> SoATuple for (T, U, V) {
         v_ptr.write(data.2);
     }
 
-    unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+    unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         let (u_offset, v_offset) = Self::get_offsets(capacity);
 
@@ -179,12 +204,13 @@ impl<T, U, V> SoATuple for (T, U, V) {
         debug_assert!(v_ptr.is_aligned());
 
         debug_assert!(u_ptr.is_aligned());
-        (t_ptr.read(), u_ptr.read(), v_ptr.read())
+        (t_ptr, u_ptr, v_ptr)
     }
 }
 
 impl<T, U, V, W> SoATuple for (T, U, V, W) {
     type Offsets = (usize, usize, usize);
+    type Pointers = (NonNull<T>, NonNull<U>, NonNull<V>, NonNull<W>);
 
     fn layout(capacity: u32) -> Result<Layout, LayoutError> {
         Ok(layout_array::<T>(capacity)?
@@ -268,7 +294,7 @@ impl<T, U, V, W> SoATuple for (T, U, V, W) {
         w_ptr.write(data.3);
     }
 
-    unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+    unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         let (u_offset, v_offset, w_offset) = Self::get_offsets(capacity);
 
@@ -281,12 +307,13 @@ impl<T, U, V, W> SoATuple for (T, U, V, W) {
         let w_ptr = ptr.byte_add(w_offset).cast::<W>().add(index as usize);
         debug_assert!(w_ptr.is_aligned());
 
-        (t_ptr.read(), u_ptr.read(), v_ptr.read(), w_ptr.read())
+        (t_ptr, u_ptr, v_ptr, w_ptr)
     }
 }
 
 impl<T, U, V, W, X> SoATuple for (T, U, V, W, X) {
     type Offsets = (usize, usize, usize, usize);
+    type Pointers = (NonNull<T>, NonNull<U>, NonNull<V>, NonNull<W>, NonNull<X>);
 
     fn layout(capacity: u32) -> Result<Layout, LayoutError> {
         Ok(layout_array::<T>(capacity)?
@@ -386,7 +413,7 @@ impl<T, U, V, W, X> SoATuple for (T, U, V, W, X) {
         x_ptr.write(data.4);
     }
 
-    unsafe fn get_cloned(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+    unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         let (u_offset, v_offset, w_offset, x_offset) = Self::get_offsets(capacity);
 
@@ -401,13 +428,7 @@ impl<T, U, V, W, X> SoATuple for (T, U, V, W, X) {
         let x_ptr = ptr.byte_add(x_offset).cast::<X>().add(index as usize);
         debug_assert!(x_ptr.is_aligned());
 
-        (
-            t_ptr.read(),
-            u_ptr.read(),
-            v_ptr.read(),
-            w_ptr.read(),
-            x_ptr.read(),
-        )
+        (t_ptr, u_ptr, v_ptr, w_ptr, x_ptr)
     }
 }
 
