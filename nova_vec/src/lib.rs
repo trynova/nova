@@ -1,8 +1,9 @@
+mod macros;
 mod raw_vec;
 mod raw_vec_inner;
 mod soable;
 
-use std::{marker::PhantomData, ptr::NonNull};
+use std::marker::PhantomData;
 
 use raw_vec::RawSoAVec;
 use raw_vec_inner::AllocError;
@@ -13,24 +14,180 @@ pub struct SoAVec<T: SoAble> {
 }
 
 impl<T: SoAble> SoAVec<T> {
+    pub fn new() -> Self {
+        SoAVec {
+            // SAFETY: 0-capacity vector cannot create an invalid layout.
+            buf: unsafe { RawSoAVec::with_capacity(0).unwrap_unchecked() },
+        }
+    }
+
+    /// Constructs a new, empty `SoAVec<T>` with at least the specified
+    /// capacity. Returns an error if an allocator error occurred.
+    ///
+    /// The Struct-of-Arrays vector will be able to hold at least `capacity`
+    /// elements without reallocating. This method is allowed to allocate for
+    /// more elements than `capacity`. If `capacity` is zero, the vector will
+    /// not allocate.
+    ///
+    /// It is important to note that although the returned vector has the
+    /// minimum *capacity* specified, the vector will have a zero *length*. For
+    /// an explanation of the difference between length and capacity, see
+    /// *[Capacity and reallocation]*.
+    ///
+    /// If it is important to know the exact allocated capacity of a `SoAVec`,
+    /// always use the [`capacity`] method after construction.
+    ///
+    /// For `SoAVec<T>` where `T` is a zero-sized type, there will be no
+    /// allocation and the capacity will always be `usize::MAX`.
+    ///
+    /// [Capacity and reallocation]: #capacity-and-reallocation
+    /// [`capacity`]: Vec::capacity
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity exceeds `isize::MAX` _bytes_.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::SoAVec;
+    ///
+    /// let mut vec = SoAVec::<(u32, u32)>::with_capacity(10).unwrap();
+    ///
+    /// // The vector contains no items, even though it has capacity for more
+    /// assert_eq!(vec.len(), 0);
+    /// assert!(vec.capacity() >= 10);
+    ///
+    /// // These are all done without reallocating...
+    /// for i in 0..10 {
+    ///     vec.push((i, i));
+    /// }
+    /// assert_eq!(vec.len(), 10);
+    /// assert!(vec.capacity() >= 10);
+    ///
+    /// // ...but this may make the vector reallocate
+    /// vec.push((11, 11));
+    /// assert_eq!(vec.len(), 11);
+    /// assert!(vec.capacity() >= 11);
+    ///
+    /// // A vector of a zero-sized type will always over-allocate, since no
+    /// // allocation is necessary
+    /// let vec_units = SoAVec::<((), ())>::with_capacity(10).unwrap();
+    /// assert_eq!(vec_units.capacity(), u32::MAX);
+    /// ```
     pub fn with_capacity(cap: u32) -> Result<Self, AllocError> {
         Ok(SoAVec {
             buf: RawSoAVec::with_capacity(cap)?,
         })
     }
 
+    /// Returns the number of elements in the vector, also referred to
+    /// as its 'length'.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    ///
+    /// let mut a = soavec![(0, 0); 3].unwrap();
+    /// assert_eq!(a.len(), 3);
+    /// ```
     pub fn len(&self) -> u32 {
         self.buf.len()
     }
 
+    /// Returns `true` if the vector contains no elements.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::SoAVec;
+    ///
+    /// let mut v = SoAVec::new();
+    /// assert!(v.is_empty());
+    ///
+    /// v.push((1, 1));
+    /// assert!(!v.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    /// Returns the total number of elements the vector can hold without
+    /// reallocating.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::SoAVec;
+    ///
+    /// let mut vec: SoAVec<(u32, i32)> = SoAVec::with_capacity(10).unwrap();
+    /// vec.push((42, 3));
+    /// assert!(vec.capacity() >= 10);
+    /// ```
+    ///
+    /// A vector with zero-sized elements will always have a capacity of usize::MAX:
+    ///
+    /// ```
+    /// use nova_vec::SoAVec;
+    ///
+    /// fn main() {
+    ///     assert_eq!(std::mem::size_of::<((), ())>(), 0);
+    ///     let v = SoAVec::<((), ())>::new();
+    ///     assert_eq!(v.capacity(), u32::MAX);
+    /// }
+    /// ```
     pub fn capacity(&self) -> u32 {
         self.buf.capacity()
     }
 
+    /// Reserves capacity for at least `additional` more elements to be inserted
+    /// in the given `Vec<T>`. The collection may reserve more space to
+    /// speculatively avoid frequent reallocations. After calling `reserve`,
+    /// capacity will be greater than or equal to `self.len() + additional`.
+    /// Does nothing if capacity is already sufficient.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the new capacity exceeds `isize::MAX` _bytes_.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    ///
+    /// let mut vec = soavec![(1u32, 1u32)].unwrap();
+    /// vec.reserve(10).unwrap();
+    /// assert!(vec.capacity() >= 11);
+    /// ```
     pub fn reserve(&mut self, additional: u32) -> Result<(), AllocError> {
         self.buf.reserve(additional)
     }
 
+    /// Appends an element to the back of a collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the new capacity exceeds `isize::MAX` _bytes_.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    ///
+    /// let mut vec = soavec![(1u32, 1u32), (2u32, 2u32)].unwrap();
+    /// vec.push((3, 3)).unwrap();
+    /// assert_eq!(vec.get(0), Some((&1, &1)));
+    /// assert_eq!(vec.get(1), Some((&2, &2)));
+    /// assert_eq!(vec.get(2), Some((&3, &3)));
+    /// ```
+    ///
+    /// # Time complexity
+    ///
+    /// Takes amortized *O*(1) time. If the vector's length would exceed its
+    /// capacity after the push, *O*(*capacity*) time is taken to copy the
+    /// vector's elements to a larger allocation. This expensive operation is
+    /// offset by the *capacity* *O*(1) insertions it allows.
     pub fn push(&mut self, value: T) -> Result<(), AllocError> {
         let len = self.len();
         if len == self.capacity() {
@@ -40,7 +197,7 @@ impl<T: SoAble> SoAVec<T> {
         // SAFETY: sure.
         unsafe {
             T::TupleRepr::push(
-                self.as_mut_ptr(),
+                self.buf.as_mut_ptr(),
                 T::into_tuple(value),
                 len,
                 self.capacity(),
@@ -51,40 +208,92 @@ impl<T: SoAble> SoAVec<T> {
         Ok(())
     }
 
-    fn as_ptr(&self) -> NonNull<u8> {
-        self.buf.as_ptr()
-    }
-
-    fn as_mut_ptr(&mut self) -> NonNull<u8> {
-        self.buf.as_mut_ptr()
-    }
-
+    /// Returns a reference to each field in T or `None` if out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    ///
+    /// let v = soavec![(10, 10), (40, 40), (30, 30)].unwrap();
+    /// assert_eq!(Some((&40, &40)), v.get(1));
+    /// assert_eq!(None, v.get(3));
+    /// ```
+    #[inline]
+    #[must_use]
     pub fn get(&self, index: u32) -> Option<T::RefTuple<'_>> {
         if self.len() <= index {
             // Over-indexing.
             return None;
         }
-        let ptrs = unsafe { T::TupleRepr::get_pointers(self.as_ptr(), index, self.capacity()) };
+        let ptrs = unsafe { T::TupleRepr::get_pointers(self.buf.as_ptr(), index, self.capacity()) };
         Some(T::as_ref(PhantomData, ptrs))
     }
 
+    /// Returns a mutable reference to each field in `T` or `None` if the index
+    /// is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    ///
+    /// let x = &mut soavec![(0, 0), (1, 1), (2, 2)].unwrap();
+    ///
+    /// if let Some((first, second)) = x.get_mut(1) {
+    ///     *first = 42;
+    ///     *second = 3;
+    /// }
+    /// assert_eq!(x.as_slice(), ([0, 42, 2].as_slice(), [0, 3, 2].as_slice()));
+    /// ```
+    #[inline]
+    #[must_use]
     pub fn get_mut(&mut self, index: u32) -> Option<T::MutTuple<'_>> {
         if self.len() <= index {
             // Over-indexing.
             return None;
         }
-        let ptrs = unsafe { T::TupleRepr::get_pointers(self.as_mut_ptr(), index, self.capacity()) };
+        let ptrs =
+            unsafe { T::TupleRepr::get_pointers(self.buf.as_mut_ptr(), index, self.capacity()) };
         Some(T::as_mut(PhantomData, ptrs))
     }
 
+    /// Extracts a tuple of slices containing the entire vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    /// use std::io::{self, Write};
+    ///
+    /// let buffer = soavec![(1, 1), (2, 2), (3, 3), (5, 5), (8, 8)].unwrap();
+    /// let (first, second) = buffer.as_slice();
+    /// io::sink().write(first).unwrap();
+    /// io::sink().write(second).unwrap();
+    /// ```
     pub fn as_slice(&self) -> T::SliceTuple<'_> {
-        let ptrs = unsafe { T::TupleRepr::get_pointers(self.as_ptr(), 0, self.capacity()) };
+        let ptrs = unsafe { T::TupleRepr::get_pointers(self.buf.as_ptr(), 0, self.capacity()) };
         let len = self.len();
         T::as_slice(PhantomData, ptrs, len)
     }
 
+    /// Extracts a mutable slice of the entire vector.
+    ///
+    /// Equivalent to `&mut s[..]`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    /// use std::io::{self, Read};
+    /// let mut buffer = soavec![(0, 0); 3].unwrap();
+    /// let (first, second) = buffer.as_mut_slice();
+    ///
+    /// io::repeat(0b101).read_exact(first).unwrap();
+    /// io::repeat(0b010).read_exact(second).unwrap();
+    /// ```
     pub fn as_mut_slice(&mut self) -> T::SliceMutTuple<'_> {
-        let ptrs = unsafe { T::TupleRepr::get_pointers(self.as_ptr(), 0, self.capacity()) };
+        let ptrs = unsafe { T::TupleRepr::get_pointers(self.buf.as_ptr(), 0, self.capacity()) };
         let len = self.len();
         T::as_mut_slice(PhantomData, ptrs, len)
     }

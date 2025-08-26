@@ -148,32 +148,21 @@ pub enum AllocError {
 }
 
 impl RawSoAVecInner {
-    // #[must_use]
-    // pub(crate) const fn new<T>() -> Result<Self, AllocError> {
-    //     let align = core::mem::align_of::<T>();
-    //     if align <= u32::MAX as usize {
-    //         Ok(Self::new_in(core::mem::align_of::<T>()))
-    //     } else {
-    //         Err(AllocError::CapacityOverflow)
-    //     }
-    // }
-
+    /// Create a new dangling RawSoAVecInner from a Layout alignment.
     #[inline]
-    const fn new_in(align: usize) -> Self {
-        let ptr = unsafe { core::mem::transmute(align) };
-        // `cap: 0` means "unallocated". zero-sized types are ignored.
+    const fn new_in(layout: Layout) -> Self {
+        let ptr = unsafe { core::mem::transmute::<usize, Unique<u8>>(layout.align()) };
         Self { ptr }
     }
 
-    #[must_use]
     #[inline]
     pub(crate) fn with_layout(layout: Layout) -> Result<Self, AllocError> {
         // Don't allocate here because `Drop` will not deallocate when `capacity` is 0.
         if layout.size() == 0 {
-            return Ok(Self::new_in(layout.align()));
+            return Ok(Self::new_in(layout));
         }
 
-        if let Err(_) = alloc_guard(layout.size()) {
+        if alloc_guard(layout.size()).is_err() {
             return Err(AllocError::AllocationFailure);
         }
 
@@ -191,38 +180,6 @@ impl RawSoAVecInner {
             ptr: Unique::from(ptr),
         })
     }
-
-    // #[must_use]
-    // #[inline]
-    // fn _with_capacity(capacity: u32, elem_layout: Layout) -> Self {
-    //     let Ok(layout) = layout_array(capacity, elem_layout) else {
-    //         capacity_overflow()
-    //     };
-
-    //     // Don't allocate here because `Drop` will not deallocate when `capacity` is 0.
-    //     if layout.size() == 0 {
-    //         return Self::new_in(elem_layout.align());
-    //     }
-
-    //     if let Err(_) = alloc_guard(layout.size()) {
-    //         capacity_overflow()
-    //     }
-
-    //     // SAFETY: Checked size and alignment.
-    //     let result = unsafe { alloc_zeroed(layout) };
-    //     let ptr = match NonNull::new(result) {
-    //         Some(ptr) => ptr,
-    //         None => handle_alloc_error(layout),
-    //     };
-
-    //     // Allocators currently return a `NonNull<[u8]>` whose length
-    //     // matches the size requested. If that ever changes, the capacity
-    //     // here should change to `ptr.len() / mem::size_of::<T>()`.
-    //     Self {
-    //         ptr: Unique::from(ptr.cast()),
-    //         cap: capacity,
-    //     }
-    // }
 
     #[cold]
     pub(crate) fn grow_amortized_inner(

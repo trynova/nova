@@ -454,6 +454,9 @@ fn layout_array<T>(cap: u32) -> Result<Layout, LayoutError> {
 
 #[macro_export]
 macro_rules! soable {
+    () => (
+        compile_error!("soable macro requires explicit struct name, field names and types")
+    );
     ($target:ident) => (
         compile_error!("soable macro requires explicit field names and types")
     );
@@ -594,4 +597,82 @@ macro_rules! soable {
             }
         }
     };
+}
+
+impl<T, U> SoAble for (T, U) {
+    type TupleRepr = Self;
+
+    type RefTuple<'a>
+        = (&'a T, &'a U)
+    where
+        Self: 'a;
+
+    type MutTuple<'a>
+        = (&'a mut T, &'a mut U)
+    where
+        Self: 'a;
+
+    type SliceTuple<'a>
+        = (&'a [T], &'a [U])
+    where
+        Self: 'a;
+
+    type SliceMutTuple<'a>
+        = (&'a mut [T], &'a mut [U])
+    where
+        Self: 'a;
+
+    fn into_tuple(value: Self) -> Self::TupleRepr {
+        value
+    }
+
+    fn from_tuple(value: Self::TupleRepr) -> Self {
+        value
+    }
+
+    fn as_ref<'a>(
+        _: PhantomData<&'a Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+    ) -> Self::RefTuple<'a> {
+        let (a, b) = value;
+        unsafe { (a.as_ref(), b.as_ref()) }
+    }
+
+    fn as_mut<'a>(
+        _: PhantomData<&'a mut Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+    ) -> Self::MutTuple<'a> {
+        let (mut a, mut b) = value;
+        unsafe { (a.as_mut(), b.as_mut()) }
+    }
+
+    fn as_slice<'a>(
+        _: PhantomData<&'a Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+        len: u32,
+    ) -> Self::SliceTuple<'a> {
+        let len = len as usize;
+        let (a, b) = value;
+        unsafe {
+            (
+                core::slice::from_raw_parts(a.as_ptr(), len),
+                core::slice::from_raw_parts(b.as_ptr(), len),
+            )
+        }
+    }
+
+    fn as_mut_slice<'a>(
+        _: PhantomData<&'a mut Self>,
+        value: <Self::TupleRepr as SoATuple>::Pointers,
+        len: u32,
+    ) -> Self::SliceMutTuple<'a> {
+        let len = len as usize;
+        let (a, b) = value;
+        unsafe {
+            (
+                core::slice::from_raw_parts_mut(a.as_ptr(), len),
+                core::slice::from_raw_parts_mut(b.as_ptr(), len),
+            )
+        }
+    }
 }

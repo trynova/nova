@@ -46,6 +46,11 @@ impl<T: SoAble> RawSoAVec<T> {
     }
 
     #[inline(always)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline(always)]
     pub(crate) fn set_len(&mut self, len: u32) {
         self.len = len
     }
@@ -61,7 +66,7 @@ impl<T: SoAble> RawSoAVec<T> {
         })
     }
 
-    pub fn reserve(&mut self, additional: u32) -> Result<(), AllocError> {
+    pub(crate) fn reserve(&mut self, additional: u32) -> Result<(), AllocError> {
         if self.needs_to_grow(additional) {
             self.grow_amortized(additional)?;
         }
