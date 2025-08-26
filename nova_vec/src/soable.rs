@@ -451,3 +451,80 @@ fn layout_array<T>(cap: u32) -> Result<Layout, LayoutError> {
     let elem_layout = Layout::new::<T>();
     Layout::from_size_align(elem_layout.size() * cap as usize, elem_layout.align())
 }
+
+#[macro_export]
+macro_rules! soable {
+    ($target:ident) => (
+        compile_error!("soable macro requires explicit field names and types")
+    );
+    ($target:ident { $field:ident: $type:ty }) => (
+        compile_error!("Single-field structs not supported; use a normal Vec")
+    );
+    ($target:ident { $($field:ident: $type:ty),+ }) => {
+        impl SoAble for $target {
+            type TupleRepr = ($($type),+);
+            type RefTuple<'a> = ($(&'a $type),+);
+            type MutTuple<'a> = ($(&'a mut $type),+);
+            type SliceTuple<'a> = ($(&'a [$type]),+);
+            type SliceMutTuple<'a> = ($(&'a mut [$type]),+);
+
+            fn into_tuple(value: Self) -> Self::TupleRepr {
+                let Self { $($field),+ } = value;
+                ($($field),+)
+            }
+
+            fn from_tuple(value: Self::TupleRepr) -> Self {
+                let ($($field),+) = value;
+                Self { $($field),+ }
+            }
+
+            fn as_ref<'a>(
+                _: PhantomData<&'a Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+            ) -> Self::RefTuple<'a> {
+                let ($($field),+) = value;
+                unsafe {
+                    ($($field.as_ref()),+)
+                }
+            }
+
+            fn as_mut<'a>(
+                _: PhantomData<&'a mut Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+            ) -> Self::MutTuple<'a> {
+                let ($(mut $field),+) = value;
+                unsafe {
+                    ($($field.as_mut()),+)
+                }
+            }
+
+            fn as_slice<'a>(
+                _: PhantomData<&'a Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+                len: u32,
+            ) -> Self::SliceTuple<'a> {
+                let len = len as usize;
+                let ($($field),+) = value;
+                unsafe {
+                    (
+                        $(core::slice::from_raw_parts($field.as_ptr(), len)),+
+                    )
+                }
+            }
+
+            fn as_mut_slice<'a>(
+                _: PhantomData<&'a mut Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+                len: u32,
+            ) -> Self::SliceMutTuple<'a> {
+                let len = len as usize;
+                let ($($field),+) = value;
+                unsafe {
+                    (
+                        $(core::slice::from_raw_parts_mut($field.as_ptr(), len)),+
+                    )
+                }
+            }
+        }
+    };
+}

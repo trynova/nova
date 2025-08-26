@@ -98,6 +98,7 @@ mod tests {
     };
 
     use crate::{
+        soable,
         soable::{SoATuple, SoAble},
         SoAVec,
     };
@@ -110,64 +111,7 @@ mod tests {
             a: u64,
             b: u32,
         }
-
-        impl SoAble for Foo {
-            type TupleRepr = (u64, u32);
-            type RefTuple<'a> = (&'a u64, &'a u32);
-            type MutTuple<'a> = (&'a mut u64, &'a mut u32);
-            type SliceTuple<'a> = (&'a [u64], &'a [u32]);
-            type SliceMutTuple<'a> = (&'a mut [u64], &'a mut [u32]);
-
-            fn into_tuple(value: Self) -> Self::TupleRepr {
-                let Self { a, b } = value;
-                (a, b)
-            }
-
-            fn from_tuple(value: Self::TupleRepr) -> Self {
-                let (a, b) = value;
-                Self { a, b }
-            }
-
-            fn as_ref<'a>(
-                _: PhantomData<&'a Self>,
-                value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::RefTuple<'a> {
-                (unsafe { value.0.as_ref() }, unsafe { value.1.as_ref() })
-            }
-
-            fn as_mut<'a>(
-                _: PhantomData<&'a mut Self>,
-                mut value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::MutTuple<'a> {
-                (unsafe { value.0.as_mut() }, unsafe { value.1.as_mut() })
-            }
-
-            fn as_slice<'a>(
-                _: PhantomData<&'a Self>,
-                value: <Self::TupleRepr as SoATuple>::Pointers,
-                len: u32,
-            ) -> Self::SliceTuple<'a> {
-                unsafe {
-                    (
-                        &*slice_from_raw_parts(value.0.as_ptr(), len as usize),
-                        &*slice_from_raw_parts(value.1.as_ptr(), len as usize),
-                    )
-                }
-            }
-
-            fn as_mut_slice<'a>(
-                _: PhantomData<&'a mut Self>,
-                mut value: <Self::TupleRepr as SoATuple>::Pointers,
-                len: u32,
-            ) -> Self::SliceMutTuple<'a> {
-                unsafe {
-                    (
-                        &mut *slice_from_raw_parts_mut(value.0.as_mut(), len as usize),
-                        &mut *slice_from_raw_parts_mut(value.1.as_mut(), len as usize),
-                    )
-                }
-            }
-        }
+        soable!(Foo { a: u64, b: u32 });
 
         /// Conceptually; this is what we're doing here.
         const _ARRAY: [Foo; 16] = [Foo { a: 0, b: 1 }; 16];
@@ -310,205 +254,143 @@ mod tests {
         debug_assert_eq!(b_slice, &[&66, &8]);
     }
 
-    // #[test]
-    // fn more_basic_usage() {
-    //     #[repr(C)]
-    //     #[derive(Debug, Clone, Copy)]
-    //     struct Bar {
-    //         a: u64,
-    //         b: u32,
-    //         c: u8,
-    //     }
+    #[test]
+    fn more_basic_usage() {
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Bar {
+            a: u64,
+            b: u32,
+            c: u8,
+        }
+        soable!(Bar {
+            a: u64,
+            b: u32,
+            c: u8
+        });
 
-    //     impl SoAble for Bar {
-    //         type TupleRepr = (u64, u32, u8);
+        let mut bar = SoAVec::<Bar>::with_capacity(16).unwrap();
+        bar.reserve(32).unwrap();
+        bar.push(Bar { a: 0, b: 2, c: 255 }).unwrap();
+        let first = bar.get(0).unwrap();
+        debug_assert_eq!(first.0, &0);
+        debug_assert_eq!(first.1, &2);
+        debug_assert_eq!(first.2, &255);
+    }
 
-    //         fn to_tuple(value: Self) -> Self::TupleRepr {
-    //             let Self { a, b, c } = value;
-    //             (a, b, c)
-    //         }
+    #[test]
+    fn basic_usage_with_bad_alignment() {
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Foo {
+            b: u32,
+            a: u64,
+        }
+        soable!(Foo { b: u32, a: u64 });
 
-    //         fn from_tuple(value: Self::TupleRepr) -> Self {
-    //             let (a, b, c) = value;
-    //             Self { a, b, c }
-    //         }
-    //     }
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Bar {
+            c: u8,
+            b: u32,
+            a: u64,
+        }
+        soable!(Bar {
+            c: u8,
+            b: u32,
+            a: u64
+        });
 
-    //     let mut bar = SoAVec::<Bar>::with_capacity(16).unwrap();
-    //     bar.reserve(32).unwrap();
-    //     bar.push(Bar { a: 0, b: 2, c: 255 }).unwrap();
-    //     let first = bar.get_3(0).unwrap();
-    //     debug_assert_eq!(first.0, &0);
-    //     debug_assert_eq!(first.1, &2);
-    //     debug_assert_eq!(first.2, &255);
-    // }
+        /// Conceptually; this is what we're doing here.
+        const _ARRAY: [Foo; 16] = [Foo { a: 0, b: 1 }; 16];
+        const _SOA_ARRAY: ([u64; 16], [u32; 16]) = ([0; 16], [1; 16]);
 
-    // #[test]
-    // fn basic_usage_with_bad_alignment() {
-    //     #[repr(C)]
-    //     #[derive(Debug, Clone, Copy)]
-    //     struct Foo {
-    //         b: u32,
-    //         a: u64,
-    //     }
+        let mut foo = SoAVec::<Foo>::with_capacity(5).unwrap();
+        foo.reserve(9).unwrap();
+        foo.push(Foo { b: 2, a: 0 }).unwrap();
+        let first = foo.get(0).unwrap();
+        debug_assert_eq!(first.0, &2);
+        debug_assert_eq!(first.1, &0);
+        // let a_0: &u64 = foo.get_a(0);
+        // let a_0: &u32 = foo.get_b(0);
+        // let a_n: &[u64] = foo.get_all_a();
 
-    //     impl SoAble for Foo {
-    //         type TupleRepr = (u32, u64);
+        let mut bar = SoAVec::<Bar>::with_capacity(7).unwrap();
+        bar.reserve(11).unwrap();
+        bar.push(Bar { c: 255, b: 2, a: 0 }).unwrap();
+        let first = bar.get(0).unwrap();
+        debug_assert_eq!(first.0, &255);
+        debug_assert_eq!(first.1, &2);
+        debug_assert_eq!(first.2, &0);
+    }
 
-    //         fn to_tuple(value: Self) -> Self::TupleRepr {
-    //             let Self { a, b } = value;
-    //             (b, a)
-    //         }
+    #[test]
+    fn basic_usage_with_zst() {
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Foo {
+            b: (),
+            a: u32,
+        }
+        soable!(Foo { b: (), a: u32 });
 
-    //         fn from_tuple(value: Self::TupleRepr) -> Self {
-    //             let (b, a) = value;
-    //             Self { b, a }
-    //         }
-    //     }
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Bar {
+            c: u8,
+            b: (),
+            a: u64,
+        }
+        soable!(Bar {
+            c: u8,
+            b: (),
+            a: u64
+        });
 
-    //     #[repr(C)]
-    //     #[derive(Debug, Clone, Copy)]
-    //     struct Bar {
-    //         c: u8,
-    //         b: u32,
-    //         a: u64,
-    //     }
+        #[repr(C)]
+        #[derive(Debug, Clone, Copy)]
+        struct Baz {
+            c: (),
+            b: (),
+            a: (),
+        }
+        soable!(Baz {
+            c: (),
+            b: (),
+            a: ()
+        });
 
-    //     impl SoAble for Bar {
-    //         type TupleRepr = (u8, u32, u64);
+        let mut foo = SoAVec::<Foo>::with_capacity(5).unwrap();
+        foo.reserve(9).unwrap();
+        foo.push(Foo { a: 2, b: () }).unwrap();
+        let first = foo.get(0).unwrap();
+        debug_assert_eq!(first.0, &());
+        debug_assert_eq!(first.1, &2);
 
-    //         fn to_tuple(value: Self) -> Self::TupleRepr {
-    //             let Self { c, b, a } = value;
-    //             (c, b, a)
-    //         }
+        let mut bar = SoAVec::<Bar>::with_capacity(7).unwrap();
+        bar.reserve(11).unwrap();
+        bar.push(Bar {
+            c: 255,
+            b: (),
+            a: 0,
+        })
+        .unwrap();
+        let first = bar.get(0).unwrap();
+        debug_assert_eq!(first.0, &255);
+        debug_assert_eq!(first.1, &());
+        debug_assert_eq!(first.2, &0);
 
-    //         fn from_tuple(value: Self::TupleRepr) -> Self {
-    //             let (c, b, a) = value;
-    //             Self { c, b, a }
-    //         }
-    //     }
-
-    //     /// Conceptually; this is what we're doing here.
-    //     const _ARRAY: [Foo; 16] = [Foo { a: 0, b: 1 }; 16];
-    //     const _SOA_ARRAY: ([u64; 16], [u32; 16]) = ([0; 16], [1; 16]);
-
-    //     let mut foo = SoAVec::<Foo>::with_capacity(5).unwrap();
-    //     foo.reserve(9).unwrap();
-    //     foo.push(Foo { b: 2, a: 0 }).unwrap();
-    //     let first = foo.get_2(0).unwrap();
-    //     debug_assert_eq!(first.0, &2);
-    //     debug_assert_eq!(first.1, &0);
-    //     // let a_0: &u64 = foo.get_a(0);
-    //     // let a_0: &u32 = foo.get_b(0);
-    //     // let a_n: &[u64] = foo.get_all_a();
-
-    //     let mut bar = SoAVec::<Bar>::with_capacity(7).unwrap();
-    //     bar.reserve(11).unwrap();
-    //     bar.push(Bar { c: 255, b: 2, a: 0 }).unwrap();
-    //     let first = bar.get_3(0).unwrap();
-    //     debug_assert_eq!(first.0, &255);
-    //     debug_assert_eq!(first.1, &2);
-    //     debug_assert_eq!(first.2, &0);
-    // }
-
-    // #[test]
-    // fn basic_usage_with_zst() {
-    //     #[repr(C)]
-    //     #[derive(Debug, Clone, Copy)]
-    //     struct Foo {
-    //         b: (),
-    //         a: u32,
-    //     }
-
-    //     impl SoAble for Foo {
-    //         type TupleRepr = ((), u32);
-
-    //         fn to_tuple(value: Self) -> Self::TupleRepr {
-    //             let Self { a, b } = value;
-    //             (b, a)
-    //         }
-
-    //         fn from_tuple(value: Self::TupleRepr) -> Self {
-    //             let (b, a) = value;
-    //             Self { b, a }
-    //         }
-    //     }
-
-    //     #[repr(C)]
-    //     #[derive(Debug, Clone, Copy)]
-    //     struct Bar {
-    //         c: u8,
-    //         b: (),
-    //         a: u64,
-    //     }
-
-    //     impl SoAble for Bar {
-    //         type TupleRepr = (u8, (), u64);
-
-    //         fn to_tuple(value: Self) -> Self::TupleRepr {
-    //             let Self { c, b, a } = value;
-    //             (c, b, a)
-    //         }
-
-    //         fn from_tuple(value: Self::TupleRepr) -> Self {
-    //             let (c, b, a) = value;
-    //             Self { c, b, a }
-    //         }
-    //     }
-
-    //     #[repr(C)]
-    //     #[derive(Debug, Clone, Copy)]
-    //     struct Baz {
-    //         c: (),
-    //         b: (),
-    //         a: (),
-    //     }
-
-    //     impl SoAble for Baz {
-    //         type TupleRepr = ((), (), ());
-
-    //         fn to_tuple(value: Self) -> Self::TupleRepr {
-    //             let Self { c, b, a } = value;
-    //             (c, b, a)
-    //         }
-
-    //         fn from_tuple(value: Self::TupleRepr) -> Self {
-    //             let (c, b, a) = value;
-    //             Self { c, b, a }
-    //         }
-    //     }
-
-    //     let mut foo = SoAVec::<Foo>::with_capacity(5).unwrap();
-    //     foo.reserve(9).unwrap();
-    //     foo.push(Foo { a: 2, b: () }).unwrap();
-    //     let first = foo.get_2(0).unwrap();
-    //     debug_assert_eq!(first.0, &());
-    //     debug_assert_eq!(first.1, &2);
-
-    //     let mut bar = SoAVec::<Bar>::with_capacity(7).unwrap();
-    //     bar.reserve(11).unwrap();
-    //     bar.push(Bar {
-    //         c: 255,
-    //         b: (),
-    //         a: 0,
-    //     })
-    //     .unwrap();
-    //     let first = bar.get_3(0).unwrap();
-    //     debug_assert_eq!(first.0, &255);
-    //     debug_assert_eq!(first.1, &());
-    //     debug_assert_eq!(first.2, &0);
-
-    //     let mut baz = SoAVec::<Baz>::with_capacity(7).unwrap();
-    //     baz.reserve(11).unwrap();
-    //     baz.push(Baz {
-    //         a: (),
-    //         b: (),
-    //         c: (),
-    //     })
-    //     .unwrap();
-    //     let first = baz.get_3(0).unwrap();
-    //     debug_assert_eq!(first.0, &());
-    //     debug_assert_eq!(first.1, &());
-    //     debug_assert_eq!(first.2, &());
-    // }
+        let mut baz = SoAVec::<Baz>::with_capacity(7).unwrap();
+        baz.reserve(11).unwrap();
+        baz.push(Baz {
+            a: (),
+            b: (),
+            c: (),
+        })
+        .unwrap();
+        let first = baz.get(0).unwrap();
+        debug_assert_eq!(first.0, &());
+        debug_assert_eq!(first.1, &());
+        debug_assert_eq!(first.2, &());
+    }
 }
