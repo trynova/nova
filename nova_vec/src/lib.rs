@@ -92,16 +92,9 @@ impl<T: SoAble> SoAVec<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        marker::PhantomData,
-        ptr::{slice_from_raw_parts, slice_from_raw_parts_mut},
-    };
+    use std::marker::PhantomData;
 
-    use crate::{
-        soable,
-        soable::{SoATuple, SoAble},
-        SoAVec,
-    };
+    use crate::{soable, SoATuple, SoAVec, SoAble};
 
     #[test]
     fn basic_usage() {
@@ -154,76 +147,7 @@ mod tests {
             a: &'a u64,
             b: &'a u32,
         }
-
-        impl<'b> SoAble for Foo<'b> {
-            type TupleRepr = (&'b u64, &'b u32);
-            type RefTuple<'a>
-                = (&'a &'b u64, &'a &'b u32)
-            where
-                Self: 'a;
-            type MutTuple<'a>
-                = (&'a mut &'b u64, &'a mut &'b u32)
-            where
-                Self: 'a;
-            type SliceTuple<'a>
-                = (&'a [&'b u64], &'a [&'b u32])
-            where
-                Self: 'a;
-            type SliceMutTuple<'a>
-                = (&'a mut [&'b u64], &'a mut [&'b u32])
-            where
-                Self: 'a;
-
-            fn into_tuple(value: Self) -> Self::TupleRepr {
-                let Self { a, b } = value;
-                (a, b)
-            }
-
-            fn from_tuple(value: Self::TupleRepr) -> Self {
-                let (a, b) = value;
-                Self { a, b }
-            }
-
-            fn as_ref<'a>(
-                _: PhantomData<&'a Self>,
-                value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::RefTuple<'a> {
-                (unsafe { value.0.as_ref() }, unsafe { value.1.as_ref() })
-            }
-
-            fn as_mut<'a>(
-                _: PhantomData<&'a mut Self>,
-                mut value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::MutTuple<'a> {
-                (unsafe { value.0.as_mut() }, unsafe { value.1.as_mut() })
-            }
-
-            fn as_slice<'a>(
-                _: PhantomData<&'a Self>,
-                value: <Self::TupleRepr as SoATuple>::Pointers,
-                len: u32,
-            ) -> Self::SliceTuple<'a> {
-                unsafe {
-                    (
-                        &*slice_from_raw_parts(value.0.as_ptr(), len as usize),
-                        &*slice_from_raw_parts(value.1.as_ptr(), len as usize),
-                    )
-                }
-            }
-
-            fn as_mut_slice<'a>(
-                _: PhantomData<&'a mut Self>,
-                mut value: <Self::TupleRepr as SoATuple>::Pointers,
-                len: u32,
-            ) -> Self::SliceMutTuple<'a> {
-                unsafe {
-                    (
-                        &mut *slice_from_raw_parts_mut(value.0.as_mut(), len as usize),
-                        &mut *slice_from_raw_parts_mut(value.1.as_mut(), len as usize),
-                    )
-                }
-            }
-        }
+        soable!(Foo<'b> { a: &'b u64, b: &'b u32 });
 
         let mut foo = SoAVec::<Foo>::with_capacity(16).unwrap();
         foo.push(Foo { a: &0, b: &2 }).unwrap();
