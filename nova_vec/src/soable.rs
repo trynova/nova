@@ -51,6 +51,9 @@ pub trait SoATuple {
 
     unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32);
 
+    #[must_use]
+    unsafe fn read(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self;
+
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32);
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers;
@@ -98,6 +101,11 @@ impl<T, U> SoATuple for (T, U) {
             // Zero out the old data.
             old_u_ptr.write_bytes(0, len as usize);
         };
+    }
+
+    unsafe fn read(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+        let ptr = Self::get_pointers(ptr, index, capacity);
+        (ptr.0.read(), ptr.1.read())
     }
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32) {
@@ -150,6 +158,11 @@ impl<T, U, V> SoATuple for (T, U, V) {
             let (_, v_offset) = extend_layout_array::<V>(layout, capacity).unwrap_unchecked();
             (u_offset, v_offset)
         }
+    }
+
+    unsafe fn read(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+        let ptr = Self::get_pointers(ptr, index, capacity);
+        (ptr.0.read(), ptr.1.read(), ptr.2.read())
     }
 
     unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32) {
@@ -241,6 +254,11 @@ impl<T, U, V, W> SoATuple for (T, U, V, W) {
             let (_, w_offset) = extend_layout_array::<W>(layout, capacity).unwrap_unchecked();
             (u_offset, v_offset, w_offset)
         }
+    }
+
+    unsafe fn read(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+        let ptr = Self::get_pointers(ptr, index, capacity);
+        (ptr.0.read(), ptr.1.read(), ptr.2.read(), ptr.3.read())
     }
 
     unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32) {
@@ -347,6 +365,17 @@ impl<T, U, V, W, X> SoATuple for (T, U, V, W, X) {
             let (_, x_offset) = extend_layout_array::<X>(layout, capacity).unwrap_unchecked();
             (u_offset, v_offset, w_offset, x_offset)
         }
+    }
+
+    unsafe fn read(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self {
+        let ptr = Self::get_pointers(ptr, index, capacity);
+        (
+            ptr.0.read(),
+            ptr.1.read(),
+            ptr.2.read(),
+            ptr.3.read(),
+            ptr.4.read(),
+        )
     }
 
     unsafe fn grow(ptr: NonNull<u8>, new_capacity: u32, old_capacity: u32, len: u32) {

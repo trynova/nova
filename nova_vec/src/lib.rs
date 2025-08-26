@@ -299,6 +299,24 @@ impl<T: SoAble> SoAVec<T> {
     }
 }
 
+impl<T: SoAble> Drop for SoAVec<T> {
+    fn drop(&mut self) {
+        if !core::mem::needs_drop::<T>() {
+            return;
+        }
+        let ptr = self.buf.as_ptr();
+        let cap = self.buf.capacity();
+        let len = self.len();
+        for i in 0..len {
+            // SAFETY: reads each value out without altering the backing
+            // memory; using the backing memory may violate memory safety
+            // after this but we are about to deallocate it afterwards.
+            let _ = T::from_tuple(unsafe { T::TupleRepr::read(ptr, i, cap) });
+        }
+        // RawVec handles deallocation
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::marker::PhantomData;
@@ -434,10 +452,6 @@ mod tests {
             a: u64
         });
 
-        /// Conceptually; this is what we're doing here.
-        const _ARRAY: [Foo; 16] = [Foo { a: 0, b: 1 }; 16];
-        const _SOA_ARRAY: ([u64; 16], [u32; 16]) = ([0; 16], [1; 16]);
-
         let mut foo = SoAVec::<Foo>::with_capacity(5).unwrap();
         foo.reserve(9).unwrap();
         foo.push(Foo { b: 2, a: 0 }).unwrap();
@@ -525,5 +539,52 @@ mod tests {
         debug_assert_eq!(first.0, &());
         debug_assert_eq!(first.1, &());
         debug_assert_eq!(first.2, &());
+    }
+
+    #[test]
+    fn droppable_types() {
+        #[repr(C)]
+        #[derive(Debug, Clone)]
+        struct Foo {
+            a: Vec<u64>,
+            b: Box<u32>,
+        }
+        soable!(Foo { a: Vec<u64>, b: Box<u32> });
+
+        let mut foo = SoAVec::<Foo>::with_capacity(16).unwrap();
+        foo.push(Foo {
+            a: vec![0],
+            b: Box::new(2),
+        })
+        .unwrap();
+        let first = foo.get(0).unwrap();
+        debug_assert_eq!(first.0, &[0]);
+        debug_assert_eq!(**first.1, 2);
+
+        let first = foo.get_mut(0).unwrap();
+        first.0.push(52);
+        *first.1 = Box::new(66u32);
+        debug_assert_eq!(first.0, &[0, 52]);
+        debug_assert_eq!(**first.1, 66u32);
+
+        let first = foo.get(0).unwrap();
+        debug_assert_eq!(first.0, &[0, 52]);
+        debug_assert_eq!(**first.1, 66u32);
+
+        foo.reserve(32).unwrap();
+        let first = foo.get(0).unwrap();
+        debug_assert_eq!(first.0, &[0, 52]);
+        debug_assert_eq!(**first.1, 66u32);
+
+        foo.push(Foo {
+            a: vec![4],
+            b: Box::new(8),
+        })
+        .unwrap();
+        let (a_slice, b_slice) = foo.as_slice();
+        debug_assert_eq!(a_slice.len(), b_slice.len());
+        debug_assert_eq!(a_slice.len(), 2);
+        debug_assert_eq!(a_slice, &[vec![0, 52], vec![4]]);
+        debug_assert_eq!(b_slice, &[Box::new(66), Box::new(8)]);
     }
 }
