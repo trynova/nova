@@ -10,31 +10,9 @@ pub trait SoAble: Sized {
     fn from_tuple(value: Self::TupleRepr) -> Self;
 }
 
-impl<T, U> SoAble for (T, U) {
-    type TupleRepr = Self;
-
-    fn to_tuple(value: Self) -> Self::TupleRepr {
-        value
-    }
-
-    fn from_tuple(value: Self::TupleRepr) -> Self {
-        value
-    }
-}
-
 pub trait SoATuple {
     type Offsets: Copy;
     type Pointers: Copy;
-
-    // #[allow(unused_variables)]
-    // fn phantom_get<'a>(soa: &'a NonNull<u8>) -> PhantomData<Self::Ref<'a>> {
-    //     unreachable!()
-    // }
-
-    // #[allow(unused_variables)]
-    // fn phantom_get_mut<'a>(soa: &'a mut NonNull<u8>) -> PhantomData<Self::Mut<'a>> {
-    //     unreachable!()
-    // }
 
     fn layout(capacity: u32) -> Result<Layout, LayoutError>;
 
@@ -441,4 +419,62 @@ fn extend_layout_array<T>(layout: Layout, cap: u32) -> Result<(Layout, usize), L
 fn layout_array<T>(cap: u32) -> Result<Layout, LayoutError> {
     let elem_layout = Layout::new::<T>();
     Layout::from_size_align(elem_layout.size() * cap as usize, elem_layout.align())
+}
+
+pub trait So2A: SoATuple {
+    type First;
+    type Second;
+
+    unsafe fn ptrs(
+        ptr: NonNull<u8>,
+        index: u32,
+        capacity: u32,
+    ) -> (NonNull<Self::First>, NonNull<Self::Second>);
+}
+impl<T, U> So2A for (T, U) {
+    type First = T;
+    type Second = U;
+
+    #[inline]
+    unsafe fn ptrs(
+        ptr: NonNull<u8>,
+        index: u32,
+        capacity: u32,
+    ) -> (NonNull<Self::First>, NonNull<Self::Second>) {
+        Self::get_pointers(ptr, index, capacity)
+    }
+}
+
+pub trait So3A: SoATuple {
+    type First;
+    type Second;
+    type Third;
+
+    unsafe fn ptrs(
+        ptr: NonNull<u8>,
+        index: u32,
+        capacity: u32,
+    ) -> (
+        NonNull<Self::First>,
+        NonNull<Self::Second>,
+        NonNull<Self::Third>,
+    );
+}
+impl<T, U, V> So3A for (T, U, V) {
+    type First = T;
+    type Second = U;
+    type Third = V;
+
+    #[inline]
+    unsafe fn ptrs(
+        ptr: NonNull<u8>,
+        index: u32,
+        capacity: u32,
+    ) -> (
+        NonNull<Self::First>,
+        NonNull<Self::Second>,
+        NonNull<Self::Third>,
+    ) {
+        Self::get_pointers(ptr, index, capacity)
+    }
 }
