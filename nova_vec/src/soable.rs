@@ -4,18 +4,234 @@ use std::{
     ptr::NonNull,
 };
 
+/// Used for defining the format and API of a type stored in `SoAVec` in a
+/// Struct-of-Arrays format.
+///
+/// This trait defines a representation for the implementing type that the
+/// `SoAVec` recognises and knows how to store, and the conversions to and from
+/// said type. Additionally, the trait defines the necessary references types
+/// for exposing the type's data when borrowed from the `SoAVec`.
+///
+/// For simple structs that are only a collection of individual fields, the
+/// `soable!` macro can be used to easily map the fields into an equivalent
+/// tuple representation. For more involved types such as structs with safety
+/// invariants, unions, or enums the trait should be implemented manually with
+/// all the necessary safety requirements considered.
+///
+/// # Safety requirements
+///
+/// 1. The type must be safely droppable field-wise, **or** the `NEEDS_DROP`
+///    boolean must be set. If it is set, `SoAVec` guarantees that each dropped
+///    entry in the Struct-of-Arrays is read out onto the stack and dropped as
+///   `Self`.
+/// 2. The type's internal invariants must be upheld by the `SoAble::Ref`,
+///    `SoAble::Mut`, `SoAble::Slice`, and `SoAble::SliceMut` types.
+///    Specifically, this means that if mutating a given field individually
+///    could break invariants, then that field's (mutable) reference must not
+///    be exposed by any of the SoAble reference types.
+///
+/// # When to manually implement `SoAble`
+///
+/// If your type is an enum, a union, or a struct with internal invariants then
+/// a manual implementation of `SoAble` is required. A direct tuple
+/// representation of any of these would allow internal invariants to be
+/// broken through the SoAble reference types.
+///
+/// ## `SoAble` enums
+///
+/// For enums the Struct-of-Arrays format is likely to be
+/// `(Discriminant, union Payload)`; the `Discimrinant` can be extracted
+/// directly using `std::mem::discriminant` but the payload needs pattern
+/// matching to extract and place inside the payload union. It is safe to
+/// expose the payload union directly through the SoAble reference types
+/// because accessing its data is unsafe (as a union); thus the implementation
+/// of `SoAble` can be fairly straight-forward. Alternatively, a safe API
+/// can be implemented to abstract over the discriminant-payload reference
+/// pair.
+///
+/// ## `SoAble` unions
+///
+/// The representation is entirely up to and decidable by the implementor. If
+/// you're thinking about this, then there's a good chance you should rather
+/// move some shared data out of the union.
+///
+/// ## `SoAble` structs with internal invariants
+///
+/// A struct with internal invariants must manually implement `SoAble` such
+/// that the exposed SoAble reference types cannot violate those internal
+/// invariants.
+///
+/// ## Types with custom `Drop`
+///
+/// Any type that has a custom `Drop` needs to manually implement `SoAble`. The
+/// conversion between `Self` and `Self::TupleRepr` should then move the `Self`
+/// into `ManuallyDrop`, use exclusive references to the individual fields to
+/// `std::ptr::read` the values out of `Self` and move the results into
+/// `Self::TupleRepr`. Finally, let the `ManuallyDrop<Self>` to go out of scope
+/// without dropping its contents.
+///
+/// Use `NEEDS_DROP` to indiciate if `Self` needs to be reconstructed for
+/// dropping purposes.
+///
+/// # Fallibility
+///
+/// **This trait's methods should never unexpectedly fail**. Failure can be
+/// extremely confusing. In the majority of uses it should be infallible,
+/// though it may be acceptable to panic if the type or methods is misused
+/// through programmer error, for example.
+///
+/// However, infallibility is not enforced and therefore not guaranteed.
+/// As such, `unsafe` code should not rely on infallibility in general for
+/// soundness.
+///
+/// # Examples
 pub trait SoAble: Sized {
+    /// Representation of the SoAble type in a Struct-of-Arrays friendly tuple
+    /// form.
+    ///
+    /// The tuple does not need to strictly follow the field split or ordering
+    /// of the original type, though that is generally a good starting point.
+    ///
+    /// The tuple form is identified by the SoATuple trait which is a sealed
+    /// trait implemented by the crate for a select group of generic tuples.
+    /// The form is thus required to match one of these presets.
     type TupleRepr: SoATuple;
-    type RefTuple<'a>: Copy
+
+    /// Set to true if the type must read out of the `SoAVec` and dropped as
+    /// `Self` when deallocating.
+    ///
+    /// If the type's fields can be dropped directly in the Struct-of-Arrays
+    /// format then this value should be false.
+    ///
+    /// # Examples
+    ///
+    /// A simple struct containing fields that required drop themselves but are
+    /// not indvidually split up in the Struct-of-Arrays format can be dropped
+    /// directly in the Struct-of-Arrays format.
+    ///
+    /// ```rust,ignore
+    /// struct Simple {
+    ///   a: Vec<u32>,
+    ///   b: Box<u64>,
+    /// }
+    /// soable!(Simple { a: Vec<u32>, b: Box<u64> });
+    /// ```
+    ///
+    /// A struct whose fields are not individually droppable must be read out
+    /// of the `SoAVec` and dropped as `Self`.
+    ///
+    /// ```rust,ignore
+    /// struct Complex {
+    ///   ptr: NonNull<u32>,
+    ///   len: u32,
+    ///   cap: u32,
+    /// }
+    ///
+    /// impl Drop for Complex {
+    ///   fn drop(&mut self) {
+    ///     // Note: deallocation requires access to ptr and cap.
+    ///     core::mem::deallocate(self.ptr, array_layout(self.cap, Layout::new::<u32>()));
+    ///   }
+    /// }
+    ///
+    /// impl Soable for Complex {
+    ///   const NEEDS_DROP: bool = true;
+    /// }
+    /// ```
+    ///
+    /// f.ex. a field containing a `Vec` can be dropped in the Struct-of-Arrays
+    /// format while a `Vec` split into two or three arrays would need to
+    const NEEDS_DROP: bool = false;
+
+    /// Representation of the SoAble type as a group of references borrowed
+    /// from the Struct-of-Arrays.
+    ///
+    /// Generally this will be a tuple of references matching the TupleRepr but
+    /// in cases of types that split apart fields that have interconnected
+    /// safety requirements that could be violated using shared references to
+    /// individual fields, this type may be chosen to expose a safe interface
+    /// over the group of field references.
+    ///
+    /// # Examples
+    ///
+    /// If a hypothetical `AtomicVec` was placed inside a `SoAVec` and shared
+    /// references to its fields were exposed, then the `SoAVec` API would
+    /// allow direct access to the `len` and `cap` fields that could be then
+    /// used to mutate those without corresponding changes to `ptr`.
+    ///
+    /// In this case, the `AtomicVec` should use a different `Ref` type that
+    /// does not allow such mutations to occur.
+    ///
+    /// ```rust,ìgnore
+    /// struct AtomicVecSoaRef<'a, T> {
+    ///   ptr: &'a AtomicPtr<T>,
+    ///   cap: &'a AtomicUsize,
+    ///   len: &'a AtomicUsize,
+    /// }
+    ///
+    /// impl<T> SoAble for AtomicVec<T> {
+    ///   type Ref<'a> = AtomicVecSoARef<'a, T> where Self: 'a;
+    /// }
+    /// ```
+    type Ref<'a>: Copy
     where
         Self: 'a;
-    type MutTuple<'a>
+
+    /// Representation of the SoAble type as a group of exclusive references
+    /// borrowed from the Struct-of-Arrays.
+    ///
+    /// Generally this will be a tuple of exclusive references matching the
+    /// TupleRepr but in cases of types that split apart fields that have
+    /// interconnected safety requirements that could be violated using
+    /// exclusive references to individual fields, this type may be chosen to
+    /// expose a safe interface over the group of exclusive field references.
+    ///
+    /// # Examples
+    ///
+    /// If a `Vec` was placed inside a `SoAVec` and exclusive references to its
+    /// fields were exposed, then the `SoAVec` API would allow direct access to
+    /// the `len` and `cap` fields that could be then used to mutate those
+    /// without corresponding changes to `ptr`.
+    ///
+    /// In this case, the `Vec` should use a different `Mut` type that does not
+    /// allow such mutations to occur.
+    ///
+    /// ```rust,ìgnore
+    /// struct VecSoaRef<'a, T> {
+    ///   ptr: &'a *mut T,
+    ///   cap: &'a usize,
+    ///   len: &'a usize,
+    /// }
+    ///
+    /// impl<T> SoAble for AtomicVec<T> {
+    ///   type Ref<'a> = VecSoARef<'a, T> where Self: 'a;
+    /// }
+    /// ```
+    type Mut<'a>
     where
         Self: 'a;
-    type SliceTuple<'a>: Copy
+
+    /// Representation of a group of the SoAble types as a group of slices
+    /// borrowed from the Struct-of-Arrays.
+    ///
+    /// Generally this will be a tuple of slices matching the TupleRepr but
+    /// in cases of types that split apart fields that have interconnected
+    /// safety requirements that could be violated using shared references to
+    /// individual fields, this type may be chosen to expose a safe interface
+    /// over the group of field slices.
+    type Slice<'a>: Copy
     where
         Self: 'a;
-    type SliceMutTuple<'a>
+
+    /// Representation of a group of the SoAble types as a group of slices
+    /// borrowed from the Struct-of-Arrays.
+    ///
+    /// Generally this will be a tuple of slices matching the TupleRepr but
+    /// in cases of types that split apart fields that have interconnected
+    /// safety requirements that could be violated using shared references to
+    /// individual fields, this type may be chosen to expose a safe interface
+    /// over the group of field slices.
+    type SliceMut<'a>
     where
         Self: 'a;
 
@@ -24,21 +240,21 @@ pub trait SoAble: Sized {
     fn as_ref<'a>(
         _: PhantomData<&'a Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
-    ) -> Self::RefTuple<'a>;
+    ) -> Self::Ref<'a>;
     fn as_mut<'a>(
         _: PhantomData<&'a mut Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
-    ) -> Self::MutTuple<'a>;
+    ) -> Self::Mut<'a>;
     fn as_slice<'a>(
         _: PhantomData<&'a Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
         len: u32,
-    ) -> Self::SliceTuple<'a>;
+    ) -> Self::Slice<'a>;
     fn as_mut_slice<'a>(
         _: PhantomData<&'a mut Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
         len: u32,
-    ) -> Self::SliceMutTuple<'a>;
+    ) -> Self::SliceMut<'a>;
 }
 
 pub trait SoATuple {
@@ -495,10 +711,10 @@ macro_rules! soable {
     ($target:ident { $($field:ident: $type:ty),+ }) => {
         impl SoAble for $target {
             type TupleRepr = ($($type),+);
-            type RefTuple<'a> = ($(&'a $type),+);
-            type MutTuple<'a> = ($(&'a mut $type),+);
-            type SliceTuple<'a> = ($(&'a [$type]),+);
-            type SliceMutTuple<'a> = ($(&'a mut [$type]),+);
+            type Ref<'a> = ($(&'a $type),+);
+            type Mut<'a> = ($(&'a mut $type),+);
+            type Slice<'a> = ($(&'a [$type]),+);
+            type SliceMut<'a> = ($(&'a mut [$type]),+);
 
             fn into_tuple(value: Self) -> Self::TupleRepr {
                 let Self { $($field),+ } = value;
@@ -513,7 +729,7 @@ macro_rules! soable {
             fn as_ref<'a>(
                 _: PhantomData<&'a Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::RefTuple<'a> {
+            ) -> Self::Ref<'a> {
                 let ($($field),+) = value;
                 unsafe {
                     ($($field.as_ref()),+)
@@ -523,7 +739,7 @@ macro_rules! soable {
             fn as_mut<'a>(
                 _: PhantomData<&'a mut Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::MutTuple<'a> {
+            ) -> Self::Mut<'a> {
                 let ($(mut $field),+) = value;
                 unsafe {
                     ($($field.as_mut()),+)
@@ -534,7 +750,7 @@ macro_rules! soable {
                 _: PhantomData<&'a Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
                 len: u32,
-            ) -> Self::SliceTuple<'a> {
+            ) -> Self::Slice<'a> {
                 let len = len as usize;
                 let ($($field),+) = value;
                 unsafe {
@@ -548,7 +764,7 @@ macro_rules! soable {
                 _: PhantomData<&'a mut Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
                 len: u32,
-            ) -> Self::SliceMutTuple<'a> {
+            ) -> Self::SliceMut<'a> {
                 let len = len as usize;
                 let ($($field),+) = value;
                 unsafe {
@@ -562,10 +778,10 @@ macro_rules! soable {
     ($target:ident<$($lifetimes:lifetime),+> { $($field:ident: $type:ty),+ }) => {
         impl<$($lifetimes),+> SoAble for $target<'b> {
             type TupleRepr = ($($type),+);
-            type RefTuple<'a> = ($(&'a $type),+) where Self: 'a;
-            type MutTuple<'a> = ($(&'a mut $type),+) where Self: 'a;
-            type SliceTuple<'a> = ($(&'a [$type]),+) where Self: 'a;
-            type SliceMutTuple<'a> = ($(&'a mut [$type]),+) where Self: 'a;
+            type Ref<'a> = ($(&'a $type),+) where Self: 'a;
+            type Mut<'a> = ($(&'a mut $type),+) where Self: 'a;
+            type Slice<'a> = ($(&'a [$type]),+) where Self: 'a;
+            type SliceMut<'a> = ($(&'a mut [$type]),+) where Self: 'a;
 
             fn into_tuple(value: Self) -> Self::TupleRepr {
                 let Self { $($field),+ } = value;
@@ -580,7 +796,7 @@ macro_rules! soable {
             fn as_ref<'a>(
                 _: PhantomData<&'a Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::RefTuple<'a> {
+            ) -> Self::Ref<'a> {
                 let ($($field),+) = value;
                 unsafe {
                     ($($field.as_ref()),+)
@@ -590,7 +806,7 @@ macro_rules! soable {
             fn as_mut<'a>(
                 _: PhantomData<&'a mut Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
-            ) -> Self::MutTuple<'a> {
+            ) -> Self::Mut<'a> {
                 let ($(mut $field),+) = value;
                 unsafe {
                     ($($field.as_mut()),+)
@@ -601,7 +817,7 @@ macro_rules! soable {
                 _: PhantomData<&'a Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
                 len: u32,
-            ) -> Self::SliceTuple<'a> {
+            ) -> Self::Slice<'a> {
                 let len = len as usize;
                 let ($($field),+) = value;
                 unsafe {
@@ -615,7 +831,7 @@ macro_rules! soable {
                 _: PhantomData<&'a mut Self>,
                 value: <Self::TupleRepr as SoATuple>::Pointers,
                 len: u32,
-            ) -> Self::SliceMutTuple<'a> {
+            ) -> Self::SliceMut<'a> {
                 let len = len as usize;
                 let ($($field),+) = value;
                 unsafe {
@@ -631,22 +847,22 @@ macro_rules! soable {
 impl<T, U> SoAble for (T, U) {
     type TupleRepr = Self;
 
-    type RefTuple<'a>
+    type Ref<'a>
         = (&'a T, &'a U)
     where
         Self: 'a;
 
-    type MutTuple<'a>
+    type Mut<'a>
         = (&'a mut T, &'a mut U)
     where
         Self: 'a;
 
-    type SliceTuple<'a>
+    type Slice<'a>
         = (&'a [T], &'a [U])
     where
         Self: 'a;
 
-    type SliceMutTuple<'a>
+    type SliceMut<'a>
         = (&'a mut [T], &'a mut [U])
     where
         Self: 'a;
@@ -662,7 +878,7 @@ impl<T, U> SoAble for (T, U) {
     fn as_ref<'a>(
         _: PhantomData<&'a Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
-    ) -> Self::RefTuple<'a> {
+    ) -> Self::Ref<'a> {
         let (a, b) = value;
         unsafe { (a.as_ref(), b.as_ref()) }
     }
@@ -670,7 +886,7 @@ impl<T, U> SoAble for (T, U) {
     fn as_mut<'a>(
         _: PhantomData<&'a mut Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
-    ) -> Self::MutTuple<'a> {
+    ) -> Self::Mut<'a> {
         let (mut a, mut b) = value;
         unsafe { (a.as_mut(), b.as_mut()) }
     }
@@ -679,7 +895,7 @@ impl<T, U> SoAble for (T, U) {
         _: PhantomData<&'a Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
         len: u32,
-    ) -> Self::SliceTuple<'a> {
+    ) -> Self::Slice<'a> {
         let len = len as usize;
         let (a, b) = value;
         unsafe {
@@ -694,7 +910,7 @@ impl<T, U> SoAble for (T, U) {
         _: PhantomData<&'a mut Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
         len: u32,
-    ) -> Self::SliceMutTuple<'a> {
+    ) -> Self::SliceMut<'a> {
         let len = len as usize;
         let (a, b) = value;
         unsafe {

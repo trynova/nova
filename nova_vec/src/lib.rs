@@ -221,7 +221,7 @@ impl<T: SoAble> SoAVec<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get(&self, index: u32) -> Option<T::RefTuple<'_>> {
+    pub fn get(&self, index: u32) -> Option<T::Ref<'_>> {
         if self.len() <= index {
             // Over-indexing.
             return None;
@@ -248,7 +248,7 @@ impl<T: SoAble> SoAVec<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_mut(&mut self, index: u32) -> Option<T::MutTuple<'_>> {
+    pub fn get_mut(&mut self, index: u32) -> Option<T::Mut<'_>> {
         if self.len() <= index {
             // Over-indexing.
             return None;
@@ -271,7 +271,7 @@ impl<T: SoAble> SoAVec<T> {
     /// io::sink().write(first).unwrap();
     /// io::sink().write(second).unwrap();
     /// ```
-    pub fn as_slice(&self) -> T::SliceTuple<'_> {
+    pub fn as_slice(&self) -> T::Slice<'_> {
         let ptrs = unsafe { T::TupleRepr::get_pointers(self.buf.as_ptr(), 0, self.capacity()) };
         let len = self.len();
         T::as_slice(PhantomData, ptrs, len)
@@ -292,7 +292,7 @@ impl<T: SoAble> SoAVec<T> {
     /// io::repeat(0b101).read_exact(first).unwrap();
     /// io::repeat(0b010).read_exact(second).unwrap();
     /// ```
-    pub fn as_mut_slice(&mut self) -> T::SliceMutTuple<'_> {
+    pub fn as_mut_slice(&mut self) -> T::SliceMut<'_> {
         let ptrs = unsafe { T::TupleRepr::get_pointers(self.buf.as_ptr(), 0, self.capacity()) };
         let len = self.len();
         T::as_mut_slice(PhantomData, ptrs, len)
