@@ -20,8 +20,8 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseAllRecord<'a> {
     pub(crate) remaining_unresolved_promise_count: u32,
-    pub result_array: Array<'a>,
-    pub promise: Promise<'a>,
+    pub(crate) result_array: Array<'a>,
+    pub(crate) promise: Promise<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -45,7 +45,8 @@ impl<'a> PromiseAll<'a> {
         elements[index as usize] = Some(value.unbind());
 
         let data = promise_all.get_mut(agent);
-        data.remaining_unresolved_promise_count -= 1;
+        data.remaining_unresolved_promise_count =
+            data.remaining_unresolved_promise_count.saturating_sub(1);
         if data.remaining_unresolved_promise_count == 0 {
             let capability = PromiseCapability::from_promise(data.promise, false);
             capability.resolve(agent, result_array.into_value().unbind(), gc);
