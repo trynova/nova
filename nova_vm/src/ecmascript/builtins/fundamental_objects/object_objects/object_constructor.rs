@@ -883,11 +883,6 @@ impl ObjectConstructor {
         let obj = to_object(agent, arguments.get(0), gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        #[usdt::provider]
-        mod nova {
-            fn get_prototype_of() {}
-        }
-        // nova::get_prototype_of!(|| ());
         // Note: We do not use try_get_prototype_of here as we don't need to
         // protect any on-stack values from GC. We're perfectly okay with
         // triggering GC here.

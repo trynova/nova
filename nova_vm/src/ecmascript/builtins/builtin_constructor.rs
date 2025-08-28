@@ -159,7 +159,7 @@ impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorH
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
-    fn get_name(self, _: &Agent) -> String<'static> {
+    fn get_name(self, _: &Agent) -> &String<'a> {
         unreachable!();
     }
 

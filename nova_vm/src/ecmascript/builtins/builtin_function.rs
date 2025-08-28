@@ -504,6 +504,17 @@ impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
     }
 }
 
+impl<'a> TryFrom<Function<'a>> for BuiltinFunction<'a> {
+    type Error = ();
+
+    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Function::BuiltinFunction(f) => Ok(f),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Index<BuiltinFunction<'_>> for Agent {
     type Output = BuiltinFunctionHeapData<'static>;
 
@@ -539,8 +550,11 @@ impl IndexMut<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData<'stati
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
-    fn get_name(self, agent: &Agent) -> String<'static> {
-        agent[self].initial_name.unwrap_or(String::EMPTY_STRING)
+    fn get_name(self, agent: &Agent) -> &String<'a> {
+        agent[self]
+            .initial_name
+            .as_ref()
+            .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
@@ -579,17 +593,8 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        #[usdt::provider]
-        mod nova {
-            fn start_builtin_call(name: &str) {}
-            fn stop_builtin_call(name: &str) {}
-        }
-        nova::start_builtin_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
-        let result =
-            // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-            builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc);
-        nova::stop_builtin_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
-        result
+        // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
+        builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -610,16 +615,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
             fn start_builtin_constructor(name: &str) {}
             fn stop_builtin_constructor(name: &str) {}
         }
-        nova::start_builtin_constructor!(|| {
-            self.get_name(agent).to_string_lossy(agent).to_string()
-        });
+        nova::start_builtin_constructor!(|| { self.get_name(agent).to_string_lossy(agent) });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         let result =
             builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
                 .map(|result| result.try_into().unwrap());
-        nova::stop_builtin_constructor!(|| {
-            self.get_name(agent).to_string_lossy(agent).to_string()
-        });
+        nova::stop_builtin_constructor!(|| { self.get_name(agent).to_string_lossy(agent) });
         result
     }
 }
@@ -640,6 +641,12 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let f = f.bind(gc.nogc());
+    #[usdt::provider]
+    mod nova {
+        fn start_builtin_call(name: &str) {}
+        fn stop_builtin_call(name: &str) {}
+    }
+    nova::stop_builtin_call!(|| { f.get_name(agent).to_string_lossy(agent) });
     let this_argument = this_argument.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());
     let new_target = new_target.bind(gc.nogc());
@@ -699,7 +706,11 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     // Note
     // When calleeContext is removed from the execution context stack it must not be destroyed if it has been
     // suspended and retained by an accessible Generator for later resumption.
-    let _callee_context = agent.pop_execution_context();
+    let callee_context = agent.pop_execution_context();
+    nova::stop_builtin_call!(|| {
+        let f = BuiltinFunction::try_from(callee_context.unwrap().function.unwrap()).unwrap();
+        f.get_name(agent).to_string_lossy(agent)
+    });
     // 13. Return ? result.
     result
 }

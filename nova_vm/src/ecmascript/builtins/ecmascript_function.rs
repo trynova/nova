@@ -6,6 +6,7 @@ use core::{
     ops::{Index, IndexMut},
     ptr::NonNull,
 };
+use std::borrow::Cow;
 
 use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::IsSimpleParameterList;
@@ -295,8 +296,8 @@ unsafe impl Bindable for ECMAScriptFunction<'_> {
 }
 
 impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
-    fn get_name(self, agent: &Agent) -> String<'static> {
-        agent[self].name.unwrap_or(String::EMPTY_STRING)
+    fn get_name(self, agent: &Agent) -> &String<'a> {
+        agent[self].name.as_ref().unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
@@ -361,7 +362,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             fn start_function_call(name: &str) {}
             fn stop_function_call(name: &str) {}
         }
-        nova::start_function_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
+        nova::start_function_call!(|| { self.get_name(agent).to_string_lossy(agent) });
 
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
@@ -407,8 +408,16 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         let result = ordinary_call_evaluate_body(agent, f.unbind(), arguments_list.unbind(), gc);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
-        agent.pop_execution_context();
-        nova::stop_function_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
+        let callee_context = agent.pop_execution_context();
+        nova::stop_function_call!(|| {
+            match ECMAScriptFunction::try_from(callee_context.unwrap().function.unwrap())
+                .unwrap()
+                .get_name(agent)
+            {
+                String::String(s) => s.to_string_lossy(agent),
+                String::SmallString(s) => Cow::Owned(s.to_string_lossy().to_string()),
+            }
+        });
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.
@@ -427,9 +436,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             fn start_ecmascript_constructor(name: &str) {}
             fn stop_ecmascript_constructor(name: &str) {}
         }
-        nova::start_ecmascript_constructor!(|| {
-            self.get_name(agent).to_string_lossy(agent).to_string()
-        });
+        nova::start_ecmascript_constructor!(|| { self.get_name(agent).to_string_lossy(agent) });
 
         let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
@@ -490,7 +497,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
             ordinary_call_bind_this(
                 agent,
-                self,
+                self_fn,
                 constructor_env,
                 this_argument.unwrap().into_value(),
                 gc.nogc(),
@@ -515,7 +522,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         );
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
-        agent.pop_execution_context();
+        let callee_context = agent.pop_execution_context();
         // 10. If result is a return completion, then
         // 11. Else,
         //   a. ReturnIfAbrupt(result).
@@ -559,7 +566,9 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             Ok(this_binding)
         };
         nova::stop_ecmascript_constructor!(|| {
-            self.get_name(agent).to_string_lossy(agent).to_string()
+            let f =
+                ECMAScriptFunction::try_from(callee_context.unwrap().function.unwrap()).unwrap();
+            f.get_name(agent).to_string_lossy(agent)
         });
         result
     }
