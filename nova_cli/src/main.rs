@@ -22,23 +22,23 @@ use helper::{
 use nova_vm::{
     ecmascript::{
         execution::{
-            agent::{ExceptionType, GcAgent, HostHooks, Job, Options},
             Agent, JsResult,
+            agent::{ExceptionType, GcAgent, HostHooks, Job, Options},
         },
         scripts_and_modules::{
             module::module_semantics::{
-                abstract_module_records::AbstractModule,
+                ModuleRequest, Referrer, abstract_module_records::AbstractModule,
                 cyclic_module_records::GraphLoadingStateRecord, finish_loading_imported_module,
-                source_text_module_records::parse_module, ModuleRequest, Referrer,
+                source_text_module_records::parse_module,
             },
-            script::{parse_script, script_evaluation, HostDefined},
+            script::{HostDefined, parse_script, script_evaluation},
         },
         types::{Object, String as JsString, Value},
     },
     engine::{
+        Global,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
-        Global,
     },
     register_probes,
 };
