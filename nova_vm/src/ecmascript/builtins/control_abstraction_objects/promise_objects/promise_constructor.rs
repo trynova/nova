@@ -281,45 +281,31 @@ impl PromiseConstructor {
                 .unbind()
                 .bind(gc.nogc());
 
-            match element {
-                Some(Value::Promise(promise)) => {
-                    let capability = PromiseCapability::new(agent, gc.nogc());
-                    inner_promise_then(
-                        agent,
-                        promise.unbind(),
-                        PromiseReactionHandler::PromiseAll {
-                            index,
-                            promise_all: promise_all_record,
-                        },
-                        PromiseReactionHandler::Empty,
-                        Some(capability.unbind()),
-                        gc.nogc(),
-                    );
-                }
-                Some(value) => {
-                    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
-                        .unbind()
-                        .bind(gc.nogc());
-                    let capability = PromiseCapability::new(agent, gc.nogc());
-                    inner_promise_then(
-                        agent,
-                        promise.unbind(),
-                        PromiseReactionHandler::PromiseAll {
-                            index,
-                            promise_all: promise_all_record,
-                        },
-                        PromiseReactionHandler::Empty,
-                        Some(capability.unbind()),
-                        gc.nogc(),
-                    );
-                }
+            let promise = match element {
+                Some(Value::Promise(promise)) => promise,
+                Some(value) => Promise::resolve(agent, value.unbind(), gc.reborrow())
+                    .unbind()
+                    .bind(gc.nogc()),
                 None => {
                     unreachable!()
                 }
-            }
+            };
+
+            let capability = PromiseCapability::new(agent, gc.nogc());
+            inner_promise_then(
+                agent,
+                promise.unbind(),
+                PromiseReactionHandler::PromiseAll {
+                    index,
+                    promise_all: promise_all_record,
+                },
+                PromiseReactionHandler::Empty,
+                Some(capability.unbind()),
+                gc.nogc(),
+            );
         }
 
-        Ok(scoped_result_promise.get(agent).into_value().unbind())
+        Ok(scoped_result_promise.get(agent).into_value())
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
