@@ -11,6 +11,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array_create,
             ordinary::ordinary_create_from_constructor,
             promise::{
                 Promise,
@@ -256,10 +257,15 @@ impl PromiseConstructor {
         let result_capability = PromiseCapability::new(agent, gc.nogc());
         let result_promise = result_capability.promise().bind(gc.nogc());
 
-        let undefined_values =
-            (vec![Value::Undefined.bind(gc.nogc()); array_len as usize]).bind(gc.nogc());
-        let result_array =
-            Array::from_slice(agent, &undefined_values.unbind(), gc.nogc()).bind(gc.nogc());
+        let result_array = array_create(
+            agent,
+            array_len as usize,
+            array_len as usize,
+            None,
+            gc.nogc(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
 
         let promise_all_record = agent.heap.create(PromiseAllRecord {
             remaining_unresolved_promise_count: array_len,
