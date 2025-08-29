@@ -281,35 +281,41 @@ impl PromiseConstructor {
                 .unbind()
                 .bind(gc.nogc());
 
-            if let Some(Value::Promise(promise)) = element {
-                let capability = PromiseCapability::new(agent, gc.nogc());
-                inner_promise_then(
-                    agent,
-                    promise.unbind(),
-                    PromiseReactionHandler::PromiseAll {
-                        index,
-                        promise_all: promise_all_record,
-                    },
-                    PromiseReactionHandler::Empty,
-                    Some(capability.unbind()),
-                    gc.nogc(),
-                );
-            } else if let Some(value) = element {
-                let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc());
-                let capability = PromiseCapability::new(agent, gc.nogc());
-                inner_promise_then(
-                    agent,
-                    promise.unbind(),
-                    PromiseReactionHandler::PromiseAll {
-                        index,
-                        promise_all: promise_all_record,
-                    },
-                    PromiseReactionHandler::Empty,
-                    Some(capability.unbind()),
-                    gc.nogc(),
-                );
+            match element {
+                Some(Value::Promise(promise)) => {
+                    let capability = PromiseCapability::new(agent, gc.nogc());
+                    inner_promise_then(
+                        agent,
+                        promise.unbind(),
+                        PromiseReactionHandler::PromiseAll {
+                            index,
+                            promise_all: promise_all_record,
+                        },
+                        PromiseReactionHandler::Empty,
+                        Some(capability.unbind()),
+                        gc.nogc(),
+                    );
+                }
+                Some(value) => {
+                    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
+                        .unbind()
+                        .bind(gc.nogc());
+                    let capability = PromiseCapability::new(agent, gc.nogc());
+                    inner_promise_then(
+                        agent,
+                        promise.unbind(),
+                        PromiseReactionHandler::PromiseAll {
+                            index,
+                            promise_all: promise_all_record,
+                        },
+                        PromiseReactionHandler::Empty,
+                        Some(capability.unbind()),
+                        gc.nogc(),
+                    );
+                }
+                None => {
+                    unreachable!()
+                }
             }
         }
 
