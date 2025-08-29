@@ -228,7 +228,7 @@ impl PromiseConstructor {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let C be the this value.
         if this_value
@@ -243,19 +243,22 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         }
+        let arguments = arguments.bind(gc.nogc());
 
-        let first_arg = arguments.get(0).bind(gc.nogc());
-        let Ok(promise_array) = Array::try_from(first_arg.unbind()).bind(gc.nogc()) else {
+        let first_arg = arguments.get(0).unbind().bind(gc.nogc());
+        let Ok(promise_array) = Array::try_from(first_arg.unbind()).unbind().bind(gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "Expected an array of promises",
+                "Expected an array as first argument",
                 gc.into_nogc(),
             ));
         };
+        let scoped_promise_array = promise_array.scope(agent, gc.nogc());
 
         let array_len = promise_array.len(agent);
-        let result_capability = PromiseCapability::new(agent, gc.nogc());
-        let result_promise = result_capability.promise().bind(gc.nogc());
+        let result_capability = PromiseCapability::new(agent, gc.nogc()).bind(gc.nogc());
+        let result_promise = result_capability.promise().unbind().bind(gc.nogc());
+        let scoped_result_promise = result_promise.scope(agent, gc.nogc());
 
         let result_array = array_create(
             agent,
@@ -270,15 +273,16 @@ impl PromiseConstructor {
         let promise_all_record = agent.heap.create(PromiseAllRecord {
             remaining_unresolved_promise_count: array_len,
             result_array: result_array.unbind(),
-            promise: result_promise.unbind(),
+            promise: scoped_result_promise.get(agent),
         });
 
         for index in 0..array_len {
-            let storage = promise_array.get_storage(agent);
-            let element = storage.values[index as usize].bind(gc.nogc());
+            let element = (scoped_promise_array.get(agent).as_slice(agent)[index as usize])
+                .unbind()
+                .bind(gc.nogc());
 
             if let Some(Value::Promise(promise)) = element {
-                let capability = PromiseCapability::new(agent, gc.nogc()).bind(gc.nogc());
+                let capability = PromiseCapability::new(agent, gc.nogc());
                 inner_promise_then(
                     agent,
                     promise.unbind(),
@@ -290,10 +294,26 @@ impl PromiseConstructor {
                     Some(capability.unbind()),
                     gc.nogc(),
                 );
-            };
+            } else if let Some(value) = element {
+                let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
+                    .unbind()
+                    .bind(gc.nogc());
+                let capability = PromiseCapability::new(agent, gc.nogc());
+                inner_promise_then(
+                    agent,
+                    promise.unbind(),
+                    PromiseReactionHandler::PromiseAll {
+                        index,
+                        promise_all: promise_all_record,
+                    },
+                    PromiseReactionHandler::Empty,
+                    Some(capability.unbind()),
+                    gc.nogc(),
+                );
+            }
         }
 
-        Ok(result_promise.unbind().into_value())
+        Ok(scoped_result_promise.get(agent).into_value().unbind())
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
