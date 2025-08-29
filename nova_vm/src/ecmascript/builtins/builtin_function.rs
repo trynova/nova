@@ -6,7 +6,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, Index, IndexMut},
 };
-use std::{hint::unreachable_unchecked, ptr::NonNull};
+use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
 
 use crate::{
     ecmascript::{
@@ -26,6 +26,7 @@ use crate::{
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinFunctionIndex,
     },
+    ndt,
 };
 
 #[derive(Default)]
@@ -593,8 +594,17 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let mut id = 0;
+        ndt::builtin_call_start!(|| {
+            let args = create_name_and_id(agent, self);
+            id = args.1;
+            args
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
+        let result =
+            builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc);
+        ndt::builtin_call_done!(|| id);
+        result
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -610,19 +620,29 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
-        #[usdt::provider]
-        mod nova {
-            fn start_builtin_constructor(name: &str) {}
-            fn stop_builtin_constructor(name: &str) {}
-        }
-        nova::start_builtin_constructor!(|| { self.get_name(agent).to_string_lossy(agent) });
+        let mut id = 0;
+        ndt::builtin_constructor_start!(|| {
+            let args = create_name_and_id(agent, self);
+            id = args.1;
+            args
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         let result =
             builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
                 .map(|result| result.try_into().unwrap());
-        nova::stop_builtin_constructor!(|| { self.get_name(agent).to_string_lossy(agent) });
+        ndt::builtin_constructor_done!(|| id);
         result
     }
+}
+
+#[inline(never)]
+fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, str>, u64) {
+    let id = match agent[f].behaviour {
+        Behaviour::Regular(f) => f as u64,
+        Behaviour::Constructor(f) => f as u64,
+    };
+    let name = f.get_name(agent).to_string_lossy(agent);
+    (name, id)
 }
 
 /// ### [10.3.3 BuiltinCallOrConstruct ( F, thisArgument, argumentsList, newTarget )](https://tc39.es/ecma262/#sec-builtincallorconstruct)
@@ -632,7 +652,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-pub(crate) fn builtin_call_or_construct<'gc>(
+fn builtin_call_or_construct<'gc>(
     agent: &mut Agent,
     f: BuiltinFunction,
     this_argument: Option<Value>,
@@ -641,12 +661,6 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let f = f.bind(gc.nogc());
-    #[usdt::provider]
-    mod nova {
-        fn start_builtin_call(name: &str) {}
-        fn stop_builtin_call(name: &str) {}
-    }
-    nova::stop_builtin_call!(|| { f.get_name(agent).to_string_lossy(agent) });
     let this_argument = this_argument.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());
     let new_target = new_target.bind(gc.nogc());
@@ -706,11 +720,7 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     // Note
     // When calleeContext is removed from the execution context stack it must not be destroyed if it has been
     // suspended and retained by an accessible Generator for later resumption.
-    let callee_context = agent.pop_execution_context();
-    nova::stop_builtin_call!(|| {
-        let f = BuiltinFunction::try_from(callee_context.unwrap().function.unwrap()).unwrap();
-        f.get_name(agent).to_string_lossy(agent)
-    });
+    let _callee_context = agent.pop_execution_context();
     // 13. Return ? result.
     result
 }

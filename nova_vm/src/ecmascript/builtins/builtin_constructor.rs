@@ -31,6 +31,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinConstructorIndex,
     },
+    ndt,
 };
 
 use super::ArgumentsList;
@@ -216,9 +217,21 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
+        let mut id = 0;
+        ndt::builtin_constructor_start!(|| {
+            id = create_id(agent, self);
+            let name = self.get_name(agent).to_string_lossy(agent);
+            (name, id)
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, self, arguments_list, new_target, gc)
+        let result = builtin_call_or_construct(agent, self, arguments_list, new_target, gc);
+        ndt::builtin_constructor_done!(|| id);
+        result
     }
+}
+
+fn create_id(agent: &Agent, f: BuiltinConstructorFunction) -> u64 {
+    ((f.0.into_u32() as u64) << 32) | agent[f].source_text.start as u64
 }
 
 /// ### [10.3.3 BuiltinCallOrConstruct ( F, thisArgument, argumentsList, newTarget )](https://tc39.es/ecma262/#sec-builtincallorconstruct)

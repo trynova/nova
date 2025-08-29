@@ -49,6 +49,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues, indexes::ECMAScriptFunctionIndex,
     },
+    ndt,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -357,14 +358,14 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        #[usdt::provider]
-        mod nova {
-            fn start_function_call(name: &str) {}
-            fn stop_function_call(name: &str) {}
-        }
-        nova::start_function_call!(|| { self.get_name(agent).to_string_lossy(agent) });
-
         let f = self.bind(gc.nogc());
+        let mut id = 0;
+        ndt::javascript_call_start!(|| {
+            let args = create_name_and_id(agent, f);
+            id = args.1;
+            args
+        });
+
         let arguments_list = arguments_list.bind(gc.nogc());
 
         // 1. Let callerContext be the running execution context.
@@ -408,16 +409,8 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         let result = ordinary_call_evaluate_body(agent, f.unbind(), arguments_list.unbind(), gc);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
-        let callee_context = agent.pop_execution_context();
-        nova::stop_function_call!(|| {
-            match ECMAScriptFunction::try_from(callee_context.unwrap().function.unwrap())
-                .unwrap()
-                .get_name(agent)
-            {
-                String::String(s) => s.to_string_lossy(agent),
-                String::SmallString(s) => Cow::Owned(s.to_string_lossy().to_string()),
-            }
-        });
+        let _callee_context = agent.pop_execution_context();
+        ndt::javascript_call_done!(|| id);
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.
@@ -431,24 +424,24 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         new_target: Function,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
-        #[usdt::provider]
-        mod nova {
-            fn start_ecmascript_constructor(name: &str) {}
-            fn stop_ecmascript_constructor(name: &str) {}
-        }
-        nova::start_ecmascript_constructor!(|| { self.get_name(agent).to_string_lossy(agent) });
+        let mut f = self.bind(gc.nogc());
+        let mut id = 0;
+        ndt::javascript_constructor_start!(|| {
+            let args = create_name_and_id(agent, f);
+            id = args.1;
+            args
+        });
 
-        let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
         let mut arguments_list = arguments.bind(gc.nogc());
         // 2. Let kind be F.[[ConstructorKind]].
-        let is_base = !agent[self_fn]
+        let is_base = !agent[f]
             .ecmascript_function
             .constructor_status
             .is_derived_class();
         // 3. If kind is BASE, then
         let this_argument = if is_base {
-            let scoped_self_fn = self_fn.scope(agent, gc.nogc());
+            let scoped_self_fn = f.scope(agent, gc.nogc());
             let scoped_new_target = new_target.scope(agent, gc.nogc());
             // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
             let unbound_new_target = new_target.unbind();
@@ -468,7 +461,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
                 )
                 .unbind()?
                 .bind(gc.nogc());
-            self_fn = scoped_self_fn.get(agent).bind(gc.nogc());
+            f = scoped_self_fn.get(agent).bind(gc.nogc());
             new_target = scoped_new_target.get(agent).bind(gc.nogc());
             arguments_list = args.bind(gc.nogc());
             Some(this_argument)
@@ -478,7 +471,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
 
         // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
         let callee_context =
-            prepare_for_ordinary_call(agent, self_fn, Some(new_target.into_object()), gc.nogc());
+            prepare_for_ordinary_call(agent, f, Some(new_target.into_object()), gc.nogc());
         // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
         let constructor_env = callee_context
             .ecmascript_code
@@ -497,7 +490,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
             ordinary_call_bind_this(
                 agent,
-                self_fn,
+                f,
                 constructor_env,
                 this_argument.unwrap().into_value(),
                 gc.nogc(),
@@ -514,15 +507,11 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         let scoped_this_argument = this_argument.map(|f| f.scope(agent, gc.nogc()));
 
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(
-            agent,
-            self_fn.unbind(),
-            arguments_list.unbind(),
-            gc.reborrow(),
-        );
+        let result =
+            ordinary_call_evaluate_body(agent, f.unbind(), arguments_list.unbind(), gc.reborrow());
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
-        let callee_context = agent.pop_execution_context();
+        let _callee_context = agent.pop_execution_context();
         // 10. If result is a return completion, then
         // 11. Else,
         //   a. ReturnIfAbrupt(result).
@@ -565,13 +554,18 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             // 14. Return thisBinding.
             Ok(this_binding)
         };
-        nova::stop_ecmascript_constructor!(|| {
-            let f =
-                ECMAScriptFunction::try_from(callee_context.unwrap().function.unwrap()).unwrap();
-            f.get_name(agent).to_string_lossy(agent)
-        });
+        ndt::javascript_constructor_done!(|| id);
         result
     }
+}
+
+#[inline(never)]
+fn create_name_and_id<'a>(agent: &'a Agent, f: ECMAScriptFunction<'a>) -> (Cow<'a, str>, u64) {
+    let id = agent[f]
+        .compiled_bytecode
+        .map_or(0, |b| agent[b].instructions.as_ptr() as u64);
+    let name = f.get_name(agent).to_string_lossy(agent);
+    (name, id)
 }
 
 /// ### [10.2.1.1 PrepareForOrdinaryCall ( F, newTarget )](https://tc39.es/ecma262/#sec-prepareforordinarycall)
