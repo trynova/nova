@@ -18,7 +18,7 @@ use crate::{
         execution::Agent,
     },
     engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
@@ -26,17 +26,13 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::NumberIndex,
     },
+    with_radix,
 };
 
-pub(crate) use data::*;
+pub use data::NumberHeapData;
 use num_traits::{PrimInt, Zero};
 use radix::make_float_string_ascii_lowercase;
-pub(crate) use radix::with_radix;
 
-/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
-///
-/// Heap-allocated [Number] data. Accessing the data must be done through the
-/// [Agent].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapNumber<'a>(pub(crate) NumberIndex<'a>);
@@ -50,7 +46,21 @@ impl HeapNumber<'_> {
         self.0.into_index()
     }
 }
-bindable_handle!(HeapNumber);
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapNumber<'_> {
+    type Of<'a> = HeapNumber<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy, PartialEq)]
@@ -64,7 +74,6 @@ pub enum Number<'a> {
     /// byte.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
 }
-bindable_handle!(Number);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -436,7 +445,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [truncate](https://tc39.es/ecma262/#eqn-truncate)
+    /// https://tc39.es/ecma262/#eqn-truncate
     pub fn truncate(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         match self {
             Number::Number(n) => {
@@ -1378,8 +1387,23 @@ impl<'a> Number<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Number<'_> {
+    type Of<'a> = Number<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum BitwiseOp {
+pub enum BitwiseOp {
     And,
     Xor,
     Or,

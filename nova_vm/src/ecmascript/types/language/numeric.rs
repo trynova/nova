@@ -23,16 +23,6 @@ use super::{
     },
 };
 
-/// ### [6.1.6 Numeric Types](https://tc39.es/ecma262/#sec-numeric-types)
-///
-/// ECMAScript has two built-in numeric types: Number and BigInt. This type
-/// abstracts over the two.
-///
-/// Because the numeric types are in general not convertible without loss of
-/// precision or truncation, the ECMAScript language provides no implicit
-/// conversion among these types. Programmers must explicitly call `Number` and
-/// `BigInt` functions to convert among types when calling a function which
-/// requires another type.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Numeric<'a> {

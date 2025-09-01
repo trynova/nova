@@ -5,7 +5,7 @@
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct NumberHeapData {
+pub struct NumberHeapData {
     pub(crate) data: f64,
 }
 

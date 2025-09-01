@@ -4,6 +4,7 @@
 
 /// A macro which matches a radix and on a match defines a constant called
 /// RADIX to the appropriate radix.
+#[macro_export]
 macro_rules! with_radix {
     ($radix:ident, $expr:expr) => {
         match $radix {
@@ -151,7 +152,6 @@ macro_rules! with_radix {
         }
     };
 }
-pub(crate) use with_radix;
 
 pub(crate) fn make_float_string_ascii_lowercase(str: &mut str) {
     match &*str {

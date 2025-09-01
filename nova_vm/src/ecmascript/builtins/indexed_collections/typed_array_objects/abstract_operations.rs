@@ -51,6 +51,7 @@ use super::typed_array_intrinsic_object::copy_between_different_type_typed_array
 
 /// Matches a TypedArray and defines a type T in the expression which
 /// is the generic type of the viewable.
+#[macro_export]
 macro_rules! with_typed_array_viewable {
     ($value:expr, $expr:expr) => {
         with_typed_array_viewable!($value, $expr, T)
@@ -109,7 +110,6 @@ macro_rules! with_typed_array_viewable {
         }
     };
 }
-pub(crate) use with_typed_array_viewable;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

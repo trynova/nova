@@ -9,18 +9,21 @@ use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::ControlFlow};
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, Value,
+    IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT, TryGetResult, Value,
 };
 use crate::{
     SmallInteger, SmallString,
-    ecmascript::{execution::Agent, types::PropertyDescriptor},
+    ecmascript::{
+        builtins::ordinary::caches::PropertyLookupCache, execution::Agent,
+        types::PropertyDescriptor,
+    },
     engine::{
         Scoped,
-        context::{Bindable, NoGcScope, bindable_handle},
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -33,10 +36,7 @@ pub use data::StringHeapData;
 use hashbrown::HashTable;
 use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 
-/// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
-///
-/// Heap-allocated [String] data. Accessing the data must be done through the
-/// [Agent].
+/// String data allocated onto the Agent heap.
 ///
 /// ## Ordering
 ///
@@ -67,7 +67,21 @@ impl HeapString<'_> {
         agent[self].as_str()
     }
 }
-bindable_handle!(HeapString);
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapString<'_> {
+    type Of<'a> = HeapString<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
 
 impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
     type Output = StringHeapData;
@@ -155,7 +169,6 @@ pub enum String<'a> {
     String(HeapString<'a>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
 }
-bindable_handle!(String);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -640,6 +653,21 @@ impl<'a> String<'a> {
             None
         }
     }
+
+    pub(crate) fn get_cached<'gc>(
+        self,
+        agent: &mut Agent,
+        p: PropertyKey,
+        cache: PropertyLookupCache,
+        gc: NoGcScope<'gc, '_>,
+    ) -> ControlFlow<TryGetResult<'gc>, NoCache> {
+        if let Some(v) = self.get_property_value(agent, p) {
+            v.bind(gc).into()
+        } else {
+            self.object_shape(agent)
+                .get_cached(agent, p, self.into_value(), cache, gc)
+        }
+    }
 }
 
 impl<'gc> String<'gc> {
@@ -753,6 +781,21 @@ impl<'gc> String<'gc> {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { agent.heap.alloc_static_str(str) }
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for String<'_> {
+    type Of<'a> = String<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

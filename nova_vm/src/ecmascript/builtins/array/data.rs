@@ -15,11 +15,11 @@ use crate::{
 /// mathematical value is strictly less than 2**32.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    pub object_index: Option<OrdinaryObject<'a>>,
     // TODO: Use enum { ElementsVector, SmallVec<[Value; 3]> }
     // to get some inline benefit together with a 32 byte size
     // for ArrayHeapData to fit two in one cache line.
-    pub(crate) elements: ElementsVector<'a>,
+    pub elements: ElementsVector<'a>,
 }
 
 // SAFETY: Property implemented as a lifetime transmute.

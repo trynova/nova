@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
-
 pub mod bigint;
 mod function;
 mod into_numeric;
@@ -18,8 +16,7 @@ mod symbol;
 mod value;
 mod value_vec;
 
-pub use bigint::BigInt;
-pub(crate) use bigint::BigIntHeapData;
+pub use bigint::{BigInt, BigIntHeapData};
 pub(crate) use function::{
     BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
     ECMAScriptFunctionHeapData, FunctionInternalProperties,
@@ -28,7 +25,7 @@ pub use function::{Function, IntoFunction};
 pub use into_numeric::IntoNumeric;
 pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;
-pub use number::*;
+pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub(crate) use object::ScopedPropertyKey;
 pub use object::*;

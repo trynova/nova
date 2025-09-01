@@ -217,7 +217,7 @@ impl Rootable for InnerAbstractModule<'_> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ResolvedBinding<'a> {
+pub enum ResolvedBinding<'a> {
     Ambiguous,
     Resolved {
         /// \[\[Module]]

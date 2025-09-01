@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
-
 use crate::{
     ecmascript::{
         builtins::ordinary::caches::PropertyLookupCache,
@@ -28,7 +26,6 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    ndt,
 };
 use ahash::AHashSet;
 use core::{
@@ -400,11 +397,6 @@ pub fn script_evaluation<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     let script = script.bind(gc.nogc());
-    let mut id = 0;
-    ndt::script_evaluation_start!(|| {
-        id = create_id(agent, script, gc.nogc());
-        id
-    });
     let script_record = &agent[script];
     let realm_id = script_record.realm;
     let is_strict_mode = script_record.is_strict;
@@ -495,15 +487,8 @@ pub fn script_evaluation<'a>(
     //     running execution context.
     // NOTE: This is done automatically.
 
-    ndt::script_evaluation_done!(|| id);
-
     // 17. Return ? result.
     result
-}
-
-#[inline(never)]
-fn create_id(agent: &Agent, script: Script, gc: NoGcScope) -> u64 {
-    u64::try_from(script.get_statements(agent, gc).as_ptr().addr()).unwrap()
 }
 
 /// ### [16.1.7 GlobalDeclarationInstantiation ( script, env )](https://tc39.es/ecma262/#sec-globaldeclarationinstantiation)
