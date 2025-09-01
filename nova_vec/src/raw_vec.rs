@@ -51,7 +51,7 @@ impl<T: SoAble> RawSoAVec<T> {
     }
 
     #[inline(always)]
-    pub(crate) fn set_len(&mut self, len: u32) {
+    pub(crate) unsafe fn set_len(&mut self, len: u32) {
         self.len = len
     }
 

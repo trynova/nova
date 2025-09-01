@@ -206,7 +206,7 @@ impl<T: SoAble> SoAVec<T> {
             )
         };
         // SAFETY: length cannot overflow due to reserve succeeding.
-        self.buf.set_len(unsafe { self.len().unchecked_add(1) });
+        unsafe { self.buf.set_len(self.len().unchecked_add(1)) };
         Ok(())
     }
 
@@ -334,11 +334,172 @@ impl<T: SoAble> SoAVec<T> {
         let len = self.len();
         T::as_mut_slice(PhantomData, ptrs, len)
     }
+
+    /// Retains only the elements specified by the predicate, passing a mutable
+    /// reference to it.
+    ///
+    /// In other words, remove all elements `e` such that `f(T::Mut)` returns
+    /// `false`. This method operates in place, visiting each element exactly
+    /// once in the original order, and preserves the order of the retained
+    /// elements.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    /// let mut vec = soavec![(1, 1), (2, 2), (3, 3), (4, 4)].unwrap();
+    /// vec.retain_mut(|x| if *x.0 <= 3 {
+    ///     *x.1 += 1;
+    ///     true
+    /// } else {
+    ///     false
+    /// });
+    /// assert_eq!(vec.len(), 3);
+    /// assert_eq!(vec.get(0), Some((&1, &2)));
+    /// assert_eq!(vec.get(1), Some((&2, &3)));
+    /// assert_eq!(vec.get(2), Some((&3, &4)));
+    /// ```
+    pub fn retain_mut<F>(&mut self, mut f: F)
+    where
+        F: FnMut(T::Mut<'_>) -> bool,
+    {
+        let original_len = self.len();
+
+        if original_len == 0 {
+            // Empty case: explicit return allows better optimization, vs letting compiler infer it
+            return;
+        }
+
+        // Avoid double drop if the drop guard is not executed,
+        // since we may make some holes during the process.
+        unsafe { self.buf.set_len(0) };
+
+        // Vec: [Kept, Kept, Hole, Hole, Hole, Hole, Unchecked, Unchecked]
+        //      |<-              processed len   ->| ^- next to check
+        //                  |<-  deleted cnt     ->|
+        //      |<-              original_len                          ->|
+        // Kept: Elements which predicate returns true on.
+        // Hole: Moved or dropped element slot.
+        // Unchecked: Unchecked valid elements.
+        //
+        // This drop guard will be invoked when predicate or `drop` of element panicked.
+        // It shifts unchecked elements to cover holes and `set_len` to the correct length.
+        // In cases when predicate and `drop` never panick, it will be optimized out.
+        struct BackshiftOnDrop<'a, T: SoAble> {
+            v: &'a mut SoAVec<T>,
+            processed_len: u32,
+            deleted_cnt: u32,
+            original_len: u32,
+        }
+
+        impl<T: SoAble> Drop for BackshiftOnDrop<'_, T> {
+            fn drop(&mut self) {
+                if self.deleted_cnt > 0 {
+                    let cap = self.v.buf.capacity();
+                    // SAFETY: Trailing unchecked items must be valid since we never touch them.
+                    unsafe {
+                        T::TupleRepr::copy(
+                            T::TupleRepr::get_pointers(
+                                self.v.buf.as_ptr(),
+                                self.processed_len,
+                                cap,
+                            ),
+                            T::TupleRepr::get_pointers(
+                                self.v.buf.as_mut_ptr(),
+                                self.processed_len - self.deleted_cnt,
+                                cap,
+                            ),
+                            self.original_len - self.processed_len,
+                        );
+                    }
+                }
+                // SAFETY: After filling holes, all items are in contiguous memory.
+                unsafe {
+                    self.v.buf.set_len(self.original_len - self.deleted_cnt);
+                }
+            }
+        }
+
+        let mut g = BackshiftOnDrop {
+            v: self,
+            processed_len: 0,
+            deleted_cnt: 0,
+            original_len,
+        };
+
+        fn process_loop<F, T: SoAble, const DELETED: bool>(
+            original_len: u32,
+            f: &mut F,
+            g: &mut BackshiftOnDrop<'_, T>,
+        ) where
+            F: FnMut(T::Mut<'_>) -> bool,
+        {
+            while g.processed_len != original_len {
+                // SAFETY: Unchecked element must be valid.
+                let cur_ptrs = unsafe {
+                    T::TupleRepr::get_pointers(
+                        g.v.buf.as_mut_ptr(),
+                        g.processed_len,
+                        g.v.capacity(),
+                    )
+                };
+                let cur = T::as_mut(PhantomData, cur_ptrs);
+                if !f(cur) {
+                    let cur_len = g.processed_len;
+                    // Advance early to avoid double drop if `drop_in_place` panicked.
+                    g.processed_len += 1;
+                    g.deleted_cnt += 1;
+                    // SAFETY: We never touch this element again after dropped.
+                    if T::MUST_DROP_AS_SELF {
+                        // T must be dropped as T; we have to read out each T from the
+                        // SoAVec and drop them individually.
+                        let ptr = g.v.buf.as_mut_ptr();
+                        let cap = g.v.buf.capacity();
+                        // SAFETY: cur was moved to f and its backing memory
+                        // will never be accessed again.
+                        let _ = T::from_tuple(unsafe { T::TupleRepr::read(ptr, cur_len, cap) });
+                    } else if const { core::mem::needs_drop::<T::TupleRepr>() } {
+                        // SAFETY: cur was moved to f and its backing memory
+                        // will never be accessed again.
+                        let _ = unsafe { T::TupleRepr::drop_in_place(cur_ptrs, 1) };
+                    }
+                    // We already advanced the counter.
+                    if DELETED {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+                if DELETED {
+                    // SAFETY: `deleted_cnt` > 0, so the hole slot must not overlap with current element.
+                    // We use copy for move, and never touch this element again.
+                    unsafe {
+                        let hole_slot = T::TupleRepr::get_pointers(
+                            g.v.buf.as_mut_ptr(),
+                            g.processed_len - g.deleted_cnt,
+                            g.v.buf.capacity(),
+                        );
+                        T::TupleRepr::copy(cur_ptrs, hole_slot, 1);
+                    }
+                }
+                g.processed_len += 1;
+            }
+        }
+
+        // Stage 1: Nothing was deleted.
+        process_loop::<F, T, false>(original_len, &mut f, &mut g);
+
+        // Stage 2: Some elements were deleted.
+        process_loop::<F, T, true>(original_len, &mut f, &mut g);
+
+        // All item are processed. This can be optimized to `set_len` by LLVM.
+        drop(g);
+    }
 }
 
 impl<T: SoAble> Drop for SoAVec<T> {
     fn drop(&mut self) {
-        if <T as SoAble>::MUST_DROP_AS_SELF {
+        if T::MUST_DROP_AS_SELF {
             // T must be dropped as T; we have to read out each T from the
             // SoAVec and drop them individually.
             let ptr = self.buf.as_mut_ptr();
@@ -350,7 +511,7 @@ impl<T: SoAble> Drop for SoAVec<T> {
                 // after this but we are about to deallocate it afterwards.
                 let _ = T::from_tuple(unsafe { T::TupleRepr::read(ptr, i, cap) });
             }
-        } else if const { core::mem::needs_drop::<<T as SoAble>::TupleRepr>() } {
+        } else if const { core::mem::needs_drop::<T::TupleRepr>() } {
             // One or more of the slices in TupleRepr need to be dropped but
             // they can be dropped in place.
             let ptr = self.buf.as_mut_ptr();
@@ -358,7 +519,7 @@ impl<T: SoAble> Drop for SoAVec<T> {
             let len = self.len();
             // SAFETY: buffer is still allocated to capacity, contains len
             // items.
-            unsafe { T::TupleRepr::drop_in_place(ptr, len, cap) };
+            unsafe { T::TupleRepr::drop_in_place(T::TupleRepr::get_pointers(ptr, 0, cap), len) };
         }
         // RawVec handles deallocation
     }

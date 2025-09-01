@@ -325,7 +325,9 @@ pub trait SoATuple {
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32);
 
-    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32);
+    unsafe fn copy(src: Self::Pointers, dst: Self::Pointers, count: u32);
+
+    unsafe fn drop_in_place(ptrs: Self::Pointers, len: u32);
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers;
 }
@@ -395,9 +397,26 @@ impl<T, U> SoATuple for (T, U) {
         u_ptr.write(data.1);
     }
 
-    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+    unsafe fn copy(src: Self::Pointers, dst: Self::Pointers, len: u32) {
+        if size_of::<Self>() == 0 || len == 0 {
+            return;
+        }
+        // SAFETY: old allocation; the layout has been checked.
+        let (src_t_ptr, src_u_ptr) = src;
+        let (dst_t_ptr, dst_u_ptr) = dst;
+
+        // SAFETY: old data is located at src_*_ptr and its length is len
+        unsafe {
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_u_ptr.as_ptr(), dst_u_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_t_ptr.as_ptr(), dst_t_ptr.as_ptr(), len as usize);
+        };
+    }
+
+    unsafe fn drop_in_place(ptrs: Self::Pointers, len: u32) {
         assert!(core::mem::needs_drop::<Self>());
-        let (t_ptr, u_ptr) = Self::get_pointers(ptr, 0, capacity);
+        let (t_ptr, u_ptr) = ptrs;
         if core::mem::needs_drop::<T>() {
             drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 t_ptr.as_ptr(),
@@ -502,9 +521,28 @@ impl<T, U, V> SoATuple for (T, U, V) {
         v_ptr.write(data.2);
     }
 
-    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+    unsafe fn copy(src: Self::Pointers, dst: Self::Pointers, len: u32) {
+        if size_of::<Self>() == 0 || len == 0 {
+            return;
+        }
+        // SAFETY: old allocation; the layout has been checked.
+        let (src_t_ptr, src_u_ptr, src_v_ptr) = src;
+        let (dst_t_ptr, dst_u_ptr, dst_v_ptr) = dst;
+
+        // SAFETY: old data is located at src_*_ptr and its length is len
+        unsafe {
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_v_ptr.as_ptr(), dst_v_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_u_ptr.as_ptr(), dst_u_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_t_ptr.as_ptr(), dst_t_ptr.as_ptr(), len as usize);
+        };
+    }
+
+    unsafe fn drop_in_place(ptrs: Self::Pointers, len: u32) {
         assert!(core::mem::needs_drop::<Self>());
-        let (t_ptr, u_ptr, v_ptr) = Self::get_pointers(ptr, 0, capacity);
+        let (t_ptr, u_ptr, v_ptr) = ptrs;
         if core::mem::needs_drop::<T>() {
             drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 t_ptr.as_ptr(),
@@ -632,9 +670,9 @@ impl<T, U, V, W> SoATuple for (T, U, V, W) {
         w_ptr.write(data.3);
     }
 
-    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+    unsafe fn drop_in_place(ptrs: Self::Pointers, len: u32) {
         assert!(core::mem::needs_drop::<Self>());
-        let (t_ptr, u_ptr, v_ptr, w_ptr) = Self::get_pointers(ptr, 0, capacity);
+        let (t_ptr, u_ptr, v_ptr, w_ptr) = ptrs;
         if core::mem::needs_drop::<T>() {
             drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 t_ptr.as_ptr(),
@@ -659,6 +697,27 @@ impl<T, U, V, W> SoATuple for (T, U, V, W) {
                 len as usize,
             ));
         }
+    }
+
+    unsafe fn copy(src: Self::Pointers, dst: Self::Pointers, len: u32) {
+        if size_of::<Self>() == 0 || len == 0 {
+            return;
+        }
+        // SAFETY: old allocation; the layout has been checked.
+        let (src_t_ptr, src_u_ptr, src_v_ptr, src_w_ptr) = src;
+        let (dst_t_ptr, dst_u_ptr, dst_v_ptr, dst_w_ptr) = dst;
+
+        // SAFETY: old data is located at src_*_ptr and its length is len
+        unsafe {
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_w_ptr.as_ptr(), dst_w_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_v_ptr.as_ptr(), dst_v_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_u_ptr.as_ptr(), dst_u_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_t_ptr.as_ptr(), dst_t_ptr.as_ptr(), len as usize);
+        };
     }
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
@@ -791,9 +850,31 @@ impl<T, U, V, W, X> SoATuple for (T, U, V, W, X) {
         x_ptr.write(data.4);
     }
 
-    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+    unsafe fn copy(src: Self::Pointers, dst: Self::Pointers, len: u32) {
+        if size_of::<Self>() == 0 || len == 0 {
+            return;
+        }
+        // SAFETY: old allocation; the layout has been checked.
+        let (src_t_ptr, src_u_ptr, src_v_ptr, src_w_ptr, src_x_ptr) = src;
+        let (dst_t_ptr, dst_u_ptr, dst_v_ptr, dst_w_ptr, dst_x_ptr) = dst;
+
+        // SAFETY: old data is located at src_*_ptr and its length is len
+        unsafe {
+            core::ptr::copy(src_t_ptr.as_ptr(), dst_t_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_x_ptr.as_ptr(), dst_x_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_w_ptr.as_ptr(), dst_w_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_v_ptr.as_ptr(), dst_v_ptr.as_ptr(), len as usize);
+            // Copy old data to new allocation area.
+            core::ptr::copy(src_u_ptr.as_ptr(), dst_u_ptr.as_ptr(), len as usize);
+        };
+    }
+
+    unsafe fn drop_in_place(ptrs: Self::Pointers, len: u32) {
         assert!(core::mem::needs_drop::<Self>());
-        let (t_ptr, u_ptr, v_ptr, w_ptr, x_ptr) = Self::get_pointers(ptr, 0, capacity);
+        let (t_ptr, u_ptr, v_ptr, w_ptr, x_ptr) = ptrs;
         if core::mem::needs_drop::<T>() {
             drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 t_ptr.as_ptr(),
