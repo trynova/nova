@@ -92,6 +92,7 @@ impl<T: SoAble> SoAVec<T> {
     /// let mut a = soavec![(0, 0); 3].unwrap();
     /// assert_eq!(a.len(), 3);
     /// ```
+    #[inline]
     pub fn len(&self) -> u32 {
         self.buf.len()
     }
@@ -137,6 +138,7 @@ impl<T: SoAble> SoAVec<T> {
     ///     assert_eq!(v.capacity(), u32::MAX);
     /// }
     /// ```
+    #[inline]
     pub fn capacity(&self) -> u32 {
         self.buf.capacity()
     }
@@ -206,6 +208,41 @@ impl<T: SoAble> SoAVec<T> {
         // SAFETY: length cannot overflow due to reserve succeeding.
         self.buf.set_len(unsafe { self.len().unchecked_add(1) });
         Ok(())
+    }
+
+    /// Removes the last element from a SoA vector and returns it, or [`None`]
+    /// if it is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nova_vec::soavec;
+    ///
+    /// let mut vec = soavec![(1, 1), (2, 2), (3, 3)].unwrap();
+    /// assert_eq!(vec.pop(), Some((3, 3)));
+    /// assert_eq!(vec.get(0), Some((&1, &1)));
+    /// assert_eq!(vec.get(1), Some((&2, &2)));
+    /// ```
+    ///
+    /// # Time complexity
+    ///
+    /// Takes *O*(1) time.
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        let len = self.len();
+        if len == 0 {
+            None
+        } else {
+            unsafe {
+                self.buf.set_len(len - 1);
+                core::hint::assert_unchecked(self.len() < self.capacity());
+                Some(T::from_tuple(T::TupleRepr::read(
+                    self.buf.as_ptr(),
+                    self.len(),
+                    self.capacity(),
+                )))
+            }
+        }
     }
 
     /// Returns a reference to each field in T or `None` if out of bounds.
@@ -304,7 +341,7 @@ impl<T: SoAble> Drop for SoAVec<T> {
         if <T as SoAble>::MUST_DROP_AS_SELF {
             // T must be dropped as T; we have to read out each T from the
             // SoAVec and drop them individually.
-            let ptr = self.buf.as_ptr();
+            let ptr = self.buf.as_mut_ptr();
             let cap = self.buf.capacity();
             let len = self.len();
             for i in 0..len {
@@ -316,7 +353,7 @@ impl<T: SoAble> Drop for SoAVec<T> {
         } else if const { core::mem::needs_drop::<<T as SoAble>::TupleRepr>() } {
             // One or more of the slices in TupleRepr need to be dropped but
             // they can be dropped in place.
-            let ptr = self.buf.as_ptr();
+            let ptr = self.buf.as_mut_ptr();
             let cap = self.buf.capacity();
             let len = self.len();
             // SAFETY: buffer is still allocated to capacity, contains len
@@ -336,7 +373,7 @@ mod tests {
     #[test]
     fn basic_usage() {
         #[repr(C)]
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         struct Foo {
             a: u64,
             b: u32,
@@ -350,30 +387,31 @@ mod tests {
         let mut foo = SoAVec::<Foo>::with_capacity(16).unwrap();
         foo.push(Foo { a: 0, b: 2 }).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &0);
-        debug_assert_eq!(first.1, &2);
+        assert_eq!(first.0, &0);
+        assert_eq!(first.1, &2);
 
         let first = foo.get_mut(0).unwrap();
         *first.0 = 52;
         *first.1 = 66;
-        debug_assert_eq!(first.0, &52);
-        debug_assert_eq!(first.1, &66);
+        assert_eq!(first.0, &52);
+        assert_eq!(first.1, &66);
 
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &52);
-        debug_assert_eq!(first.1, &66);
+        assert_eq!(first.0, &52);
+        assert_eq!(first.1, &66);
 
         foo.reserve(32).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &52);
-        debug_assert_eq!(first.1, &66);
+        assert_eq!(first.0, &52);
+        assert_eq!(first.1, &66);
 
         foo.push(Foo { a: 4, b: 8 }).unwrap();
         let (a_slice, b_slice) = foo.as_slice();
-        debug_assert_eq!(a_slice.len(), b_slice.len());
-        debug_assert_eq!(a_slice.len(), 2);
-        debug_assert_eq!(a_slice, &[52, 4]);
-        debug_assert_eq!(b_slice, &[66, 8]);
+        assert_eq!(a_slice.len(), b_slice.len());
+        assert_eq!(a_slice.len(), 2);
+        assert_eq!(a_slice, &[52, 4]);
+        assert_eq!(b_slice, &[66, 8]);
+        assert_eq!(foo.pop(), Some(Foo { a: 4, b: 8 }));
     }
 
     #[test]
@@ -389,30 +427,30 @@ mod tests {
         let mut foo = SoAVec::<Foo>::with_capacity(16).unwrap();
         foo.push(Foo { a: &0, b: &2 }).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &&0);
-        debug_assert_eq!(first.1, &&2);
+        assert_eq!(first.0, &&0);
+        assert_eq!(first.1, &&2);
 
         let first = foo.get_mut(0).unwrap();
         *first.0 = &52;
         *first.1 = &66;
-        debug_assert_eq!(first.0, &&52);
-        debug_assert_eq!(first.1, &&66);
+        assert_eq!(first.0, &&52);
+        assert_eq!(first.1, &&66);
 
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &&52);
-        debug_assert_eq!(first.1, &&66);
+        assert_eq!(first.0, &&52);
+        assert_eq!(first.1, &&66);
 
         foo.reserve(32).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &&52);
-        debug_assert_eq!(first.1, &&66);
+        assert_eq!(first.0, &&52);
+        assert_eq!(first.1, &&66);
 
         foo.push(Foo { a: &4, b: &8 }).unwrap();
         let (a_slice, b_slice) = foo.as_slice();
-        debug_assert_eq!(a_slice.len(), b_slice.len());
-        debug_assert_eq!(a_slice.len(), 2);
-        debug_assert_eq!(a_slice, &[&52, &4]);
-        debug_assert_eq!(b_slice, &[&66, &8]);
+        assert_eq!(a_slice.len(), b_slice.len());
+        assert_eq!(a_slice.len(), 2);
+        assert_eq!(a_slice, &[&52, &4]);
+        assert_eq!(b_slice, &[&66, &8]);
     }
 
     #[test]
@@ -434,9 +472,9 @@ mod tests {
         bar.reserve(32).unwrap();
         bar.push(Bar { a: 0, b: 2, c: 255 }).unwrap();
         let first = bar.get(0).unwrap();
-        debug_assert_eq!(first.0, &0);
-        debug_assert_eq!(first.1, &2);
-        debug_assert_eq!(first.2, &255);
+        assert_eq!(first.0, &0);
+        assert_eq!(first.1, &2);
+        assert_eq!(first.2, &255);
     }
 
     #[test]
@@ -466,8 +504,8 @@ mod tests {
         foo.reserve(9).unwrap();
         foo.push(Foo { b: 2, a: 0 }).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &2);
-        debug_assert_eq!(first.1, &0);
+        assert_eq!(first.0, &2);
+        assert_eq!(first.1, &0);
         // let a_0: &u64 = foo.get_a(0);
         // let a_0: &u32 = foo.get_b(0);
         // let a_n: &[u64] = foo.get_all_a();
@@ -476,9 +514,9 @@ mod tests {
         bar.reserve(11).unwrap();
         bar.push(Bar { c: 255, b: 2, a: 0 }).unwrap();
         let first = bar.get(0).unwrap();
-        debug_assert_eq!(first.0, &255);
-        debug_assert_eq!(first.1, &2);
-        debug_assert_eq!(first.2, &0);
+        assert_eq!(first.0, &255);
+        assert_eq!(first.1, &2);
+        assert_eq!(first.2, &0);
     }
 
     #[test]
@@ -521,8 +559,8 @@ mod tests {
         foo.reserve(9).unwrap();
         foo.push(Foo { a: 2, b: () }).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &());
-        debug_assert_eq!(first.1, &2);
+        assert_eq!(first.0, &());
+        assert_eq!(first.1, &2);
 
         let mut bar = SoAVec::<Bar>::with_capacity(7).unwrap();
         bar.reserve(11).unwrap();
@@ -533,9 +571,9 @@ mod tests {
         })
         .unwrap();
         let first = bar.get(0).unwrap();
-        debug_assert_eq!(first.0, &255);
-        debug_assert_eq!(first.1, &());
-        debug_assert_eq!(first.2, &0);
+        assert_eq!(first.0, &255);
+        assert_eq!(first.1, &());
+        assert_eq!(first.2, &0);
 
         let mut baz = SoAVec::<Baz>::with_capacity(7).unwrap();
         baz.reserve(11).unwrap();
@@ -546,9 +584,9 @@ mod tests {
         })
         .unwrap();
         let first = baz.get(0).unwrap();
-        debug_assert_eq!(first.0, &());
-        debug_assert_eq!(first.1, &());
-        debug_assert_eq!(first.2, &());
+        assert_eq!(first.0, &());
+        assert_eq!(first.1, &());
+        assert_eq!(first.2, &());
     }
 
     #[test]
@@ -568,23 +606,23 @@ mod tests {
         })
         .unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &[0]);
-        debug_assert_eq!(**first.1, 2);
+        assert_eq!(first.0, &[0]);
+        assert_eq!(**first.1, 2);
 
         let first = foo.get_mut(0).unwrap();
         first.0.push(52);
         *first.1 = Box::new(66u32);
-        debug_assert_eq!(first.0, &[0, 52]);
-        debug_assert_eq!(**first.1, 66u32);
+        assert_eq!(first.0, &[0, 52]);
+        assert_eq!(**first.1, 66u32);
 
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &[0, 52]);
-        debug_assert_eq!(**first.1, 66u32);
+        assert_eq!(first.0, &[0, 52]);
+        assert_eq!(**first.1, 66u32);
 
         foo.reserve(32).unwrap();
         let first = foo.get(0).unwrap();
-        debug_assert_eq!(first.0, &[0, 52]);
-        debug_assert_eq!(**first.1, 66u32);
+        assert_eq!(first.0, &[0, 52]);
+        assert_eq!(**first.1, 66u32);
 
         foo.push(Foo {
             a: vec![4],
@@ -592,10 +630,10 @@ mod tests {
         })
         .unwrap();
         let (a_slice, b_slice) = foo.as_slice();
-        debug_assert_eq!(a_slice.len(), b_slice.len());
-        debug_assert_eq!(a_slice.len(), 2);
-        debug_assert_eq!(a_slice, &[vec![0, 52], vec![4]]);
-        debug_assert_eq!(b_slice, &[Box::new(66), Box::new(8)]);
+        assert_eq!(a_slice.len(), b_slice.len());
+        assert_eq!(a_slice.len(), 2);
+        assert_eq!(a_slice, &[vec![0, 52], vec![4]]);
+        assert_eq!(b_slice, &[Box::new(66), Box::new(8)]);
     }
 
     #[test]
