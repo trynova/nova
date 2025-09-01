@@ -155,34 +155,39 @@ impl SetConstructor {
                     hasher.finish()
                 };
 
-                let iterable_length = iterable.len(&array_heap) as usize;
+                let iterable_elements = iterable.get_elements(&array_heap);
+                let iterable_length = iterable_elements.len() as usize;
                 values.reserve(iterable_length);
                 // Note: There should be no items in the set data. Hence the
                 // hasher function should never be called.
                 assert!(set_data.is_empty());
                 set_data.reserve(iterable_length, |_| unreachable!());
-                iterable.as_slice(&array_heap).iter().for_each(|value| {
-                    let value = value.unwrap();
-                    let value_hash = hasher(value);
-                    let next_index = values.len() as u32;
-                    let entry = set_data.entry(
-                        value_hash,
-                        |hash_equal_index| values[*hash_equal_index as usize].unwrap() == value,
-                        |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
-                    );
-                    match entry {
-                        hashbrown::hash_table::Entry::Occupied(occupied) => {
-                            // We have duplicates in the array. Latter
-                            // ones overwrite earlier ones.
-                            let index = *occupied.get();
-                            values[index as usize] = Some(value.unbind());
+                iterable_elements
+                    .get_storage(&array_heap)
+                    .values
+                    .iter()
+                    .for_each(|value| {
+                        let value = value.unwrap();
+                        let value_hash = hasher(value);
+                        let next_index = values.len() as u32;
+                        let entry = set_data.entry(
+                            value_hash,
+                            |hash_equal_index| values[*hash_equal_index as usize].unwrap() == value,
+                            |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
+                        );
+                        match entry {
+                            hashbrown::hash_table::Entry::Occupied(occupied) => {
+                                // We have duplicates in the array. Latter
+                                // ones overwrite earlier ones.
+                                let index = *occupied.get();
+                                values[index as usize] = Some(value.unbind());
+                            }
+                            hashbrown::hash_table::Entry::Vacant(vacant) => {
+                                vacant.insert(next_index);
+                                values.push(Some(value.unbind()));
+                            }
                         }
-                        hashbrown::hash_table::Entry::Vacant(vacant) => {
-                            vacant.insert(next_index);
-                            values.push(Some(value.unbind()));
-                        }
-                    }
-                });
+                    });
                 return Ok(set.into_value().unbind());
             }
         }

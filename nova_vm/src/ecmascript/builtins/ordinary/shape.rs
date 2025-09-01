@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ops::ControlFlow, ptr::NonNull};
+use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ptr::NonNull};
 
 use ahash::AHashMap;
 use hashbrown::{HashTable, hash_table::Entry};
@@ -14,8 +14,8 @@ use crate::{
             agent::{TryError, TryResult},
         },
         types::{
-            BigInt, InternalMethods, InternalSlots, IntoObject, NoCache, Number, Numeric, Object,
-            Primitive, PropertyKey, SetCachedProps, SetResult, String, Symbol, TryGetResult, Value,
+            BigInt, InternalMethods, InternalSlots, IntoObject, Number, Numeric, Object, Primitive,
+            PropertyKey, SetCachedProps, SetResult, String, Symbol, TryGetResult, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
@@ -181,7 +181,7 @@ impl<'a> ObjectShape<'a> {
         receiver: Value,
         cache: PropertyLookupCache,
         gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetResult<'gc>, NoCache> {
+    ) -> Option<TryGetResult<'gc>> {
         let shape = self;
         if let Some((offset, prototype)) = cache.find_cached_property_offset(agent, shape) {
             // A cached lookup result was found.
@@ -190,7 +190,7 @@ impl<'a> ObjectShape<'a> {
                 TryGetResult::Unset.into()
             } else {
                 let o = prototype.unwrap_or_else(|| Object::try_from(receiver).unwrap());
-                ControlFlow::Break(o.get_own_property_at_offset(agent, offset, gc))
+                Some(o.get_own_property_at_offset(agent, offset, gc))
             }
         } else {
             // No cache found.
@@ -198,7 +198,7 @@ impl<'a> ObjectShape<'a> {
                 .heap
                 .caches
                 .set_current_cache(shape, p, receiver, cache);
-            ControlFlow::Continue(NoCache)
+            None
         }
     }
 

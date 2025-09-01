@@ -2,11 +2,33 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! # 10 Ordinary and Exotic Objects Behaviours
+//! ## [10 Ordinary and Exotic Objects Behaviours](https://tc39.es/ecma262/#sec-ordinary-and-exotic-objects-behaviours)
 //!
-//! Currently only contains code related to subsections 10.2, 10.3 and 10.4.
+//! Most things in JavaScript are objects: those are all defined underneath
+//! this module.
 //!
-//! https://tc39.es/ecma262/#sec-ordinary-and-exotic-objects-behaviours
+//! ### Ordinary and exotic objects
+//!
+//! The ECMAScript specification defines _ordinary objects_ by their _internal
+//! methods_: an object which uses the ordinary internal methods is an ordinary
+//! object, while objects that override some or all internal methods are
+//! _exotic objects_. However, often the more important thing to an object is
+//! its list of _internal slots_. Internal slots define what data an object can
+//! hold: this data is not necessarily directly readable by JavaScript code but
+//! it tends to dictate an object's usage very strongly.
+//!
+//! Thus according to the ECMAScript specification sense, some objects are
+//! ordinary but have extra internal slots compared to plain objects created
+//! using JavaScript object literals or other equivalent means. Such objects
+//! include ArrayBuffers, Maps, and Sets. From a JavaScript programmer's point
+//! of view it is evident that these objects are not "ordinary". Hence, it may
+//! be beneficial to think of plain objects as "ordinary" and all other objects
+//! as "exotic". This is very much the view that the Nova engine takes: in a
+//! very real sense, all non-plain objects have both extra internal slots and
+//! override the ordinary internal methods. This is because all such objects
+//! in Nova have a special `[[BackingObject]]` slot and their internal methods
+//! are modified such that they delegate "ordinary object business" to the
+//! backing object if it exists.
 
 pub(crate) mod arguments;
 mod array;

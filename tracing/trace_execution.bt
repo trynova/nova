@@ -1,0 +1,105 @@
+// Records the times when JavaScript execution begins and ends.
+
+config = {
+    max_map_keys = 1000000;
+}
+
+usdt:./target/release/nova_cli:nova_vm:builtin_call_start {
+    @builtin_calls[arg1] = (str(arg0), nsecs(monotonic));
+}
+usdt:./target/release/nova_cli:nova_vm:builtin_constructor_start {
+    @builtin_constructors[arg1] = (str(arg0), nsecs(monotonic));
+}
+usdt:./target/release/nova_cli:nova_vm:javascript_call_start {
+    @javascript_calls[arg1] = (str(arg0), nsecs(monotonic));
+}
+usdt:./target/release/nova_cli:nova_vm:javascript_constructor_start {
+    @javascript_constructors[arg1] = (str(arg0), nsecs(monotonic));
+}
+
+usdt:./target/release/nova_cli:nova_vm:builtin_call_done /has_key(@builtin_calls, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @builtin_calls[arg0];
+    delete(@builtin_calls[arg0]);
+    $duration = $done - $start.1;
+    if ($duration >= 1000000) {
+        @results[@i++] = ($start.0, $start.1 / 1000000, $duration / 1000000);
+    }
+}
+usdt:./target/release/nova_cli:nova_vm:builtin_constructor_done /has_key(@builtin_constructors, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @builtin_constructors[arg0];
+    delete(@builtin_constructors[arg0]);
+    $duration = $done - $start.1;
+    if ($duration >= 1000000) {
+        @results[@i++] = ($start.0, $start.1 / 1000000, $duration / 1000000);
+    }
+}
+usdt:./target/release/nova_cli:nova_vm:javascript_call_done /has_key(@javascript_calls, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @javascript_calls[arg0];
+    delete(@javascript_calls[arg0]);
+    $duration = $done - $start.1;
+    if ($duration >= 1000000) {
+        @results[@i++] = ($start.0, $start.1 / 1000000, $duration / 1000000);
+    }
+}
+usdt:./target/release/nova_cli:nova_vm:javascript_constructor_done /has_key(@javascript_constructors, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @javascript_constructors[arg0];
+    delete(@javascript_constructors[arg0]);
+    $duration = $done - $start.1;
+    if ($duration >= 1000000) {
+        @results[@i++] = ($start.0, $start.1 / 1000000, $duration / 1000000);
+    }
+}
+
+usdt:./target/release/nova_cli:nova_vm:eval_evaluation_start,
+usdt:./target/release/nova_cli:nova_vm:job_evaluation_start,
+usdt:./target/release/nova_cli:nova_vm:module_evaluation_start,
+usdt:./target/release/nova_cli:nova_vm:script_evaluation_start {
+  @eval[arg0] = nsecs(monotonic);
+}
+
+usdt:./target/release/nova_cli:nova_vm:eval_evaluation_done /has_key(@eval, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @eval[arg0];
+    delete(@eval[arg0]);
+    @results[@i++] = ("::eval", $start / 1000000, ($done - $start) / 1000000);
+}
+usdt:./target/release/nova_cli:nova_vm:job_evaluation_done /has_key(@eval, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @eval[arg0];
+    delete(@eval[arg0]);
+    @results[@i++] = ("::promise", $start / 1000000, ($done - $start) / 1000000);
+}
+usdt:./target/release/nova_cli:nova_vm:module_evaluation_done /has_key(@eval, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @eval[arg0];
+    delete(@eval[arg0]);
+    @results[@i++] = ("::module", $start / 1000000, ($done - $start) / 1000000);
+}
+usdt:./target/release/nova_cli:nova_vm:script_evaluation_done /has_key(@eval, arg0)/ {
+    $done = nsecs(monotonic);
+    $start = @eval[arg0];
+    delete(@eval[arg0]);
+    @results[@i++] = ("::script", $start / 1000000, ($done - $start) / 1000000);
+}
+
+usdt:./target/release/nova_cli:nova_vm:gc_start {
+    @gc_start = nsecs(monotonic);
+}
+
+usdt:./target/release/nova_cli:nova_vm:gc_done {
+    @results[@i++] = ("::gc", @gc_start / 1000000, (nsecs(monotonic) - @gc_start) / 1000000);
+}
+
+END {
+    clear(@builtin_calls);
+    clear(@builtin_constructors);
+    clear(@javascript_calls);
+    clear(@javascript_constructors);
+    clear(@eval);
+    clear(@i);
+    clear(@gc_start);
+}

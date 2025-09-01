@@ -865,8 +865,7 @@ pub(crate) fn ordinary_try_get<'gc>(
         } else {
             object.object_shape(agent)
         };
-        if let ControlFlow::Break(result) =
-            shape.get_cached(agent, property_key, object.into_value(), cache, gc)
+        if let Some(result) = shape.get_cached(agent, property_key, object.into_value(), cache, gc)
         {
             // Found a cached result.
             return result.into();

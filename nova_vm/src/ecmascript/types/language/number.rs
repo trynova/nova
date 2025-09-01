@@ -26,16 +26,21 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::BaseIndex,
     },
-    with_radix,
 };
 
-pub use data::NumberHeapData;
+pub(crate) use data::*;
 use num_traits::{PrimInt, Zero};
 use radix::make_float_string_ascii_lowercase;
+pub(crate) use radix::with_radix;
 
+/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+///
+/// Heap-allocated [Number] data. Accessing the data must be done through the
+/// [Agent].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);
+bindable_handle!(HeapNumber);
 
 impl HeapNumber<'_> {
     pub(crate) const fn _def() -> Self {
@@ -46,8 +51,6 @@ impl HeapNumber<'_> {
         self.0.into_index()
     }
 }
-
-bindable_handle!(HeapNumber);
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy, PartialEq)]
@@ -61,6 +64,7 @@ pub enum Number<'a> {
     /// byte.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
 }
+bindable_handle!(Number);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -448,7 +452,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// https://tc39.es/ecma262/#eqn-truncate
+    /// ### [truncate](https://tc39.es/ecma262/#eqn-truncate)
     pub fn truncate(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         match self {
             Number::Number(n) => {
@@ -1390,10 +1394,8 @@ impl<'a> Number<'a> {
     }
 }
 
-bindable_handle!(Number);
-
 #[derive(Debug, Clone, Copy)]
-pub enum BitwiseOp {
+pub(crate) enum BitwiseOp {
     And,
     Xor,
     Or,

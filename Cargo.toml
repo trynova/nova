@@ -48,6 +48,7 @@ sonic-rs = "0.3.17"
 soavec = { git = "https://github.com/trynova/soavec/", branch = "main" }
 soavec_derive = { git = "https://github.com/trynova/soavec/", branch = "main" }
 unicode-normalization = "0.1.24"
+usdt = "0.6.0"
 wtf8 = "0.1"
 
 [workspace.metadata.dylint]
