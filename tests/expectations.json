@@ -7977,7 +7977,6 @@
   "staging/sm/Atomics/cross-compartment.js": "FAIL",
   "staging/sm/Atomics/detached-buffers.js": "FAIL",
   "staging/sm/BigInt/Number-conversion-rounding.js": "FAIL",
-  "staging/sm/Date/dst-offset-caching-1-of-8.js": "TIMEOUT",
   "staging/sm/Date/dst-offset-caching-2-of-8.js": "TIMEOUT",
   "staging/sm/Date/dst-offset-caching-3-of-8.js": "TIMEOUT",
   "staging/sm/Date/dst-offset-caching-4-of-8.js": "TIMEOUT",
