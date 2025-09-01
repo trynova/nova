@@ -2,7 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## Notes
+//! ## [9.6 Agents](https://tc39.es/ecma262/#sec-agents)
+//!
+//! An _agent_ comprises a set of ECMAScript
+//! [execution contexts](https://tc39.es/ecma262/#sec-execution-contexts), an
+//! execution context stack, a running execution context, an _Agent Record_,
+//! and an _executing thread_. Except for the
+//! [executing thread](https://tc39.es/ecma262/#executing-thread), the
+//! constituents of an agent belong exclusively to that agent.
+//!
+//! In Nova, the [`Agent Record`](Agent) is the main entry point into the
+//! JavaScript virtual machine and its heap memory.
+//!
+//! ### Notes
 //!
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
@@ -162,7 +174,7 @@ pub fn js_result_into_try<'a, T: 'a>(value: JsResult<'a, T>) -> TryResult<'a, T>
     }
 }
 
-/// Convert a TryResult<T> into a JsResult of an Option<T>.
+/// Convert a `TryResult<T>` into a [JsResult] of an `Option<T>`.
 ///
 /// This is useful when a method that may trigger GC calls into a Try method
 /// and wants to rethrow any errors and use the result if available.
@@ -174,7 +186,7 @@ pub fn try_result_into_js<'a, T: 'a>(value: TryResult<'a, T>) -> JsResult<'a, Op
     }
 }
 
-/// Convert a TryResult<T> into an Option<JsResult<T>>.
+/// Convert a `TryResult<T>` into an `Option<JsResult<T>>`.
 ///
 /// This is useful when a method that may trigger GC calls into a Try method
 /// and wants to use the result if available, error or not.

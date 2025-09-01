@@ -113,7 +113,6 @@ pub(crate) fn right_shift_bigint<'gc>(
     })
 }
 
-#[macro_export]
 macro_rules! bigint_bitwise_op {
     ($agent:ident, $x:ident, $y:ident, $op:expr) => {
         match ($x, $y) {
@@ -142,3 +141,4 @@ macro_rules! bigint_bitwise_op {
         }
     };
 }
+pub(crate) use bigint_bitwise_op;

@@ -2,15 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::ControlFlow;
-
 use small_string::SmallString;
 
 use crate::{
     SmallInteger,
-    ecmascript::{builtins::ordinary::caches::PropertyLookupCache, execution::Agent},
     engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
+        context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
@@ -18,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    IntoValue, NoCache, PropertyKey, String, Symbol, TryGetResult, Value,
+    IntoValue, Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -30,6 +27,13 @@ use super::{
     },
 };
 
+/// ### [4.4.5 primitive value](https://tc39.es/ecma262/#sec-primitive-value)
+///
+/// One of the types Undefined, Null, Boolean, Number, BigInt, Symbol, or
+/// String as defined in clause [6](https://tc39.es/ecma262/#sec-ecmascript-data-types-and-values).
+///
+/// > NOTE: A primitive value is a datum that is represented directly at the
+/// > lowest level of the language implementation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Primitive<'a> {
@@ -165,32 +169,6 @@ impl Primitive<'_> {
 
     pub fn is_undefined(self) -> bool {
         matches!(self, Self::Undefined)
-    }
-
-    pub(crate) fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetResult<'gc>, NoCache> {
-        match self {
-            Primitive::Undefined | Primitive::Null => ControlFlow::Continue(NoCache),
-            Primitive::Boolean(_)
-            | Primitive::Symbol(_)
-            | Primitive::Number(_)
-            | Primitive::Integer(_)
-            | Primitive::SmallF64(_)
-            | Primitive::BigInt(_)
-            | Primitive::SmallBigInt(_) => {
-                self.object_shape(agent)
-                    .unwrap()
-                    .get_cached(agent, p, self.into_value(), cache, gc)
-            }
-            Primitive::String(_) | Primitive::SmallString(_) => String::try_from(self)
-                .unwrap()
-                .get_cached(agent, p, cache, gc),
-        }
     }
 }
 

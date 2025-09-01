@@ -195,7 +195,7 @@ impl From<usize> for ElementArrayKey {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ElementsVector<'a> {
+pub(crate) struct ElementsVector<'a> {
     pub(crate) elements_index: ElementIndex<'a>,
     pub(crate) cap: ElementArrayKey,
     pub(crate) len: u32,
@@ -1185,7 +1185,7 @@ unsafe impl Bindable for ElementDescriptor<'_> {
 }
 
 #[derive(Debug, Default)]
-pub struct ElementArray<const N: usize> {
+pub(crate) struct ElementArray<const N: usize> {
     pub values: Vec<Option<[Option<Value<'static>>; N]>>,
     pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
@@ -1366,26 +1366,26 @@ impl<const N: usize> ElementArray<N> {
 }
 
 /// Element arrays of up to 16 elements
-pub type ElementArray2Pow4 = ElementArray<16>;
+pub(crate) type ElementArray2Pow4 = ElementArray<16>;
 /// Element arrays of up to 64 elements
-pub type ElementArray2Pow6 = ElementArray<64>;
+pub(crate) type ElementArray2Pow6 = ElementArray<64>;
 /// Element arrays of up to 256 elements
-pub type ElementArray2Pow8 = ElementArray<256>;
+pub(crate) type ElementArray2Pow8 = ElementArray<256>;
 /// Element arrays of up to 1024 elements
-pub type ElementArray2Pow10 = ElementArray<1024>;
+pub(crate) type ElementArray2Pow10 = ElementArray<1024>;
 /// Element arrays of up to 4096 elements
-pub type ElementArray2Pow12 = ElementArray<4096>;
+pub(crate) type ElementArray2Pow12 = ElementArray<4096>;
 /// Element arrays of up to 65536 elements
-pub type ElementArray2Pow16 = ElementArray<65536>;
+pub(crate) type ElementArray2Pow16 = ElementArray<65536>;
 /// Element arrays of up to 16777216 elements
-pub type ElementArray2Pow24 = ElementArray<16777216>;
+pub(crate) type ElementArray2Pow24 = ElementArray<16777216>;
 /// Element arrays of up to 4294967296 elements
-pub type ElementArray2Pow32 = ElementArray<4294967296>;
+pub(crate) type ElementArray2Pow32 = ElementArray<4294967296>;
 
 /// Element arrays of up to 16 elements
 #[derive(Debug, Default)]
 #[repr(transparent)]
-pub struct PropertyKeyArray<const N: usize> {
+pub(crate) struct PropertyKeyArray<const N: usize> {
     pub keys: Vec<[Option<PropertyKey<'static>>; N]>,
 }
 
@@ -1528,48 +1528,48 @@ impl<const N: usize> PropertyKeyArray<N> {
 }
 
 /// Property key arrays of up to 16 elements
-pub type PropertyKeyArray2Pow4 = PropertyKeyArray<16>;
+pub(crate) type PropertyKeyArray2Pow4 = PropertyKeyArray<16>;
 /// Property key arrays of up to 64 elements
-pub type PropertyKeyArray2Pow6 = PropertyKeyArray<64>;
+pub(crate) type PropertyKeyArray2Pow6 = PropertyKeyArray<64>;
 /// Property key arrays of up to 256 elements
-pub type PropertyKeyArray2Pow8 = PropertyKeyArray<256>;
+pub(crate) type PropertyKeyArray2Pow8 = PropertyKeyArray<256>;
 /// Property key arrays of up to 1024 elements
-pub type PropertyKeyArray2Pow10 = PropertyKeyArray<1024>;
+pub(crate) type PropertyKeyArray2Pow10 = PropertyKeyArray<1024>;
 /// Property key arrays of up to 4096 elements
-pub type PropertyKeyArray2Pow12 = PropertyKeyArray<4096>;
+pub(crate) type PropertyKeyArray2Pow12 = PropertyKeyArray<4096>;
 /// Property key arrays of up to 65536 elements
-pub type PropertyKeyArray2Pow16 = PropertyKeyArray<65536>;
+pub(crate) type PropertyKeyArray2Pow16 = PropertyKeyArray<65536>;
 /// Property key arrays of up to 16777216 elements
-pub type PropertyKeyArray2Pow24 = PropertyKeyArray<16777216>;
+pub(crate) type PropertyKeyArray2Pow24 = PropertyKeyArray<16777216>;
 /// Property key arrays of up to 4294967296 elements
-pub type PropertyKeyArray2Pow32 = PropertyKeyArray<4294967296>;
+pub(crate) type PropertyKeyArray2Pow32 = PropertyKeyArray<4294967296>;
 
 #[derive(Debug)]
-pub struct ElementArrays {
+pub(crate) struct ElementArrays {
     /// up to 16 elements
-    pub k2pow4: PropertyKeyArray2Pow4,
-    pub e2pow4: ElementArray2Pow4,
+    pub(crate) k2pow4: PropertyKeyArray2Pow4,
+    pub(crate) e2pow4: ElementArray2Pow4,
     /// up to 64 elements
-    pub k2pow6: PropertyKeyArray2Pow6,
-    pub e2pow6: ElementArray2Pow6,
+    pub(crate) k2pow6: PropertyKeyArray2Pow6,
+    pub(crate) e2pow6: ElementArray2Pow6,
     /// up to 256 elements
-    pub k2pow8: PropertyKeyArray2Pow8,
-    pub e2pow8: ElementArray2Pow8,
+    pub(crate) k2pow8: PropertyKeyArray2Pow8,
+    pub(crate) e2pow8: ElementArray2Pow8,
     /// up to 1024 elements
-    pub k2pow10: PropertyKeyArray2Pow10,
-    pub e2pow10: ElementArray2Pow10,
+    pub(crate) k2pow10: PropertyKeyArray2Pow10,
+    pub(crate) e2pow10: ElementArray2Pow10,
     /// up to 4096 elements
-    pub k2pow12: PropertyKeyArray2Pow12,
-    pub e2pow12: ElementArray2Pow12,
+    pub(crate) k2pow12: PropertyKeyArray2Pow12,
+    pub(crate) e2pow12: ElementArray2Pow12,
     /// up to 65536 elements
-    pub k2pow16: PropertyKeyArray2Pow16,
-    pub e2pow16: ElementArray2Pow16,
+    pub(crate) k2pow16: PropertyKeyArray2Pow16,
+    pub(crate) e2pow16: ElementArray2Pow16,
     /// up to 16777216 elements
-    pub k2pow24: PropertyKeyArray2Pow24,
-    pub e2pow24: ElementArray2Pow24,
+    pub(crate) k2pow24: PropertyKeyArray2Pow24,
+    pub(crate) e2pow24: ElementArray2Pow24,
     /// up to 4294967296 elements
-    pub k2pow32: PropertyKeyArray2Pow32,
-    pub e2pow32: ElementArray2Pow32,
+    pub(crate) k2pow32: PropertyKeyArray2Pow32,
+    pub(crate) e2pow32: ElementArray2Pow32,
 }
 
 impl Index<&ElementsVector<'_>> for ElementArrays {
