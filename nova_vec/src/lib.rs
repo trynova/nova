@@ -301,17 +301,27 @@ impl<T: SoAble> SoAVec<T> {
 
 impl<T: SoAble> Drop for SoAVec<T> {
     fn drop(&mut self) {
-        if !core::mem::needs_drop::<T>() {
-            return;
-        }
-        let ptr = self.buf.as_ptr();
-        let cap = self.buf.capacity();
-        let len = self.len();
-        for i in 0..len {
-            // SAFETY: reads each value out without altering the backing
-            // memory; using the backing memory may violate memory safety
-            // after this but we are about to deallocate it afterwards.
-            let _ = T::from_tuple(unsafe { T::TupleRepr::read(ptr, i, cap) });
+        if <T as SoAble>::MUST_DROP_AS_SELF {
+            // T must be dropped as T; we have to read out each T from the
+            // SoAVec and drop them individually.
+            let ptr = self.buf.as_ptr();
+            let cap = self.buf.capacity();
+            let len = self.len();
+            for i in 0..len {
+                // SAFETY: reads each value out without altering the backing
+                // memory; using the backing memory may violate memory safety
+                // after this but we are about to deallocate it afterwards.
+                let _ = T::from_tuple(unsafe { T::TupleRepr::read(ptr, i, cap) });
+            }
+        } else if const { core::mem::needs_drop::<<T as SoAble>::TupleRepr>() } {
+            // One or more of the slices in TupleRepr need to be dropped but
+            // they can be dropped in place.
+            let ptr = self.buf.as_ptr();
+            let cap = self.buf.capacity();
+            let len = self.len();
+            // SAFETY: buffer is still allocated to capacity, contains len
+            // items.
+            unsafe { T::TupleRepr::drop_in_place(ptr, len, cap) };
         }
         // RawVec handles deallocation
     }
@@ -586,5 +596,112 @@ mod tests {
         debug_assert_eq!(a_slice.len(), 2);
         debug_assert_eq!(a_slice, &[vec![0, 52], vec![4]]);
         debug_assert_eq!(b_slice, &[Box::new(66), Box::new(8)]);
+    }
+
+    #[test]
+    fn must_drop_as_self_type() {
+        #[repr(C)]
+        struct LoudDrop {
+            a: (),
+            b: (),
+        }
+
+        static mut DROP_COUNT: usize = 0;
+
+        impl Drop for LoudDrop {
+            fn drop(&mut self) {
+                println!("LoudDrop");
+                // SAFETY: test is entirely single-threaded.
+                unsafe {
+                    DROP_COUNT += 1;
+                }
+            }
+        }
+
+        // SAFETY: No internal invariants on fields.
+        unsafe impl SoAble for LoudDrop {
+            type TupleRepr = ((), ());
+
+            const MUST_DROP_AS_SELF: bool = true;
+
+            type Ref<'a>
+                = (&'a (), &'a ())
+            where
+                Self: 'a;
+
+            type Mut<'a>
+                = (&'a mut (), &'a mut ())
+            where
+                Self: 'a;
+
+            type Slice<'a>
+                = (&'a [()], &'a [()])
+            where
+                Self: 'a;
+
+            type SliceMut<'a>
+                = (&'a mut [()], &'a mut [()])
+            where
+                Self: 'a;
+
+            fn into_tuple(value: Self) -> Self::TupleRepr {
+                core::mem::forget(value);
+                ((), ())
+            }
+
+            fn from_tuple(_value: Self::TupleRepr) -> Self {
+                Self { a: (), b: () }
+            }
+
+            fn as_ref<'a>(
+                _: PhantomData<&'a Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+            ) -> Self::Ref<'a> {
+                unsafe { (value.0.as_ref(), value.1.as_ref()) }
+            }
+
+            fn as_mut<'a>(
+                _: PhantomData<&'a mut Self>,
+                mut value: <Self::TupleRepr as SoATuple>::Pointers,
+            ) -> Self::Mut<'a> {
+                unsafe { (value.0.as_mut(), value.1.as_mut()) }
+            }
+
+            fn as_slice<'a>(
+                _: PhantomData<&'a Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+                len: u32,
+            ) -> Self::Slice<'a> {
+                unsafe {
+                    (
+                        core::slice::from_raw_parts(value.0.as_ptr(), len as usize),
+                        core::slice::from_raw_parts(value.1.as_ptr(), len as usize),
+                    )
+                }
+            }
+
+            fn as_mut_slice<'a>(
+                _: PhantomData<&'a mut Self>,
+                value: <Self::TupleRepr as SoATuple>::Pointers,
+                len: u32,
+            ) -> Self::SliceMut<'a> {
+                unsafe {
+                    (
+                        core::slice::from_raw_parts_mut(value.0.as_ptr(), len as usize),
+                        core::slice::from_raw_parts_mut(value.1.as_ptr(), len as usize),
+                    )
+                }
+            }
+        }
+
+        let mut foo = SoAVec::<LoudDrop>::with_capacity(16).unwrap();
+        foo.push(LoudDrop { a: (), b: () }).unwrap();
+        let _first = foo.get(0).unwrap();
+        drop(foo);
+        assert_eq!(
+            unsafe { DROP_COUNT },
+            1,
+            "should have dropped a single LoudDrop item"
+        );
     }
 }

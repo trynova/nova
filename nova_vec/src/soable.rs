@@ -1,7 +1,7 @@
 use std::{
     alloc::{Layout, LayoutError},
     marker::PhantomData,
-    ptr::NonNull,
+    ptr::{drop_in_place, NonNull},
 };
 
 /// Used for defining the format and API of a type stored in `SoAVec` in a
@@ -20,10 +20,10 @@ use std::{
 ///
 /// # Safety requirements
 ///
-/// 1. The type must be safely droppable field-wise, **or** the `NEEDS_DROP`
-///    boolean must be set. If it is set, `SoAVec` guarantees that each dropped
-///    entry in the Struct-of-Arrays is read out onto the stack and dropped as
-///   `Self`.
+/// 1. The type must be safely droppable field-wise, **or** the
+///    `MUST_DROP_AS_SELF` boolean must be set. If it is set, `SoAVec`
+///    guarantees that each dropped entry in the Struct-of-Arrays is read out
+///    onto the stack and dropped as `Self`.
 /// 2. The type's internal invariants must be upheld by the `SoAble::Ref`,
 ///    `SoAble::Mut`, `SoAble::Slice`, and `SoAble::SliceMut` types.
 ///    Specifically, this means that if mutating a given field individually
@@ -85,7 +85,7 @@ use std::{
 /// soundness.
 ///
 /// # Examples
-pub trait SoAble: Sized {
+pub unsafe trait SoAble: Sized {
     /// Representation of the SoAble type in a Struct-of-Arrays friendly tuple
     /// form.
     ///
@@ -135,13 +135,14 @@ pub trait SoAble: Sized {
     /// }
     ///
     /// impl Soable for Complex {
-    ///   const NEEDS_DROP: bool = true;
+    ///   const MUST_DROP_AS_SELF: bool = true;
     /// }
     /// ```
     ///
     /// f.ex. a field containing a `Vec` can be dropped in the Struct-of-Arrays
-    /// format while a `Vec` split into two or three arrays would need to
-    const NEEDS_DROP: bool = false;
+    /// format while a `Vec` split into two or three arrays would need to be
+    /// read out and dropped as `Vec`.
+    const MUST_DROP_AS_SELF: bool = false;
 
     /// Representation of the SoAble type as a group of references borrowed
     /// from the Struct-of-Arrays.
@@ -162,7 +163,7 @@ pub trait SoAble: Sized {
     /// In this case, the `AtomicVec` should use a different `Ref` type that
     /// does not allow such mutations to occur.
     ///
-    /// ```rust,ìgnore
+    /// ```rust,ignore
     /// struct AtomicVecSoaRef<'a, T> {
     ///   ptr: &'a AtomicPtr<T>,
     ///   cap: &'a AtomicUsize,
@@ -196,7 +197,7 @@ pub trait SoAble: Sized {
     /// In this case, the `Vec` should use a different `Mut` type that does not
     /// allow such mutations to occur.
     ///
-    /// ```rust,ìgnore
+    /// ```rust,ignore
     /// struct VecSoaRef<'a, T> {
     ///   ptr: &'a *mut T,
     ///   cap: &'a usize,
@@ -235,21 +236,73 @@ pub trait SoAble: Sized {
     where
         Self: 'a;
 
+    /// Take ownership of Self and convert to a tuple representation. The
+    /// result will immediately be pushed into the SoAVec, which has already
+    /// been checked to have space for the new item.
+    ///
+    /// ## Safety
+    ///
+    /// This method should never fail. The SoAVec guarantees that once the
+    /// tuple has been received, it will always be successfully moved into the
+    /// SoAVec and if dropping the value requires reconsituting a Self, then
+    /// that will always be done on Drop.
+    ///
+    /// If the tuple representation gives unprivileged access to internal
+    /// fields of the Self type that have safety invariants on them, then any
+    /// of the Ref, Mut, Slice, and SliceMut types that enable violating those
+    /// invariants should be manually defined.
     fn into_tuple(value: Self) -> Self::TupleRepr;
+    /// Take ownership of Self's tuple representation and convert to Self. The
+    /// result will immediately be given to the caller or dropped.
     fn from_tuple(value: Self::TupleRepr) -> Self;
+    /// Convert the Self's pointer tuple representation into Ref.
+    ///
+    /// Note: this method should only perform the conversion and nothing else;
+    /// the resulting code generation should effectively be a no-op.
+    ///
+    /// ### Safety
+    ///
+    /// The Ref type should not allow violating any safety invariants of Self.
+    /// This is relevant for Ref types that expose internal mutation APIs.
     fn as_ref<'a>(
         _: PhantomData<&'a Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
     ) -> Self::Ref<'a>;
+    /// Convert the Self's pointer tuple representation into Mut.
+    ///
+    /// Note: this method should only perform the conversion and nothing else;
+    /// the resulting code generation should effectively be a no-op.
+    ///
+    /// ### Safety
+    ///
+    /// The Mut type should not allow violating any safety invariants of Self.
     fn as_mut<'a>(
         _: PhantomData<&'a mut Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
     ) -> Self::Mut<'a>;
+    /// Convert the Self's pointer tuple representation with length into Slice.
+    ///
+    /// Note: this method should only perform the conversion and nothing else.
+    ///
+    /// ### Safety
+    ///
+    /// The Slice type should not allow violating any safety invariants of
+    /// Self. This is relevant for Slice types that expose internal mutation
+    /// APIs.
     fn as_slice<'a>(
         _: PhantomData<&'a Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
         len: u32,
     ) -> Self::Slice<'a>;
+    /// Convert the Self's pointer tuple representation with length into
+    /// SliceMut.
+    ///
+    /// Note: this method should only perform the conversion and nothing else.
+    ///
+    /// ### Safety
+    ///
+    /// The SliceMut type should not allow violating any safety invariants of
+    /// Self.
     fn as_mut_slice<'a>(
         _: PhantomData<&'a mut Self>,
         value: <Self::TupleRepr as SoATuple>::Pointers,
@@ -271,6 +324,8 @@ pub trait SoATuple {
     unsafe fn read(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self;
 
     unsafe fn push(ptr: NonNull<u8>, data: Self, len: u32, capacity: u32);
+
+    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32);
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers;
 }
@@ -338,6 +393,23 @@ impl<T, U> SoATuple for (T, U) {
 
         t_ptr.write(data.0);
         u_ptr.write(data.1);
+    }
+
+    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+        assert!(core::mem::needs_drop::<Self>());
+        let (t_ptr, u_ptr) = Self::get_pointers(ptr, 0, capacity);
+        if core::mem::needs_drop::<T>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                t_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<U>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                u_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
     }
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
@@ -428,6 +500,29 @@ impl<T, U, V> SoATuple for (T, U, V) {
         t_ptr.write(data.0);
         u_ptr.write(data.1);
         v_ptr.write(data.2);
+    }
+
+    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+        assert!(core::mem::needs_drop::<Self>());
+        let (t_ptr, u_ptr, v_ptr) = Self::get_pointers(ptr, 0, capacity);
+        if core::mem::needs_drop::<T>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                t_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<U>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                u_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<V>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                v_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
     }
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
@@ -535,6 +630,35 @@ impl<T, U, V, W> SoATuple for (T, U, V, W) {
         u_ptr.write(data.1);
         v_ptr.write(data.2);
         w_ptr.write(data.3);
+    }
+
+    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+        assert!(core::mem::needs_drop::<Self>());
+        let (t_ptr, u_ptr, v_ptr, w_ptr) = Self::get_pointers(ptr, 0, capacity);
+        if core::mem::needs_drop::<T>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                t_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<U>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                u_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<V>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                v_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<W>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                w_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
     }
 
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
@@ -667,6 +791,41 @@ impl<T, U, V, W, X> SoATuple for (T, U, V, W, X) {
         x_ptr.write(data.4);
     }
 
+    unsafe fn drop_in_place(ptr: NonNull<u8>, len: u32, capacity: u32) {
+        assert!(core::mem::needs_drop::<Self>());
+        let (t_ptr, u_ptr, v_ptr, w_ptr, x_ptr) = Self::get_pointers(ptr, 0, capacity);
+        if core::mem::needs_drop::<T>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                t_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<U>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                u_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<V>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                v_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<W>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                w_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+        if core::mem::needs_drop::<X>() {
+            drop_in_place(core::ptr::slice_from_raw_parts_mut(
+                x_ptr.as_ptr(),
+                len as usize,
+            ));
+        }
+    }
+
     unsafe fn get_pointers(ptr: NonNull<u8>, index: u32, capacity: u32) -> Self::Pointers {
         debug_assert!(ptr.cast::<Self>().is_aligned());
         let (u_offset, v_offset, w_offset, x_offset) = Self::get_offsets(capacity);
@@ -709,7 +868,7 @@ macro_rules! soable {
         compile_error!("Single-field structs not supported; use a normal Vec")
     );
     ($target:ident { $($field:ident: $type:ty),+ }) => {
-        impl SoAble for $target {
+        unsafe impl SoAble for $target {
             type TupleRepr = ($($type),+);
             type Ref<'a> = ($(&'a $type),+);
             type Mut<'a> = ($(&'a mut $type),+);
@@ -776,7 +935,7 @@ macro_rules! soable {
         }
     };
     ($target:ident<$($lifetimes:lifetime),+> { $($field:ident: $type:ty),+ }) => {
-        impl<$($lifetimes),+> SoAble for $target<'b> {
+        unsafe impl<$($lifetimes),+> SoAble for $target<'b> {
             type TupleRepr = ($($type),+);
             type Ref<'a> = ($(&'a $type),+) where Self: 'a;
             type Mut<'a> = ($(&'a mut $type),+) where Self: 'a;
@@ -844,7 +1003,7 @@ macro_rules! soable {
     };
 }
 
-impl<T, U> SoAble for (T, U) {
+unsafe impl<T, U> SoAble for (T, U) {
     type TupleRepr = Self;
 
     type Ref<'a>
