@@ -638,8 +638,8 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 #[inline(never)]
 fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, str>, u64) {
     let id = match agent[f].behaviour {
-        Behaviour::Regular(f) => f as u64,
-        Behaviour::Constructor(f) => f as u64,
+        Behaviour::Regular(f) => f as usize as u64,
+        Behaviour::Constructor(f) => f as usize as u64,
     };
     let name = f.get_name(agent).to_string_lossy(agent);
     (name, id)

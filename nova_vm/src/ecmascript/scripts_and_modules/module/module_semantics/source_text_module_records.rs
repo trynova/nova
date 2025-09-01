@@ -1574,7 +1574,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
 }
 
 #[inline(never)]
-fn create_id<'a>(agent: &'a Agent, module: SourceTextModule) -> u64 {
+fn create_id(agent: &Agent, module: SourceTextModule) -> u64 {
     u64::try_from(
         module
             .get(agent)

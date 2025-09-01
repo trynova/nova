@@ -35,7 +35,7 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 
 /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
 ///
-/// Heap-allocated [String] data. Acessing the data must be done through the
+/// Heap-allocated [String] data. Accessing the data must be done through the
 /// [Agent].
 ///
 /// ## Ordering
