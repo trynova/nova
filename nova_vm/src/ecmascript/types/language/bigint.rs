@@ -9,9 +9,10 @@ use super::{
     IntoPrimitive, Primitive, String, Value,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
+    with_radix,
 };
 use crate::{
-    SmallInteger, bigint_bitwise_op,
+    SmallInteger,
     ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
     engine::{
         context::{Bindable, NoGcScope},
@@ -22,12 +23,13 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::BigIntIndex,
     },
-    with_radix,
 };
 use core::ops::{Index, IndexMut, Neg};
-pub use data::BigIntHeapData;
+pub(crate) use data::BigIntHeapData;
 use num_bigint::{Sign, ToBigInt};
-use operators::{left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64};
+use operators::{
+    bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
+};
 use std::ops::{BitAnd, BitOr, BitXor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,7 +37,7 @@ use std::ops::{BitAnd, BitOr, BitXor};
 pub struct HeapBigInt<'a>(BigIntIndex<'a>);
 
 #[derive(Debug, Clone, Copy)]
-pub enum BigIntMathematicalValue {
+pub(crate) enum BigIntMathematicalValue {
     Integer(i64),
     Number(f64),
 }

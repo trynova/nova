@@ -2,7 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## Notes
+//! ## [9.6 Agents](https://tc39.es/ecma262/#sec-agents)
+//!
+//! An _agent_ comprises a set of ECMAScript
+//! [execution contexts](https://tc39.es/ecma262/#sec-execution-contexts), an
+//! execution context stack, a running execution context, an _Agent Record_,
+//! and an _executing thread_. Except for the
+//! [executing thread](https://tc39.es/ecma262/#executing-thread), the
+//! constituents of an agent belong exclusively to that agent.
+//!
+//! In Nova, the [`Agent Record`](Agent) is the main entry point into the
+//! JavaScript virtual machine and its heap memory.
+//!
+//! ### Notes
 //!
 //! - This is inspired by and/or copied from Kiesel engine:
 //!   Copyright (c) 2023-2024 Linus Groh
@@ -45,6 +57,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapIndexable,
         WorkQueues, heap_gc::heap_gc,
     },
+    ndt,
 };
 
 use super::{
@@ -162,7 +175,7 @@ pub fn js_result_into_try<'a, T: 'a>(value: JsResult<'a, T>) -> TryResult<'a, T>
     }
 }
 
-/// Convert a TryResult<T> into a JsResult of an Option<T>.
+/// Convert a `TryResult<T>` into a [JsResult] of an `Option<T>`.
 ///
 /// This is useful when a method that may trigger GC calls into a Try method
 /// and wants to rethrow any errors and use the result if available.
@@ -174,7 +187,7 @@ pub fn try_result_into_js<'a, T: 'a>(value: TryResult<'a, T>) -> JsResult<'a, Op
     }
 }
 
-/// Convert a TryResult<T> into an Option<JsResult<T>>.
+/// Convert a `TryResult<T>` into an `Option<JsResult<T>>`.
 ///
 /// This is useful when a method that may trigger GC calls into a Try method
 /// and wants to use the result if available, error or not.
@@ -221,9 +234,6 @@ pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
     }
 }
 
-// #[derive(Debug)]
-// pub struct PreAllocated;
-
 pub(crate) enum InnerJob {
     PromiseResolveThenable(PromiseResolveThenableJob),
     PromiseReaction(PromiseReactionJob),
@@ -240,6 +250,11 @@ impl Job {
     }
 
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
+        let mut id = 0;
+        ndt::job_evaluation_start!(|| {
+            id = core::ptr::from_ref(&self).addr() as u64;
+            id
+        });
         let mut pushed_context = false;
         if let Some(realm) = self.realm
             && agent.current_realm(gc.nogc()) != realm
@@ -261,6 +276,8 @@ impl Job {
         if pushed_context {
             agent.execution_context_stack.pop();
         }
+
+        ndt::job_evaluation_done!(|| id);
 
         result
     }

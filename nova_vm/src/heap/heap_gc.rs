@@ -84,9 +84,12 @@ use crate::{
         Executable,
         context::{Bindable, GcScope},
     },
+    ndt,
 };
 
 pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
+    ndt::gc_start!(|| ());
+
     let mut bits = HeapBits::new(&agent.heap);
     let mut queues = WorkQueues::new(&agent.heap);
 
@@ -1269,6 +1272,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     }
 
     sweep(agent, &bits, root_realms, gc);
+    ndt::gc_done!(|| ());
 }
 
 fn sweep(

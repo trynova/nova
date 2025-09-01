@@ -33,6 +33,20 @@ use crate::{
 
 const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
 
+/// ### [Property key](https://tc39.es/ecma262/#property-key)
+///
+/// The properties of an object are uniquely identified using property keys. A
+/// _property key_ is either a String or a Symbol. All Strings and Symbols,
+/// including the empty String, are valid as property keys. A _property name_
+/// is a property key that is a String.
+///
+/// An _integer index_ is a property name `n` such that
+/// `CanonicalNumericIndexString(n)` returns an
+/// [integral Number](crate::ecmascript::types::Number::Integer) in the
+/// inclusive interval from `+0𝔽` to `𝔽(2**53 - 1)`. An _array index_ is an
+/// integer index `n` such that `CanonicalNumericIndexString(n)` returns an
+/// [integral Number](crate::ecmascript::types::Number::Integer) in the
+/// inclusive interval from `+0𝔽` to `𝔽(2**32 - 2)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum PropertyKey<'a> {

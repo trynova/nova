@@ -6,7 +6,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, Index, IndexMut},
 };
-use std::{hint::unreachable_unchecked, ptr::NonNull};
+use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
 
 use crate::{
     ecmascript::{
@@ -26,6 +26,7 @@ use crate::{
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinFunctionIndex,
     },
+    ndt,
 };
 
 #[derive(Default)]
@@ -504,6 +505,17 @@ impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
     }
 }
 
+impl<'a> TryFrom<Function<'a>> for BuiltinFunction<'a> {
+    type Error = ();
+
+    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Function::BuiltinFunction(f) => Ok(f),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Index<BuiltinFunction<'_>> for Agent {
     type Output = BuiltinFunctionHeapData<'static>;
 
@@ -539,8 +551,11 @@ impl IndexMut<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData<'stati
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
-    fn get_name(self, agent: &Agent) -> String<'static> {
-        agent[self].initial_name.unwrap_or(String::EMPTY_STRING)
+    fn get_name(self, agent: &Agent) -> &String<'a> {
+        agent[self]
+            .initial_name
+            .as_ref()
+            .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
@@ -579,8 +594,17 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let mut id = 0;
+        ndt::builtin_call_start!(|| {
+            let args = create_name_and_id(agent, self);
+            id = args.1;
+            args
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
+        let result =
+            builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc);
+        ndt::builtin_call_done!(|| id);
+        result
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -596,10 +620,29 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
+        let mut id = 0;
+        ndt::builtin_constructor_start!(|| {
+            let args = create_name_and_id(agent, self);
+            id = args.1;
+            args
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
-            .map(|result| result.try_into().unwrap())
+        let result =
+            builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
+                .map(|result| result.try_into().unwrap());
+        ndt::builtin_constructor_done!(|| id);
+        result
     }
+}
+
+#[inline(never)]
+fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, str>, u64) {
+    let id = match agent[f].behaviour {
+        Behaviour::Regular(f) => f as usize as u64,
+        Behaviour::Constructor(f) => f as usize as u64,
+    };
+    let name = f.get_name(agent).to_string_lossy(agent);
+    (name, id)
 }
 
 /// ### [10.3.3 BuiltinCallOrConstruct ( F, thisArgument, argumentsList, newTarget )](https://tc39.es/ecma262/#sec-builtincallorconstruct)
@@ -609,7 +652,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-pub(crate) fn builtin_call_or_construct<'gc>(
+fn builtin_call_or_construct<'gc>(
     agent: &mut Agent,
     f: BuiltinFunction,
     this_argument: Option<Value>,

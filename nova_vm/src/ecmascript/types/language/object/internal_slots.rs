@@ -14,7 +14,7 @@ where
     Self: 'a + Sized + Copy + Into<Object<'a>> + IntoObject<'a>,
 {
     /// Default prototype of the object; this is used by
-    /// [OrdinaryObjectInternalSlots::internal_prototype].
+    /// [InternalSlots::internal_prototype].
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Object;
 
     /// ### \[\[BackingObject\]\]

@@ -126,98 +126,98 @@ use indexes::TypedArrayIndex;
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
-pub struct Heap {
+pub(crate) struct Heap {
     #[cfg(feature = "array-buffer")]
-    pub array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
+    pub(crate) array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
-    pub arrays: Vec<Option<ArrayHeapData<'static>>>,
-    pub array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
-    pub async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
+    pub(crate) array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
+    pub(crate) arrays: Vec<Option<ArrayHeapData<'static>>>,
+    pub(crate) array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
+    pub(crate) async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
     pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,
-    pub bigints: Vec<Option<BigIntHeapData>>,
-    pub bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
-    pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,
-    pub builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
+    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
+    pub(crate) bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
+    pub(crate) builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,
+    pub(crate) builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
     pub(crate) caches: Caches<'static>,
     #[cfg(feature = "array-buffer")]
-    pub data_views: Vec<Option<DataViewHeapData<'static>>>,
+    pub(crate) data_views: Vec<Option<DataViewHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub data_view_byte_lengths: AHashMap<DataView<'static>, usize>,
+    pub(crate) data_view_byte_lengths: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
+    pub(crate) data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "date")]
-    pub dates: Vec<Option<DateHeapData<'static>>>,
-    pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
+    pub(crate) dates: Vec<Option<DateHeapData<'static>>>,
+    pub(crate) ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
-    pub elements: ElementArrays,
-    pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
-    pub environments: Environments,
-    pub errors: Vec<Option<ErrorHeapData<'static>>>,
+    pub(crate) elements: ElementArrays,
+    pub(crate) embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
+    pub(crate) environments: Environments,
+    pub(crate) errors: Vec<Option<ErrorHeapData<'static>>>,
     /// Stores compiled bytecodes
     pub(crate) executables: Vec<ExecutableHeapData<'static>>,
-    pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData<'static>>>,
-    pub generators: Vec<Option<GeneratorHeapData<'static>>>,
+    pub(crate) finalization_registrys: Vec<Option<FinalizationRegistryHeapData<'static>>>,
+    pub(crate) generators: Vec<Option<GeneratorHeapData<'static>>>,
     pub(crate) globals: RefCell<Vec<Option<HeapRootData>>>,
-    pub maps: Vec<Option<MapHeapData<'static>>>,
-    pub map_iterators: Vec<Option<MapIteratorHeapData<'static>>>,
-    pub numbers: Vec<Option<NumberHeapData>>,
+    pub(crate) maps: Vec<Option<MapHeapData<'static>>>,
+    pub(crate) map_iterators: Vec<Option<MapIteratorHeapData<'static>>>,
+    pub(crate) numbers: Vec<Option<NumberHeapData>>,
     pub(crate) object_shapes: Vec<ObjectShapeRecord<'static>>,
     pub(crate) object_shape_transitions: Vec<ObjectShapeTransitionMap<'static>>,
     pub(crate) prototype_shapes: PrototypeShapeTable,
-    pub objects: Vec<Option<ObjectHeapData<'static>>>,
-    pub primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
-    pub promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
-    pub promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
-    pub promise_finally_functions: Vec<PromiseFinallyFunctionHeapData<'static>>,
-    pub promises: Vec<Option<PromiseHeapData<'static>>>,
-    pub proxys: Vec<Option<ProxyHeapData<'static>>>,
-    pub realms: Vec<Option<RealmRecord<'static>>>,
+    pub(crate) objects: Vec<Option<ObjectHeapData<'static>>>,
+    pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
+    pub(crate) promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
+    pub(crate) promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
+    pub(crate) promise_finally_functions: Vec<PromiseFinallyFunctionHeapData<'static>>,
+    pub(crate) promises: Vec<Option<PromiseHeapData<'static>>>,
+    pub(crate) proxys: Vec<Option<ProxyHeapData<'static>>>,
+    pub(crate) realms: Vec<Option<RealmRecord<'static>>>,
     #[cfg(feature = "regexp")]
-    pub regexps: Vec<Option<RegExpHeapData<'static>>>,
+    pub(crate) regexps: Vec<Option<RegExpHeapData<'static>>>,
     #[cfg(feature = "regexp")]
     pub(crate) regexp_string_iterators: Vec<RegExpStringIteratorRecord<'static>>,
     #[cfg(feature = "set")]
-    pub sets: Vec<Option<SetHeapData<'static>>>,
+    pub(crate) sets: Vec<Option<SetHeapData<'static>>>,
     #[cfg(feature = "set")]
-    pub set_iterators: Vec<Option<SetIteratorHeapData<'static>>>,
+    pub(crate) set_iterators: Vec<Option<SetIteratorHeapData<'static>>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData<'static>>>,
-    pub symbols: Vec<Option<SymbolHeapData<'static>>>,
+    pub(crate) shared_array_buffers: Vec<Option<SharedArrayBufferHeapData<'static>>>,
+    pub(crate) symbols: Vec<Option<SymbolHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,
+    pub(crate) typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_byte_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
+    pub(crate) typed_array_byte_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_byte_offsets: AHashMap<TypedArrayIndex<'static>, usize>,
+    pub(crate) typed_array_byte_offsets: AHashMap<TypedArrayIndex<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_array_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
+    pub(crate) typed_array_array_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: Vec<Option<WeakMapHeapData<'static>>>,
+    pub(crate) weak_maps: Vec<Option<WeakMapHeapData<'static>>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: Vec<Option<WeakRefHeapData<'static>>>,
+    pub(crate) weak_refs: Vec<Option<WeakRefHeapData<'static>>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
-    pub modules: Vec<Option<ModuleHeapData<'static>>>,
+    pub(crate) weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
+    pub(crate) modules: Vec<Option<ModuleHeapData<'static>>>,
     pub(crate) module_request_records: Vec<ModuleRequestRecord<'static>>,
     pub(crate) source_text_module_records: SourceTextModuleHeap,
-    pub scripts: Vec<Option<ScriptRecord<'static>>>,
-    pub string_iterators: Vec<Option<StringIteratorHeapData<'static>>>,
+    pub(crate) scripts: Vec<Option<ScriptRecord<'static>>>,
+    pub(crate) string_iterators: Vec<Option<StringIteratorHeapData<'static>>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
     pub(crate) source_codes: Vec<Option<SourceCodeHeapData<'static>>>,
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
-    pub strings: Vec<Option<StringHeapData>>,
-    pub string_lookup_table: HashTable<HeapString<'static>>,
-    pub string_hasher: ahash::RandomState,
+    pub(crate) strings: Vec<Option<StringHeapData>>,
+    pub(crate) string_lookup_table: HashTable<HeapString<'static>>,
+    pub(crate) string_hasher: ahash::RandomState,
     /// Counts allocations for garbage collection triggering.
     pub(crate) alloc_counter: usize,
 }
 
-pub trait CreateHeapData<T, F> {
+pub(crate) trait CreateHeapData<T, F> {
     /// Creates a [`Value`] from the given data. Allocating the data is **not**
     /// guaranteed.
     fn create(&mut self, data: T) -> F;

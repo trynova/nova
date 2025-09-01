@@ -40,6 +40,7 @@ use nova_vm::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
+    register_probes,
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
@@ -243,6 +244,8 @@ impl ModuleMap {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
+
+    register_probes().unwrap();
 
     match args.command {
         Command::Parse { path } => {
