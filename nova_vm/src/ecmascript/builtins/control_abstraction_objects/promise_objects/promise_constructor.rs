@@ -299,7 +299,10 @@ impl PromiseConstructor {
                     index,
                     promise_all: promise_all_record,
                 },
-                PromiseReactionHandler::Empty,
+                PromiseReactionHandler::PromiseAll {
+                    index,
+                    promise_all: promise_all_record,
+                },
                 Some(capability.unbind()),
                 gc.nogc(),
             );

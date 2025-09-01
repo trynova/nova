@@ -48,9 +48,23 @@ impl<'a> PromiseAll<'a> {
         data.remaining_unresolved_promise_count =
             data.remaining_unresolved_promise_count.saturating_sub(1);
         if data.remaining_unresolved_promise_count == 0 {
-            let capability = PromiseCapability::from_promise(data.promise, false);
+            let capability = PromiseCapability::from_promise(data.promise, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
+    }
+
+    pub(crate) fn on_promise_rejected(
+        self,
+        agent: &mut Agent,
+        value: Value<'a>,
+        gc: NoGcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc);
+        let promise_all = self.bind(gc);
+        let data = promise_all.get_mut(agent);
+
+        let capability = PromiseCapability::from_promise(data.promise, true);
+        capability.reject(agent, value.unbind(), gc);
     }
 
     pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
