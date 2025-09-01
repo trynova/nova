@@ -230,6 +230,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     }
 }
 
+#[inline(never)]
 fn create_id(agent: &Agent, f: BuiltinConstructorFunction) -> u64 {
     ((f.0.into_u32() as u64) << 32) | agent[f].source_text.start as u64
 }

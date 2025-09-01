@@ -57,6 +57,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapIndexable,
         WorkQueues, heap_gc::heap_gc,
     },
+    ndt,
 };
 
 use super::{
@@ -233,9 +234,6 @@ pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
     }
 }
 
-// #[derive(Debug)]
-// pub struct PreAllocated;
-
 pub(crate) enum InnerJob {
     PromiseResolveThenable(PromiseResolveThenableJob),
     PromiseReaction(PromiseReactionJob),
@@ -252,6 +250,11 @@ impl Job {
     }
 
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
+        let mut id = 0;
+        ndt::job_evaluation_start!(|| {
+            id = core::ptr::from_ref(&self).addr() as u64;
+            id
+        });
         let mut pushed_context = false;
         if let Some(realm) = self.realm
             && agent.current_realm(gc.nogc()) != realm
@@ -273,6 +276,8 @@ impl Job {
         if pushed_context {
             agent.execution_context_stack.pop();
         }
+
+        ndt::job_evaluation_done!(|| id);
 
         result
     }

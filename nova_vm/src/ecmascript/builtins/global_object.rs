@@ -30,7 +30,10 @@ use crate::{
                 script_var_scoped_declarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, STRING_DISCRIMINANT, String,
+            Value,
+        },
     },
     engine::{
         Executable, Vm,
@@ -39,6 +42,7 @@ use crate::{
         string_literal_to_wtf8,
     },
     heap::IntrinsicFunctionIndexes,
+    ndt,
 };
 
 use super::{
@@ -153,7 +157,7 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// language value), strictCaller (a Boolean), and direct (a Boolean) and
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion.
-pub fn perform_eval<'gc>(
+pub(crate) fn perform_eval<'gc>(
     agent: &mut Agent,
     x: Value,
     direct: bool,
@@ -177,6 +181,12 @@ pub fn perform_eval<'gc>(
         .host_hooks
         .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
         .unbind()?;
+
+    let mut id = 0;
+    ndt::eval_evaluation_start!(|| {
+        id = create_id(x);
+        id
+    });
 
     // 6. Let inFunction be false.
     let mut _in_function = false;
@@ -253,6 +263,7 @@ pub fn perform_eval<'gc>(
                 "Invalid eval source text: {}",
                 errors.first().unwrap().message
             );
+            ndt::eval_evaluation_done!(|| id);
             return Err(agent.throw_exception(ExceptionType::SyntaxError, message, gc.into_nogc()));
         }
     };
@@ -270,6 +281,7 @@ pub fn perform_eval<'gc>(
         // SAFETY: SourceCode was just parsed and found empty; even if it had
         // been executed, it would do nothing.
         unsafe { source_code.manually_drop(agent) };
+        ndt::eval_evaluation_done!(|| id);
         return Ok(empty_result.unbind());
     }
 
@@ -414,8 +426,22 @@ pub fn perform_eval<'gc>(
     // TODO:
     // 32. Resume the context that is now on the top of the execution context stack as the running execution context.
 
+    ndt::eval_evaluation_done!(|| id);
+
     // 33. Return ? result.
     result
+}
+
+#[inline]
+fn create_id(x: String) -> u64 {
+    match x {
+        String::String(s) => {
+            let [a, b, c, d] = s.0.into_u32().to_ne_bytes();
+            u64::from_ne_bytes([STRING_DISCRIMINANT, 0, 0, 0, a, b, c, d])
+        }
+        // SAFETY: SmallString variant has initialised all 8 bytes.
+        String::SmallString(_) => unsafe { core::mem::transmute::<String, u64>(x) },
+    }
 }
 
 /// ### [19.2.1.3 EvalDeclarationInstantiation ( body, varEnv, lexEnv, privateEnv, strict )](https://tc39.es/ecma262/#sec-evaldeclarationinstantiation)
