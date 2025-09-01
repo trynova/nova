@@ -46,7 +46,6 @@ regex = "1.11.1"
 ryu-js = "1.0.2"
 sonic-rs = "0.3.17"
 unicode-normalization = "0.1.24"
-usdt = { git = "https://github.com/oxidecomputer/usdt/", branch = "master" }
 wtf8 = "0.1"
 
 [workspace.metadata.dylint]

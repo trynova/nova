@@ -52,6 +52,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    with_typed_array_viewable,
 };
 
 use super::abstract_operations::{
@@ -60,7 +61,7 @@ use super::abstract_operations::{
     set_typed_array_from_typed_array, typed_array_byte_length,
     typed_array_create_from_constructor_with_length, typed_array_create_same_type,
     typed_array_length, typed_array_species_create_with_buffer,
-    typed_array_species_create_with_length, validate_typed_array, with_typed_array_viewable,
+    typed_array_species_create_with_length, validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;

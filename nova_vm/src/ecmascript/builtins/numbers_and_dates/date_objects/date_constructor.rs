@@ -372,7 +372,7 @@ impl DateConstructor {
     }
 }
 
-/// Ported from Boa JS engine. [Source](https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L745)
+/// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L745
 ///
 /// Copyright (c) 2019 Jason Williams
 mod parse_date {

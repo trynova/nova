@@ -41,12 +41,7 @@ pub(crate) use data::*;
 pub(crate) use into_function::FunctionInternalProperties;
 pub use into_function::IntoFunction;
 
-/// ### [20.2.4 Function Instances](https://tc39.es/ecma262/#sec-function-instances)
-///
-/// Every Function instance is an ECMAScript [function object](https://tc39.es/ecma262/#function-object)
-/// and has the internal slots listed in [Table 28](https://tc39.es/ecma262/#table-internal-slots-of-ecmascript-function-objects).
-/// Function objects created using the `Function.prototype.bind` method ([20.2.3.2](https://tc39.es/ecma262/#sec-function.prototype.bind))
-/// have the internal slots listed in [Table 29](https://tc39.es/ecma262/#table-internal-slots-of-bound-function-exotic-objects).
+/// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Function<'a> {
