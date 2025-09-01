@@ -278,27 +278,32 @@ impl PromiseReactionJob {
                         );
                         return Ok(());
                     }
-                    PromiseReactionType::Reject => {
-                        // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « reason »).
-                        // b. Return unused.
-                        (
-                            Err(JsError::new(argument)),
-                            PromiseCapability::from_promise(promise, true),
-                        )
-                    }
+                    PromiseReactionType::Reject => (
+                        Err(JsError::new(argument)),
+                        PromiseCapability::from_promise(promise, true),
+                    ),
                 }
             }
             PromiseReactionHandler::PromiseAll { promise_all, index } => {
                 let reaction_type = agent[reaction].reaction_type;
                 let capability = agent[reaction].capability.clone().unwrap();
+                let scoped_arg = argument.scope(agent, gc.nogc());
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
-                        let arg_unbound = argument.unbind();
-                        promise_all.on_promise_fulfilled(agent, index, arg_unbound, gc.reborrow());
-                        (Ok(arg_unbound.bind(gc.nogc())), capability.bind(gc.nogc()))
+                        promise_all.on_promise_fulfilled(
+                            agent,
+                            index,
+                            scoped_arg.get(agent),
+                            gc.reborrow(),
+                        );
+                        (Ok(scoped_arg.get(agent)), capability.bind(gc.nogc()))
                     }
                     PromiseReactionType::Reject => {
-                        (Err(JsError::new(argument)), capability.bind(gc.nogc()))
+                        promise_all.on_promise_rejected(agent, scoped_arg.get(agent), gc.nogc());
+                        (
+                            Err(JsError::new(scoped_arg.get(agent))),
+                            capability.bind(gc.nogc()),
+                        )
                     }
                 }
             }
