@@ -63,7 +63,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
-            Array, BuiltinFunction,
+            Array, ArrayHeapData, BuiltinFunction,
             control_abstraction_objects::{
                 async_function_objects::{
                     async_function_constructor::AsyncFunctionConstructor,
@@ -148,6 +148,7 @@ use crate::{
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
+        element_array::ElementsVector,
         indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
@@ -268,7 +269,10 @@ impl Intrinsics {
             .heap
             .builtin_functions
             .extend((0..intrinsic_function_count()).map(|_| None));
-        agent.heap.arrays.push(None);
+        agent.heap.arrays.push(ArrayHeapData {
+            object_index: None,
+            elements: ElementsVector::default(),
+        });
 
         Self {
             object_index_base,

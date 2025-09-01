@@ -4217,14 +4217,13 @@ impl ArrayPrototype {
             .build();
 
         let slot = agent.heap.arrays.get_mut(this.get_index()).unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ArrayHeapData {
+        *slot = ArrayHeapData {
             object_index: Some(this_base_object),
             // has a "length" property whose initial value is +0𝔽 and whose
             // attributes are { [[Writable]]: true, [[Enumerable]]: false,
             // [[Configurable]]: false }.
             elements: Default::default(),
-        });
+        };
     }
 }
 

@@ -885,23 +885,18 @@ impl IndexMut<Array<'_>> for Agent {
     }
 }
 
-impl Index<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
+impl Index<Array<'_>> for Vec<ArrayHeapData<'static>> {
     type Output = ArrayHeapData<'static>;
 
     fn index(&self, index: Array) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Array out of bounds")
-            .as_ref()
-            .expect("Array slot empty")
+        self.get(index.get_index()).expect("Array out of bounds")
     }
 }
 
-impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
+impl IndexMut<Array<'_>> for Vec<ArrayHeapData<'static>> {
     fn index_mut(&mut self, index: Array) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Array out of bounds")
-            .as_mut()
-            .expect("Array slot empty")
     }
 }
 
@@ -930,9 +925,9 @@ impl Rootable for Array<'_> {
 
 impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
-        self.arrays.push(Some(data.unbind()));
+        self.arrays.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        Array::from(ArrayIndex::last(&self.arrays))
+        Array::from(ArrayIndex::last_t(&self.arrays))
     }
 }
 
@@ -1272,13 +1267,13 @@ fn insert_element_descriptor(
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
-    arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+    arrays: &'a Vec<ArrayHeapData<'static>>,
 }
 
 impl ArrayHeap<'_> {
     pub(crate) fn new<'a>(
         elements: &'a ElementArrays,
-        arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+        arrays: &'a Vec<ArrayHeapData<'static>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }
