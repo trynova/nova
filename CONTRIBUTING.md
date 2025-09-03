@@ -186,12 +186,12 @@ When making changes, you'll thus often need to update or at least check the
 expectations. You can do this with the following command:
 
 ```sh
-cargo build --profile release && cargo run --bin test262 --profile release -- -u
+cargo build --profile dev-fast && cargo run --bin test262 --profile dev-fast -- -u
 ```
 
-This will build you a release version of Nova, and run the test262 conformance
-suite using that executable. At the end of the run, it will record the results
-in `expectations.json`.
+This will build you a "dev-fast" version of Nova, and run the test262
+conformance using that executable. At the end of the run, it will record the
+results `expectations.json`.
 
 You can run an individual test262 test case or a set of tests using
 
