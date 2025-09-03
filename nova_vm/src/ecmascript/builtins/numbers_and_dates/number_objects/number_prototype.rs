@@ -541,7 +541,7 @@ fn f64_to_exponential_with_precision<'a>(
 
 /// ### [21.1.3.7.1 ThisNumberValue ( value )](https://tc39.es/ecma262/#sec-thisnumbervalue)
 ///
-/// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion. It performs the following steps when called:
+/// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion.
 #[inline(always)]
 fn this_number_value<'gc>(
     agent: &mut Agent,

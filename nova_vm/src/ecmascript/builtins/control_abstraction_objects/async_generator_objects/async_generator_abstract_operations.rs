@@ -72,7 +72,9 @@ pub(crate) fn async_generator_start_result(
 
 /// ### [27.6.3.3 AsyncGeneratorValidate ( generator, generatorBrand )](https://tc39.es/ecma262/#sec-asyncgeneratorvalidate)
 ///
-/// The abstract operation AsyncGeneratorValidate takes arguments generator (an ECMAScript language value) and generatorBrand (a String or empty) and returns either a normal completion containing unused or a throw completion. It performs the following steps when called:
+/// The abstract operation AsyncGeneratorValidate takes arguments generator (an
+/// ECMAScript language value) and generatorBrand (a String or empty) and
+/// returns either a normal completion containing unused or a throw completion.
 pub(super) fn async_generator_validate<'a>(
     agent: &mut Agent,
     generator: Value,
