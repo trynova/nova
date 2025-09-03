@@ -6,7 +6,7 @@ use ahash::AHashSet;
 
 use crate::{
     ecmascript::{execution::WeakKey, types::OrdinaryObject},
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, sweep_side_set},
 };
 
@@ -34,20 +34,7 @@ impl WeakSetHeapData<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for WeakSetHeapData<'_> {
-    type Of<'a> = WeakSetHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(WeakSetHeapData);
 
 impl HeapMarkAndSweep for WeakSetHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

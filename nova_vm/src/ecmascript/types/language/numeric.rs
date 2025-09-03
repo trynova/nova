@@ -6,7 +6,7 @@ use crate::{
     SmallInteger,
     ecmascript::execution::Agent,
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
@@ -82,20 +82,7 @@ impl Numeric<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Numeric<'_> {
-    type Of<'a> = Numeric<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Numeric);
 
 impl<'a> From<Numeric<'a>> for Value<'a> {
     fn from(num: Numeric<'a>) -> Self {

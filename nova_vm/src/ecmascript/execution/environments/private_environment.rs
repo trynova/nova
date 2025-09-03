@@ -12,7 +12,7 @@ use crate::{
         execution::Agent,
         types::{IntoFunction, IntoValue, PrivateName, String, Value},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementDescriptor},
 };
 
@@ -115,57 +115,7 @@ impl<'a> PrivateField<'a> {
         }
     }
 }
-
-// SAFETY: Trivially safe.
-unsafe impl Bindable for PrivateField<'_> {
-    type Of<'a> = PrivateField<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        match self {
-            Self::Field { key } => PrivateField::Field { key },
-            Self::Getter { key, get } => PrivateField::Getter {
-                key,
-                get: get.unbind(),
-            },
-            Self::Setter { key, set } => PrivateField::Setter {
-                key,
-                set: set.unbind(),
-            },
-            Self::Accessor { key, get, set } => PrivateField::Accessor {
-                key,
-                get: get.unbind(),
-                set: set.unbind(),
-            },
-            Self::Method { key, method } => PrivateField::Method {
-                key,
-                method: method.unbind(),
-            },
-        }
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        match self {
-            Self::Field { key } => PrivateField::Field { key },
-            Self::Getter { key, get } => PrivateField::Getter {
-                key,
-                get: get.bind(gc),
-            },
-            Self::Setter { key, set } => PrivateField::Setter {
-                key,
-                set: set.bind(gc),
-            },
-            Self::Accessor { key, get, set } => PrivateField::Accessor {
-                key,
-                get: get.bind(gc),
-                set: set.bind(gc),
-            },
-            Self::Method { key, method } => PrivateField::Method {
-                key,
-                method: method.bind(gc),
-            },
-        }
-    }
-}
+bindable_handle!(PrivateField);
 
 /// ### [9.2 PrivateEnvironment Records](https://tc39.es/ecma262/#sec-privateenvironment-records)
 ///

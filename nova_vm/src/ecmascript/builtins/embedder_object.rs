@@ -10,7 +10,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -37,20 +37,7 @@ impl EmbedderObject<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for EmbedderObject<'_> {
-    type Of<'a> = EmbedderObject<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(EmbedderObject);
 
 impl<'a> From<EmbedderObject<'a>> for Value<'a> {
     fn from(value: EmbedderObject<'a>) -> Self {

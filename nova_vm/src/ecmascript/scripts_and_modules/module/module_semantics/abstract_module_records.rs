@@ -12,7 +12,7 @@ use crate::{
         types::String,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -135,18 +135,7 @@ impl<'a> From<SourceTextModule<'a>> for AbstractModule<'a> {
     }
 }
 
-// SAFETY: Pass-through
-unsafe impl Bindable for AbstractModule<'_> {
-    type Of<'a> = AbstractModule<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        AbstractModule(self.0.unbind())
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        AbstractModule(self.0.bind(gc))
-    }
-}
+bindable_handle!(AbstractModule);
 
 impl Rootable for AbstractModule<'_> {
     type RootRepr = HeapRootRef;
@@ -174,22 +163,7 @@ pub(crate) enum InnerAbstractModule<'a> {
     SourceTextModule(SourceTextModule<'a>),
 }
 
-// SAFETY: Pass-through.
-unsafe impl Bindable for InnerAbstractModule<'_> {
-    type Of<'a> = InnerAbstractModule<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        match self {
-            Self::SourceTextModule(m) => InnerAbstractModule::SourceTextModule(m.unbind()),
-        }
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        match self {
-            Self::SourceTextModule(m) => InnerAbstractModule::SourceTextModule(m.bind(gc)),
-        }
-    }
-}
+bindable_handle!(InnerAbstractModule);
 
 impl Rootable for InnerAbstractModule<'_> {
     type RootRepr = HeapRootRef;

@@ -34,7 +34,7 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
         rootable::Scopable,
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
@@ -487,20 +487,7 @@ impl PartialOrd<IntegerOrInfinity> for i64 {
     }
 }
 
-// SAFETY: Trivially safe.
-unsafe impl Bindable for IntegerOrInfinity {
-    type Of<'a> = IntegerOrInfinity;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        self
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self
-    }
-}
+trivially_bindable!(IntegerOrInfinity);
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
 pub(crate) fn to_integer_or_infinity_f64(number: f64) -> f64 {

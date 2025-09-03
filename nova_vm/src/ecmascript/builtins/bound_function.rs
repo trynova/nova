@@ -20,7 +20,7 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
@@ -51,20 +51,7 @@ impl BoundFunction<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for BoundFunction<'_> {
-    type Of<'a> = BoundFunction<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(BoundFunction);
 
 impl<'a> IntoValue<'a> for BoundFunction<'a> {
     fn into_value(self) -> Value<'a> {
@@ -351,20 +338,7 @@ impl HeapSweepWeakReference for BoundFunction<'static> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for BoundFunctionHeapData<'_> {
-    type Of<'a> = BoundFunctionHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(BoundFunctionHeapData);
 
 impl HeapMarkAndSweep for BoundFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

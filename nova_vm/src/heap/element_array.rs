@@ -14,7 +14,7 @@ use crate::{
         execution::Agent,
         types::{Function, PropertyDescriptor, PropertyKey, Value},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, NoGcScope, bindable_handle},
 };
 use core::{
     mem::MaybeUninit,
@@ -375,20 +375,7 @@ impl<'gc> ElementsVector<'gc> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ElementsVector<'_> {
-    type Of<'a> = ElementsVector<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ElementsVector);
 
 impl HeapMarkAndSweep for ElementsVector<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -1169,20 +1156,7 @@ impl<'a> ElementDescriptor<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ElementDescriptor<'_> {
-    type Of<'a> = ElementDescriptor<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ElementDescriptor);
 
 #[derive(Debug, Default)]
 pub struct ElementArray<const N: usize> {

@@ -14,7 +14,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -48,20 +48,7 @@ impl SetIterator<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SetIterator<'_> {
-    type Of<'a> = SetIterator<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(SetIterator);
 
 impl<'a> From<SetIterator<'a>> for Object<'a> {
     fn from(value: SetIterator) -> Self {
@@ -188,20 +175,7 @@ impl HeapSweepWeakReference for SetIterator<'static> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SetIteratorHeapData<'_> {
-    type Of<'a> = SetIteratorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(SetIteratorHeapData);
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SetIteratorHeapData<'a> {

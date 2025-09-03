@@ -7,7 +7,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::Object,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, NoGcScope, bindable_handle},
 };
 
 use super::{Proxy, data::ProxyHeapData};
@@ -18,26 +18,7 @@ pub(crate) struct NonRevokedProxy<'a> {
     pub(crate) handler: Object<'a>,
 }
 
-// SAFETY: Performs no unsafe operations.
-unsafe impl Bindable for NonRevokedProxy<'_> {
-    type Of<'a> = NonRevokedProxy<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        NonRevokedProxy {
-            target: self.target.unbind(),
-            handler: self.handler.unbind(),
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        NonRevokedProxy {
-            target: self.target.bind(gc),
-            handler: self.handler.bind(gc),
-        }
-    }
-}
+bindable_handle!(NonRevokedProxy);
 
 /// ### [10.5.14 ValidateNonRevokedProxy ( proxy )](https://tc39.es/ecma262/#sec-validatenonrevokedproxy)
 ///

@@ -15,7 +15,7 @@ use crate::{
     },
     engine::{
         Executable, ExecutionResult, SuspendedVm,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::{HeapRootData, Scopable},
     },
     heap::{
@@ -382,20 +382,7 @@ impl Generator<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Generator<'_> {
-    type Of<'a> = Generator<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Generator);
 
 impl<'a> From<Generator<'a>> for Value<'a> {
     fn from(value: Generator<'a>) -> Self {
@@ -552,20 +539,7 @@ impl HeapMarkAndSweep for SuspendedGeneratorState {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for GeneratorHeapData<'_> {
-    type Of<'a> = GeneratorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(GeneratorHeapData);
 
 impl HeapMarkAndSweep for GeneratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

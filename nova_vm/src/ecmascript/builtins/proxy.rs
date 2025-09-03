@@ -32,7 +32,7 @@ use crate::{
     },
     engine::{
         ScopableCollection,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, Scopable},
     },
     heap::{
@@ -80,20 +80,7 @@ impl Proxy<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Proxy<'_> {
-    type Of<'a> = Proxy<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Proxy);
 
 impl<'a> From<Proxy<'a>> for Value<'a> {
     fn from(value: Proxy<'a>) -> Self {

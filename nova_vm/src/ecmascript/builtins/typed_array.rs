@@ -25,7 +25,7 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -197,20 +197,7 @@ impl<'a> TypedArray<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for TypedArray<'_> {
-    type Of<'a> = TypedArray<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(TypedArray);
 
 impl<'a> From<TypedArrayIndex<'a>> for TypedArray<'a> {
     fn from(value: TypedArrayIndex<'a>) -> Self {

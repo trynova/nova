@@ -11,7 +11,7 @@ use crate::{
         types::{Function, InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -64,20 +64,7 @@ impl WeakSet<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for WeakSet<'_> {
-    type Of<'a> = WeakSet<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(WeakSet);
 
 impl<'a> From<WeakSet<'a>> for Value<'a> {
     fn from(value: WeakSet<'a>) -> Self {

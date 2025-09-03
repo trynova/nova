@@ -7,7 +7,7 @@ use crate::{
         BIGINT_DISCRIMINANT, HeapNumber, HeapPrimitive, HeapString, NUMBER_DISCRIMINANT,
         OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
@@ -180,20 +180,7 @@ fn rehash_map_data(
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for MapHeapData<'_> {
-    type Of<'a> = MapHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(MapHeapData);
 
 impl HeapMarkAndSweep for MapHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

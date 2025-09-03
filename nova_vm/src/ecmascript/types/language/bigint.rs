@@ -14,7 +14,7 @@ use crate::{
     SmallInteger, bigint_bitwise_op,
     ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
     },
@@ -84,20 +84,7 @@ impl<'a> HeapBigInt<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for HeapBigInt<'_> {
-    type Of<'a> = HeapBigInt<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(HeapBigInt);
 
 impl<'a> IntoPrimitive<'a> for HeapBigInt<'a> {
     fn into_primitive(self) -> Primitive<'a> {
@@ -733,20 +720,7 @@ impl<'a> BigInt<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for BigInt<'_> {
-    type Of<'a> = BigInt<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(BigInt);
 
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.

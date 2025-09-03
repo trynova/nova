@@ -7,7 +7,7 @@ use std::collections::TryReserveError;
 use super::Object;
 use crate::{
     ecmascript::builtins::ordinary::shape::{ObjectShape, ObjectShapeRecord},
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, HeapMarkAndSweep, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays, ElementStorageRef, ElementStorageUninit},
@@ -112,20 +112,7 @@ impl<'a> ObjectHeapData<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ObjectHeapData<'_> {
-    type Of<'a> = ObjectHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ObjectHeapData);
 
 impl HeapMarkAndSweep for ObjectHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

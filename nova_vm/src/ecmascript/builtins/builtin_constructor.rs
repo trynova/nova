@@ -24,7 +24,7 @@ use crate::{
     },
     engine::{
         Executable,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -53,20 +53,7 @@ impl BuiltinConstructorFunction<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for BuiltinConstructorFunction<'_> {
-    type Of<'a> = BuiltinConstructorFunction<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(BuiltinConstructorFunction);
 
 impl<'a> From<BuiltinConstructorFunction<'a>> for Value<'a> {
     fn from(value: BuiltinConstructorFunction<'a>) -> Self {
@@ -426,20 +413,7 @@ impl HeapSweepWeakReference for BuiltinConstructorFunction<'static> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for BuiltinConstructorHeapData<'_> {
-    type Of<'a> = BuiltinConstructorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(BuiltinConstructorHeapData);
 
 impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

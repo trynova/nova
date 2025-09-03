@@ -36,7 +36,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, GcScope, NoGcScope, ScopeToken},
+        context::{Bindable, GcScope, NoGcScope, ScopeToken, bindable_handle},
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -496,20 +496,7 @@ impl<'a> VmIteratorRecord<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for VmIteratorRecord<'_> {
-    type Of<'a> = VmIteratorRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute(self) }
-    }
-}
+bindable_handle!(VmIteratorRecord);
 
 struct ObjectPropertiesIterator<'a> {
     iter: ActiveIterator<'a>,

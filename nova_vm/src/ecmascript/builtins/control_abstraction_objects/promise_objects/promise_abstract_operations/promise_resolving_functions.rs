@@ -14,7 +14,7 @@ use crate::{
         types::{Function, FunctionInternalProperties, Object, OrdinaryObject, String, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -59,20 +59,7 @@ impl BuiltinPromiseResolvingFunction<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for BuiltinPromiseResolvingFunction<'_> {
-    type Of<'a> = BuiltinPromiseResolvingFunction<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(BuiltinPromiseResolvingFunction);
 
 impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Function<'a> {
     fn from(value: BuiltinPromiseResolvingFunction<'a>) -> Self {
@@ -234,20 +221,7 @@ impl HeapSweepWeakReference for BuiltinPromiseResolvingFunction<'static> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PromiseResolvingFunctionHeapData<'_> {
-    type Of<'a> = PromiseResolvingFunctionHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseResolvingFunctionHeapData);
 
 impl HeapMarkAndSweep for PromiseResolvingFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

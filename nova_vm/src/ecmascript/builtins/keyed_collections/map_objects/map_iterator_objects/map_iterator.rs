@@ -14,7 +14,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -48,20 +48,7 @@ impl MapIterator<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for MapIterator<'_> {
-    type Of<'a> = MapIterator<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(MapIterator);
 
 impl<'a> From<MapIterator<'a>> for Object<'a> {
     fn from(value: MapIterator) -> Self {
@@ -196,20 +183,7 @@ pub struct MapIteratorHeapData<'a> {
     pub(crate) kind: CollectionIteratorKind,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for MapIteratorHeapData<'_> {
-    type Of<'a> = MapIteratorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(MapIteratorHeapData);
 
 impl HeapMarkAndSweep for MapIteratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

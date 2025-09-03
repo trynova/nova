@@ -22,7 +22,7 @@ use crate::{
     engine::{
         Scoped,
         bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
-        context::{Bindable, GcToken, NoGcScope},
+        context::{Bindable, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
@@ -89,20 +89,7 @@ pub(crate) struct FunctionExpression<'a> {
     pub(crate) compiled_bytecode: Option<Executable<'a>>,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for FunctionExpression<'_> {
-    type Of<'a> = FunctionExpression<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(FunctionExpression);
 
 #[derive(Debug, Clone)]
 pub(crate) struct ArrowFunctionExpression {
@@ -466,20 +453,7 @@ impl IndexMut<Executable<'_>> for Agent {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Executable<'_> {
-    type Of<'a> = Executable<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Executable);
 
 impl Rootable for Executable<'_> {
     type RootRepr = HeapRootRef;
@@ -518,20 +492,7 @@ impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ExecutableHeapData<'_> {
-    type Of<'a> = ExecutableHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ExecutableHeapData);
 
 impl HeapMarkAndSweep for Executable<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

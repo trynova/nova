@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::types::{OrdinaryObject, Value},
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -26,20 +26,7 @@ pub struct WeakMapHeapData<'a> {
     // pub(crate) observed: bool;
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for WeakMapHeapData<'_> {
-    type Of<'a> = WeakMapHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(WeakMapHeapData);
 
 impl HeapMarkAndSweep for WeakMapHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

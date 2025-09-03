@@ -13,7 +13,7 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
@@ -313,20 +313,7 @@ impl HeapSweepWeakReference for BuiltinPromiseFinallyFunction<'static> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PromiseFinallyFunctionHeapData<'_> {
-    type Of<'a> = PromiseFinallyFunctionHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseFinallyFunctionHeapData);
 
 impl HeapMarkAndSweep for PromiseFinallyFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

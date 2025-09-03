@@ -106,7 +106,7 @@ use crate::{
         types::{IntoValue, PropertyDescriptor},
     },
     engine::{
-        context::{Bindable, GcScope},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -211,6 +211,8 @@ pub enum Object<'a> {
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
+bindable_handle!(Object);
+
 impl Object<'_> {
     /// Returns true if this Object is a Module.
     pub fn is_module(self) -> bool {
@@ -225,6 +227,8 @@ impl Object<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectHeapData<'static>>);
+
+bindable_handle!(OrdinaryObject);
 
 impl<'a> OrdinaryObject<'a> {
     /// Allocate a a new uninitialised (None) OrdinaryObject and return its reference.
@@ -600,36 +604,6 @@ impl IntrinsicPrimitiveObjectIndexes {
         OrdinaryObject(BaseIndex::from_u32_index(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
         ))
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Object<'_> {
-    type Of<'a> = Object<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for OrdinaryObject<'_> {
-    type Of<'a> = OrdinaryObject<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

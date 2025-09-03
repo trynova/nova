@@ -35,7 +35,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::CreateHeapData,
@@ -476,20 +476,7 @@ pub(crate) struct RegExpExecBase<'gc> {
     pub(crate) full_unicode: bool,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for RegExpExecBase<'_> {
-    type Of<'a> = RegExpExecBase<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(RegExpExecBase);
 
 pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
     agent: &mut Agent,

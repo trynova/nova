@@ -13,7 +13,7 @@ use crate::{
             OrdinaryObject, String, Value,
         },
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WellKnownSymbolIndexes, WorkQueues, indexes::BaseIndex,
@@ -107,20 +107,7 @@ impl<'a> TryFrom<Object<'a>> for StringIterator<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for StringIterator<'_> {
-    type Of<'a> = StringIterator<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(StringIterator);
 
 impl<'a> InternalSlots<'a> for StringIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::StringIterator;
@@ -255,28 +242,7 @@ impl<'a> StringIteratorHeapData<'a> {
     }
 }
 
-// SAFETY: Trivially safe.
-unsafe impl Bindable for StringIteratorHeapData<'_> {
-    type Of<'a> = StringIteratorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        StringIteratorHeapData {
-            backing_object: self.backing_object.unbind(),
-            s: self.s.unbind(),
-            position: self.position,
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        StringIteratorHeapData {
-            backing_object: self.backing_object.bind(gc),
-            s: self.s.bind(gc),
-            position: self.position,
-        }
-    }
-}
+bindable_handle!(StringIteratorHeapData);
 
 impl<'a> CreateHeapData<StringIteratorHeapData<'a>, StringIterator<'a>> for Heap {
     fn create(&mut self, data: StringIteratorHeapData<'a>) -> StringIterator<'a> {

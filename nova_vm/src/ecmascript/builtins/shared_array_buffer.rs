@@ -10,7 +10,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -37,20 +37,7 @@ impl SharedArrayBuffer<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SharedArrayBuffer<'_> {
-    type Of<'a> = SharedArrayBuffer<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(SharedArrayBuffer);
 
 impl<'a> From<SharedArrayBuffer<'a>> for Value<'a> {
     fn from(value: SharedArrayBuffer<'a>) -> Self {
@@ -103,13 +90,13 @@ impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        agent[self].backing_object
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             agent[self]
-                .object_index
+                .backing_object
                 .replace(backing_object.unbind())
                 .is_none()
         );

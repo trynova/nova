@@ -31,7 +31,7 @@ use crate::{
         types::String,
     },
     engine::{
-        context::{Bindable, GcToken, NoGcScope},
+        context::{Bindable, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -200,35 +200,9 @@ impl<'r> ModuleRequest<'r> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ModuleRequestRecord<'_> {
-    type Of<'a> = ModuleRequestRecord<'a>;
+bindable_handle!(ModuleRequestRecord);
 
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ModuleRequest<'_> {
-    type Of<'a> = ModuleRequest<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-}
+bindable_handle!(ModuleRequest);
 
 /// ### [LoadedModuleRequest Records](https://tc39.es/ecma262/#table-loadedmodulerequest-fields)
 #[derive(Debug)]
@@ -259,26 +233,7 @@ pub struct ImportAttributeRecord<'a> {
     value: String<'a>,
 }
 
-// SAFETY: recursive.
-unsafe impl Bindable for ImportAttributeRecord<'_> {
-    type Of<'a> = ImportAttributeRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        ImportAttributeRecord {
-            key: self.key.unbind(),
-            value: self.value.unbind(),
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        ImportAttributeRecord {
-            key: self.key.bind(gc),
-            value: self.value.bind(gc),
-        }
-    }
-}
+bindable_handle!(ImportAttributeRecord);
 
 /// ### \[\[LoadedModules]]
 ///
@@ -475,18 +430,7 @@ impl<'a> From<ScriptOrModule<'a>> for Referrer<'a> {
     }
 }
 
-// SAFETY: Pass-through.
-unsafe impl Bindable for Referrer<'_> {
-    type Of<'a> = Referrer<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        Referrer(self.0.unbind())
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        Referrer(self.0.bind(gc))
-    }
-}
+bindable_handle!(Referrer);
 
 impl Rootable for Referrer<'_> {
     type RootRepr = HeapRootRef;
@@ -508,26 +452,7 @@ impl Rootable for Referrer<'_> {
     }
 }
 
-// SAFETY: Pass-through.
-unsafe impl Bindable for InnerReferrer<'_> {
-    type Of<'a> = InnerReferrer<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        match self {
-            Self::Script(s) => InnerReferrer::Script(s.unbind()),
-            Self::SourceTextModule(m) => InnerReferrer::SourceTextModule(m.unbind()),
-            Self::Realm(r) => InnerReferrer::Realm(r.unbind()),
-        }
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        match self {
-            Self::Script(s) => InnerReferrer::Script(s.bind(gc)),
-            Self::SourceTextModule(m) => InnerReferrer::SourceTextModule(m.bind(gc)),
-            Self::Realm(r) => InnerReferrer::Realm(r.bind(gc)),
-        }
-    }
-}
+bindable_handle!(InnerReferrer);
 
 impl Rootable for InnerReferrer<'_> {
     type RootRepr = HeapRootRef;

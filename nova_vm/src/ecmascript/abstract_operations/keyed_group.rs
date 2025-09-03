@@ -14,7 +14,7 @@ use crate::{
     },
     engine::{
         ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::HeapRootCollectionData,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -227,20 +227,7 @@ impl ScopedCollection<'_, Box<KeyedGroup<'static>>> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for KeyedGroup<'_> {
-    type Of<'a> = KeyedGroup<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-}
+bindable_handle!(KeyedGroup);
 
 fn value_needs_rehash(v: &Value<'static>, compactions: &CompactionLists) -> bool {
     // Note: Symbols currently do not have static hashes; this will

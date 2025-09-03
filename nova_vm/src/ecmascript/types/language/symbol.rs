@@ -11,7 +11,7 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -95,20 +95,7 @@ impl<'a> Symbol<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Symbol<'_> {
-    type Of<'a> = Symbol<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Symbol);
 
 impl From<WellKnownSymbolIndexes> for Symbol<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {

@@ -13,7 +13,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
@@ -99,20 +99,7 @@ impl<'a> Promise<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Promise<'_> {
-    type Of<'a> = Promise<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Promise);
 
 impl<'a> From<Promise<'a>> for Value<'a> {
     fn from(value: Promise<'a>) -> Self {
@@ -166,20 +153,7 @@ impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PromiseHeapData<'_> {
-    type Of<'a> = PromiseHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseHeapData);
 
 impl Index<Promise<'_>> for Agent {
     type Output = PromiseHeapData<'static>;

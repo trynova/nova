@@ -56,7 +56,7 @@ use crate::{
     },
     engine::{
         Executable, ExecutionResult, Scoped, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope},
+        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
@@ -586,20 +586,7 @@ struct IndirectExportEntryRecord<'a> {
     import_name: Option<String<'a>>,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for IndirectExportEntryRecord<'_> {
-    type Of<'a> = IndirectExportEntryRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-}
+bindable_handle!(IndirectExportEntryRecord);
 
 impl<'a> From<SourceTextModule<'a>> for ScriptOrModule<'a> {
     fn from(value: SourceTextModule<'a>) -> Self {
@@ -2079,35 +2066,9 @@ pub fn parse_module<'a>(
     // }.
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SourceTextModuleRecord<'_> {
-    type Of<'a> = SourceTextModuleRecord<'a>;
+bindable_handle!(SourceTextModuleRecord);
 
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-}
-
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SourceTextModule<'_> {
-    type Of<'a> = SourceTextModule<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<_, _>(self) }
-    }
-}
+bindable_handle!(SourceTextModule);
 
 impl Rootable for SourceTextModule<'_> {
     type RootRepr = HeapRootRef;
