@@ -7,7 +7,7 @@
 use core::{
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
-    ptr::{self, NonNull, read_unaligned, write_unaligned},
+    ptr::{NonNull, read_unaligned, write_unaligned},
 };
 use std::{
     alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc},
@@ -32,12 +32,7 @@ use crate::{
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::execution::ProtoIntrinsics;
 
-/// Sentinel pointer for a detached data block.
-///
-/// We allocate at 8 byte alignment so this is never a valid DataBlock pointer normally.
-const DETACHED_DATA_BLOCK_POINTER: *mut u8 = 0xde7ac4ed as *mut u8;
-
-/// # Data Block
+/// # [Data Block](https://tc39.es/ecma262/#sec-data-blocks)
 ///
 /// The Data Block specification type is used to describe a distinct and
 /// mutable sequence of byte-sized (8 bit) numeric values. A byte value
@@ -58,8 +53,8 @@ pub(crate) struct DataBlock {
 impl Drop for DataBlock {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
-            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
-                // Don't try to dealloc a detached data block.
+            if self.byte_length == 0 {
+                // dangling data block; don't dealloc.
                 return;
             }
             let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
@@ -73,12 +68,9 @@ impl Deref for DataBlock {
 
     fn deref(&self) -> &Self::Target {
         if let Some(ptr) = self.ptr {
-            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
-                // Detached.
-                return &[];
-            }
-            // SAFETY: DataBlock has a non-null, non-detached pointer. We guarantee
-            // it points to a valid allocation of byte_length initialized bytes.
+            // SAFETY: DataBlock has a non-null, pointer. We guarantee it
+            // points to a valid allocation of byte_length initialized bytes
+            // (note, length can be 0 in which case pointer is dangling).
             unsafe { std::slice::from_raw_parts(ptr.as_ptr(), self.byte_length) }
         } else {
             &[]
@@ -89,12 +81,9 @@ impl Deref for DataBlock {
 impl DerefMut for DataBlock {
     fn deref_mut(&mut self) -> &mut Self::Target {
         if let Some(mut ptr) = self.ptr {
-            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
-                // Detached.
-                return &mut [];
-            }
-            // SAFETY: DataBlock has a non-null, non-detached pointer. We guarantee
-            // it points to a valid allocation of byte_length initialized bytes.
+            // SAFETY: DataBlock has a non-null, pointer. We guarantee it
+            // points to a valid allocation of byte_length initialized bytes
+            // (note, length can be 0 in which case pointer is dangling).
             unsafe { std::slice::from_raw_parts_mut(ptr.as_mut(), self.byte_length) }
         } else {
             &mut []
@@ -915,42 +904,38 @@ impl Viewable for f64 {
 }
 
 impl DataBlock {
-    /// Sentinel value for detached DataBlocks.
-    ///
-    /// This sentinel value is never safe to read from or write data to. The
-    /// length is 0 so it shouldn't be possible to either.
-    pub const DETACHED_DATA_BLOCK: DataBlock = DataBlock {
-        // SAFETY: 0xde7ac4ed is not 0. Note that we always allocate at 8 byte
-        // alignment, so a DataBlock pointer cannot have this value naturally.
-        ptr: Some(unsafe { NonNull::new_unchecked(DETACHED_DATA_BLOCK_POINTER) }),
+    /// A detached DataBlock.
+    pub(crate) const DETACHED_DATA_BLOCK: DataBlock = DataBlock {
+        ptr: None,
+        byte_length: 0,
+    };
+
+    /// An empty DataBlock.
+    const EMPTY_DATA_BLOCK: DataBlock = DataBlock {
+        ptr: Some(NonNull::<usize>::dangling().cast::<u8>()),
         byte_length: 0,
     };
 
     pub fn is_detached(&self) -> bool {
-        if let (Some(a), Some(b)) = (self.ptr, Self::DETACHED_DATA_BLOCK.ptr) {
-            ptr::eq(a.as_ptr(), b.as_ptr())
-        } else {
-            false
-        }
+        self.ptr.is_none()
     }
 
     fn new(len: usize) -> Self {
-        let ptr = if len == 0 {
-            None
+        if len == 0 {
+            Self::EMPTY_DATA_BLOCK
         } else {
             let layout = Layout::from_size_align(len, 8).unwrap();
             // SAFETY: Size of allocation is non-zero.
-            let data = unsafe { alloc_zeroed(layout) };
-            if data.is_null() {
+            let ptr = unsafe { alloc_zeroed(layout) };
+            let Some(ptr) = NonNull::new(ptr) else {
                 // TODO: Throw error?
                 handle_alloc_error(layout);
+            };
+            debug_assert_eq!(ptr.align_offset(8), 0);
+            Self {
+                ptr: Some(ptr),
+                byte_length: len,
             }
-            debug_assert_eq!(data.align_offset(8), 0);
-            NonNull::new(data)
-        };
-        Self {
-            ptr,
-            byte_length: len,
         }
     }
 
@@ -1222,51 +1207,48 @@ impl DataBlock {
     pub fn realloc(&mut self, new_byte_length: usize) {
         // Max byte length should be within safe integer length.
         debug_assert!(new_byte_length < 2usize.pow(53));
-        let ptr = if self.ptr.is_none() {
-            // We have no existing allocation.
+        let ptr = if let Some(ptr) = self.ptr {
             if new_byte_length == 0 {
-                // Resizing from zero to zero, no-op.
+                // When resizing to zero, we can just reassign self to an epty
+                // data block; that drops the previous block which deallocs.
+                *self = Self::EMPTY_DATA_BLOCK;
                 return;
-            }
-            *self = Self::new(new_byte_length);
-            return;
-        } else {
-            let ptr = self
-                .as_mut_ptr(0)
-                .expect("Tried to realloc a detached DataBlock");
-            let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
-            if new_byte_length == 0 {
-                // When resizing to zero, we just drop the data instead.
-                if let Some(ptr) = self.ptr {
-                    unsafe { dealloc(ptr.as_ptr(), layout) };
+            } else {
+                // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
+                // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
+                // size is non-zero, and cannot overflow isize (on a 64-bit machine).
+                if self.byte_length > 0 {
+                    let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
+                    unsafe { realloc(ptr.as_ptr(), layout, new_byte_length) }
+                } else {
+                    let layout = Layout::from_size_align(new_byte_length, 8).unwrap();
+                    unsafe { alloc_zeroed(layout) }
                 }
-                self.ptr = None;
-                self.byte_length = 0;
-                return;
             }
-            // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
-            // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
-            // size is non-zero, and cannot overflow isize (on a 64-bit machine).
-            unsafe { realloc(ptr, layout, new_byte_length) }
+        } else {
+            // Detached.
+            return;
         };
-        self.ptr = NonNull::new(ptr);
+        let Some(ptr) = NonNull::new(ptr) else {
+            let layout = Layout::from_size_align(new_byte_length, 8).unwrap();
+            handle_alloc_error(layout);
+        };
+        self.ptr = Some(ptr);
         if new_byte_length > self.byte_length {
             // Need to zero out the new data.
-            if let Some(ptr) = self.ptr {
-                // SAFETY: The new pointer does point to valid data which is
-                // big enough.
-                let new_data_ptr = unsafe { ptr.add(self.byte_length) };
-                // SAFETY: The new pointer does point to valid, big enough
-                // allocation which contains uninitialized bytes. No one else
-                // can hold a reference to it currently.
-                let data_slice = unsafe {
-                    core::slice::from_raw_parts_mut(
-                        new_data_ptr.as_ptr().cast::<MaybeUninit<u8>>(),
-                        new_byte_length - self.byte_length,
-                    )
-                };
-                data_slice.fill(MaybeUninit::new(0));
-            }
+            // SAFETY: The new pointer does point to valid data which is
+            // big enough.
+            let new_data_ptr = unsafe { ptr.add(self.byte_length) };
+            // SAFETY: The new pointer does point to valid, big enough
+            // allocation which contains uninitialized bytes. No one else
+            // can hold a reference to it currently.
+            let data_slice = unsafe {
+                core::slice::from_raw_parts_mut(
+                    new_data_ptr.as_ptr().cast::<MaybeUninit<u8>>(),
+                    new_byte_length - self.byte_length,
+                )
+            };
+            data_slice.fill(MaybeUninit::new(0));
         }
         self.byte_length = new_byte_length;
     }
