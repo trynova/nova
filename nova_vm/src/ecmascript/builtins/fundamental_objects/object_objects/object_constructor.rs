@@ -641,7 +641,7 @@ impl ObjectConstructor {
                 && entries_array.is_simple(agent)
                 && entries_array.is_dense(agent)
             {
-                let entries_elements = &agent[&agent[entries_array].elements];
+                let entries_elements = entries_array.as_slice(agent);
                 // Note: Separate vector for keys to detect duplicates.
                 // This is optimal until ~20 keys, after which a HashMap would
                 // be better.
@@ -676,7 +676,7 @@ impl ObjectConstructor {
                             valid = false;
                             break;
                         };
-                    let key_value_elements = &agent[&agent[entry_element_array].elements];
+                    let key_value_elements = entry_element_array.as_slice(agent);
                     let key = key_value_elements.first().unwrap().unwrap();
                     let Some(key) = to_property_key_simple(agent, key, gc.nogc()) else {
                         valid = false;

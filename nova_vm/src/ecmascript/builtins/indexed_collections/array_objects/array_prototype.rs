@@ -23,8 +23,7 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, ArrayHeapData, Behaviour, Builtin, BuiltinIntrinsic, array_create,
-            array_species_create,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, array_create, array_species_create,
         },
         execution::{
             Agent, JsResult, Realm,
@@ -399,10 +398,8 @@ impl ArrayPrototype {
                     total_len = item.len(agent);
                 }
             });
-            let Heap {
-                arrays, elements, ..
-            } = &mut agent.heap;
-            if let Err(err) = arrays[a].elements.reserve(elements, total_len) {
+
+            if let Err(err) = a.reserve(agent, total_len) {
                 return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             }
         }
@@ -2068,11 +2065,15 @@ impl ArrayPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         let this_value = this_value.bind(gc.nogc());
         if let Value::Array(array) = this_value {
+            let Heap {
+                arrays, elements, ..
+            } = &mut agent.heap;
+            let elems = array.get_elements_mut(arrays);
             // Fast path: Trivial (no descriptors) array means mutating
             // elements is direct.
-            if array.is_trivial(agent) {
-                let len = array.len(agent);
-                let length_writable = agent[array].elements.len_writable;
+            if elems.is_trivial(elements) {
+                let len = elems.len();
+                let length_writable = elems.len_writable;
                 if len == 0 {
                     return if !length_writable {
                         Err(agent.throw_exception_with_static_message(
@@ -2084,12 +2085,12 @@ impl ArrayPrototype {
                         Ok(Value::Undefined)
                     };
                 }
-                let element = array.as_mut_slice(agent).last_mut().unwrap();
+                let element = elements.get_values_mut(elems).last_mut().unwrap();
                 if let Some(last_element) = *element {
                     // Empty the last value.
                     *element = None;
                     if length_writable {
-                        agent[array].elements.len -= 1;
+                        elems.len -= 1;
                     } else {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::TypeError,
@@ -2186,15 +2187,9 @@ impl ArrayPrototype {
                 gc.into_nogc(),
             ));
         }
-        if let Object::Array(array) = o.get(agent) {
+        if let Object::Array(o) = o.get(agent) {
             // Fast path: Reserve enough room in the array.
-            let Heap {
-                arrays, elements, ..
-            } = &mut agent.heap;
-            if let Err(err) = arrays[array]
-                .elements
-                .reserve(elements, len as u32 + arg_count as u32)
-            {
+            if let Err(err) = o.reserve(agent, arg_count as u32) {
                 return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
             }
         }
@@ -2712,7 +2707,7 @@ impl ArrayPrototype {
         let this_value = this_value.bind(gc.nogc());
         if let Value::Array(array) = this_value {
             if array.is_empty(agent) {
-                if agent[array].elements.len_writable {
+                if array.length_writable(agent) {
                     return Ok(Value::Undefined);
                 } else {
                     // This will throw
@@ -2735,9 +2730,9 @@ impl ArrayPrototype {
                 let first = slice[0].unwrap().bind(gc.nogc());
                 slice.copy_within(1.., 0);
                 *slice.last_mut().unwrap() = None;
-                let array_data = &mut agent[array];
-                if array_data.elements.len_writable {
-                    array_data.elements.len -= 1;
+                let elems = array.get_elements_mut(agent);
+                if elems.len_writable {
+                    elems.len -= 1;
                     return Ok(first.unbind());
                 } else {
                     // This will throw
@@ -3894,13 +3889,11 @@ impl ArrayPrototype {
                 && array.length_writable(agent)
             {
                 // Fast path: Reserve enough room in the array and set array length.
-                let Heap {
-                    arrays, elements, ..
-                } = &mut agent.heap;
-                if let Err(err) = arrays[array].elements.reserve(elements, final_len) {
+                if let Err(err) = array.reserve(agent, arg_count as u32) {
                     return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                 }
-                agent[array].elements.len += arg_count as u32;
+                // SAFETY: reserve did not fail.
+                unsafe { array.set_len(agent, array.len(agent) + arg_count as u32) };
                 // Fast path: Copy old items to the end of array,
                 // copy new items to the front of the array.
                 let slice = array.as_mut_slice(agent);
@@ -4216,15 +4209,15 @@ impl ArrayPrototype {
             })
             .build();
 
-        let slot = agent.heap.arrays.get_mut(this.get_index()).unwrap();
-        assert!(slot.is_none());
-        *slot = Some(ArrayHeapData {
-            object_index: Some(this_base_object),
-            // has a "length" property whose initial value is +0𝔽 and whose
-            // attributes are { [[Writable]]: true, [[Enumerable]]: false,
-            // [[Configurable]]: false }.
-            elements: Default::default(),
-        });
+        let (elements, backing_object) = this.get_mut(agent);
+        *backing_object = Some(this_base_object);
+        // has a "length" property whose initial value is +0𝔽 and whose
+        // attributes are { [[Writable]]: true, [[Enumerable]]: false,
+        // [[Configurable]]: false }.
+        debug_assert_eq!(elements.elements_index.into_u32_index(), 0);
+        debug_assert_eq!(elements.cap.cap(), 0);
+        debug_assert_eq!(elements.len, 0);
+        debug_assert!(elements.len_writable);
     }
 }
 

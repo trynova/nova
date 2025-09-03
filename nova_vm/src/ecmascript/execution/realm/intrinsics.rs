@@ -254,7 +254,7 @@ impl Intrinsics {
             PrimitiveObjectIndex::from_index(agent.heap.primitive_objects.len());
         let builtin_function_index_base =
             BuiltinFunctionIndex::from_index(agent.heap.builtin_functions.len());
-        let array_prototype = Array::from(ArrayIndex::from_index(agent.heap.arrays.len()));
+        let array_prototype = Array::from(ArrayIndex::from_u32_index(agent.heap.arrays.len()));
 
         agent
             .heap
@@ -268,7 +268,11 @@ impl Intrinsics {
             .heap
             .builtin_functions
             .extend((0..intrinsic_function_count()).map(|_| None));
-        agent.heap.arrays.push(None);
+        agent
+            .heap
+            .arrays
+            .push(Default::default())
+            .expect("Failed to allocate");
 
         Self {
             object_index_base,

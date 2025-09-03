@@ -32,6 +32,8 @@ regex = { workspace = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string", version = "0.2.0" }
 sonic-rs = { workspace = true, optional = true }
+soavec = { workspace = true }
+soavec_derive = { workspace = true }
 unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
 

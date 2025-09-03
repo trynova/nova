@@ -1045,8 +1045,8 @@ pub(crate) fn create_array_from_list<'a>(
     let len = elements.len();
     // 1. Let array be ! ArrayCreate(0).
     let array = array_create(agent, len, len, None, gc).unwrap();
-    let array_elements = agent[array].elements;
-    agent[&array_elements]
+    array
+        .as_mut_slice(agent)
         .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(elements) });
     // 2. Let n be 0.
     // 3. For each element e of elements, do

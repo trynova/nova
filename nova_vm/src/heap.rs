@@ -123,6 +123,7 @@ pub(crate) use heap_bits::{
     sweep_heap_vector_values, sweep_side_set,
 };
 use indexes::TypedArrayIndex;
+use soavec::SoAVec;
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]
@@ -131,7 +132,7 @@ pub struct Heap {
     pub array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
-    pub arrays: Vec<Option<ArrayHeapData<'static>>>,
+    pub arrays: SoAVec<ArrayHeapData<'static>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
     pub async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
     pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,
@@ -263,7 +264,7 @@ impl Heap {
             array_buffers: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             array_buffer_detach_keys: AHashMap::with_capacity(0),
-            arrays: Vec::with_capacity(1024),
+            arrays: SoAVec::with_capacity(1024).expect("Failed to allocate Heap"),
             array_iterators: Vec::with_capacity(256),
             async_generators: Vec::with_capacity(0),
             await_reactions: Vec::with_capacity(1024),

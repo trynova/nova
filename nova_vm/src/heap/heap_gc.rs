@@ -10,10 +10,11 @@ use super::{
     heap_bits::{
         CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_array_with_u32_length,
         mark_descriptors, mark_optional_array_with_u32_length,
-        sweep_heap_elements_vector_descriptors, sweep_heap_u8_elements_vector_values,
-        sweep_heap_u8_property_key_vector, sweep_heap_u16_elements_vector_values,
-        sweep_heap_u16_property_key_vector, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u32_property_key_vector, sweep_heap_vector_values, sweep_lookup_table,
+        sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
+        sweep_heap_u8_elements_vector_values, sweep_heap_u8_property_key_vector,
+        sweep_heap_u16_elements_vector_values, sweep_heap_u16_property_key_vector,
+        sweep_heap_u32_elements_vector_values, sweep_heap_u32_property_key_vector,
+        sweep_heap_vector_values, sweep_lookup_table,
     },
     indexes::{ElementIndex, PropertyKeyIndex, StringIndex},
 };
@@ -350,7 +351,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     return;
                 }
                 *marked = true;
-                arrays.get(index).mark_values(&mut queues);
+                arrays.get(index as u32).mark_values(&mut queues);
             }
         });
         #[cfg(feature = "array-buffer")]
@@ -1569,7 +1570,7 @@ fn sweep(
         }
         if !arrays.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
+                sweep_heap_soa_vector_values(arrays, &compactions, &bits.arrays);
             });
         }
         if !array_iterators.is_empty() {

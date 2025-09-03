@@ -9,7 +9,7 @@
 pub(crate) mod abstract_operations;
 mod data;
 
-use core::ops::{Index, IndexMut, RangeInclusive};
+use core::ops::RangeInclusive;
 use std::collections::{TryReserveError, hash_map::Entry};
 
 use crate::{
@@ -48,6 +48,7 @@ use crate::{
 
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
+use soavec::SoAVec;
 
 use super::ordinary::{
     caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
@@ -96,15 +97,67 @@ impl<'a> Array<'a> {
     /// > populated using code such as `! CreateDataPropertyOrThrow(A, "0", S)`,
     /// > ie. when the operation is known to be infallible.
     pub fn push(self, agent: &mut Agent, value: Value<'a>) -> Result<(), TryReserveError> {
-        let data = &mut agent.heap.arrays[self];
-        let elements = &mut agent.heap.elements;
-        data.elements.push(elements, Some(value), None)
+        let (elements, _) = agent.heap.arrays.get_mut(self.0.into_u32_index()).unwrap();
+        elements.push(&mut agent.heap.elements, Some(value), None)
+    }
+
+    pub fn reserve(self, agent: &mut Agent, additional: u32) -> Result<(), TryReserveError> {
+        let Heap {
+            arrays, elements, ..
+        } = &mut agent.heap;
+        let elems = self.get_elements_mut(arrays);
+        elems.reserve(elements, elems.len().saturating_add(additional))
     }
 
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
         Self(ArrayIndex::from_u32_index(0))
+    }
+
+    pub(crate) fn get(
+        self,
+        agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>,
+    ) -> (&ElementsVector<'a>, &Option<OrdinaryObject<'a>>) {
+        agent
+            .as_ref()
+            .get(self.0.into_u32_index())
+            .expect("Invalid Array reference")
+    }
+
+    pub(crate) fn get_mut(
+        self,
+        agent: &mut impl AsMut<SoAVec<ArrayHeapData<'static>>>,
+    ) -> (
+        &mut ElementsVector<'static>,
+        &mut Option<OrdinaryObject<'static>>,
+    ) {
+        agent
+            .as_mut()
+            .get_mut(self.0.into_u32_index())
+            .expect("Invalid Array reference")
+    }
+
+    pub(crate) fn get_elements(
+        self,
+        agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>,
+    ) -> &ElementsVector<'a> {
+        agent
+            .as_ref()
+            .get(self.0.into_u32_index())
+            .expect("Invalid Array reference")
+            .0
+    }
+
+    pub(crate) fn get_elements_mut(
+        self,
+        agent: &mut impl AsMut<SoAVec<ArrayHeapData<'static>>>,
+    ) -> &mut ElementsVector<'static> {
+        agent
+            .as_mut()
+            .get_mut(self.0.into_u32_index())
+            .expect("Invalid Array reference")
+            .0
     }
 
     /// Creates a new array with the given elements.
@@ -120,19 +173,32 @@ impl<'a> Array<'a> {
         self.0.into_index()
     }
 
-    pub fn len(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> u32 {
-        agent[*self].elements.len()
+    pub fn len(self, agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>) -> u32 {
+        self.get_elements(agent).len()
     }
 
-    pub fn length_writable(
-        &self,
-        agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>,
-    ) -> bool {
-        agent[*self].elements.len_writable
+    /// ### Safety
+    ///
+    /// `len` must be less or equal to the capacity of the Array. Also note
+    /// that uninitialised entries in the Array are allowed and are guaranteed
+    /// to appear as JavaScript Array "holes", but this guarantee may be
+    /// removed in the future.
+    pub unsafe fn set_len(self, agent: &mut Agent, len: u32) {
+        let elems = self.get_elements_mut(agent);
+        debug_assert!(elems.len_writable);
+        elems.len = len;
     }
 
-    pub fn is_empty(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData<'static>>) -> bool {
-        agent[*self].elements.is_empty()
+    pub fn length_writable(self, agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>) -> bool {
+        self.get_elements(agent).len_writable
+    }
+
+    pub fn set_length_readonly(self, agent: &mut Agent) {
+        self.get_elements_mut(agent).len_writable = false;
+    }
+
+    pub fn is_empty(self, agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>) -> bool {
+        self.get_elements(agent).is_empty()
     }
 
     /// An array is dense if it contains no holes or getters.
@@ -142,17 +208,17 @@ impl<'a> Array<'a> {
     /// array contain a Value; some may be None but those slots are setters
     /// without a matching getter and accessing them returns `undefined`.
     pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
-        agent[self].elements.is_dense(agent)
+        self.get_elements(agent).is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
     pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
-        agent[self].elements.is_simple(agent)
+        self.get_elements(agent).is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
     pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
-        agent[self].elements.is_trivial(agent)
+        self.get_elements(agent).is_trivial(agent)
     }
 
     /// Returns the `value` as an Array if it is one `method` is
@@ -215,7 +281,7 @@ impl<'a> Array<'a> {
         let Heap {
             arrays, elements, ..
         } = &mut agent.heap;
-        let cloned_elements = elements.shallow_clone(&arrays[self].elements);
+        let cloned_elements = elements.shallow_clone(self.get_elements(arrays));
         let data = ArrayHeapData {
             object_index: None,
             elements: cloned_elements,
@@ -249,25 +315,25 @@ impl<'a> Array<'a> {
 
     #[inline]
     pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value<'a>>] {
-        &arena.as_ref()[&arena[self].elements]
+        let elements: &ElementArrays = arena.as_ref();
+        &elements[self.get_elements(arena)]
     }
 
     #[inline]
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
-        let elements = agent[self].elements;
-        &mut agent[&elements]
+        let elements = self.get_elements(&agent.heap.arrays);
+        &mut agent.heap.elements[elements]
     }
 
     pub(crate) fn get_storage(
         self,
         arena: &impl ArrayHeapIndexable<'a>,
     ) -> ElementStorageRef<'_, 'a> {
-        arena[self].elements.get_storage(arena.as_ref())
+        self.get_elements(arena).get_storage(arena)
     }
 
     pub(crate) fn get_storage_mut(self, agent: &mut Agent) -> ElementStorageMut<'_> {
-        agent.heap.arrays[self]
-            .elements
+        self.get_elements(&agent.heap.arrays)
             .get_storage_mut(&mut agent.heap.elements)
     }
 }
@@ -332,21 +398,22 @@ impl<'a> InternalSlots<'a> for Array<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).1.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
-                .object_index
+            self.get_mut(agent)
+                .1
                 .replace(backing_object.unbind())
                 .is_none()
         );
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        agent[self].elements.len_writable = value;
-        if let Some(object_index) = self.get_backing_object(agent) {
+        let (elems, backing_object) = self.get_mut(agent);
+        elems.len_writable = value;
+        if let Some(object_index) = backing_object {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
             self.create_backing_object(agent)
@@ -394,8 +461,9 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
+        let array = self.bind(gc);
         if let Some(index) = property_key.into_u32() {
-            let elements = &agent[self].elements;
+            let elements = array.get_elements(agent);
             let length = elements.len();
             if index >= length {
                 // Out of bounds
@@ -416,17 +484,16 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 )))
             };
         }
-        let length_key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
-        let array_data = agent[self];
-        if property_key == length_key {
+        if property_key == BUILTIN_STRING_MEMORY.length.into() {
+            let elems = array.get_elements(agent);
             TryResult::Continue(Some(PropertyDescriptor {
-                value: Some(array_data.elements.len().into()),
-                writable: Some(array_data.elements.len_writable),
+                value: Some(elems.len().into()),
+                writable: Some(elems.len_writable),
                 configurable: Some(false),
                 enumerable: Some(false),
                 ..Default::default()
             }))
-        } else if let Some(backing_object) = array_data.object_index {
+        } else if let Some(backing_object) = array.get_backing_object(agent) {
             TryResult::Continue(
                 ordinary_get_own_property(
                     agent,
@@ -458,7 +525,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             // b. Assert: IsDataDescriptor(lengthDesc) is true.
             // c. Assert: lengthDesc.[[Configurable]] is false.
             // d. Let length be lengthDesc.[[Value]].
-            let elements = agent[self].elements;
+            let elements = self.get_elements(agent);
             let length = elements.len();
             let length_writable = elements.len_writable;
             // e. Assert: length is a non-negative integral Number.
@@ -474,12 +541,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     alloc_counter,
                     ..
                 } = &mut agent.heap;
-                let array_heap_data = &mut arrays[self];
-                if array_heap_data
-                    .elements
-                    .reserve(elements, index + 1)
-                    .is_err()
-                {
+                let (elems, backing_object) = self.get_mut(arrays);
+                if elems.reserve(elements, index + 1).is_err() {
                     return TryError::GcError.into();
                 }
                 let mut value = property_descriptor.value;
@@ -490,24 +553,21 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 }
                 if index > length {
                     // Elements backing store should be filled with Nones already
-                    array_heap_data.elements.len = index;
+                    elems.len = index;
                 }
                 // ii. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", lengthDesc).
                 *alloc_counter += core::mem::size_of::<Option<Value>>();
                 if element_descriptor.is_some() {
                     *alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
                 }
-                if let Err(err) = array_heap_data
-                    .elements
-                    .push(elements, value, element_descriptor)
-                {
+                if let Err(err) = elems.push(elements, value, element_descriptor) {
                     return agent.throw_allocation_exception(err, gc).into();
                 };
                 // j. If index ≥ length, then
                 // i. Set lengthDesc.[[Value]] to index + 1𝔽.
                 // This should've already been handled by the push.
-                debug_assert_eq!(array_heap_data.elements.len(), index + 1);
-                if let Some(shape) = array_heap_data.object_index.map(|o| o.object_shape(agent))
+                debug_assert_eq!(elems.len(), index + 1);
+                if let Some(shape) = backing_object.map(|o| o.object_shape(agent))
                     && shape.is_intrinsic(agent)
                 {
                     // We set a value on an intrinsic object, we have to
@@ -528,7 +588,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 TryResult::Continue(ordinary_define_own_property_for_array(
                     agent,
                     self,
-                    elements,
+                    *elements,
                     index,
                     property_descriptor,
                     gc,
@@ -808,14 +868,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             TryResult::Continue(false)
         } else if let Some(index) = property_key.into_u32() {
-            let elements = agent[self].elements;
+            let elements = self.get_elements(&agent.heap.arrays);
             if index >= elements.len() {
                 return TryResult::Continue(true);
             }
             let ElementStorageMut {
                 values,
                 descriptors,
-            } = agent.heap.elements.get_element_storage_mut(&elements);
+            } = agent.heap.elements.get_element_storage_mut(elements);
             if let Entry::Occupied(mut descriptors) = descriptors {
                 let descriptors = descriptors.get_mut();
                 if let Some(descriptor) = descriptors.get(&index) {
@@ -854,7 +914,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         let ElementStorageRef {
             values,
             descriptors,
-        } = agent[self].elements.get_storage(agent);
+        } = self.get_elements(agent).get_storage(agent);
         let mut keys = Vec::with_capacity(values.len() + 1 + backing_keys.len());
 
         for (index, value) in values.iter().enumerate() {
@@ -868,40 +928,6 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         keys.extend(backing_keys);
 
         TryResult::Continue(keys)
-    }
-}
-
-impl Index<Array<'_>> for Agent {
-    type Output = ArrayHeapData<'static>;
-
-    fn index(&self, index: Array) -> &Self::Output {
-        &self.heap.arrays[index]
-    }
-}
-
-impl IndexMut<Array<'_>> for Agent {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        &mut self.heap.arrays[index]
-    }
-}
-
-impl Index<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
-    type Output = ArrayHeapData<'static>;
-
-    fn index(&self, index: Array) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Array out of bounds")
-            .as_ref()
-            .expect("Array slot empty")
-    }
-}
-
-impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData<'static>>> {
-    fn index_mut(&mut self, index: Array) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Array out of bounds")
-            .as_mut()
-            .expect("Array slot empty")
     }
 }
 
@@ -930,9 +956,12 @@ impl Rootable for Array<'_> {
 
 impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
-        self.arrays.push(Some(data.unbind()));
+        let i = self.arrays.len();
+        self.arrays
+            .push(data.unbind())
+            .expect("Failed to allocate Array");
         self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        Array::from(ArrayIndex::last(&self.arrays))
+        Array::from(ArrayIndex::from_u32_index(i))
     }
 }
 
@@ -1272,27 +1301,41 @@ fn insert_element_descriptor(
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
     elements: &'a ElementArrays,
-    arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+    arrays: &'a SoAVec<ArrayHeapData<'static>>,
 }
 
 impl ArrayHeap<'_> {
+    #[inline(always)]
     pub(crate) fn new<'a>(
         elements: &'a ElementArrays,
-        arrays: &'a Vec<Option<ArrayHeapData<'static>>>,
+        arrays: &'a SoAVec<ArrayHeapData<'static>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }
 }
 
-impl Index<Array<'_>> for ArrayHeap<'_> {
-    type Output = ArrayHeapData<'static>;
+impl AsRef<SoAVec<ArrayHeapData<'static>>> for ArrayHeap<'_> {
+    fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
+        self.arrays
+    }
+}
 
-    fn index(&self, index: Array) -> &ArrayHeapData<'static> {
-        self.arrays.index(index)
+impl AsRef<SoAVec<ArrayHeapData<'static>>> for Agent {
+    #[inline(always)]
+    fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
+        &self.heap.arrays
+    }
+}
+
+impl AsMut<SoAVec<ArrayHeapData<'static>>> for Agent {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut SoAVec<ArrayHeapData<'static>> {
+        &mut self.heap.arrays
     }
 }
 
 impl AsRef<ElementArrays> for ArrayHeap<'_> {
+    #[inline(always)]
     fn as_ref(&self) -> &ElementArrays {
         self.elements
     }
@@ -1300,7 +1343,7 @@ impl AsRef<ElementArrays> for ArrayHeap<'_> {
 
 /// Helper trait for array indexing.
 pub(crate) trait ArrayHeapIndexable<'a>:
-    Index<Array<'a>, Output = ArrayHeapData<'static>> + AsRef<ElementArrays>
+    AsRef<SoAVec<ArrayHeapData<'static>>> + AsRef<ElementArrays>
 {
 }
 impl ArrayHeapIndexable<'_> for ArrayHeap<'_> {}
