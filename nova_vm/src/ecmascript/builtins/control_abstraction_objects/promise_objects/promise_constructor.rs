@@ -218,6 +218,7 @@ impl PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
+    /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
     fn all<'gc>(
         agent: &mut Agent,
         this_value: Value,
