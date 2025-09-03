@@ -162,9 +162,9 @@ impl StringConstructor {
         // fast path: only a single valid code unit
         if code_units.len() == 1 {
             let cu = code_units.get(0).to_uint16(agent, gc.reborrow()).unbind()?;
-            if let Some(cu) = char::from_u32(cu as u32) {
-                return Ok(SmallString::from(cu).into());
-            }
+            // SAFETY: number within 0..0xFFFF.
+            let cu = unsafe { CodePoint::from_u32_unchecked(cu as u32) };
+            return Ok(SmallString::from_code_point(cu).into_value());
         }
 
         let buf = if code_units.iter().all(|cu| cu.is_number()) {
@@ -187,9 +187,9 @@ impl StringConstructor {
                 .bind(gc.nogc())
         };
 
-        let result = std::string::String::from_utf16_lossy(&buf);
+        let result = Wtf8Buf::from_ill_formed_utf16(&buf);
 
-        Ok(String::from_string(agent, result, gc.into_nogc()).into())
+        Ok(String::from_wtf8_buf(agent, result, gc.into_nogc()).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.fromcodepoint)

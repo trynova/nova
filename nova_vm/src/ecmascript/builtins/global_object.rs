@@ -1245,13 +1245,13 @@ impl GlobalObject {
         let uri = arguments.get(0).bind(gc.nogc());
 
         // 1. Let uriString be ? ToString(uri).
-        let _uri_string = to_string(agent, uri.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let uri_string = to_string(agent, uri.unbind(), gc.reborrow()).unbind()?;
+        let gc = gc.into_nogc();
+        let uri_string = uri_string.bind(gc);
 
         // 2. Let extraUnescaped be ";/?:@&=+$,#".
         // 3. Return ? Encode(uriString, extraUnescaped).
-        Err(agent.todo("encodeURI", gc.into_nogc()))
+        encode::<true>(agent, uri_string, gc).map(|c| c.into_value())
     }
 
     /// ### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
@@ -1271,13 +1271,13 @@ impl GlobalObject {
         let uri_component = arguments.get(0).bind(gc.nogc());
 
         // 1. Let componentString be ? ToString(uriComponent).
-        let _component_string = to_string(agent, uri_component.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let component_string = to_string(agent, uri_component.unbind(), gc.reborrow()).unbind()?;
+        let gc = gc.into_nogc();
+        let component_string = component_string.bind(gc);
 
         // 2. Let extraUnescaped be the empty String.
         // 3. Return ? Encode(componentString, extraUnescaped).
-        Err(agent.todo("encodeURIComponent", gc.into_nogc()))
+        encode::<false>(agent, component_string, gc).map(|c| c.into_value())
     }
 
     /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
@@ -1509,26 +1509,73 @@ impl GlobalObject {
 /// > NOTE: Because percent-encoding is used to represent individual octets, a
 /// > single code point may be expressed as multiple consecutive escape
 /// > sequences (one for each of its 8-bit UTF-8 code units).
-fn encode() {
+fn encode<'a, const EXTRA_UNESCAPED: bool>(
+    agent: &mut Agent,
+    string: String<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, String<'a>> {
     // 1. Let len be the length of string.
+    let len = string.len(agent);
+    let Some(s) = string.as_str(agent) else {
+        // i. Let cp be CodePointAt(string, k).
+        // ii. If cp.[[IsUnpairedSurrogate]] is true, throw a URIError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::UriError,
+            "ill-formed Unicode string",
+            gc,
+        ));
+    };
+    // 4. Let unescapedSet be the string-concatenation of alwaysUnescaped and
+    //    extraUnescaped.
+    fn unescape_set<const EXTRA_UNESCAPED: bool>(c: u8) -> bool {
+        c.is_ascii_alphanumeric()
+            || match c {
+                // 3. Let alwaysUnescaped be the string-concatenation of the
+                //    ASCII word characters and "-.!~*'()".
+                b'_' | b'-' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')' => true,
+                // extra unescaped is "" or ";/?:@&=+$,#"
+                b';' | b'/' | b'?' | b':' | b'@' | b'&' | b'=' | b'+' | b'$' | b',' | b'#' => {
+                    EXTRA_UNESCAPED
+                }
+                _ => false,
+            }
+    }
+    if s.is_empty()
+        || s.as_bytes()
+            .iter()
+            .all(|b| unescape_set::<EXTRA_UNESCAPED>(*b))
+    {
+        // Nothing to escape.
+        return Ok(string);
+    }
     // 2. Let R be the empty String.
-    // 3. Let alwaysUnescaped be the string-concatenation of the ASCII word characters and "-.!~*'()".
-    // 4. Let unescapedSet be the string-concatenation of alwaysUnescaped and extraUnescaped.
+    let mut r = std::string::String::with_capacity(len + len >> 2);
     // 5. Let k be 0.
     // 6. Repeat, while k < len,
-    //         a. Let C be the code unit at index k within string.
-    //         b. If unescapedSet contains C, then
-    //                 i. Set k to k + 1.
-    //                 ii. Set R to the string-concatenation of R and C.
-    //         c. Else,
-    //                 i. Let cp be CodePointAt(string, k).
-    //                 ii. If cp.[[IsUnpairedSurrogate]] is true, throw a URIError exception.
-    //                 iii. Set k to k + cp.[[CodeUnitCount]].
-    //                 iv. Let Octets be the List of octets resulting by applying the UTF-8 transformation to cp.[[CodePoint]].
-    //                 v. For each element octet of Octets, do
-    //                         1. Let hex be the String representation of octet, formatted as an uppercase hexadecimal number.
-    //                         2. Set R to the string-concatenation of R, "%", and StringPad(hex, 2, "0", start).
+    for c in s.bytes() {
+        // a. Let C be the code unit at index k within string.
+        if unescape_set::<EXTRA_UNESCAPED>(c) {
+            // b. If unescapedSet contains C, then
+            // i. Set k to k + 1.
+            // ii. Set R to the string-concatenation of R and C.
+            r.push(char::from(c));
+        } else {
+            // c. Else,
+            // iii. Set k to k + cp.[[CodeUnitCount]].
+            // iv. Let Octets be the List of octets resulting by applying the
+            //     UTF-8 transformation to cp.[[CodePoint]].
+            // v. For each element octet of Octets, do
+            //         1. Let hex be the String representation of octet, formatted as an uppercase hexadecimal number.
+            //         2. Set R to the string-concatenation of R, "%", and StringPad(hex, 2, "0", start).
+            r.push('%');
+            let upper = c / 16;
+            let lower = c % 16;
+            encode_hex_byte_string(&mut r, upper);
+            encode_hex_byte_string(&mut r, lower);
+        }
+    }
     // 7. Return R.
+    Ok(String::from_string(agent, r, gc))
 }
 
 /// ### [19.2.6.6 Decode ( string, preserveEscapeSet )](https://tc39.es/ecma262/#sec-decode)
@@ -1730,6 +1777,28 @@ fn encode_hex_byte(s: &mut Wtf8Buf, hex_half: u8) {
         13 => s.push_char('D'),
         14 => s.push_char('E'),
         15 => s.push_char('F'),
+        _ => unreachable!(),
+    }
+}
+
+fn encode_hex_byte_string(s: &mut std::string::String, hex_half: u8) {
+    match hex_half {
+        0 => s.push('0'),
+        1 => s.push('1'),
+        2 => s.push('2'),
+        3 => s.push('3'),
+        4 => s.push('4'),
+        5 => s.push('5'),
+        6 => s.push('6'),
+        7 => s.push('7'),
+        8 => s.push('8'),
+        9 => s.push('9'),
+        10 => s.push('A'),
+        11 => s.push('B'),
+        12 => s.push('C'),
+        13 => s.push('D'),
+        14 => s.push('E'),
+        15 => s.push('F'),
         _ => unreachable!(),
     }
 }
