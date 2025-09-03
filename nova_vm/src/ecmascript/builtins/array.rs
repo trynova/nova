@@ -48,7 +48,7 @@ use crate::{
 
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
-use nova_vec::SoAVec;
+use soavec::SoAVec;
 
 use super::ordinary::{
     caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,

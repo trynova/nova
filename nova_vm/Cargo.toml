@@ -16,7 +16,6 @@ ahash = { workspace = true }
 fast-float = { workspace = true }
 hashbrown = { workspace = true }
 lexical = { workspace = true }
-nova_vec = { path = "../nova_vec", version = "0.1.0" }
 num-bigint = { workspace = true }
 num-traits = { workspace = true }
 oxc_allocator = { workspace = true }
@@ -33,6 +32,8 @@ regex = { workspace = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string", version = "0.2.0" }
 sonic-rs = { workspace = true, optional = true }
+soavec = { workspace = true }
+soavec_derive = { workspace = true }
 unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
 

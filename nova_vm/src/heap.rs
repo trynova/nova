@@ -123,7 +123,7 @@ pub(crate) use heap_bits::{
     sweep_heap_vector_values, sweep_side_set,
 };
 use indexes::TypedArrayIndex;
-use nova_vec::SoAVec;
+use soavec::SoAVec;
 use wtf8::{Wtf8, Wtf8Buf};
 
 #[derive(Debug)]

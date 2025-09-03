@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use nova_vec::soable;
+use soavec_derive::SoAble;
 
 use crate::{
     ecmascript::types::OrdinaryObject,
@@ -15,13 +15,12 @@ use crate::{
 /// is also called an element. Every Array has a non-configurable "**length**"
 /// property whose value is always a non-negative integral Number whose
 /// mathematical value is strictly less than 2**32.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, SoAble)]
 pub struct ArrayHeapData<'a> {
     pub elements: ElementsVector<'a>,
     pub object_index: Option<OrdinaryObject<'a>>,
 }
 bindable_handle!(ArrayHeapData);
-soable!(ArrayHeapData<'a> { elements: ElementsVector<'a>, object_index: Option<OrdinaryObject<'a>> });
 
 impl HeapMarkAndSweep for ArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

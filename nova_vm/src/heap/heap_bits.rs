@@ -2,7 +2,7 @@ use core::{hash::Hash, num::NonZeroU32};
 
 use ahash::{AHashMap, AHashSet};
 use hashbrown::HashTable;
-use nova_vec::{SoAVec, SoAble};
+use soavec::{SoAVec, SoAble};
 
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
