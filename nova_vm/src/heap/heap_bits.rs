@@ -2,6 +2,7 @@ use core::{hash::Hash, num::NonZeroU32};
 
 use ahash::{AHashMap, AHashSet};
 use hashbrown::HashTable;
+use nova_vec::{SoAVec, SoAble};
 
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -247,7 +248,7 @@ impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
         #[cfg(feature = "array-buffer")]
         let array_buffers = vec![false; heap.array_buffers.len()];
-        let arrays = vec![false; heap.arrays.len()];
+        let arrays = vec![false; heap.arrays.len() as usize];
         let array_iterators = vec![false; heap.array_iterators.len()];
         let async_generators = vec![false; heap.async_generators.len()];
         let await_reactions = vec![false; heap.await_reactions.len()];
@@ -417,7 +418,7 @@ impl WorkQueues {
         Self {
             #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
-            arrays: Vec::with_capacity(heap.arrays.len() / 4),
+            arrays: Vec::with_capacity(heap.arrays.len() as usize / 4),
             array_iterators: Vec::with_capacity(heap.array_iterators.len() / 4),
             async_generators: Vec::with_capacity(heap.async_generators.len() / 4),
             await_reactions: Vec::with_capacity(heap.await_reactions.len() / 4),
@@ -1175,6 +1176,19 @@ where
     }
 }
 
+impl<T> HeapMarkAndSweep for &mut T
+where
+    T: HeapMarkAndSweep,
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        (&**self).mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        (&mut **self).sweep_values(compactions);
+    }
+}
+
 impl<T> HeapMarkAndSweep for Option<T>
 where
     T: HeapMarkAndSweep,
@@ -1191,6 +1205,186 @@ where
         if let Some(content) = self {
             content.sweep_values(compactions);
         }
+    }
+}
+
+impl<T> HeapMarkAndSweep for (T,)
+where
+    T: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.0.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.0.sweep_values(compactions);
+    }
+}
+
+impl<T, U> HeapMarkAndSweep for (T, U)
+where
+    T: HeapMarkAndSweep,
+    U: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let (t, u) = self;
+        t.mark_values(queues);
+        u.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let (t, u) = self;
+        t.sweep_values(compactions);
+        u.sweep_values(compactions);
+    }
+}
+
+impl<T, U, V> HeapMarkAndSweep for (T, U, V)
+where
+    T: HeapMarkAndSweep,
+    U: HeapMarkAndSweep,
+    V: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let (t, u, v) = self;
+        t.mark_values(queues);
+        u.mark_values(queues);
+        v.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let (t, u, v) = self;
+        t.sweep_values(compactions);
+        u.sweep_values(compactions);
+        v.sweep_values(compactions);
+    }
+}
+
+impl<T, U, V, W> HeapMarkAndSweep for (T, U, V, W)
+where
+    T: HeapMarkAndSweep,
+    U: HeapMarkAndSweep,
+    V: HeapMarkAndSweep,
+    W: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let (t, u, v, w) = self;
+        t.mark_values(queues);
+        u.mark_values(queues);
+        v.mark_values(queues);
+        w.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let (t, u, v, w) = self;
+        t.sweep_values(compactions);
+        u.sweep_values(compactions);
+        v.sweep_values(compactions);
+        w.sweep_values(compactions);
+    }
+}
+
+impl<T, U, V, W, X> HeapMarkAndSweep for (T, U, V, W, X)
+where
+    T: HeapMarkAndSweep,
+    U: HeapMarkAndSweep,
+    V: HeapMarkAndSweep,
+    W: HeapMarkAndSweep,
+    X: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let (t, u, v, w, x) = self;
+        t.mark_values(queues);
+        u.mark_values(queues);
+        v.mark_values(queues);
+        w.mark_values(queues);
+        x.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let (t, u, v, w, x) = self;
+        t.sweep_values(compactions);
+        u.sweep_values(compactions);
+        v.sweep_values(compactions);
+        w.sweep_values(compactions);
+        x.sweep_values(compactions);
+    }
+}
+
+impl<T, U, V, W, X, Y> HeapMarkAndSweep for (T, U, V, W, X, Y)
+where
+    T: HeapMarkAndSweep,
+    U: HeapMarkAndSweep,
+    V: HeapMarkAndSweep,
+    W: HeapMarkAndSweep,
+    X: HeapMarkAndSweep,
+    Y: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let (t, u, v, w, x, y) = self;
+        t.mark_values(queues);
+        u.mark_values(queues);
+        v.mark_values(queues);
+        w.mark_values(queues);
+        x.mark_values(queues);
+        y.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let (t, u, v, w, x, y) = self;
+        t.sweep_values(compactions);
+        u.sweep_values(compactions);
+        v.sweep_values(compactions);
+        w.sweep_values(compactions);
+        x.sweep_values(compactions);
+        y.sweep_values(compactions);
+    }
+}
+
+impl<T, U, V, W, X, Y, Z> HeapMarkAndSweep for (T, U, V, W, X, Y, Z)
+where
+    T: HeapMarkAndSweep,
+    U: HeapMarkAndSweep,
+    V: HeapMarkAndSweep,
+    W: HeapMarkAndSweep,
+    X: HeapMarkAndSweep,
+    Y: HeapMarkAndSweep,
+    Z: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let (t, u, v, w, x, y, z) = self;
+        t.mark_values(queues);
+        u.mark_values(queues);
+        v.mark_values(queues);
+        w.mark_values(queues);
+        x.mark_values(queues);
+        y.mark_values(queues);
+        z.mark_values(queues);
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let (t, u, v, w, x, y, z) = self;
+        t.sweep_values(compactions);
+        u.sweep_values(compactions);
+        v.sweep_values(compactions);
+        w.sweep_values(compactions);
+        x.sweep_values(compactions);
+        y.sweep_values(compactions);
+        z.sweep_values(compactions);
     }
 }
 
@@ -1414,6 +1608,26 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
     assert_eq!(vec.len(), bits.len());
     let mut iter = bits.iter();
     vec.retain_mut(|item| {
+        let do_retain = iter.next().unwrap();
+        if *do_retain {
+            item.sweep_values(compactions);
+            true
+        } else {
+            false
+        }
+    });
+}
+
+pub(crate) fn sweep_heap_soa_vector_values<T: SoAble + HeapMarkAndSweep>(
+    vec: &mut SoAVec<T>,
+    compactions: &CompactionLists,
+    bits: &[bool],
+) where
+    for<'a> T::Mut<'a>: HeapMarkAndSweep,
+{
+    assert_eq!(vec.len() as usize, bits.len());
+    let mut iter = bits.iter();
+    vec.retain_mut(|mut item| {
         let do_retain = iter.next().unwrap();
         if *do_retain {
             item.sweep_values(compactions);

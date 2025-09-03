@@ -51,18 +51,14 @@ pub(super) fn get_template_object<'a>(
     // 12. Repeat, while index < count,
 
     // First, ensure that template Array descriptors exist.
-    let template_storage = agent.heap.arrays[template]
-        .elements
-        .get_storage_mut(&mut agent.heap.elements);
+    let template_storage = template.get_storage_mut(agent);
     template_storage
         .descriptors
         .insert_entry(AHashMap::with_capacity(len));
 
     // Second, ensure that raw_obj Array descriptors exist and grab the
     // pointers to the values and descriptors.
-    let raw_obj_storage = agent.heap.arrays[raw_obj]
-        .elements
-        .get_storage_mut(&mut agent.heap.elements);
+    let raw_obj_storage = raw_obj.get_storage_mut(agent);
     let mut raw_obj_values = NonNull::from(raw_obj_storage.values);
     let mut raw_obj_descriptors = NonNull::from(
         raw_obj_storage
@@ -73,8 +69,8 @@ pub(super) fn get_template_object<'a>(
 
     // Third, get the template values and descriptors; since they already
     // exist, this cannot move the raw_obj descriptors.
-    let template_storage = agent.heap.arrays[template]
-        .elements
+    let template_storage = template
+        .get_elements(&agent.heap.arrays)
         .get_storage_mut(&mut agent.heap.elements);
     let template_values = template_storage.values;
     let template_descriptors = template_storage

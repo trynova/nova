@@ -298,13 +298,13 @@ fn array_set_length_no_value_field(agent: &mut Agent, a: Array, desc: PropertyDe
     if !desc.is_generic_descriptor() && desc.is_accessor_descriptor() {
         return false;
     }
-    if !agent[a].elements.len_writable {
+    if !a.length_writable(agent) {
         // Length is already frozen.
         if desc.writable == Some(true) {
             return false;
         }
     } else if desc.writable == Some(false) {
-        agent[a].elements.len_writable = false;
+        a.set_length_readonly(agent);
     }
     true
 }
@@ -322,15 +322,12 @@ pub(crate) fn array_set_length_handling(
     let Heap {
         arrays, elements, ..
     } = &mut agent.heap;
-    let array_heap_data = &mut arrays[a];
+    let elems = a.get_elements_mut(arrays);
     // 8. Assert: oldLenDesc is not undefined.
     // 9. Assert: IsDataDescriptor(oldLenDesc) is true.
     // 10. Assert: oldLenDesc.[[Configurable]] is false.
     // 11. Let oldLen be oldLenDesc.[[Value]].
-    let (old_len, old_len_writable) = (
-        array_heap_data.elements.len(),
-        array_heap_data.elements.len_writable,
-    );
+    let (old_len, old_len_writable) = (elems.len(), elems.len_writable);
     // 12. If newLen ≥ oldLen, then
     if new_len >= old_len {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
@@ -344,9 +341,9 @@ pub(crate) fn array_set_length_handling(
         ) {
             return Ok(false);
         }
-        array_heap_data.elements.reserve(elements, new_len)?;
-        array_heap_data.elements.len = new_len;
-        array_heap_data.elements.len_writable = desc_writable.unwrap_or(old_len_writable);
+        elems.reserve(elements, new_len)?;
+        elems.len = new_len;
+        elems.len_writable = desc_writable.unwrap_or(old_len_writable);
         return Ok(true);
     }
     debug_assert!(old_len > new_len);
@@ -383,7 +380,7 @@ pub(crate) fn array_set_length_handling(
     let ElementStorageMut {
         values,
         descriptors,
-    } = elements.get_element_storage_mut(&array_heap_data.elements);
+    } = elements.get_element_storage_mut(elems);
     if let Entry::Occupied(mut descriptors) = descriptors
         && !descriptors.get().is_empty()
     {
@@ -409,9 +406,9 @@ pub(crate) fn array_set_length_handling(
                 // Delete properties that didn't fail.
                 values[(i + 1) as usize..old_len as usize].fill(None);
                 // i. Set newLenDesc.[[Value]] to ! ToUint32(P) + 1𝔽.
-                array_heap_data.elements.len = i + 1;
+                elems.len = i + 1;
                 // ii. If newWritable is false, set newLenDesc.[[Writable]] to false.
-                array_heap_data.elements.len_writable &= new_writable;
+                elems.len_writable &= new_writable;
                 // iii. Perform ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
                 // iv. Return false.
                 return Ok(false);
@@ -423,9 +420,9 @@ pub(crate) fn array_set_length_handling(
     }
     // No descriptors in the delete range: all entries are normal values.
     values[new_len as usize..old_len as usize].fill(None);
-    array_heap_data.elements.len = new_len;
+    elems.len = new_len;
     // 18. If newWritable is false, then
-    array_heap_data.elements.len_writable &= new_writable;
+    elems.len_writable &= new_writable;
     // a. Set succeeded to ! OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor { [[Writable]]: false }).
     // b. Assert: succeeded is true.
     // 19. Return true.

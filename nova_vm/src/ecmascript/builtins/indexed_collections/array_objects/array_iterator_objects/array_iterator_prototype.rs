@@ -25,7 +25,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, InternalSlots, IntoValue, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -241,7 +241,7 @@ impl ArrayIteratorPrototype {
                 // 1. Let elementKey be ! ToString(indexNumber).
                 // 2. Let elementValue be ? Get(array, elementKey).
                 let fast_path_result = match array {
-                    Object::Array(array) if agent[array].object_index.is_none() => {
+                    Object::Array(array) if array.get_backing_object(agent).is_none() => {
                         assert!(ARRAY_INDEX_RANGE.contains(&index));
                         let idx = usize::try_from(index).unwrap();
                         array.as_slice(agent)[idx]

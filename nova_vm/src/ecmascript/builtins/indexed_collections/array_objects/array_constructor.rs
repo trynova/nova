@@ -149,7 +149,7 @@ impl ArrayConstructor {
                 )
                 .unwrap();
                 // e. Perform ! Set(array, "length", intLen, true).
-                debug_assert_eq!(agent[array].elements.len(), int_len);
+                debug_assert_eq!(array.len(agent), int_len);
                 array
             } else {
                 // b. Let array be ! ArrayCreate(0, proto).
@@ -165,7 +165,7 @@ impl ArrayConstructor {
                 ));
                 // ii. Let intLen be 1𝔽.
                 // e. Perform ! Set(array, "length", intLen, true).
-                debug_assert_eq!(agent[array].elements.len(), 1);
+                debug_assert_eq!(array.len(agent), 1);
                 array
             };
 
