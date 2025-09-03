@@ -177,6 +177,12 @@ impl<'a> Array<'a> {
         self.get_elements(agent).len()
     }
 
+    /// ### Safety
+    ///
+    /// `len` must be less or equal to the capacity of the Array. Also note
+    /// that uninitialised entries in the Array are allowed and are guaranteed
+    /// to appear as JavaScript Array "holes", but this guarantee may be
+    /// removed in the future.
     pub unsafe fn set_len(self, agent: &mut Agent, len: u32) {
         let elems = self.get_elements_mut(agent);
         debug_assert!(elems.len_writable);

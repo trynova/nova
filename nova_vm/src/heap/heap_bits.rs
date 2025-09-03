@@ -1167,10 +1167,12 @@ impl<T> HeapMarkAndSweep for &T
 where
     T: HeapMarkAndSweep,
 {
+    #[inline(always)]
     fn mark_values(&self, queues: &mut WorkQueues) {
-        (*self).mark_values(queues);
+        T::mark_values(self, queues);
     }
 
+    #[inline(always)]
     fn sweep_values(&mut self, _compactions: &CompactionLists) {
         unreachable!();
     }
@@ -1180,12 +1182,14 @@ impl<T> HeapMarkAndSweep for &mut T
 where
     T: HeapMarkAndSweep,
 {
+    #[inline(always)]
     fn mark_values(&self, queues: &mut WorkQueues) {
-        (&**self).mark_values(queues);
+        T::mark_values(self, queues);
     }
 
+    #[inline(always)]
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        (&mut **self).sweep_values(compactions);
+        T::sweep_values(self, compactions);
     }
 }
 

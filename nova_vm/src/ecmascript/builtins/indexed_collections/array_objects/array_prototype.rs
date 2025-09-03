@@ -4217,7 +4217,7 @@ impl ArrayPrototype {
         debug_assert_eq!(elements.elements_index.into_u32_index(), 0);
         debug_assert_eq!(elements.cap.cap(), 0);
         debug_assert_eq!(elements.len, 0);
-        debug_assert_eq!(elements.len_writable, true);
+        debug_assert!(elements.len_writable);
     }
 }
 
