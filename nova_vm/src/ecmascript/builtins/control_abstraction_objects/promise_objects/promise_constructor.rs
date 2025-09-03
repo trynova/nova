@@ -10,11 +10,19 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array_create,
             ordinary::ordinary_create_from_constructor,
             promise::{
                 Promise,
                 data::{PromiseHeapData, PromiseState},
+            },
+            promise_objects::{
+                promise_abstract_operations::{
+                    promise_all_record::PromiseAllRecord,
+                    promise_reaction_records::PromiseReactionHandler,
+                },
+                promise_prototype::inner_promise_then,
             },
         },
         execution::{
@@ -210,13 +218,90 @@ impl PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
+    /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
     fn all<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.all", gc.into_nogc()))
+        // 1. Let C be the this value.
+        if this_value
+            != agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(
+                agent,
+                gc.into_nogc(),
+            ));
+        }
+        let arguments = arguments.bind(gc.nogc());
+
+        let first_arg = arguments.get(0);
+        let Ok(promise_array) = Array::try_from(first_arg) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected an array as first argument",
+                gc.into_nogc(),
+            ));
+        };
+        let scoped_promise_array = promise_array.scope(agent, gc.nogc());
+
+        let array_len = promise_array.len(agent);
+        let result_capability = PromiseCapability::new(agent, gc.nogc());
+        let result_promise = result_capability.promise();
+        let scoped_result_promise = result_promise.scope(agent, gc.nogc());
+
+        let result_array = array_create(
+            agent,
+            array_len as usize,
+            array_len as usize,
+            None,
+            gc.nogc(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+
+        let promise_all_record = agent.heap.create(PromiseAllRecord {
+            remaining_unresolved_promise_count: array_len,
+            result_array: result_array.unbind(),
+            promise: scoped_result_promise.get(agent),
+        });
+
+        for index in 0..array_len {
+            let element = scoped_promise_array.get(agent).as_slice(agent)[index as usize];
+
+            let promise = match element {
+                Some(Value::Promise(promise)) => promise,
+                Some(value) => Promise::resolve(agent, value.unbind(), gc.reborrow())
+                    .unbind()
+                    .bind(gc.nogc()),
+                None => {
+                    unreachable!()
+                }
+            };
+
+            let capability = PromiseCapability::new(agent, gc.nogc());
+            inner_promise_then(
+                agent,
+                promise.unbind(),
+                PromiseReactionHandler::PromiseAll {
+                    index,
+                    promise_all: promise_all_record,
+                },
+                PromiseReactionHandler::PromiseAll {
+                    index,
+                    promise_all: promise_all_record,
+                },
+                Some(capability.unbind()),
+                gc.nogc(),
+            );
+        }
+
+        Ok(scoped_result_promise.get(agent).into_value())
     }
 
     fn all_settled<'gc>(
