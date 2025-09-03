@@ -264,6 +264,7 @@ pub(crate) enum IntrinsicFunctionIndexes {
     DecodeURIComponent,
     EncodeURI,
     EncodeURIComponent,
+    #[cfg(feature = "annex-b-global")]
     Escape,
     Eval,
     GeneratorFunctionPrototypePrototypeNext,
@@ -282,10 +283,18 @@ pub(crate) enum IntrinsicFunctionIndexes {
     ThrowTypeError,
     #[cfg(feature = "array-buffer")]
     TypedArrayPrototypeValues,
+    #[cfg(feature = "annex-b-global")]
     Unescape,
 }
+#[cfg(feature = "annex-b-global")]
 pub(crate) const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes =
     IntrinsicFunctionIndexes::Unescape;
+#[cfg(all(not(feature = "annex-b-global"), feature = "array-buffer"))]
+pub(crate) const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes =
+    IntrinsicFunctionIndexes::TypedArrayPrototypeValues;
+#[cfg(all(not(feature = "annex-b-global"), not(feature = "array-buffer")))]
+pub(crate) const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes =
+    IntrinsicFunctionIndexes::ThrowTypeError;
 
 impl IntrinsicObjectIndexes {
     const OBJECT_INDEX_OFFSET: u32 = 0;

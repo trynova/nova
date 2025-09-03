@@ -818,6 +818,7 @@ impl Intrinsics {
     }
 
     /// %escape%
+    #[cfg(feature = "annex-b-global")]
     pub(crate) const fn escape(&self) -> BuiltinFunction<'static> {
         BuiltinFunction(
             IntrinsicFunctionIndexes::Escape
@@ -1499,6 +1500,7 @@ impl Intrinsics {
     }
 
     /// %unescape%
+    #[cfg(feature = "annex-b-global")]
     pub(crate) const fn unescape(&self) -> BuiltinFunction<'static> {
         BuiltinFunction(
             IntrinsicFunctionIndexes::Unescape
@@ -1624,6 +1626,7 @@ impl HeapMarkAndSweep for Intrinsics {
         self.encode_uri_component().mark_values(queues);
         self.error_prototype().mark_values(queues);
         self.error().mark_values(queues);
+        #[cfg(feature = "annex-b-global")]
         self.escape().mark_values(queues);
         self.eval().mark_values(queues);
         self.eval_error_prototype().mark_values(queues);
@@ -1736,6 +1739,7 @@ impl HeapMarkAndSweep for Intrinsics {
         self.uint8_clamped_array().mark_values(queues);
         #[cfg(feature = "array-buffer")]
         self.uint8_clamped_array_prototype().mark_values(queues);
+        #[cfg(feature = "annex-b-global")]
         self.unescape().mark_values(queues);
         self.uri_error_prototype().mark_values(queues);
         self.uri_error().mark_values(queues);

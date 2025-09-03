@@ -128,21 +128,27 @@ impl Builtin for GlobalObjectEncodeURIComponent {
 impl BuiltinIntrinsic for GlobalObjectEncodeURIComponent {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::EncodeURIComponent;
 }
+#[cfg(feature = "annex-b-global")]
 struct GlobalObjectEscape;
+#[cfg(feature = "annex-b-global")]
 impl Builtin for GlobalObjectEscape {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.escape;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::escape);
 }
+#[cfg(feature = "annex-b-global")]
 impl BuiltinIntrinsic for GlobalObjectEscape {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::Escape;
 }
+#[cfg(feature = "annex-b-global")]
 struct GlobalObjectUnescape;
+#[cfg(feature = "annex-b-global")]
 impl Builtin for GlobalObjectUnescape {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.unescape;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::unescape);
 }
+#[cfg(feature = "annex-b-global")]
 impl BuiltinIntrinsic for GlobalObjectUnescape {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::Unescape;
 }
@@ -1274,22 +1280,140 @@ impl GlobalObject {
         Err(agent.todo("encodeURIComponent", gc.into_nogc()))
     }
 
+    /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
+    ///
+    /// This function is a property of the global object. It computes a new
+    /// version of a String value in which certain code units have been
+    /// replaced by a hexadecimal escape sequence.
+    ///
+    /// When replacing a code unit of numeric value less than or equal to
+    /// `0x00FF`, a two-digit escape sequence of the form `%xx` is used. When
+    /// replacing a code unit of numeric value strictly greater than `0x00FF`,
+    /// a four-digit escape sequence of the form `%uxxxx` is used.
+    ///
+    /// It is the `%escape%` intrinsic object.
+    ///
+    /// > NOTE: The encoding is partly based on the encoding described in
+    /// > RFC 1738, but the entire encoding specified in this standard is
+    /// > described above without regard to the contents of RFC 1738. This
+    /// > encoding does not reflect changes to RFC 1738 made by RFC 3986.
+    #[cfg(feature = "annex-b-global")]
     fn escape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Set string to ? ToString(string).
+        // 2. Let len be the length of string.
+        // 3. Let R be the empty String.
+        // 4. Let unescapedSet be the string-concatenation of the ASCII word characters and "@*+-./".
+        // 5. Let k be 0.
+        // 6. Repeat, while k < len,
+        //         a. Let C be the code unit at index k within string.
+        //         b. If unescapedSet contains C, then
+        //                 i. Let S be C.
+        //         c. Else,
+        //                 i. Let n be the numeric value of C.
+        //                 ii. If n < 256, then
+        //                         1. Let hex be the String representation of n, formatted as an uppercase hexadecimal number.
+        //                         2. Let S be the string-concatenation of "%" and StringPad(hex, 2, "0", start).
+        //                 iii. Else,
+        //                         1. Let hex be the String representation of n, formatted as an uppercase hexadecimal number.
+        //                         2. Let S be the string-concatenation of "%u" and StringPad(hex, 4, "0", start).
+        //         d. Set R to the string-concatenation of R and S.
+        //         e. Set k to k + 1.
+        // 7. Return R.
         Err(agent.todo("escape", gc.into_nogc()))
     }
 
+    /// ### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
+    ///
+    /// This function is a property of the global object. It computes a new
+    /// version of a String value in which each escape sequence of the sort
+    /// that might be introduced by the escape function is replaced with the
+    /// code unit that it represents.
+    ///
+    /// It is the `%unescape%` intrinsic object.
+    #[cfg(feature = "annex-b-global")]
     fn unescape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("unescape", gc.into_nogc()))
+        let string = args.get(0).bind(gc.nogc());
+        // 1. Set string to ? ToString(string).
+        let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
+        let gc = gc.into_nogc();
+        let string = string.bind(gc);
+        let string_wtf8 = string.as_wtf8(agent);
+        let bytes = string.as_bytes(agent);
+        // 2. Let len be the length of string.
+        let len = bytes.len();
+        // 3. Let R be the empty String.
+        let mut r = Wtf8Buf::new();
+        // 4. Let k be 0.
+        // 5. Repeat, while k < len,
+        let bytes_iterator = &mut bytes.iter();
+        let mut previous_k = 0;
+        while let Some(k) = bytes_iterator.position(|b| b == &b'%') {
+            // a. Let C be the code unit at index k within string.
+            // b. If C is the code unit 0x0025 (PERCENT SIGN), then
+            // i. Let hexDigits be the empty String.
+            let mut hex_digits: &[u8] = &[];
+            // ii. Let optionalAdvance be 0.
+            let mut optional_advance = 0usize;
+            // iii. If k + 5 < len and the code unit at index k + 1 within
+            //      string is the code unit 0x0075 (LATIN SMALL LETTER U), then
+            if k.checked_add(5).is_some_and(|end| end < len) && bytes[k + 1] == b'u' {
+                // 1. Set hexDigits to the substring of string from k + 2 to k + 6.
+                hex_digits = &bytes[k + 2..k + 6];
+                // 2. Set optionalAdvance to 5.
+                optional_advance = 5;
+            } else if k.checked_add(3).is_some_and(|end| end <= len) {
+                // iv. Else if k + 3 ≤ len, then
+                // 1. Set hexDigits to the substring of string from k + 1 to k + 3.
+                hex_digits = &bytes[k + 1..k + 3];
+                // 2. Set optionalAdvance to 2.
+                optional_advance = 2;
+            }
+
+            if hex_digits.is_empty() || !hex_digits.iter().all(|b| b.is_ascii_hexdigit()) {
+                continue;
+            }
+            // SAFETY: all digits are hex digits.
+            let hex_digits = unsafe { str::from_utf8_unchecked(hex_digits) };
+            // v. Let parseResult be ParseText(hexDigits, HexDigits[~Sep]).
+            let parse_result = u32::from_str_radix(hex_digits, 16);
+            // vi. If parseResult is a Parse Node, then
+            if let Ok(n) = parse_result {
+                // 1. Let n be the MV of parseResult.
+                if r.capacity() == 0 {
+                    r.reserve(len);
+                }
+                r.push_wtf8(string_wtf8.slice(previous_k, k));
+
+                // 2. Set C to the code unit whose numeric value is n.
+                // SAFETY: at most 4 hex digits -> never bigger than 0xFFFF.
+                r.push(unsafe { CodePoint::from_u32_unchecked(n) });
+                // 3. Set k to k + optionalAdvance.
+                let _ = bytes_iterator.skip(optional_advance);
+                previous_k = k + 1 + optional_advance;
+            }
+
+            // c. Set R to the string-concatenation of R and C.
+            // d. Set k to k + 1.
+        }
+        if previous_k == 0 {
+            // Nothing to unescape
+            Ok(string.into_value())
+        } else {
+            // Push the rest of the string into r.
+            // 6. Return R.
+            r.push_wtf8(string_wtf8.slice_from(previous_k));
+            Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+        }
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -1313,10 +1437,47 @@ impl GlobalObject {
             agent, realm,
         )
         .build();
+        #[cfg(feature = "annex-b-global")]
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectEscape>(agent, realm).build();
+        #[cfg(feature = "annex-b-global")]
         BuiltinFunctionBuilder::new_intrinsic_function::<GlobalObjectUnescape>(agent, realm)
             .build();
     }
+}
+
+/// 19.2.6.5 Encode ( string, extraUnescaped )
+///
+/// The abstract operation Encode takes arguments `string` (a String) and
+/// `extraUnescaped` (a String) and returns either a normal completion
+/// containing a String or a throw completion. It performs URI encoding and
+/// escaping, interpreting string as a sequence of UTF-16 encoded code points
+/// as described in [6.1.4](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type).
+/// If a character is identified as unreserved in RFC 2396 or appears in
+/// `extraUnescaped`, it is not escaped.
+///
+/// > NOTE: Because percent-encoding is used to represent individual octets, a
+/// > single code point may be expressed as multiple consecutive escape
+/// > sequences (one for each of its 8-bit UTF-8 code units).
+fn encode() {
+    // 1. Let len be the length of string.
+    // 2. Let R be the empty String.
+    // 3. Let alwaysUnescaped be the string-concatenation of the ASCII word characters and "-.!~*'()".
+    // 4. Let unescapedSet be the string-concatenation of alwaysUnescaped and extraUnescaped.
+    // 5. Let k be 0.
+    // 6. Repeat, while k < len,
+    //         a. Let C be the code unit at index k within string.
+    //         b. If unescapedSet contains C, then
+    //                 i. Set k to k + 1.
+    //                 ii. Set R to the string-concatenation of R and C.
+    //         c. Else,
+    //                 i. Let cp be CodePointAt(string, k).
+    //                 ii. If cp.[[IsUnpairedSurrogate]] is true, throw a URIError exception.
+    //                 iii. Set k to k + cp.[[CodeUnitCount]].
+    //                 iv. Let Octets be the List of octets resulting by applying the UTF-8 transformation to cp.[[CodePoint]].
+    //                 v. For each element octet of Octets, do
+    //                         1. Let hex be the String representation of octet, formatted as an uppercase hexadecimal number.
+    //                         2. Set R to the string-concatenation of R, "%", and StringPad(hex, 2, "0", start).
+    // 7. Return R.
 }
 
 /// ### [19.2.6.6 Decode ( string, preserveEscapeSet )](https://tc39.es/ecma262/#sec-decode)

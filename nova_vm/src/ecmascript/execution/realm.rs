@@ -529,6 +529,14 @@ pub(crate) fn set_default_global_bindings<'a>(
 
         // 19.2.6.4 encodeURIComponent ( . . . )
         define_property!(intrinsic encodeURIComponent, encode_uri_component);
+
+        #[cfg(feature = "annex-b-global")]
+        {
+            // B.2.1.1 escape ( string )
+            define_property!(intrinsic escape, escape);
+            // B.2.1.2 unescape ( string )
+            define_property!(intrinsic unescape, unescape);
+        }
     }
 
     // 19.3 Constructor Properties of the Global Object

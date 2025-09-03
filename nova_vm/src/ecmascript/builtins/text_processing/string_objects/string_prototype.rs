@@ -3163,7 +3163,7 @@ fn string_pad<'gc>(
 ///
 /// The abstract operation ToZeroPaddedDecimalString takes arguments n
 /// (a non-negative integer) and minLength (a non-negative integer) and returns
-/// a String. It performs the following steps when called:
+/// a String.
 pub(crate) fn to_zero_padded_decimal_string(
     n: impl ToString,
     min_length: usize,
