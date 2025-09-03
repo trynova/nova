@@ -1316,25 +1316,21 @@ impl GlobalObject {
         // 4. Let unescapedSet be the string-concatenation of the ASCII word
         //    characters and "@*+-./".
         fn unescape_set(b: &u8) -> bool {
-            b.is_ascii_alphanumeric()
-                || match b {
-                    b'_' | b'@' | b'*' | b'+' | b'-' | b'.' | b'/' => true,
-                    _ => false,
-                }
+            b.is_ascii_alphanumeric() || matches!(b, b'_' | b'@' | b'*' | b'+' | b'-' | b'.' | b'/')
         }
 
         if bytes.iter().all(unescape_set) {
             // Nothing to escape.
             return Ok(string.into_value());
         }
-        let mut r = Wtf8Buf::with_capacity(bytes.len() + bytes.len() >> 2);
+        let mut r = Wtf8Buf::with_capacity(bytes.len() + (bytes.len() >> 2));
 
         // 5. Let k be 0.
         // 6. Repeat, while k < len,
         for c in string_wtf8.to_ill_formed_utf16() {
             // a. Let C be the code unit at index k within string.
             // b. If unescapedSet contains C, then
-            if let Some(c) = u8::try_from(c).ok() {
+            if let Ok(c) = u8::try_from(c) {
                 // ii. If n < 256, then
                 if unescape_set(&c) {
                     // d. Set R to the string-concatenation of R and S.
@@ -1549,7 +1545,7 @@ fn encode<'a, const EXTRA_UNESCAPED: bool>(
         return Ok(string);
     }
     // 2. Let R be the empty String.
-    let mut r = std::string::String::with_capacity(len + len >> 2);
+    let mut r = std::string::String::with_capacity(len + (len >> 2));
     // 5. Let k be 0.
     // 6. Repeat, while k < len,
     for c in s.bytes() {
