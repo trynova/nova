@@ -1301,30 +1301,79 @@ impl GlobalObject {
     fn escape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let string = args.get(0).bind(gc.nogc());
         // 1. Set string to ? ToString(string).
+        let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
+        let gc = gc.into_nogc();
+        let string = string.bind(gc);
         // 2. Let len be the length of string.
+        let string_wtf8 = string.as_wtf8(agent);
+        let bytes = string.as_bytes(agent);
         // 3. Let R be the empty String.
-        // 4. Let unescapedSet be the string-concatenation of the ASCII word characters and "@*+-./".
+        // 4. Let unescapedSet be the string-concatenation of the ASCII word
+        //    characters and "@*+-./".
+        fn unescape_set(b: &u8) -> bool {
+            b.is_ascii_alphanumeric()
+                || match b {
+                    b'_' | b'@' | b'*' | b'+' | b'-' | b'.' | b'/' => true,
+                    _ => false,
+                }
+        }
+
+        if bytes.iter().all(unescape_set) {
+            // Nothing to escape.
+            return Ok(string.into_value());
+        }
+        let mut r = Wtf8Buf::with_capacity(bytes.len() + bytes.len() >> 2);
+
         // 5. Let k be 0.
         // 6. Repeat, while k < len,
-        //         a. Let C be the code unit at index k within string.
-        //         b. If unescapedSet contains C, then
-        //                 i. Let S be C.
-        //         c. Else,
-        //                 i. Let n be the numeric value of C.
-        //                 ii. If n < 256, then
-        //                         1. Let hex be the String representation of n, formatted as an uppercase hexadecimal number.
-        //                         2. Let S be the string-concatenation of "%" and StringPad(hex, 2, "0", start).
-        //                 iii. Else,
-        //                         1. Let hex be the String representation of n, formatted as an uppercase hexadecimal number.
-        //                         2. Let S be the string-concatenation of "%u" and StringPad(hex, 4, "0", start).
-        //         d. Set R to the string-concatenation of R and S.
-        //         e. Set k to k + 1.
+        for c in string_wtf8.to_ill_formed_utf16() {
+            // a. Let C be the code unit at index k within string.
+            // b. If unescapedSet contains C, then
+            if let Some(c) = u8::try_from(c).ok() {
+                // ii. If n < 256, then
+                if unescape_set(&c) {
+                    // d. Set R to the string-concatenation of R and S.
+                    // SAFETY: checked as part of unescape_set
+                    r.push_char(unsafe { char::from_u32_unchecked(c as u32) });
+                    continue;
+                }
+                // c. Else,
+                // i. Let n be the numeric value of C.
+                let n = c;
+                let upper = n / 16;
+                let lower = n % 16;
+                // 1. Let hex be the String representation of n, formatted as an uppercase hexadecimal number.
+                // 2. Let S be the string-concatenation of "%" and StringPad(hex, 2, "0", start).
+                // d. Set R to the string-concatenation of R and S.
+                r.push_char('%');
+                encode_hex_byte(&mut r, upper);
+                encode_hex_byte(&mut r, lower);
+            } else {
+                // iii. Else,
+                // i. Let n be the numeric value of C.
+                let n = c;
+                // 1. Let hex be the String representation of n, formatted as an uppercase hexadecimal number.
+                let h3 = (n >> 12) as u8;
+                let h2 = ((n >> 8) % 16) as u8;
+                let h1 = ((n >> 4) % 16) as u8;
+                let h0 = (n % 16) as u8;
+                // 2. Let S be the string-concatenation of "%u" and StringPad(hex, 4, "0", start).
+                // d. Set R to the string-concatenation of R and S.
+                r.push_str("%u");
+                encode_hex_byte(&mut r, h3);
+                encode_hex_byte(&mut r, h2);
+                encode_hex_byte(&mut r, h1);
+                encode_hex_byte(&mut r, h0);
+            }
+            // e. Set k to k + 1.
+        }
         // 7. Return R.
-        Err(agent.todo("escape", gc.into_nogc()))
+        Ok(String::from_wtf8_buf(agent, r, gc).into_value())
     }
 
     /// ### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
@@ -1356,8 +1405,11 @@ impl GlobalObject {
         // 4. Let k be 0.
         // 5. Repeat, while k < len,
         let bytes_iterator = &mut bytes.iter();
+        let mut accumulator = 0;
         let mut previous_k = 0;
-        while let Some(k) = bytes_iterator.position(|b| b == &b'%') {
+        while let Some(offset) = bytes_iterator.position(|b| b == &b'%') {
+            let k = accumulator + offset;
+            accumulator += 1;
             // a. Let C be the code unit at index k within string.
             // b. If C is the code unit 0x0025 (PERCENT SIGN), then
             // i. Let hexDigits be the empty String.
@@ -1398,7 +1450,6 @@ impl GlobalObject {
                 // SAFETY: at most 4 hex digits -> never bigger than 0xFFFF.
                 r.push(unsafe { CodePoint::from_u32_unchecked(n) });
                 // 3. Set k to k + optionalAdvance.
-                let _ = bytes_iterator.skip(optional_advance);
                 previous_k = k + 1 + optional_advance;
             }
 
@@ -1658,6 +1709,28 @@ where
 
         // f. Set k to k + 1.
         k += 1;
+    }
+}
+
+fn encode_hex_byte(s: &mut Wtf8Buf, hex_half: u8) {
+    match hex_half {
+        0 => s.push_char('0'),
+        1 => s.push_char('1'),
+        2 => s.push_char('2'),
+        3 => s.push_char('3'),
+        4 => s.push_char('4'),
+        5 => s.push_char('5'),
+        6 => s.push_char('6'),
+        7 => s.push_char('7'),
+        8 => s.push_char('8'),
+        9 => s.push_char('9'),
+        10 => s.push_char('A'),
+        11 => s.push_char('B'),
+        12 => s.push_char('C'),
+        13 => s.push_char('D'),
+        14 => s.push_char('E'),
+        15 => s.push_char('F'),
+        _ => unreachable!(),
     }
 }
 
