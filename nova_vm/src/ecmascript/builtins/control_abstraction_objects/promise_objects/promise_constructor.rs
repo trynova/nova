@@ -245,8 +245,8 @@ impl PromiseConstructor {
         }
         let arguments = arguments.bind(gc.nogc());
 
-        let first_arg = arguments.get(0).unbind().bind(gc.nogc());
-        let Ok(promise_array) = Array::try_from(first_arg.unbind()).unbind().bind(gc.nogc()) else {
+        let first_arg = arguments.get(0);
+        let Ok(promise_array) = Array::try_from(first_arg) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Expected an array as first argument",
@@ -256,8 +256,8 @@ impl PromiseConstructor {
         let scoped_promise_array = promise_array.scope(agent, gc.nogc());
 
         let array_len = promise_array.len(agent);
-        let result_capability = PromiseCapability::new(agent, gc.nogc()).bind(gc.nogc());
-        let result_promise = result_capability.promise().unbind().bind(gc.nogc());
+        let result_capability = PromiseCapability::new(agent, gc.nogc());
+        let result_promise = result_capability.promise();
         let scoped_result_promise = result_promise.scope(agent, gc.nogc());
 
         let result_array = array_create(
@@ -277,9 +277,7 @@ impl PromiseConstructor {
         });
 
         for index in 0..array_len {
-            let element = (scoped_promise_array.get(agent).as_slice(agent)[index as usize])
-                .unbind()
-                .bind(gc.nogc());
+            let element = scoped_promise_array.get(agent).as_slice(agent)[index as usize];
 
             let promise = match element {
                 Some(Value::Promise(promise)) => promise,
