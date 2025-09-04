@@ -25,6 +25,7 @@ use self::data::MapHeapData;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Map<'a>(pub(crate) MapIndex<'a>);
 
 impl Map<'_> {

@@ -447,6 +447,7 @@ impl<'a> BuiltinFunctionArgs<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct BuiltinFunction<'a>(pub(crate) BuiltinFunctionIndex<'a>);
 
 impl BuiltinFunction<'_> {

@@ -52,6 +52,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct ECMAScriptFunction<'a>(ECMAScriptFunctionIndex<'a>);
 
 impl<'a> From<ECMAScriptFunction<'a>> for ECMAScriptFunctionIndex<'a> {

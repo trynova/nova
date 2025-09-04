@@ -24,6 +24,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct MapIterator<'a>(MapIteratorIndex<'a>);
 
 impl MapIterator<'_> {

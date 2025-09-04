@@ -145,6 +145,7 @@ unsafe impl Send for SourceTextModuleRecord<'_> {}
 
 /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct SourceTextModule<'a>(u32, PhantomData<&'a GcToken>);
 
 impl core::fmt::Debug for SourceTextModule<'_> {

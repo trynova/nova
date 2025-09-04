@@ -21,6 +21,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct ArrayIterator<'a>(ArrayIteratorIndex<'a>);
 
 impl<'a> ArrayIterator<'a> {

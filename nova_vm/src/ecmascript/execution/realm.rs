@@ -36,6 +36,7 @@ pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Realm<'a>(
     NonZeroU32,
     PhantomData<RealmRecord<'static>>,

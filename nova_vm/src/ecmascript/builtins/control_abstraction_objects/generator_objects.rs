@@ -26,6 +26,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Generator<'a>(pub(crate) GeneratorIndex<'a>);
 
 impl Generator<'_> {
