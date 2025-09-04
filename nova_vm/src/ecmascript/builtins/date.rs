@@ -25,7 +25,7 @@ use crate::{
 
 use self::data::DateHeapData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Date<'a>(pub(crate) DateIndex<'a>);
 
