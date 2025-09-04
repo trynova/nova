@@ -20,14 +20,13 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, GeneratorIndex},
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Generator<'a>(pub(crate) GeneratorIndex<'a>);
+pub struct Generator<'a>(BaseIndex<'a, GeneratorHeapData<'static>>);
 
 impl Generator<'_> {
     pub(crate) const fn _def() -> Self {
@@ -441,7 +440,7 @@ impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
     fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
         self.generators.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<GeneratorHeapData<'static>>>();
-        Generator(GeneratorIndex::last(&self.generators))
+        Generator(BaseIndex::last(&self.generators))
     }
 }
 

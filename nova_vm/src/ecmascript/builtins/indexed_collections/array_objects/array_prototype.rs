@@ -4115,7 +4115,7 @@ impl ArrayPrototype {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
-        let this_base_object = intrinsics.array_prototype_base_object();
+        let this_base_object = intrinsics.array_prototype_backing_object();
         let array_constructor = intrinsics.array();
         let array_prototype_values = intrinsics.array_prototype_values();
 

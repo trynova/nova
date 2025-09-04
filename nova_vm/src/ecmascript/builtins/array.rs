@@ -42,7 +42,7 @@ use crate::{
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
-        indexes::ArrayIndex,
+        indexes::BaseIndex,
     },
 };
 
@@ -57,7 +57,7 @@ use super::ordinary::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Array<'a>(ArrayIndex<'a>);
+pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
@@ -71,6 +71,18 @@ impl<'a> Array<'a> {
                 elements: ElementsVector::EMPTY,
             })
             .bind(gc)
+    }
+
+    /// Get a reference to the next Array that will be allocated.
+    ///
+    /// # Safety
+    ///
+    /// You should not use this unless you're about to allocate the next Array
+    /// very soon but need to generate references to it ahead of time.
+    /// Effectively, this is only useful in Realm creation for getting the
+    /// `%Array.prototype%` intrinsic.
+    pub(crate) unsafe fn next_array(agent: &Agent) -> Self {
+        Array(BaseIndex::from_u32_index(agent.heap.arrays.len()))
     }
 
     /// Allocate a new Array in the Agent heap with 0 capacity.
@@ -113,7 +125,7 @@ impl<'a> Array<'a> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
-        Self(ArrayIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) fn get(
@@ -351,12 +363,6 @@ unsafe impl Bindable for Array<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> From<ArrayIndex<'a>> for Array<'a> {
-    fn from(value: ArrayIndex<'a>) -> Self {
-        Array(value)
     }
 }
 
@@ -962,7 +968,7 @@ impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Array");
         self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        Array::from(ArrayIndex::from_u32_index(i))
+        Array(BaseIndex::from_u32_index(i))
     }
 }
 

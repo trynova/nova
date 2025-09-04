@@ -15,8 +15,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, FinalizationRegistryIndex},
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -26,7 +25,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct FinalizationRegistry<'a>(pub(crate) FinalizationRegistryIndex<'a>);
+pub struct FinalizationRegistry<'a>(BaseIndex<'a, FinalizationRegistryHeapData<'static>>);
 
 impl FinalizationRegistry<'_> {
     pub(crate) const fn _def() -> Self {
@@ -142,9 +141,7 @@ impl<'a> CreateHeapData<FinalizationRegistryHeapData<'a>, FinalizationRegistry<'
         self.finalization_registrys.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<FinalizationRegistryHeapData<'static>>>();
 
-        FinalizationRegistry(FinalizationRegistryIndex::last(
-            &self.finalization_registrys,
-        ))
+        FinalizationRegistry(BaseIndex::last(&self.finalization_registrys))
     }
 }
 

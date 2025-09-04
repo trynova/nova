@@ -25,8 +25,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        indexes::{BaseIndex, RegExpIndex},
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
 };
 pub(crate) use abstract_operations::*;
@@ -42,7 +41,7 @@ use super::ordinary::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct RegExp<'a>(RegExpIndex<'a>);
+pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);
 
 impl<'a> RegExp<'a> {
     /// Fast-path for RegExp object debug stringifying; this does not take into
@@ -514,6 +513,6 @@ impl<'a> CreateHeapData<RegExpHeapData<'a>, RegExp<'a>> for Heap {
     fn create(&mut self, data: RegExpHeapData<'a>) -> RegExp<'a> {
         self.regexps.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<RegExpHeapData<'static>>>();
-        RegExp(RegExpIndex::last(&self.regexps))
+        RegExp(BaseIndex::last(&self.regexps))
     }
 }

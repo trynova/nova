@@ -12,6 +12,10 @@ mod object_entry;
 use core::{cell::RefCell, ops::Index};
 use std::ops::Deref;
 
+use self::element_array::{
+    ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
+    ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
+};
 pub(crate) use self::heap_constants::{
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
     IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
@@ -23,13 +27,6 @@ pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
-use self::{
-    element_array::{
-        ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
-        ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
-    },
-    indexes::NumberIndex,
-};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "regexp")]
@@ -53,7 +50,6 @@ use crate::ecmascript::builtins::{
     weak_set::data::WeakSetHeapData,
 };
 use crate::{
-    SmallInteger,
     ecmascript::{
         builtins::{
             ArrayBuffer, ArrayHeapData,
@@ -106,9 +102,7 @@ use crate::{
         ExecutableHeapData,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
-        small_f64::SmallF64,
     },
-    heap::indexes::StringIndex,
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -361,14 +355,14 @@ impl Heap {
         const {
             assert!(BUILTIN_STRINGS_LIST.len() < u32::MAX as usize);
         }
-        for (index, builtin_string) in BUILTIN_STRINGS_LIST.into_iter().enumerate() {
-            let hash = heap.string_hasher.hash_one(Wtf8::from_str(builtin_string));
+        let strings = &mut heap.strings;
+        let string_hasher = &mut heap.string_hasher;
+        let string_lookup_table = &mut heap.string_lookup_table;
+        for builtin_string in BUILTIN_STRINGS_LIST.into_iter() {
+            let hash = string_hasher.hash_one(Wtf8::from_str(builtin_string));
             let data = StringHeapData::from_static_str(builtin_string);
-            heap.strings.push(Some(data));
-            let index = StringIndex::from_u32_index(index as u32);
-            let heap_string = HeapString(index);
-            heap.string_lookup_table
-                .insert_unique(hash, heap_string, |_| hash);
+            // SAFETY: heap is entry.
+            unsafe { String::insert_string_with_hash(strings, string_lookup_table, data, hash) };
         }
 
         heap.symbols.extend_from_slice(
@@ -564,22 +558,6 @@ impl Heap {
             })
             .map(|&heap_string| heap_string.into())
             .ok_or(hash)
-    }
-
-    /// Allocate a 64-bit floating point number onto the Agent heap
-    ///
-    /// # Safety
-    ///
-    /// The number being allocated must not be representable
-    /// as a SmallInteger or f32. All stack-allocated numbers must be
-    /// inequal to any heap-allocated number.
-    pub unsafe fn alloc_number<'gc>(&mut self, number: f64) -> HeapNumber<'gc> {
-        debug_assert!(
-            SmallInteger::try_from(number).is_err() && SmallF64::try_from(number).is_err()
-        );
-        self.numbers.push(Some(number.into()));
-        self.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
-        HeapNumber(NumberIndex::last(&self.numbers))
     }
 }
 

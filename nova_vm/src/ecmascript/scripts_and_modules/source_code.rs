@@ -30,10 +30,9 @@ use crate::{
     },
 };
 
-type SourceCodeIndex<'a> = BaseIndex<'a, SourceCodeHeapData<'static>>;
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SourceCode<'a>(SourceCodeIndex<'a>);
+#[repr(transparent)]
+pub struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
 
 impl core::fmt::Debug for SourceCode<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -286,10 +285,7 @@ impl<'a> SourceCode<'a> {
             .heap
             .alloc_counter
             .saturating_sub(core::mem::size_of::<Option<SourceCodeHeapData<'static>>>());
-        assert_eq!(
-            self,
-            SourceCode(SourceCodeIndex::last(&agent.heap.source_codes))
-        );
+        assert_eq!(self, SourceCode(BaseIndex::last(&agent.heap.source_codes)));
         agent.heap.source_codes.pop();
     }
 
@@ -401,7 +397,7 @@ impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
     fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
         self.source_codes.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<SourceCodeHeapData<'static>>>();
-        SourceCode(SourceCodeIndex::last(&self.source_codes))
+        SourceCode(BaseIndex::last(&self.source_codes))
     }
 }
 

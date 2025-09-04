@@ -37,8 +37,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, ProxyIndex},
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -53,7 +52,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Proxy<'a>(pub(crate) ProxyIndex<'a>);
+pub struct Proxy<'a>(BaseIndex<'a, ProxyHeapData<'static>>);
 
 impl Proxy<'_> {
     pub(crate) const fn _def() -> Self {
@@ -1994,7 +1993,7 @@ impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
     fn create(&mut self, data: ProxyHeapData<'a>) -> Proxy<'a> {
         self.proxys.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ProxyHeapData<'static>>>();
-        Proxy(ProxyIndex::last(&self.proxys))
+        Proxy(BaseIndex::last(&self.proxys))
     }
 }
 

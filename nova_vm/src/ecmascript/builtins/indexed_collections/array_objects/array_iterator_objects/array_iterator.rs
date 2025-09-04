@@ -16,19 +16,19 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::ArrayIteratorIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct ArrayIterator<'a>(ArrayIteratorIndex<'a>);
+pub struct ArrayIterator<'a>(BaseIndex<'a, ArrayIteratorHeapData<'static>>);
 
 impl<'a> ArrayIterator<'a> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
-        Self(ArrayIteratorIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -186,7 +186,7 @@ impl<'a> CreateHeapData<ArrayIteratorHeapData<'a>, ArrayIterator<'a>> for Heap {
     fn create(&mut self, data: ArrayIteratorHeapData<'a>) -> ArrayIterator<'a> {
         self.array_iterators.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ArrayIteratorHeapData<'static>>>();
-        ArrayIterator(ArrayIteratorIndex::last(&self.array_iterators))
+        ArrayIterator(BaseIndex::last(&self.array_iterators))
     }
 }
 

@@ -13,10 +13,8 @@ use std::num::NonZeroU32;
 use crate::ecmascript::{
     builtins::ordinary::shape::ObjectShape,
     execution::ProtoIntrinsics,
-    types::{PropertyKey, Symbol, Value},
+    types::{PropertyKey, Value},
 };
-
-use super::indexes::{BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex, SymbolIndex};
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -297,66 +295,27 @@ pub(crate) const LAST_INTRINSIC_FUNCTION_INDEX: IntrinsicFunctionIndexes =
     IntrinsicFunctionIndexes::ThrowTypeError;
 
 impl IntrinsicObjectIndexes {
-    const OBJECT_INDEX_OFFSET: u32 = 0;
-
-    pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
-        ObjectIndex::from_u32_index(self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET)
-    }
+    pub(crate) const OBJECT_INDEX_OFFSET: u32 = 0;
 }
 
 impl IntrinsicPrimitiveObjectIndexes {
-    const OBJECT_INDEX_OFFSET: u32 =
+    pub(crate) const OBJECT_INDEX_OFFSET: u32 =
         IntrinsicObjectIndexes::OBJECT_INDEX_OFFSET + LAST_INTRINSIC_OBJECT_INDEX as u32 + 1;
-    const PRIMITIVE_OBJECT_INDEX_OFFSET: u32 = 0;
-
-    pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
-        ObjectIndex::from_u32_index(self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET)
-    }
-
-    pub(crate) const fn get_primitive_object_index(
-        self,
-        base: PrimitiveObjectIndex,
-    ) -> PrimitiveObjectIndex {
-        PrimitiveObjectIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
-        )
-    }
+    pub(crate) const PRIMITIVE_OBJECT_INDEX_OFFSET: u32 = 0;
 }
 
 impl IntrinsicConstructorIndexes {
-    const OBJECT_INDEX_OFFSET: u32 = IntrinsicPrimitiveObjectIndexes::OBJECT_INDEX_OFFSET
+    pub(crate) const OBJECT_INDEX_OFFSET: u32 = IntrinsicPrimitiveObjectIndexes::OBJECT_INDEX_OFFSET
         + LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX as u32
         + 1;
-    const BUILTIN_FUNCTION_INDEX_OFFSET: u32 = 0;
-
-    pub(crate) const fn get_object_index(self, base: ObjectIndex) -> ObjectIndex {
-        ObjectIndex::from_u32_index(self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET)
-    }
-
-    pub(crate) const fn get_builtin_function_index(
-        self,
-        base: BuiltinFunctionIndex,
-    ) -> BuiltinFunctionIndex {
-        BuiltinFunctionIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
-        )
-    }
+    pub(crate) const BUILTIN_FUNCTION_INDEX_OFFSET: u32 = 0;
 }
 
 impl IntrinsicFunctionIndexes {
-    const BUILTIN_FUNCTION_INDEX_OFFSET: u32 =
+    pub(crate) const BUILTIN_FUNCTION_INDEX_OFFSET: u32 =
         IntrinsicConstructorIndexes::BUILTIN_FUNCTION_INDEX_OFFSET
             + LAST_INTRINSIC_CONSTRUCTOR_INDEX as u32
             + 1;
-
-    pub(crate) const fn get_builtin_function_index(
-        self,
-        base: BuiltinFunctionIndex,
-    ) -> BuiltinFunctionIndex {
-        BuiltinFunctionIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
-        )
-    }
 }
 
 pub(crate) const fn intrinsic_object_count() -> usize {
@@ -422,24 +381,6 @@ pub(crate) enum WellKnownSymbolIndexes {
     ToPrimitive,
     ToStringTag,
     Unscopables,
-}
-
-impl WellKnownSymbolIndexes {
-    pub const fn to_property_key(self) -> PropertyKey<'static> {
-        PropertyKey::Symbol(Symbol(SymbolIndex::from_u32_index(self as u32)))
-    }
-}
-
-impl From<WellKnownSymbolIndexes> for SymbolIndex<'static> {
-    fn from(value: WellKnownSymbolIndexes) -> Self {
-        SymbolIndex::from_u32_index(value as u32)
-    }
-}
-
-impl From<WellKnownSymbolIndexes> for Symbol<'static> {
-    fn from(value: WellKnownSymbolIndexes) -> Self {
-        Symbol(value.into())
-    }
 }
 
 impl From<WellKnownSymbolIndexes> for Value<'static> {

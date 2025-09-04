@@ -16,7 +16,7 @@ use super::{
         sweep_heap_u32_elements_vector_values, sweep_heap_u32_property_key_vector,
         sweep_heap_vector_values, sweep_lookup_table,
     },
-    indexes::{ElementIndex, PropertyKeyIndex, StringIndex},
+    indexes::{ElementIndex, PropertyKeyIndex},
 };
 #[cfg(feature = "array-buffer")]
 use super::{heap_bits::sweep_side_table_values, indexes::TypedArrayIndex};
@@ -97,24 +97,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         }
     });
 
-    queues.strings.extend(
-        (0..BUILTIN_STRINGS_LIST.len()).map(|index| HeapString(StringIndex::from_index(index))),
-    );
-    queues.symbols.extend_from_slice(&[
-        WellKnownSymbolIndexes::AsyncIterator.into(),
-        WellKnownSymbolIndexes::HasInstance.into(),
-        WellKnownSymbolIndexes::IsConcatSpreadable.into(),
-        WellKnownSymbolIndexes::Iterator.into(),
-        WellKnownSymbolIndexes::Match.into(),
-        WellKnownSymbolIndexes::MatchAll.into(),
-        WellKnownSymbolIndexes::Replace.into(),
-        WellKnownSymbolIndexes::Search.into(),
-        WellKnownSymbolIndexes::Species.into(),
-        WellKnownSymbolIndexes::Split.into(),
-        WellKnownSymbolIndexes::ToPrimitive.into(),
-        WellKnownSymbolIndexes::ToStringTag.into(),
-        WellKnownSymbolIndexes::Unscopables.into(),
-    ]);
+    bits.strings[0..BUILTIN_STRINGS_LIST.len()].fill(true);
+    bits.symbols[0..WellKnownSymbolIndexes::Unscopables as usize].fill(true);
     queues.object_shapes.push(ObjectShape::NULL);
     agent.mark_values(&mut queues);
 

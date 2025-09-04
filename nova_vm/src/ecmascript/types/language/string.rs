@@ -28,7 +28,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        PrimitiveHeap, PropertyKeyHeap, WorkQueues, indexes::StringIndex,
+        PrimitiveHeap, PropertyKeyHeap, WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -44,7 +44,7 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 /// heap-allocated strings into lexicographic order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct HeapString<'a>(pub(crate) StringIndex<'a>);
+pub struct HeapString<'a>(BaseIndex<'a, StringHeapData>);
 
 impl HeapString<'_> {
     pub fn len(self, agent: &Agent) -> usize {
@@ -52,7 +52,7 @@ impl HeapString<'_> {
     }
 
     pub(crate) const fn _def() -> Self {
-        HeapString(StringIndex::from_u32_index(0))
+        HeapString(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -731,16 +731,31 @@ impl<'gc> String<'gc> {
                 Ok(string) => string,
                 Err(hash) => {
                     let data = StringHeapData::from_str(str);
-                    strings.push(Some(data));
-                    *alloc_counter += core::mem::size_of::<Option<StringHeapData>>();
-                    let index = StringIndex::last(strings);
-                    let heap_string = HeapString(index);
-                    *alloc_counter += core::mem::size_of::<HeapString>();
-                    string_lookup_table.insert_unique(hash, heap_string, |_| hash);
-                    String::String(heap_string).bind(gc)
+                    // SAFETY: checked that the value is not found.
+                    String::String(unsafe {
+                        *alloc_counter += core::mem::size_of::<HeapString>();
+                        Self::insert_string_with_hash(strings, string_lookup_table, data, hash)
+                    })
+                    .bind(gc)
                 }
             }
         }
+    }
+
+    /// # Safety
+    ///
+    /// The string must not exist in the string lookup table or strings vector.
+    pub(crate) unsafe fn insert_string_with_hash(
+        strings: &mut Vec<Option<StringHeapData>>,
+        string_lookup_table: &mut HashTable<HeapString<'static>>,
+        data: StringHeapData,
+        hash: u64,
+    ) -> HeapString<'static> {
+        strings.push(Some(data));
+        let index = BaseIndex::last(strings);
+        let heap_string = HeapString(index);
+        string_lookup_table.insert_unique(hash, heap_string, |_| hash);
+        heap_string
     }
 
     /// Find existing heap String or return the strings hash.
@@ -827,7 +842,7 @@ impl<'a> CreateHeapData<(StringHeapData, u64), String<'a>> for Heap {
     fn create(&mut self, (data, hash): (StringHeapData, u64)) -> String<'a> {
         self.strings.push(Some(data));
         self.alloc_counter += core::mem::size_of::<Option<StringHeapData>>();
-        let index = StringIndex::last(&self.strings);
+        let index = BaseIndex::last(&self.strings);
         let heap_string = HeapString(index);
         self.alloc_counter += core::mem::size_of::<HeapString>();
         self.string_lookup_table

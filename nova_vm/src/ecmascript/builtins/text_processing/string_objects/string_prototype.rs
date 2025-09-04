@@ -2891,7 +2891,7 @@ impl StringPrototype {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.string_prototype();
-        let this_base_object = intrinsics.string_prototype_base_object().into();
+        let this_base_object = intrinsics.string_prototype_backing_object().into();
         let string_constructor = intrinsics.string();
         let prototype_trim_start = intrinsics.string_prototype_trim_start();
         let prototype_trim_end = intrinsics.string_prototype_trim_end();

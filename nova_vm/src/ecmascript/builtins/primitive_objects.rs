@@ -33,7 +33,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::PrimitiveObjectIndex,
+        IntrinsicPrimitiveObjectIndexes, WorkQueues, indexes::BaseIndex,
     },
 };
 use small_string::SmallString;
@@ -45,11 +45,16 @@ use super::ordinary::{
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PrimitiveObject<'a>(PrimitiveObjectIndex<'a>);
+pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectHeapData<'static>>);
 
-impl<'a> From<PrimitiveObjectIndex<'a>> for PrimitiveObject<'a> {
-    fn from(value: PrimitiveObjectIndex<'a>) -> Self {
-        Self(value)
+impl IntrinsicPrimitiveObjectIndexes {
+    pub(crate) const fn get_primitive_object<'a>(
+        self,
+        base: BaseIndex<'a, PrimitiveObjectHeapData<'static>>,
+    ) -> PrimitiveObject<'a> {
+        PrimitiveObject(BaseIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
+        ))
     }
 }
 
@@ -123,7 +128,7 @@ impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData<'stati
 
 impl PrimitiveObject<'_> {
     pub(crate) const fn _def() -> Self {
-        PrimitiveObject(PrimitiveObjectIndex::from_u32_index(0))
+        PrimitiveObject(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -788,6 +793,6 @@ impl<'a> CreateHeapData<PrimitiveObjectHeapData<'a>, PrimitiveObject<'a>> for He
     fn create(&mut self, data: PrimitiveObjectHeapData<'a>) -> PrimitiveObject<'a> {
         self.primitive_objects.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<PrimitiveObjectHeapData<'static>>>();
-        PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
+        PrimitiveObject(BaseIndex::last(&self.primitive_objects))
     }
 }

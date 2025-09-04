@@ -853,27 +853,22 @@ mod test {
     #[cfg(feature = "regexp")]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
-        use crate::{
-            ecmascript::{
-                builtins::BuiltinFunction,
-                execution::{Agent, DefaultHostHooks, agent::Options},
-                types::OrdinaryObject,
-            },
-            heap::indexes::{BuiltinFunctionIndex, ObjectIndex},
-        };
+        use crate::ecmascript::execution::{Agent, DefaultHostHooks, agent::Options};
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
         initialize_default_realm(&mut agent, gc);
         assert_eq!(
-            agent.current_realm_record().intrinsics().object_prototype(),
-            OrdinaryObject::new(ObjectIndex::from_index(0))
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .object_prototype()
+                .get_index(),
+            0
         );
-        assert_eq!(
-            agent.current_realm_record().intrinsics().object(),
-            BuiltinFunction(BuiltinFunctionIndex::from_index(0))
-        );
+        let object_constructor = agent.current_realm_record().intrinsics().object();
+        assert_eq!(object_constructor.get_index(), 0);
         #[cfg(feature = "array-buffer")]
         assert!(agent.heap.array_buffers.is_empty());
         // Array prototype is itself an Array :/

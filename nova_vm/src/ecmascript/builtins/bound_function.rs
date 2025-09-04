@@ -25,7 +25,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BoundFunctionIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -33,11 +33,11 @@ use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct BoundFunction<'a>(BoundFunctionIndex<'a>);
+pub struct BoundFunction<'a>(BaseIndex<'a, BoundFunctionHeapData<'static>>);
 
 impl BoundFunction<'_> {
     pub(crate) const fn _def() -> Self {
-        BoundFunction(BoundFunctionIndex::from_u32_index(0))
+        BoundFunction(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -305,7 +305,7 @@ impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
         self.bound_functions.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<BoundFunctionHeapData<'static>>>();
-        BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
+        BoundFunction(BaseIndex::last(&self.bound_functions))
     }
 }
 

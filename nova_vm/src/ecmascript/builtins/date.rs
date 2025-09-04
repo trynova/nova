@@ -19,7 +19,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::DateIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -27,7 +27,7 @@ use self::data::DateHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Date<'a>(pub(crate) DateIndex<'a>);
+pub struct Date<'a>(BaseIndex<'a, DateHeapData<'static>>);
 
 impl Date<'_> {
     /// ### get [[DateValue]]
@@ -43,7 +43,7 @@ impl Date<'_> {
     }
 
     pub(crate) const fn _def() -> Self {
-        Self(DateIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -192,6 +192,6 @@ impl<'a> CreateHeapData<DateHeapData<'a>, Date<'a>> for Heap {
     fn create(&mut self, data: DateHeapData<'a>) -> Date<'a> {
         self.dates.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<DateHeapData<'static>>>();
-        Date(DateIndex::last(&self.dates))
+        Date(BaseIndex::last(&self.dates))
     }
 }

@@ -17,15 +17,15 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         LAST_WELL_KNOWN_SYMBOL_INDEX, PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues,
-        indexes::SymbolIndex,
+        indexes::BaseIndex,
     },
 };
 
-use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, Primitive, Value};
+use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, Primitive, PropertyKey, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Symbol<'a>(pub(crate) SymbolIndex<'a>);
+pub struct Symbol<'a>(BaseIndex<'a, SymbolHeapData<'static>>);
 
 /// Inner root repr type to hide WellKnownSymbolIndexes.
 #[derive(Debug, Clone, Copy)]
@@ -41,7 +41,7 @@ pub struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
     pub(crate) const fn _def() -> Self {
-        Self(SymbolIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -107,6 +107,18 @@ unsafe impl Bindable for Symbol<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl From<WellKnownSymbolIndexes> for Symbol<'static> {
+    fn from(value: WellKnownSymbolIndexes) -> Self {
+        Symbol(BaseIndex::from_u32_index(value as u32))
+    }
+}
+
+impl WellKnownSymbolIndexes {
+    pub const fn to_property_key(self) -> PropertyKey<'static> {
+        PropertyKey::Symbol(Symbol(BaseIndex::from_u32_index(self as u32)))
     }
 }
 
@@ -206,7 +218,7 @@ impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
     fn create(&mut self, data: SymbolHeapData<'a>) -> Symbol<'a> {
         self.symbols.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<SymbolHeapData<'static>>>();
-        Symbol(SymbolIndex::last(&self.symbols))
+        Symbol(BaseIndex::last(&self.symbols))
     }
 }
 
@@ -230,7 +242,7 @@ impl Rootable for Symbol<'_> {
     #[inline]
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
         match value.0 {
-            SymbolRootReprInner::WellKnown(well_known) => Ok(Self(well_known.into())),
+            SymbolRootReprInner::WellKnown(well_known) => Ok(Symbol::from(well_known)),
             SymbolRootReprInner::HeapRef(heap_root_ref) => Err(heap_root_ref),
         }
     }

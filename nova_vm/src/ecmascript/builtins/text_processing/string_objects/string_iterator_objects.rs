@@ -16,13 +16,13 @@ use crate::{
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, indexes::StringIteratorIndex,
+        WellKnownSymbolIndexes, WorkQueues, indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct StringIterator<'a>(StringIteratorIndex<'a>);
+pub struct StringIterator<'a>(BaseIndex<'a, StringIteratorHeapData<'static>>);
 
 impl<'a> StringIterator<'a> {
     pub fn create(agent: &mut Agent, string: String, gc: NoGcScope<'a, '_>) -> StringIterator<'a> {
@@ -45,7 +45,7 @@ impl<'a> StringIterator<'a> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
-        Self(StringIteratorIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -282,7 +282,7 @@ impl<'a> CreateHeapData<StringIteratorHeapData<'a>, StringIterator<'a>> for Heap
     fn create(&mut self, data: StringIteratorHeapData<'a>) -> StringIterator<'a> {
         self.string_iterators.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<StringIteratorHeapData<'static>>>();
-        StringIterator(StringIteratorIndex::last(&self.string_iterators))
+        StringIterator(BaseIndex::last(&self.string_iterators))
     }
 }
 

@@ -20,7 +20,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
-        indexes::BigIntIndex,
+        indexes::BaseIndex,
     },
     with_radix,
 };
@@ -32,7 +32,7 @@ use std::ops::{BitAnd, BitOr, BitXor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct HeapBigInt<'a>(BigIntIndex<'a>);
+pub struct HeapBigInt<'a>(BaseIndex<'a, BigIntHeapData>);
 
 #[derive(Debug, Clone, Copy)]
 pub enum BigIntMathematicalValue {
@@ -42,7 +42,7 @@ pub enum BigIntMathematicalValue {
 
 impl<'a> HeapBigInt<'a> {
     pub(crate) const fn _def() -> Self {
-        Self(BigIntIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -879,7 +879,7 @@ impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
     fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
         self.bigints.push(Some(data));
         self.alloc_counter += core::mem::size_of::<Option<BigIntHeapData>>();
-        BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
+        BigInt::BigInt(HeapBigInt(BaseIndex::last(&self.bigints)))
     }
 }
 

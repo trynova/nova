@@ -16,10 +16,7 @@ use crate::{
         },
     },
     engine::context::Bindable,
-    heap::{
-        element_array::ElementDescriptor,
-        indexes::{BuiltinFunctionIndex, ObjectIndex},
-    },
+    heap::element_array::ElementDescriptor,
 };
 
 use super::{
@@ -84,8 +81,7 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
-        agent.heap.builtin_functions.push(None);
-        let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
+        let this = BuiltinFunction::new_uninitialised(agent);
         BuiltinFunctionBuilder {
             agent,
             this,
@@ -111,8 +107,7 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
-        agent.heap.builtin_functions.push(None);
-        let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
+        let this = BuiltinFunction::new_uninitialised(agent);
         BuiltinFunctionBuilder {
             agent,
             this,
@@ -138,8 +133,7 @@ impl<'agent>
         CreatorBehaviour,
         NoProperties,
     > {
-        agent.heap.builtin_functions.push(None);
-        let this = BuiltinFunctionIndex::last(&agent.heap.builtin_functions).into();
+        let this = BuiltinFunction::new_uninitialised(agent);
         BuiltinFunctionBuilder {
             agent,
             this,
@@ -167,9 +161,7 @@ impl<'agent>
     > {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.intrinsic_constructor_index_to_builtin_function(T::INDEX);
-        let backing_object = Some(OrdinaryObject(
-            intrinsics.intrinsic_constructor_index_to_object_index(T::INDEX),
-        ));
+        let backing_object = Some(intrinsics.get_intrinsic_constructor_backing_object(T::INDEX));
         let name = T::NAME;
         BuiltinFunctionBuilder {
             agent,
@@ -250,8 +242,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
                 .into_object()
             && self.backing_object.is_none()
         {
-            self.agent.heap.objects.push(None);
-            Some(ObjectIndex::last(&self.agent.heap.objects).into())
+            Some(OrdinaryObject::new_uninitialised(self.agent))
         } else {
             self.backing_object
         };
@@ -273,8 +264,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
         self,
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
         let backing_object = if self.backing_object.is_none() {
-            self.agent.heap.objects.push(None);
-            Some(ObjectIndex::last(&self.agent.heap.objects).into())
+            Some(OrdinaryObject::new_uninitialised(self.agent))
         } else {
             self.backing_object
         };
@@ -344,10 +334,10 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         self,
         cap: usize,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let backing_object = Some(self.backing_object.unwrap_or_else(|| {
-            self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects).into()
-        }));
+        let backing_object = Some(
+            self.backing_object
+                .unwrap_or_else(|| OrdinaryObject::new_uninitialised(self.agent)),
+        );
         let mut property_vector = Vec::with_capacity(cap + 2);
         property_vector.push((
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),
@@ -378,10 +368,10 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         key: PropertyKey<'static>,
         value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let backing_object = Some(self.backing_object.unwrap_or_else(|| {
-            self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects).into()
-        }));
+        let backing_object = Some(
+            self.backing_object
+                .unwrap_or_else(|| OrdinaryObject::new_uninitialised(self.agent)),
+        );
         let property_vector = vec![
             (
                 PropertyKey::from(BUILTIN_STRING_MEMORY.length),
@@ -419,10 +409,10 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let backing_object = Some(self.backing_object.unwrap_or_else(|| {
-            self.agent.heap.objects.push(None);
-            ObjectIndex::last(&self.agent.heap.objects).into()
-        }));
+        let backing_object = Some(
+            self.backing_object
+                .unwrap_or_else(|| OrdinaryObject::new_uninitialised(self.agent)),
+        );
         let property = {
             let builder = PropertyBuilder::new(self.agent);
             creator(builder)

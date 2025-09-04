@@ -15,7 +15,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::SharedArrayBufferIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -25,11 +25,11 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SharedArrayBuffer<'a>(pub(crate) SharedArrayBufferIndex<'a>);
+pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferHeapData<'static>>);
 
 impl SharedArrayBuffer<'_> {
     pub(crate) const fn _def() -> Self {
-        SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0))
+        SharedArrayBuffer(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -154,6 +154,6 @@ impl<'a> CreateHeapData<SharedArrayBufferHeapData<'a>, SharedArrayBuffer<'a>> fo
     fn create(&mut self, data: SharedArrayBufferHeapData<'a>) -> SharedArrayBuffer<'a> {
         self.shared_array_buffers.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<SharedArrayBufferHeapData<'static>>>();
-        SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
+        SharedArrayBuffer(BaseIndex::last(&self.shared_array_buffers))
     }
 }

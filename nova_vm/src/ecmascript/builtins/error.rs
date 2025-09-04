@@ -26,7 +26,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::ErrorIndex,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -37,11 +37,11 @@ use super::ordinary::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Error<'a>(pub(crate) ErrorIndex<'a>);
+pub struct Error<'a>(BaseIndex<'a, ErrorHeapData<'static>>);
 
 impl Error<'_> {
     pub(crate) const fn _def() -> Self {
-        Self(ErrorIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -504,7 +504,7 @@ impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
     fn create(&mut self, data: ErrorHeapData<'a>) -> Error<'a> {
         self.errors.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ErrorHeapData<'static>>>();
-        Error(ErrorIndex::last(&self.errors))
+        Error(BaseIndex::last(&self.errors))
     }
 }
 

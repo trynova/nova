@@ -24,7 +24,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
-        indexes::NumberIndex,
+        indexes::BaseIndex,
     },
     with_radix,
 };
@@ -35,11 +35,11 @@ use radix::make_float_string_ascii_lowercase;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct HeapNumber<'a>(pub(crate) NumberIndex<'a>);
+pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);
 
 impl HeapNumber<'_> {
     pub(crate) const fn _def() -> Self {
-        HeapNumber(NumberIndex::from_u32_index(0))
+        HeapNumber(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -285,13 +285,29 @@ impl<'a> TryFrom<Numeric<'a>> for Number<'a> {
 }
 
 impl<'a> Number<'a> {
+    /// Allocate a 64-bit floating point number onto the Agent heap
+    ///
+    /// # Safety
+    ///
+    /// The number being allocated must not be representable
+    /// as a SmallInteger or f32. All stack-allocated numbers must be
+    /// inequal to any heap-allocated number.
+    unsafe fn alloc_number<'gc>(heap: &mut Heap, number: f64) -> HeapNumber<'gc> {
+        debug_assert!(
+            SmallInteger::try_from(number).is_err() && SmallF64::try_from(number).is_err()
+        );
+        heap.numbers.push(Some(number.into()));
+        heap.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
+        HeapNumber(BaseIndex::last(&heap.numbers))
+    }
+
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
         } else {
             // SAFETY: Number was not representable as a
             // stack-allocated Number.
-            let id = unsafe { agent.heap.alloc_number(value) };
+            let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
             Number::Number(id.unbind().bind(gc))
         }
     }
@@ -308,7 +324,7 @@ impl<'a> Number<'a> {
             } else {
                 // SAFETY: Number was not representable as a
                 // stack-allocated Number.
-                let id = unsafe { agent.heap.alloc_number(value) };
+                let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
                 Number::Number(id.unbind().bind(gc))
             }
         }
@@ -450,7 +466,7 @@ impl<'a> Number<'a> {
         match self {
             Number::Number(n) => {
                 let n = agent[n.unbind()].trunc();
-                agent.heap.create(n)
+                Number::from_f64(agent, n, gc)
             }
             Number::Integer(_) => self,
             Number::SmallF64(n) => Number::from_f64(agent, n.into_f64().trunc(), gc),
@@ -1482,7 +1498,7 @@ impl<'a> CreateHeapData<f64, Number<'a>> for Heap {
         } else {
             // SAFETY: Number was not representable as a
             // stack-allocated Number.
-            let heap_number = unsafe { self.alloc_number(data) };
+            let heap_number = unsafe { Number::alloc_number(self, data) };
             Number::Number(heap_number)
         }
     }
