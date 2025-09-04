@@ -120,7 +120,6 @@ use indexes::TypedArrayIndex;
 use soavec::SoAVec;
 use wtf8::{Wtf8, Wtf8Buf};
 
-#[derive(Debug)]
 pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
@@ -627,6 +626,5 @@ impl PropertyKeyHeapIndexable for Agent {}
 
 #[test]
 fn init_heap() {
-    let heap = Heap::new();
-    println!("{heap:#?}");
+    let _ = Heap::new();
 }
