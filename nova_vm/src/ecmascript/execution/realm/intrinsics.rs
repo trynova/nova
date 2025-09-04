@@ -772,13 +772,13 @@ impl Intrinsics {
     /// %Float16Array%
     #[cfg(feature = "proposal-float16array")]
     pub(crate) const fn float16_array_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::Float16ArrayPrototype.get_object_index(self.object_index_base)
+        IntrinsicObjectIndexes::Float16ArrayPrototype.get_backing_object(self.object_index_base)
     }
 
     #[cfg(feature = "proposal-float16array")]
     pub(crate) const fn float16_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Float16Array
-            .get_builtin_function_index(self.builtin_function_index_base)
+            .get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %Float32Array%
