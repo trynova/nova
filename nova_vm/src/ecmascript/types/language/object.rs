@@ -111,12 +111,13 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IntrinsicConstructorIndexes, IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes,
         ObjectEntry, WorkQueues,
         element_array::{
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
-        indexes::ObjectIndex,
+        indexes::BaseIndex,
     },
 };
 
@@ -223,14 +224,17 @@ impl Object<'_> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
+pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectHeapData<'static>>);
 
 impl<'a> OrdinaryObject<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(ObjectIndex::from_u32_index(0))
+    /// Allocate a a new uninitialised (None) OrdinaryObject and return its reference.
+    pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
+        agent.heap.objects.push(None);
+        OrdinaryObject(BaseIndex::last(&agent.heap.objects))
     }
-    pub(crate) const fn new(value: ObjectIndex<'a>) -> Self {
-        Self(value)
+
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -566,6 +570,39 @@ impl<'a> OrdinaryObject<'a> {
     }
 }
 
+impl IntrinsicObjectIndexes {
+    pub(crate) const fn get_backing_object<'a>(
+        self,
+        base: BaseIndex<'a, ObjectHeapData<'static>>,
+    ) -> OrdinaryObject<'a> {
+        OrdinaryObject(BaseIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        ))
+    }
+}
+
+impl IntrinsicConstructorIndexes {
+    pub(crate) const fn get_backing_object<'a>(
+        self,
+        base: BaseIndex<'a, ObjectHeapData<'static>>,
+    ) -> OrdinaryObject<'a> {
+        OrdinaryObject(BaseIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        ))
+    }
+}
+
+impl IntrinsicPrimitiveObjectIndexes {
+    pub(crate) const fn get_backing_object<'a>(
+        self,
+        base: BaseIndex<'a, ObjectHeapData<'static>>,
+    ) -> OrdinaryObject<'a> {
+        OrdinaryObject(BaseIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        ))
+    }
+}
+
 // SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for Object<'_> {
     type Of<'a> = Object<'a>;
@@ -599,12 +636,6 @@ unsafe impl Bindable for OrdinaryObject<'_> {
 impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
     fn from(value: OrdinaryObject<'a>) -> Self {
         Self::Object(value)
-    }
-}
-
-impl<'a> From<ObjectIndex<'a>> for OrdinaryObject<'a> {
-    fn from(value: ObjectIndex<'a>) -> Self {
-        OrdinaryObject(value)
     }
 }
 
@@ -674,13 +705,6 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
         }
         let new_shape = original_shape.get_shape_with_prototype(agent, prototype);
         agent[self].set_shape(new_shape);
-    }
-}
-
-impl<'a> From<ObjectIndex<'a>> for Object<'a> {
-    fn from(value: ObjectIndex<'a>) -> Self {
-        let value: OrdinaryObject<'a> = value.into();
-        Object::Object(value.unbind())
     }
 }
 
@@ -4875,11 +4899,27 @@ impl HeapSweepWeakReference for Object<'static> {
     }
 }
 
+impl HeapMarkAndSweep for OrdinaryObject<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.objects.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for OrdinaryObject<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.objects.shift_weak_index(self.0).map(Self)
+    }
+}
+
 impl<'a> CreateHeapData<ObjectHeapData<'a>, OrdinaryObject<'a>> for Heap {
     fn create(&mut self, data: ObjectHeapData<'a>) -> OrdinaryObject<'a> {
         self.objects.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        OrdinaryObject(ObjectIndex::last(&self.objects))
+        OrdinaryObject(BaseIndex::last(&self.objects))
     }
 }
 

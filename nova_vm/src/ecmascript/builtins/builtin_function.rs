@@ -24,7 +24,7 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinFunctionIndex,
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -447,11 +447,18 @@ impl<'a> BuiltinFunctionArgs<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinFunction<'a>(pub(crate) BuiltinFunctionIndex<'a>);
+#[repr(transparent)]
+pub struct BuiltinFunction<'a>(BaseIndex<'a, BuiltinFunctionHeapData<'static>>);
 
 impl BuiltinFunction<'_> {
+    /// Allocate a a new uninitialised (None) BuiltinFunction and return its reference.
+    pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
+        agent.heap.builtin_functions.push(None);
+        BuiltinFunction(BaseIndex::last(&agent.heap.builtin_functions))
+    }
+
     pub(crate) const fn _def() -> Self {
-        Self(BuiltinFunctionIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -480,9 +487,25 @@ unsafe impl Bindable for BuiltinFunction<'_> {
     }
 }
 
-impl<'a> From<BuiltinFunctionIndex<'a>> for BuiltinFunction<'a> {
-    fn from(value: BuiltinFunctionIndex<'a>) -> Self {
-        Self(value)
+impl IntrinsicFunctionIndexes {
+    pub(crate) const fn get_builtin_function<'a>(
+        self,
+        base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
+    ) -> BuiltinFunction<'a> {
+        BuiltinFunction(BaseIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        ))
+    }
+}
+
+impl IntrinsicConstructorIndexes {
+    pub(crate) const fn get_builtin_function<'a>(
+        self,
+        base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
+    ) -> BuiltinFunction<'a> {
+        BuiltinFunction(BaseIndex::from_u32_index(
+            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        ))
     }
 }
 
@@ -793,7 +816,7 @@ impl<'a> CreateHeapData<BuiltinFunctionHeapData<'a>, BuiltinFunction<'a>> for He
     fn create(&mut self, data: BuiltinFunctionHeapData<'a>) -> BuiltinFunction<'a> {
         self.builtin_functions.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<BuiltinFunctionHeapData<'static>>>();
-        BuiltinFunctionIndex::last(&self.builtin_functions).into()
+        BuiltinFunction(BaseIndex::last(&self.builtin_functions))
     }
 }
 

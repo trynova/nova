@@ -63,6 +63,7 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
 /// Iterator objects. Instead, RegExp String Iterator objects are created by
 /// calling certain methods of RegExp instance objects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct RegExpStringIterator<'a>(BaseIndex<'a, RegExpStringIteratorRecord<'static>>);
 bindable_handle!(RegExpStringIterator);
 
@@ -208,7 +209,7 @@ bindable_handle!(RegExpStringIteratorRecord);
 impl<'a> CreateHeapData<RegExpStringIteratorRecord<'a>, RegExpStringIterator<'a>> for Heap {
     fn create(&mut self, data: RegExpStringIteratorRecord<'a>) -> RegExpStringIterator<'a> {
         self.regexp_string_iterators.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<Option<RegExpStringIteratorRecord<'static>>>();
+        self.alloc_counter += core::mem::size_of::<RegExpStringIteratorRecord<'static>>();
         RegExpStringIterator(BaseIndex::<RegExpStringIteratorRecord>::last_t(
             &self.regexp_string_iterators,
         ))

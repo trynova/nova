@@ -488,7 +488,7 @@ impl NumberPrototype {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.number_prototype();
-        let this_base_object = intrinsics.number_prototype_base_object().into();
+        let this_base_object = intrinsics.number_prototype_backing_object();
         let number_constructor = intrinsics.number();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)

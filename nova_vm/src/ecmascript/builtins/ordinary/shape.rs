@@ -15,8 +15,7 @@ use crate::{
         },
         types::{
             BigInt, InternalMethods, InternalSlots, IntoObject, NoCache, Number, Numeric, Object,
-            OrdinaryObject, Primitive, PropertyKey, SetCachedProps, SetResult, String, Symbol,
-            TryGetResult, Value,
+            Primitive, PropertyKey, SetCachedProps, SetResult, String, Symbol, TryGetResult, Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope},
@@ -24,7 +23,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays},
-        indexes::{ObjectIndex, PropertyKeyIndex},
+        indexes::{BaseIndex, PropertyKeyIndex},
     },
 };
 
@@ -822,10 +821,10 @@ impl<'a> ObjectShapeRecord<'a> {
     /// > intrinsic. This should only be used in static initialisation of the
     /// > heap.
     pub(crate) const BASE: Self = Self {
-        prototype: Some(Object::Object(OrdinaryObject::new(
-            IntrinsicObjectIndexes::ObjectPrototype.get_object_index(ObjectIndex::from_index(0)),
-        ))),
-        keys: PropertyKeyIndex::from_index(0),
+        prototype: Some(Object::Object(
+            IntrinsicObjectIndexes::ObjectPrototype.get_backing_object(BaseIndex::from_index(0)),
+        )),
+        keys: BaseIndex::from_index(0),
         cap: ElementArrayKey::Empty,
         len: 0,
     };

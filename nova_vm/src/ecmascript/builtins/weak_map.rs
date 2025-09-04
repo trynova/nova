@@ -16,7 +16,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, WeakMapIndex},
+        indexes::BaseIndex,
     },
 };
 
@@ -26,7 +26,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct WeakMap<'a>(pub(crate) WeakMapIndex<'a>);
+pub struct WeakMap<'a>(BaseIndex<'a, WeakMapHeapData<'static>>);
 
 impl WeakMap<'_> {
     pub(crate) const fn _def() -> Self {
@@ -136,7 +136,7 @@ impl<'a> CreateHeapData<WeakMapHeapData<'a>, WeakMap<'a>> for Heap {
     fn create(&mut self, data: WeakMapHeapData<'a>) -> WeakMap<'a> {
         self.weak_maps.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<WeakMapHeapData<'static>>>();
-        WeakMap(WeakMapIndex::last(&self.weak_maps))
+        WeakMap(BaseIndex::last(&self.weak_maps))
     }
 }
 

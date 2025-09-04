@@ -95,6 +95,7 @@ macro_rules! create_environment_index {
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        #[repr(transparent)]
         pub struct $index<'a>(NonZeroU32, PhantomData<$record>, PhantomData<&'a GcToken>);
 
         impl core::fmt::Debug for $index<'_> {

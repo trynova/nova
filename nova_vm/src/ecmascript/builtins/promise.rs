@@ -18,8 +18,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, PromiseIndex},
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -31,7 +30,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Promise<'a>(pub(crate) PromiseIndex<'a>);
+pub struct Promise<'a>(BaseIndex<'a, PromiseHeapData<'static>>);
 
 impl<'a> Promise<'a> {
     pub(crate) const fn _def() -> Self {
@@ -163,7 +162,7 @@ impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
     fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
         self.promises.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<PromiseHeapData<'static>>>();
-        Promise(PromiseIndex::last(&self.promises))
+        Promise(BaseIndex::last(&self.promises))
     }
 }
 

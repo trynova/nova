@@ -16,7 +16,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, WeakSetIndex},
+        indexes::BaseIndex,
     },
 };
 
@@ -28,7 +28,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct WeakSet<'a>(pub(crate) WeakSetIndex<'a>);
+pub struct WeakSet<'a>(BaseIndex<'a, WeakSetHeapData<'static>>);
 
 impl WeakSet<'_> {
     pub(crate) const fn _def() -> Self {
@@ -162,7 +162,7 @@ impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
     fn create(&mut self, data: WeakSetHeapData<'a>) -> WeakSet<'a> {
         self.weak_sets.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<WeakSetHeapData<'static>>>();
-        WeakSet(WeakSetIndex::last(&self.weak_sets))
+        WeakSet(BaseIndex::last(&self.weak_sets))
     }
 }
 

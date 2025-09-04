@@ -11,6 +11,7 @@ use wtf8::{CodePoint, Wtf8};
 const MAX_LEN: usize = 7;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct SmallString {
     /// The string will be padded to 7 bytes with the 0xFF byte, which is never
     /// contained in valid UTF-8 or WTF-8.

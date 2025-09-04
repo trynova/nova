@@ -42,12 +42,13 @@ use crate::{
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
-        indexes::ArrayIndex,
+        indexes::BaseIndex,
     },
 };
 
 use ahash::AHashMap;
 pub use data::ArrayHeapData;
+use data::{ArrayHeapDataMut, ArrayHeapDataRef};
 use soavec::SoAVec;
 
 use super::ordinary::{
@@ -56,7 +57,8 @@ use super::ordinary::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Array<'a>(ArrayIndex<'a>);
+#[repr(transparent)]
+pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
@@ -70,6 +72,18 @@ impl<'a> Array<'a> {
                 elements: ElementsVector::EMPTY,
             })
             .bind(gc)
+    }
+
+    /// Get a reference to the next Array that will be allocated.
+    ///
+    /// # Safety
+    ///
+    /// You should not use this unless you're about to allocate the next Array
+    /// very soon but need to generate references to it ahead of time.
+    /// Effectively, this is only useful in Realm creation for getting the
+    /// `%Array.prototype%` intrinsic.
+    pub(crate) unsafe fn next_array(agent: &Agent) -> Self {
+        Array(BaseIndex::from_u32_index(agent.heap.arrays.len()))
     }
 
     /// Allocate a new Array in the Agent heap with 0 capacity.
@@ -97,8 +111,13 @@ impl<'a> Array<'a> {
     /// > populated using code such as `! CreateDataPropertyOrThrow(A, "0", S)`,
     /// > ie. when the operation is known to be infallible.
     pub fn push(self, agent: &mut Agent, value: Value<'a>) -> Result<(), TryReserveError> {
-        let (elements, _) = agent.heap.arrays.get_mut(self.0.into_u32_index()).unwrap();
-        elements.push(&mut agent.heap.elements, Some(value), None)
+        agent
+            .heap
+            .arrays
+            .get_mut(self.0.into_u32_index())
+            .unwrap()
+            .elements
+            .push(&mut agent.heap.elements, Some(value), None)
     }
 
     pub fn reserve(self, agent: &mut Agent, additional: u32) -> Result<(), TryReserveError> {
@@ -112,26 +131,23 @@ impl<'a> Array<'a> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
-        Self(ArrayIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
-    pub(crate) fn get(
+    pub(crate) fn get<'agent>(
         self,
-        agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>,
-    ) -> (&ElementsVector<'a>, &Option<OrdinaryObject<'a>>) {
+        agent: &'agent impl AsRef<SoAVec<ArrayHeapData<'static>>>,
+    ) -> ArrayHeapDataRef<'agent, 'a> {
         agent
             .as_ref()
             .get(self.0.into_u32_index())
             .expect("Invalid Array reference")
     }
 
-    pub(crate) fn get_mut(
+    pub(crate) fn get_mut<'agent>(
         self,
-        agent: &mut impl AsMut<SoAVec<ArrayHeapData<'static>>>,
-    ) -> (
-        &mut ElementsVector<'static>,
-        &mut Option<OrdinaryObject<'static>>,
-    ) {
+        agent: &'agent mut impl AsMut<SoAVec<ArrayHeapData<'static>>>,
+    ) -> ArrayHeapDataMut<'agent, 'static> {
         agent
             .as_mut()
             .get_mut(self.0.into_u32_index())
@@ -146,7 +162,7 @@ impl<'a> Array<'a> {
             .as_ref()
             .get(self.0.into_u32_index())
             .expect("Invalid Array reference")
-            .0
+            .elements
     }
 
     pub(crate) fn get_elements_mut(
@@ -157,7 +173,7 @@ impl<'a> Array<'a> {
             .as_mut()
             .get_mut(self.0.into_u32_index())
             .expect("Invalid Array reference")
-            .0
+            .elements
     }
 
     /// Creates a new array with the given elements.
@@ -353,12 +369,6 @@ unsafe impl Bindable for Array<'_> {
     }
 }
 
-impl<'a> From<ArrayIndex<'a>> for Array<'a> {
-    fn from(value: ArrayIndex<'a>) -> Self {
-        Array(value)
-    }
-}
-
 impl<'a> From<Array<'a>> for Object<'a> {
     fn from(value: Array) -> Self {
         Self::Array(value.unbind())
@@ -398,20 +408,23 @@ impl<'a> InternalSlots<'a> for Array<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).1.unbind()
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
-                .1
+                .object_index
                 .replace(backing_object.unbind())
                 .is_none()
         );
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        let (elems, backing_object) = self.get_mut(agent);
+        let ArrayHeapDataMut {
+            elements: elems,
+            object_index: backing_object,
+        } = self.get_mut(agent);
         elems.len_writable = value;
         if let Some(object_index) = backing_object {
             object_index.internal_set_extensible(agent, value)
@@ -541,7 +554,10 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     alloc_counter,
                     ..
                 } = &mut agent.heap;
-                let (elems, backing_object) = self.get_mut(arrays);
+                let ArrayHeapDataMut {
+                    elements: elems,
+                    object_index: backing_object,
+                } = self.get_mut(arrays);
                 if elems.reserve(elements, index + 1).is_err() {
                     return TryError::GcError.into();
                 }
@@ -961,7 +977,7 @@ impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Array");
         self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
-        Array::from(ArrayIndex::from_u32_index(i))
+        Array(BaseIndex::from_u32_index(i))
     }
 }
 

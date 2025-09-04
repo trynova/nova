@@ -22,6 +22,41 @@ pub struct ArrayHeapData<'a> {
 }
 bindable_handle!(ArrayHeapData);
 
+impl HeapMarkAndSweep for ArrayHeapDataRef<'_, 'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            elements,
+            object_index,
+        } = self;
+        elements.mark_values(queues);
+        object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, _: &CompactionLists) {
+        unreachable!()
+    }
+}
+
+impl HeapMarkAndSweep for ArrayHeapDataMut<'_, 'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            elements,
+            object_index,
+        } = self;
+        elements.mark_values(queues);
+        object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            elements,
+            object_index,
+        } = self;
+        elements.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+    }
+}
+
 impl HeapMarkAndSweep for ArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {

@@ -29,18 +29,19 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinConstructorIndex,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
 };
 
 use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
+#[repr(transparent)]
+pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorHeapData<'static>>);
 
 impl BuiltinConstructorFunction<'_> {
     pub(crate) const fn _def() -> Self {
-        Self(BuiltinConstructorIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -64,12 +65,6 @@ unsafe impl Bindable for BuiltinConstructorFunction<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> From<BuiltinConstructorIndex<'a>> for BuiltinConstructorFunction<'a> {
-    fn from(value: BuiltinConstructorIndex<'a>) -> Self {
-        Self(value)
     }
 }
 
@@ -408,7 +403,7 @@ impl<'a> CreateHeapData<BuiltinConstructorHeapData<'a>, BuiltinConstructorFuncti
         self.builtin_constructors.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<BuiltinConstructorHeapData<'static>>>();
 
-        BuiltinConstructorIndex::last(&self.builtin_constructors).into()
+        BuiltinConstructorFunction(BaseIndex::last(&self.builtin_constructors))
     }
 }
 

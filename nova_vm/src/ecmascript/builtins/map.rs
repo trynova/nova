@@ -16,7 +16,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, MapIndex},
+        indexes::BaseIndex,
     },
 };
 
@@ -25,7 +25,8 @@ use self::data::MapHeapData;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Map<'a>(pub(crate) MapIndex<'a>);
+#[repr(transparent)]
+pub struct Map<'a>(BaseIndex<'a, MapHeapData<'static>>);
 
 impl Map<'_> {
     pub(crate) const fn _def() -> Self {
@@ -172,6 +173,6 @@ impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
     fn create(&mut self, data: MapHeapData<'a>) -> Map<'a> {
         self.maps.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<MapHeapData<'static>>>();
-        Map(MapIndex::last(&self.maps))
+        Map(BaseIndex::last(&self.maps))
     }
 }

@@ -15,7 +15,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::DataViewIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -31,7 +31,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct DataView<'a>(pub(crate) DataViewIndex<'a>);
+pub struct DataView<'a>(BaseIndex<'a, DataViewHeapData<'static>>);
 
 impl<'a> DataView<'a> {
     #[inline]
@@ -62,7 +62,7 @@ impl<'a> DataView<'a> {
     }
 
     pub(crate) const fn _def() -> Self {
-        Self(DataViewIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -82,12 +82,6 @@ unsafe impl Bindable for DataView<'_> {
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<'a> From<DataViewIndex<'a>> for DataView<'a> {
-    fn from(value: DataViewIndex<'a>) -> Self {
-        Self(value)
     }
 }
 
@@ -190,7 +184,7 @@ impl<'a> CreateHeapData<DataViewHeapData<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewHeapData<'a>) -> DataView<'a> {
         self.data_views.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<DataViewHeapData<'static>>>();
-        DataView::from(DataViewIndex::last(&self.data_views))
+        DataView(BaseIndex::last(&self.data_views))
     }
 }
 

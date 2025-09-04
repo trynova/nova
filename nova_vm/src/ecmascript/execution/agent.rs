@@ -573,7 +573,6 @@ impl GcAgent {
 }
 
 /// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
-#[derive(Debug)]
 pub struct Agent {
     pub(crate) heap: Heap,
     pub(crate) options: Options,

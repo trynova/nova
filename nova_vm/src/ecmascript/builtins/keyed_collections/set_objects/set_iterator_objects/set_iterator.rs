@@ -19,18 +19,19 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::SetIteratorIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SetIterator<'a>(SetIteratorIndex<'a>);
+#[repr(transparent)]
+pub struct SetIterator<'a>(BaseIndex<'a, SetIteratorHeapData<'static>>);
 
 impl SetIterator<'_> {
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
-        Self(SetIteratorIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -167,7 +168,7 @@ impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
     fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
         self.set_iterators.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<SetIteratorHeapData<'static>>>();
-        SetIterator(SetIteratorIndex::last(&self.set_iterators))
+        SetIterator(BaseIndex::last(&self.set_iterators))
     }
 }
 

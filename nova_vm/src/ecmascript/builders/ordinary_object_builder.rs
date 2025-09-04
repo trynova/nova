@@ -18,7 +18,6 @@ use crate::{
     heap::{
         CreateHeapData,
         element_array::{ElementDescriptor, ElementsVector},
-        indexes::ObjectIndex,
     },
 };
 
@@ -57,8 +56,7 @@ pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     #[must_use]
     pub fn new(agent: &'agent mut Agent, realm: Realm<'static>) -> Self {
-        agent.heap.objects.push(None);
-        let this = ObjectIndex::last(&agent.heap.objects).into();
+        let this = OrdinaryObject::new_uninitialised(agent);
         Self {
             agent,
             this,

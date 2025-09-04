@@ -28,14 +28,15 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
-        indexes::{AsyncGeneratorIndex, BaseIndex},
+        indexes::BaseIndex,
     },
 };
 
 use super::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AsyncGenerator<'a>(pub(crate) AsyncGeneratorIndex<'a>);
+#[repr(transparent)]
+pub struct AsyncGenerator<'a>(BaseIndex<'a, AsyncGeneratorHeapData<'static>>);
 
 impl AsyncGenerator<'_> {
     pub(crate) const fn _def() -> Self {
@@ -417,7 +418,7 @@ impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap
     fn create(&mut self, data: AsyncGeneratorHeapData<'a>) -> AsyncGenerator<'a> {
         self.async_generators.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<AsyncGeneratorHeapData<'static>>>();
-        AsyncGenerator(AsyncGeneratorIndex::last(&self.async_generators))
+        AsyncGenerator(BaseIndex::last(&self.async_generators))
     }
 }
 

@@ -4115,7 +4115,7 @@ impl ArrayPrototype {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.array_prototype();
-        let this_base_object = intrinsics.array_prototype_base_object();
+        let this_base_object = intrinsics.array_prototype_backing_object();
         let array_constructor = intrinsics.array();
         let array_prototype_values = intrinsics.array_prototype_values();
 
@@ -4209,15 +4209,15 @@ impl ArrayPrototype {
             })
             .build();
 
-        let (elements, backing_object) = this.get_mut(agent);
-        *backing_object = Some(this_base_object);
+        let data = this.get_mut(agent);
+        *data.object_index = Some(this_base_object);
         // has a "length" property whose initial value is +0𝔽 and whose
         // attributes are { [[Writable]]: true, [[Enumerable]]: false,
         // [[Configurable]]: false }.
-        debug_assert_eq!(elements.elements_index.into_u32_index(), 0);
-        debug_assert_eq!(elements.cap.cap(), 0);
-        debug_assert_eq!(elements.len, 0);
-        debug_assert!(elements.len_writable);
+        debug_assert_eq!(data.elements.elements_index.into_u32_index(), 0);
+        debug_assert_eq!(data.elements.cap.cap(), 0);
+        debug_assert_eq!(data.elements.len, 0);
+        debug_assert!(data.elements.len_writable);
     }
 }
 

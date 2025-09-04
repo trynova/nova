@@ -63,7 +63,7 @@ impl BooleanPrototype {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.boolean_prototype();
-        let this_base_object = intrinsics.boolean_prototype_base_object().into();
+        let this_base_object = intrinsics.boolean_prototype_backing_object();
         let boolean_constructor = intrinsics.boolean();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)

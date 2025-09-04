@@ -46,6 +46,7 @@ pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
     BaseIndex<'a, PromiseResolvingFunctionHeapData<'static>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
 
 impl BuiltinPromiseResolvingFunction<'_> {

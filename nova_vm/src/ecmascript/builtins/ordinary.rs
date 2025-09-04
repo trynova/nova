@@ -29,10 +29,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{
-        HeapSweepWeakReference,
-        element_array::{ElementStorageRef, PropertyStorageMut, PropertyStorageRef},
-    },
+    heap::element_array::{ElementStorageRef, PropertyStorageMut, PropertyStorageRef},
 };
 use crate::{
     ecmascript::{
@@ -48,7 +45,7 @@ use crate::{
             String, Symbol, Value,
         },
     },
-    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
 
 #[cfg(feature = "date")]
@@ -2105,22 +2102,6 @@ pub(crate) fn set_immutable_prototype(
     // 2. If SameValue(V, current) is true, return true.
     // 3. Return false.
     v == current
-}
-
-impl HeapMarkAndSweep for OrdinaryObject<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.objects.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.objects.shift_index(&mut self.0);
-    }
-}
-
-impl HeapSweepWeakReference for OrdinaryObject<'static> {
-    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
-        compactions.objects.shift_weak_index(self.0).map(Self)
-    }
 }
 
 /// Fast path try-function for getting a Value from an OrdinaryObject.

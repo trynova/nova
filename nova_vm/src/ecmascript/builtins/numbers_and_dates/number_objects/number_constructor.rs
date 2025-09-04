@@ -252,7 +252,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.max_safe_integer
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_SAFE_INTEGER.into())
-                    .with_value_readonly(Number::try_from(SmallInteger::MAX).unwrap().into())
+                    .with_value_readonly(Number::try_from(SmallInteger::MAX).unwrap().into_value())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -262,7 +262,9 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.max_value
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_VALUE.into())
-                    .with_value_creator_readonly(|agent| agent.heap.create(f64::MAX).into())
+                    .with_value_creator_readonly(|agent| {
+                        Number::from_f64(agent, f64::MAX, gc).into_value().unbind()
+                    })
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -272,7 +274,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.min_safe_integer
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MIN_SAFE_INTEGER.into())
-                    .with_value_readonly(Number::try_from(SmallInteger::MIN).unwrap().into())
+                    .with_value_readonly(Number::try_from(SmallInteger::MIN).unwrap().into_value())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -283,7 +285,7 @@ impl NumberConstructor {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MIN_VALUE.into())
                     .with_value_creator_readonly(|agent| {
-                        agent.heap.create(f64::MIN_POSITIVE).into()
+                        agent.heap.create(f64::MIN_POSITIVE).into_value()
                     })
                     .with_configurable(false)
                     .with_enumerable(false)
@@ -294,7 +296,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.nan
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.NaN.into())
-                    .with_value_readonly(Number::nan().into())
+                    .with_value_readonly(Number::nan().into_value())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -304,7 +306,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.negative_infinity
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.NEGATIVE_INFINITY.into())
-                    .with_value_readonly(Number::neg_inf().into())
+                    .with_value_readonly(Number::neg_inf().into_value())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -330,7 +332,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.positive_infinity
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.POSITIVE_INFINITY.into())
-                    .with_value_readonly(Number::pos_inf().into())
+                    .with_value_readonly(Number::pos_inf().into_value())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()

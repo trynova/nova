@@ -42,7 +42,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::ECMAScriptFunctionIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -52,19 +52,8 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ECMAScriptFunction<'a>(ECMAScriptFunctionIndex<'a>);
-
-impl<'a> From<ECMAScriptFunction<'a>> for ECMAScriptFunctionIndex<'a> {
-    fn from(val: ECMAScriptFunction<'a>) -> Self {
-        val.0
-    }
-}
-
-impl<'a> From<ECMAScriptFunctionIndex<'a>> for ECMAScriptFunction<'a> {
-    fn from(value: ECMAScriptFunctionIndex<'a>) -> Self {
-        Self(value)
-    }
-}
+#[repr(transparent)]
+pub struct ECMAScriptFunction<'a>(BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>);
 
 impl<'a> TryFrom<Value<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
@@ -262,7 +251,7 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData<
 
 impl<'a> ECMAScriptFunction<'a> {
     pub(crate) const fn _def() -> Self {
-        ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
+        ECMAScriptFunction(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -1180,7 +1169,7 @@ impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> 
         self.ecmascript_functions.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ECMAScriptFunctionHeapData<'static>>>();
 
-        ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
+        ECMAScriptFunction(BaseIndex::last(&self.ecmascript_functions))
     }
 }
 

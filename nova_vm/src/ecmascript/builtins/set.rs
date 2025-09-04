@@ -16,7 +16,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, SetIndex},
+        indexes::BaseIndex,
     },
 };
 
@@ -26,7 +26,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Set<'a>(pub(crate) SetIndex<'a>);
+pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);
 
 impl Set<'_> {
     pub(crate) const fn _def() -> Self {
@@ -176,6 +176,6 @@ impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
         self.sets.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<SetHeapData<'static>>>();
-        Set(SetIndex::last(&self.sets))
+        Set(BaseIndex::last(&self.sets))
     }
 }

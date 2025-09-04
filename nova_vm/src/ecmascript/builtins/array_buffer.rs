@@ -17,7 +17,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::ArrayBufferIndex,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -31,7 +31,7 @@ pub use data::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ArrayBuffer<'a>(ArrayBufferIndex<'a>);
+pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
 
 impl ArrayBuffer<'_> {
     #[inline]
@@ -144,7 +144,7 @@ impl ArrayBuffer<'_> {
     }
 
     pub(crate) const fn _def() -> Self {
-        Self(ArrayBufferIndex::from_u32_index(0))
+        Self(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -175,12 +175,6 @@ impl<'a> TryFrom<Value<'a>> for ArrayBuffer<'a> {
             Value::ArrayBuffer(base_index) => Ok(base_index),
             _ => Err(()),
         }
-    }
-}
-
-impl<'a> From<ArrayBufferIndex<'a>> for ArrayBuffer<'a> {
-    fn from(value: ArrayBufferIndex<'a>) -> Self {
-        ArrayBuffer(value)
     }
 }
 
@@ -293,6 +287,6 @@ impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
         self.array_buffers.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ArrayBufferHeapData<'static>>>();
-        ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
+        ArrayBuffer(BaseIndex::last(&self.array_buffers))
     }
 }

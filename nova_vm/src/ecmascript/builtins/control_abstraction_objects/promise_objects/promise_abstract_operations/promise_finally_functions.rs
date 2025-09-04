@@ -56,6 +56,7 @@ pub(crate) type BuiltinPromiseFinallyFunctionIndex<'a> =
     BaseIndex<'a, PromiseFinallyFunctionHeapData<'static>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct BuiltinPromiseFinallyFunction<'a>(pub(crate) BuiltinPromiseFinallyFunctionIndex<'a>);
 bindable_handle!(BuiltinPromiseFinallyFunction);
 

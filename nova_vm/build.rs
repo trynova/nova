@@ -75,7 +75,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
             output.push_str("\") }),\n");
         } else {
             output.push_str(
-                ": crate::ecmascript::types::String::String(HeapString(StringIndex::from_index(",
+                ": crate::ecmascript::types::String::String(HeapString(BaseIndex::from_index(",
             );
             output.push_str(&i.to_string());
             output.push_str("))),\n");
