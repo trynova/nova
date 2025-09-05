@@ -4,11 +4,11 @@
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value},
     },
     engine::{
-        context::{Bindable, bindable_handle},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -51,6 +51,40 @@ impl<'sab> SharedArrayBuffer<'sab> {
             .shared_array_buffers
             .get_mut(self.get_index())
             .expect("Invalid SharedArrayBuffer")
+    }
+
+    pub fn grow<'gc>(
+        self,
+        agent: &mut Agent,
+        new_byte_length: u64,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()> {
+        let data_block = &self.get(agent).data_block;
+        let max_byte_length = data_block.max_byte_length();
+        if new_byte_length > max_byte_length as u64 {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Attempted to resize beyond SharedArrayBuffer maxByteLength",
+                gc,
+            ));
+        }
+        if max_byte_length == 0 {
+            // dangling.
+            return Ok(());
+        }
+        // Note: new_byte_length is less or equal to max_byte_length which is
+        // a usize.
+        let new_byte_length = new_byte_length as usize;
+        if unsafe { data_block.grow(new_byte_length) } {
+            // Success
+            Ok(())
+        } else {
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Attempted to shrink SharedArrayBuffer",
+                gc,
+            ))
+        }
     }
 
     /// Returns true if the SharedArrayBuffer is growable.

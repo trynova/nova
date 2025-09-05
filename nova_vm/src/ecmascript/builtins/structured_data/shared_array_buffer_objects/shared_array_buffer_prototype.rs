@@ -4,15 +4,22 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::{to_index, try_to_index},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter,
             shared_array_buffer::SharedArrayBuffer,
         },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        execution::{
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, GrowSharedArrayBufferResult, try_result_into_js},
+        },
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
     heap::WellKnownSymbolIndexes,
 };
 
@@ -82,13 +89,65 @@ impl SharedArrayBufferPrototype {
         Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
 
+    /// ### [25.2.5.3 SharedArrayBuffer.prototype.grow ( newLength )](https://tc39.es/ecma262/#sec-sharedarraybuffer.prototype.grow)
     fn grow<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("SharedArrayBuffer.prototype.grow", gc.into_nogc()))
+        let this_value = this_value.bind(gc.nogc());
+        let args = args.bind(gc.nogc());
+        let new_length = args.get(0);
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
+        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        let mut o = require_internal_slot_shared_array_buffer(agent, o, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        if !o.is_growable(agent) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected this to be growable SharedArrayBuffer",
+                gc.into_nogc(),
+            ));
+        }
+        // 4. Let newByteLength be ? ToIndex(newLength).
+        let new_byte_length = if let Some(n) =
+            try_result_into_js(try_to_index(agent, new_length, gc.nogc()))
+                .unbind()?
+                .bind(gc.nogc())
+        {
+            n as u64
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let n = to_index(agent, new_length.unbind(), gc.reborrow()).unbind()?;
+            o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
+            n as u64
+        };
+        let o = o.unbind();
+        let gc = gc.into_nogc();
+        let o = o.bind(gc);
+        // 5. Let hostHandled be ? HostGrowSharedArrayBuffer(O, newByteLength).
+        let host_handled =
+            agent
+                .host_hooks
+                .grow_shared_array_buffer(agent, o, new_byte_length, gc)?;
+        // 6. If hostHandled is handled, return undefined.
+        if host_handled == GrowSharedArrayBufferResult::Handled {
+            return Ok(Value::Undefined);
+        }
+        // 11. Repeat,
+        // a. NOTE: This is a compare-and-exchange loop to ensure that
+        //    parallel, racing grows of the same buffer are totally ordered,
+        //    are not lost, and do not silently do nothing. The loop exits if
+        //    it was able to attempt to grow uncontended.
+        // c. If newByteLength = currentByteLength, return undefined.
+        // d. If newByteLength < currentByteLength or
+        //    newByteLength > O.[[ArrayBufferMaxByteLength]], throw a
+        //    RangeError exception.
+        o.grow(agent, new_byte_length, gc).map(|_| Value::Undefined)
     }
 
     /// ### [25.2.5.4 get SharedArrayBuffer.prototype.growable](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.growable)

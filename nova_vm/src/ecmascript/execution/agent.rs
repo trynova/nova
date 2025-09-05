@@ -19,6 +19,7 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_jobs::{
                 PromiseReactionJob, PromiseResolveThenableJob,
             },
+            shared_array_buffer::SharedArrayBuffer,
         },
         execution::clear_kept_objects,
         scripts_and_modules::{
@@ -271,6 +272,13 @@ pub enum PromiseRejectionTrackerOperation {
     Handle,
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum GrowSharedArrayBufferResult {
+    #[default]
+    Unhandled = 0,
+    Handled = 1,
+}
+
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
     fn ensure_can_compile_strings<'a>(
@@ -418,6 +426,60 @@ pub trait HostHooks: core::fmt::Debug {
         module_record: SourceTextModule,
         gc: NoGcScope,
     ) {
+    }
+
+    /// ### [25.2.2.3 HostGrowSharedArrayBuffer ( buffer, newByteLength )](tc39.es/ecma262/#sec-hostgrowsharedarraybuffer)
+    ///
+    /// The host-defined abstract operation HostGrowSharedArrayBuffer takes
+    /// arguments `buffer` (a SharedArrayBuffer) and `newByteLength` (a
+    /// non-negative integer) and returns either a normal completion containing
+    /// either HANDLED or UNHANDLED, or a throw completion. It gives the host
+    /// an opportunity to perform implementation-defined growing of `buffer`.
+    /// If the host chooses not to handle growing of `buffer`, it may return
+    /// UNHANDLED for the default behaviour.
+    ///
+    /// The implementation of HostGrowSharedArrayBuffer must conform to the
+    /// following requirements:
+    ///
+    /// * If the abstract operation does not complete normally with UNHANDLED,
+    ///   and `newByteLength` < the current byte length of the `buffer` or
+    ///   `newByteLength` > `buffer.[[ArrayBufferMaxByteLength]]`, throw a
+    ///   RangeError exception.
+    /// * Let `isLittleEndian` be the value of the `[[LittleEndian]]` field of
+    ///   the surrounding agent's Agent Record. If the abstract operation
+    ///   completes normally with HANDLED, a WriteSharedMemory or
+    ///   ReadModifyWriteSharedMemory event whose `[[Order]]` is seq-cst,
+    ///   `[[Payload]]` is `NumericToRawBytes(biguint64, newByteLength, isLittleEndian)`,
+    ///   `[[Block]]` is `buffer.[[ArrayBufferByteLengthData]]`, `[[ByteIndex]]`
+    ///   is 0, and `[[ElementSize]]` is 8 is added to the surrounding agent's
+    ///   candidate execution such that racing calls to
+    ///   `SharedArrayBuffer.prototype.grow` are not "lost", i.e. silently do
+    ///   nothing.
+    ///
+    /// > NOTE: The second requirement above is intentionally vague about how
+    /// > or when the current byte length of buffer is read. Because the byte
+    /// > length must be updated via an atomic read-modify-write operation on
+    /// > the underlying hardware, architectures that use
+    /// > load-link/store-conditional or load-exclusive/store-exclusive
+    /// > instruction pairs may wish to keep the paired instructions close in
+    /// > the instruction stream. As such, `SharedArrayBuffer.prototype.grow`
+    /// > itself does not perform bounds checking on newByteLength before
+    /// > calling HostGrowSharedArrayBuffer, nor is there a requirement on when
+    /// > the current byte length is read.
+    /// >
+    /// > This is in contrast with HostResizeArrayBuffer, which is guaranteed
+    /// > that the value of `newByteLength` is `≥ 0` and
+    /// > `≤ buffer.[[ArrayBufferMaxByteLength]]`.
+    #[allow(unused_variables)]
+    #[inline(always)]
+    fn grow_shared_array_buffer<'gc>(
+        &self,
+        agent: &Agent,
+        buffer: SharedArrayBuffer,
+        new_byte_length: u64,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, GrowSharedArrayBufferResult> {
+        Ok(GrowSharedArrayBufferResult::Unhandled)
     }
 
     /// Get access to the Host data, useful to share state between calls of built-in functions.

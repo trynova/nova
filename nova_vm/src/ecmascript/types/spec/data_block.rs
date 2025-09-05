@@ -608,6 +608,16 @@ impl SharedDataBlock {
         unsafe { self.ptr.cast::<AtomicUsize>().sub(1).as_ref() }
     }
 
+    /// Get a reference to the atomic byte length.
+    ///
+    /// ## Safety
+    ///
+    /// Must be a growable, non-dangling SharedDataBlock.
+    unsafe fn get_byte_length(&self) -> &AtomicUsize {
+        // SAFETY: caller guarantees growable; type guarantees layout.
+        unsafe { self.ptr.cast::<AtomicUsize>().sub(2).as_ref() }
+    }
+
     /// Returns the byte length of the SharedArrayBuffer.
     ///
     /// Note that if this is a growable SharedArrayBuffer, then the byte length
@@ -652,6 +662,56 @@ impl SharedDataBlock {
     #[inline(always)]
     pub(crate) fn is_growable(&self) -> bool {
         self.max_byte_length.is_growable()
+    }
+
+    /// Attempt to grow the SharedDataBlock. Returns false if `new_byte_length`
+    /// is or becomes less than the current byte length.
+    ///
+    /// Note that this is a synchronising compare-and-exchange loop.
+    ///
+    /// ## Safety
+    ///
+    /// Must be a growable, non-dangling SharedDataBlock with a maximum byte
+    /// length greater or equal to `new_byte_length`.
+    pub(crate) unsafe fn grow(&self, new_byte_length: usize) -> bool {
+        // SAFETY: precondition.
+        let byte_length = unsafe {
+            assert_unchecked(self.is_growable());
+            assert_unchecked(!self.is_dangling());
+            assert_unchecked(new_byte_length <= self.max_byte_length());
+            self.get_byte_length()
+        };
+        // 9. Let currentByteLengthRawBytes be
+        //    GetRawBytesFromSharedBlock(byteLengthBlock, 0, biguint64, true, seq-cst).
+        let mut current_byte_length = byte_length.load(Ordering::SeqCst);
+        loop {
+            // c. If newByteLength = currentByteLength,
+            if new_byte_length == current_byte_length {
+                // return undefined.
+                return true;
+            }
+            // d. If newByteLength < currentByteLength or
+            //    newByteLength > O.[[ArrayBufferMaxByteLength]],
+            //    throw a RangeError exception.
+            if new_byte_length < current_byte_length {
+                return false;
+            }
+            // h. Let readByteLengthRawBytes be
+            //    AtomicCompareExchangeInSharedBlock(byteLengthBlock, 0, 8,
+            //    currentByteLengthRawBytes, newByteLengthRawBytes).
+            let Err(read_byte_length) = byte_length.compare_exchange(
+                current_byte_length,
+                new_byte_length,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) else {
+                // i. If ByteListEqual(readByteLengthRawBytes,
+                //    currentByteLengthRawBytes) is true, return undefined.
+                return true;
+            };
+            // j. Set currentByteLengthRawBytes to readByteLengthRawBytes.
+            current_byte_length = read_byte_length
+        }
     }
 }
 
