@@ -26,7 +26,7 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
@@ -163,20 +163,7 @@ impl PrimitiveObject<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PrimitiveObject<'_> {
-    type Of<'a> = PrimitiveObject<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PrimitiveObject);
 
 impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
@@ -729,20 +716,7 @@ impl Rootable for PrimitiveObject<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PrimitiveObjectHeapData<'_> {
-    type Of<'a> = PrimitiveObjectHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PrimitiveObjectHeapData);
 
 impl HeapMarkAndSweep for PrimitiveObjectHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

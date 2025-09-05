@@ -41,7 +41,7 @@ use crate::{
     },
     engine::{
         Scoped, ScopedCollection,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::CreateHeapData,
@@ -151,20 +151,7 @@ pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
     pub cached_buffer_byte_length: CachedBufferByteLength,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for TypedArrayWithBufferWitnessRecords<'_> {
-    type Of<'a> = TypedArrayWithBufferWitnessRecords<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(TypedArrayWithBufferWitnessRecords);
 
 /// ### [10.4.5.9 MakeTypedArrayWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-maketypedarraywithbufferwitnessrecord)
 ///
@@ -174,7 +161,7 @@ unsafe impl Bindable for TypedArrayWithBufferWitnessRecords<'_> {
 pub(crate) fn make_typed_array_with_buffer_witness_record<'a>(
     agent: &Agent,
     obj: TypedArray,
-    order: Ordering,
+    _order: Ordering,
     gc: NoGcScope<'a, '_>,
 ) -> TypedArrayWithBufferWitnessRecords<'a> {
     // 1. Let buffer be obj.[[ViewedArrayBuffer]].
@@ -187,7 +174,7 @@ pub(crate) fn make_typed_array_with_buffer_witness_record<'a>(
     } else {
         // 3. Else,
         // a. Let byteLength be ArrayBufferByteLength(buffer, order).
-        CachedBufferByteLength::value(array_buffer_byte_length(agent, buffer, order))
+        CachedBufferByteLength::value(array_buffer_byte_length(agent, buffer))
     };
 
     // 4. Return the TypedArray With Buffer Witness Record { [[Object]]: obj, [[CachedBufferByteLength]]: byteLength }.
@@ -943,7 +930,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
     }
 
     // 7. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
-    let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst);
+    let buffer_byte_length = array_buffer_byte_length(agent, buffer);
 
     let o = scoped_o.get(agent).bind(gc.nogc());
     let o_heap_data = &mut agent[o];

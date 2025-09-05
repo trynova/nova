@@ -10,7 +10,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, DataBlock, Function, IntoFunction, Number, Numeric, Object,
-            Value, Viewable,
+            Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
@@ -73,7 +73,7 @@ pub(crate) fn allocate_array_buffer<'a>(
             gc,
         ));
     }
-    let block = DataBlock::create_byte_data_block(agent, byte_length, gc)?;
+    let block = create_byte_data_block(agent, byte_length, gc)?;
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
     let obj = if allocating_resizable_buffer {
@@ -90,11 +90,7 @@ pub(crate) fn allocate_array_buffer<'a>(
 /// The abstract operation ArrayBufferByteLength takes arguments arrayBuffer
 /// (an ArrayBuffer or SharedArrayBuffer) and order (SEQ-CST or UNORDERED)
 /// and returns a non-negative integer.
-pub(crate) fn array_buffer_byte_length(
-    agent: &Agent,
-    array_buffer: ArrayBuffer,
-    _order: Ordering,
-) -> usize {
+pub(crate) fn array_buffer_byte_length(agent: &Agent, array_buffer: ArrayBuffer) -> usize {
     let array_buffer = &agent[array_buffer];
     // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
     // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
@@ -193,7 +189,7 @@ pub(crate) fn clone_array_buffer<'a>(
     // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
     let target_block = target_buffer_data.get_data_block_mut();
     // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
-    target_block.copy_data_block_bytes(0, src_block, src_byte_offset, src_length);
+    copy_data_block_bytes(target_block, 0, src_block, src_byte_offset, src_length);
     // 6. Return targetBuffer.
     Ok(target_buffer)
 }

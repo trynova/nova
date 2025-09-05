@@ -22,7 +22,7 @@ use crate::{
         types::{HeapString, String},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -355,20 +355,7 @@ impl Index<SourceCode<'_>> for Agent {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SourceCode<'_> {
-    type Of<'a> = SourceCode<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(SourceCode);
 
 impl Rootable for SourceCode<'_> {
     type RootRepr = HeapRootRef;
@@ -401,20 +388,7 @@ impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SourceCodeHeapData<'_> {
-    type Of<'a> = SourceCodeHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(SourceCodeHeapData);
 
 impl HeapMarkAndSweep for SourceCodeHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

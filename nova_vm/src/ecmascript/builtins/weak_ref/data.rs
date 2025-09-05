@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{execution::WeakKey, types::OrdinaryObject},
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -27,20 +27,7 @@ impl WeakRefHeapData<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for WeakRefHeapData<'_> {
-    type Of<'a> = WeakRefHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(WeakRefHeapData);
 
 impl HeapMarkAndSweep for WeakRefHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

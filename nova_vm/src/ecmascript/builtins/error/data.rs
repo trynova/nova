@@ -7,7 +7,7 @@ use crate::{
         execution::agent::ExceptionType,
         types::{OrdinaryObject, String, Value},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -35,20 +35,7 @@ impl<'a> ErrorHeapData<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ErrorHeapData<'_> {
-    type Of<'a> = ErrorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ErrorHeapData);
 
 impl HeapMarkAndSweep for ErrorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

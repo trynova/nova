@@ -71,7 +71,7 @@ use crate::{
             instructions::Instr,
             iterator::{ObjectPropertiesIteratorRecord, VmIteratorRecord},
         },
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, ObjectEntry, WellKnownSymbolIndexes, WorkQueues},
@@ -106,42 +106,7 @@ impl<'a> ExecutionResult<'a> {
     }
 }
 
-// SAFETY: Property implemented as a recursive bind.
-unsafe impl Bindable for ExecutionResult<'_> {
-    type Of<'a> = ExecutionResult<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        match self {
-            Self::Return(value) => ExecutionResult::Return(value.unbind()),
-            Self::Throw(js_error) => ExecutionResult::Throw(js_error.unbind()),
-            Self::Await { vm, awaited_value } => ExecutionResult::Await {
-                vm,
-                awaited_value: awaited_value.unbind(),
-            },
-            Self::Yield { vm, yielded_value } => ExecutionResult::Yield {
-                vm,
-                yielded_value: yielded_value.unbind(),
-            },
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        match self {
-            Self::Return(value) => ExecutionResult::Return(value.bind(gc)),
-            Self::Throw(js_error) => ExecutionResult::Throw(js_error.bind(gc)),
-            Self::Await { vm, awaited_value } => ExecutionResult::Await {
-                vm,
-                awaited_value: awaited_value.bind(gc),
-            },
-            Self::Yield { vm, yielded_value } => ExecutionResult::Yield {
-                vm,
-                yielded_value: yielded_value.bind(gc),
-            },
-        }
-    }
-}
+bindable_handle!(ExecutionResult);
 
 /// Indicates how the execution of an instruction should affect the remainder of
 /// execution that contains it.

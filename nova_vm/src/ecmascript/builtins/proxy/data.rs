@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::types::Object,
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -23,20 +23,7 @@ pub enum ProxyHeapData<'a> {
     Revoked,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ProxyHeapData<'_> {
-    type Of<'a> = ProxyHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ProxyHeapData);
 
 impl HeapMarkAndSweep for ProxyHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

@@ -7,7 +7,7 @@ use crate::{
         scripts_and_modules::module::module_semantics::abstract_module_records::AbstractModule,
         types::String,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, bindable_handle},
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -28,20 +28,7 @@ impl<'a> CreateHeapData<ModuleHeapData<'a>, Module<'a>> for Heap {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ModuleHeapData<'_> {
-    type Of<'a> = ModuleHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ModuleHeapData);
 
 impl HeapMarkAndSweep for ModuleHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

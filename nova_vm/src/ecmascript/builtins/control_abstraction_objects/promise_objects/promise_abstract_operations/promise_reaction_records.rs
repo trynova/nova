@@ -18,7 +18,7 @@ use crate::{
         types::{Function, Object},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -175,19 +175,7 @@ impl IndexMut<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord<'static>
     }
 }
 
-unsafe impl Bindable for PromiseReaction<'_> {
-    type Of<'a> = PromiseReaction<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseReaction);
 
 impl HeapMarkAndSweep for PromiseReaction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -225,20 +213,7 @@ impl Rootable for PromiseReaction<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PromiseReactionRecord<'_> {
-    type Of<'a> = PromiseReactionRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseReactionRecord);
 
 impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

@@ -11,7 +11,7 @@ use crate::{
     ecmascript::scripts_and_modules::module::module_semantics::source_text_module_records::SourceTextModule,
     engine::{
         Executable,
-        context::{Bindable, GcScope, GcToken, NoGcScope},
+        context::{Bindable, GcScope, GcToken, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
 };
@@ -208,20 +208,7 @@ impl Rootable for AwaitReaction<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for AwaitReaction<'_> {
-    type Of<'a> = AwaitReaction<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AwaitReaction);
 
 impl HeapMarkAndSweep for AwaitReaction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -260,20 +247,7 @@ impl<'a> From<SourceTextModule<'a>> for AsyncExecutable<'a> {
     }
 }
 
-// SAFETY: properly implemented as a lifetime transmute.
-unsafe impl Bindable for AsyncExecutable<'_> {
-    type Of<'a> = AsyncExecutable<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AsyncExecutable);
 
 #[derive(Debug)]
 pub struct AwaitReactionRecord<'a> {
@@ -291,20 +265,7 @@ impl<'a> CreateHeapData<AwaitReactionRecord<'a>, AwaitReaction<'a>> for Heap {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for AwaitReactionRecord<'_> {
-    type Of<'a> = AwaitReactionRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AwaitReactionRecord);
 
 impl HeapMarkAndSweep for AsyncExecutable<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

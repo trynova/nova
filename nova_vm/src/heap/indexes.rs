@@ -9,7 +9,7 @@ use crate::{
         builtins::embedder_object::data::EmbedderObjectHeapData,
         types::{PropertyKey, Value},
     },
-    engine::context::{Bindable, GcToken, NoGcScope},
+    engine::context::{GcToken, bindable_handle},
 };
 use core::fmt::Debug;
 use core::{
@@ -181,20 +181,7 @@ pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
 #[cfg(feature = "array-buffer")]
 pub type TypedArrayIndex<'a> = BaseIndex<'a, TypedArrayHeapData<'static>>;
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for TypedArrayIndex<'_> {
-    type Of<'a> = TypedArrayIndex<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(TypedArrayIndex);
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.
@@ -217,20 +204,7 @@ impl ElementIndex<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ElementIndex<'_> {
-    type Of<'a> = ElementIndex<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ElementIndex);
 
 impl<const N: usize> Index<ElementIndex<'_>> for Vec<Option<[Option<Value<'static>>; N]>> {
     type Output = [Option<Value<'static>>; N];
@@ -270,17 +244,4 @@ impl PropertyKeyIndex<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PropertyKeyIndex<'_> {
-    type Of<'a> = PropertyKeyIndex<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PropertyKeyIndex);

@@ -22,7 +22,7 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, GcToken, NoGcScope},
+        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -162,20 +162,7 @@ impl IndexMut<Realm<'_>> for Vec<Option<RealmRecord<'static>>> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Realm<'_> {
-    type Of<'a> = Realm<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Realm);
 
 impl Rootable for Realm<'_> {
     type RootRepr = HeapRootRef;
@@ -274,20 +261,7 @@ impl RealmRecord<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for RealmRecord<'_> {
-    type Of<'a> = RealmRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(RealmRecord);
 
 impl HeapMarkAndSweep for RealmRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

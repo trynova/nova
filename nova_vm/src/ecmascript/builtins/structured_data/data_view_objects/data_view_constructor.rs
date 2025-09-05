@@ -9,8 +9,8 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             array_buffer::{
-                Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
-                array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer,
+                ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset, array_buffer_byte_length,
+                is_detached_buffer, is_fixed_length_array_buffer,
             },
             data_view::DataView,
             ordinary::ordinary_create_from_constructor,
@@ -85,7 +85,7 @@ impl DataViewConstructor {
         }
 
         // 5. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst);
+        let buffer_byte_length = array_buffer_byte_length(agent, buffer);
 
         // 6. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
@@ -149,7 +149,7 @@ impl DataViewConstructor {
         }
 
         // 12. Set bufferByteLength to ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst);
+        let buffer_byte_length = array_buffer_byte_length(agent, buffer);
 
         // 13. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {

@@ -2,15 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -19,36 +17,124 @@ use crate::{
     },
 };
 
-use self::data::SharedArrayBufferHeapData;
+use self::data::SharedArrayBufferRecord;
 
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferHeapData<'static>>);
+pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
 
-impl SharedArrayBuffer<'_> {
+bindable_handle!(SharedArrayBuffer);
+
+impl<'sab> SharedArrayBuffer<'sab> {
+    /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
+    pub fn get_data_block(self, agent: &Agent) -> &SharedDataBlock {
+        &self.unbind().get(agent).data_block
+    }
+
+    /// Create a new SharedArrayBuffer from a SharedDataBlock.
+    pub fn new_from_data_block(
+        self,
+        agent: &mut Agent,
+        data_block: SharedDataBlock,
+        gc: NoGcScope<'sab, '_>,
+    ) -> Self {
+        agent
+            .heap
+            .create(SharedArrayBufferRecord {
+                backing_object: None,
+                data_block,
+            })
+            .bind(gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         SharedArrayBuffer(BaseIndex::from_u32_index(0))
     }
 
+    #[inline(always)]
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
-}
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SharedArrayBuffer<'_> {
-    type Of<'a> = SharedArrayBuffer<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    fn get(self, agent: &Agent) -> &SharedArrayBufferRecord<'sab> {
+        agent
+            .heap
+            .shared_array_buffers
+            .get(self.get_index())
+            .expect("Invalid SharedArrayBuffer")
     }
 
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    fn get_mut(self, agent: &mut Agent) -> &mut SharedArrayBufferRecord<'static> {
+        agent
+            .heap
+            .shared_array_buffers
+            .get_mut(self.get_index())
+            .expect("Invalid SharedArrayBuffer")
+    }
+
+    pub fn grow<'gc>(
+        self,
+        agent: &mut Agent,
+        new_byte_length: u64,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()> {
+        let data_block = &self.get(agent).data_block;
+        let max_byte_length = data_block.max_byte_length();
+        if new_byte_length > max_byte_length as u64 {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Attempted to resize beyond SharedArrayBuffer maxByteLength",
+                gc,
+            ));
+        }
+        if max_byte_length == 0 {
+            // dangling.
+            return Ok(());
+        }
+        // Note: new_byte_length is less or equal to max_byte_length which is
+        // a usize.
+        let new_byte_length = new_byte_length as usize;
+        if unsafe { data_block.grow(new_byte_length) } {
+            // Success
+            Ok(())
+        } else {
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Attempted to shrink SharedArrayBuffer",
+                gc,
+            ))
+        }
+    }
+
+    /// Returns true if the SharedArrayBuffer is growable.
+    pub fn is_growable(self, agent: &Agent) -> bool {
+        self.get(agent).data_block.is_growable()
+    }
+
+    /// Get the byte length of the SharedArrayBuffer.
+    ///
+    /// Note, if this is a growable SharedArrayBuffer then this is a
+    /// synchronising operation.
+    pub fn byte_length(self, agent: &Agent) -> usize {
+        self.get(agent).data_block.byte_length()
+    }
+
+    /// Get the maximum byte length of the SharedArrayBuffer.
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        self.get(agent).data_block.max_byte_length()
+    }
+
+    /// Set the SharedArrayBuffer's internal buffer to `data_block`.
+    ///
+    /// ## Safety
+    ///
+    /// The SharedArrayBuffer should not have had an internal buffer set.
+    pub(crate) unsafe fn set_data_block(self, agent: &mut Agent, data_block: SharedDataBlock) {
+        let data = self.get_mut(agent);
+        debug_assert!(data.data_block.is_dangling());
+        data.data_block = data_block;
     }
 }
 
@@ -64,52 +150,18 @@ impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
     }
 }
 
-impl Index<SharedArrayBuffer<'_>> for Agent {
-    type Output = SharedArrayBufferHeapData<'static>;
-
-    fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
-        &self.heap.shared_array_buffers[index]
-    }
-}
-
-impl IndexMut<SharedArrayBuffer<'_>> for Agent {
-    fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
-        &mut self.heap.shared_array_buffers[index]
-    }
-}
-
-impl Index<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData<'static>>> {
-    type Output = SharedArrayBufferHeapData<'static>;
-
-    fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("SharedArrayBuffer out of bounds")
-            .as_ref()
-            .expect("SharedArrayBuffer slot empty")
-    }
-}
-
-impl IndexMut<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData<'static>>> {
-    fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("SharedArrayBuffer out of bounds")
-            .as_mut()
-            .expect("SharedArrayBuffer slot empty")
-    }
-}
-
 impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SharedArrayBuffer;
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).backing_object.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
-                .object_index
+            self.get_mut(agent)
+                .backing_object
                 .replace(backing_object.unbind())
                 .is_none()
         );
@@ -150,10 +202,10 @@ impl HeapSweepWeakReference for SharedArrayBuffer<'static> {
     }
 }
 
-impl<'a> CreateHeapData<SharedArrayBufferHeapData<'a>, SharedArrayBuffer<'a>> for Heap {
-    fn create(&mut self, data: SharedArrayBufferHeapData<'a>) -> SharedArrayBuffer<'a> {
-        self.shared_array_buffers.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SharedArrayBufferHeapData<'static>>>();
-        SharedArrayBuffer(BaseIndex::last(&self.shared_array_buffers))
+impl<'a> CreateHeapData<SharedArrayBufferRecord<'a>, SharedArrayBuffer<'a>> for Heap {
+    fn create(&mut self, data: SharedArrayBufferRecord<'a>) -> SharedArrayBuffer<'a> {
+        self.shared_array_buffers.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<Option<SharedArrayBufferRecord<'static>>>();
+        SharedArrayBuffer(BaseIndex::last_t(&self.shared_array_buffers))
     }
 }

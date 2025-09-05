@@ -25,7 +25,7 @@ use crate::{
     },
     engine::{
         ScopableCollection, ScopedCollection, VmIteratorRecord,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::{
@@ -46,28 +46,7 @@ pub struct IteratorRecord<'a> {
     // pub(crate) done: bool,
 }
 
-/// SAFETY: Properly implemented as recursive binding.
-unsafe impl Bindable for IteratorRecord<'_> {
-    type Of<'a> = IteratorRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        Self::Of {
-            iterator: self.iterator.unbind(),
-            next_method: self.next_method.unbind(),
-            // done: self.done,
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        Self::Of {
-            iterator: self.iterator.bind(gc),
-            next_method: self.next_method.bind(gc),
-            // done: self.done,
-        }
-    }
-}
+bindable_handle!(IteratorRecord);
 
 /// ### [7.4.2 GetIteratorDirect ( obj )](https://tc39.es/ecma262/#sec-getiteratordirect)
 /// The abstract operation GetIteratorDirect takes argument obj (an Object) and returns
@@ -144,23 +123,7 @@ impl<'a> MaybeInvalidIteratorRecord<'a> {
     }
 }
 
-unsafe impl Bindable for MaybeInvalidIteratorRecord<'_> {
-    type Of<'a> = MaybeInvalidIteratorRecord<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        MaybeInvalidIteratorRecord {
-            iterator: self.iterator.unbind(),
-            next_method: self.next_method.unbind(),
-        }
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        MaybeInvalidIteratorRecord {
-            iterator: self.iterator.bind(gc),
-            next_method: self.next_method.bind(gc),
-        }
-    }
-}
+bindable_handle!(MaybeInvalidIteratorRecord);
 
 /// ### [7.4.3 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
 ///

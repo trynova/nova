@@ -30,7 +30,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -397,18 +397,7 @@ impl<'m> CyclicModuleRecord<'m> {
 #[repr(transparent)]
 pub struct CyclicModule<'a>(InnerCyclicModule<'a>);
 
-// SAFETY: Pass-through
-unsafe impl Bindable for CyclicModule<'_> {
-    type Of<'a> = CyclicModule<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        CyclicModule(self.0.unbind())
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        CyclicModule(self.0.bind(gc))
-    }
-}
+bindable_handle!(CyclicModule);
 
 impl core::fmt::Debug for CyclicModule<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -431,22 +420,7 @@ pub(crate) enum InnerCyclicModule<'a> {
     SourceTextModule(SourceTextModule<'a>),
 }
 
-// SAFETY: Pass-through.
-unsafe impl Bindable for InnerCyclicModule<'_> {
-    type Of<'a> = InnerCyclicModule<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        match self {
-            Self::SourceTextModule(m) => InnerCyclicModule::SourceTextModule(m.unbind()),
-        }
-    }
-
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        match self {
-            Self::SourceTextModule(m) => InnerCyclicModule::SourceTextModule(m.bind(gc)),
-        }
-    }
-}
+bindable_handle!(InnerCyclicModule);
 
 pub(crate) trait CyclicModuleSlots: Copy {
     /// ### \[\[Status]]

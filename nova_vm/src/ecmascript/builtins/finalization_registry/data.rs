@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::types::OrdinaryObject,
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -13,20 +13,7 @@ pub struct FinalizationRegistryHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for FinalizationRegistryHeapData<'_> {
-    type Of<'a> = FinalizationRegistryHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(FinalizationRegistryHeapData);
 
 impl HeapMarkAndSweep for FinalizationRegistryHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

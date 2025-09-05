@@ -18,7 +18,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
@@ -346,20 +346,7 @@ impl<'a> PromiseCapability<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for PromiseCapability<'_> {
-    type Of<'a> = PromiseCapability<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PromiseCapability);
 
 impl HeapMarkAndSweep for PromiseCapability<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

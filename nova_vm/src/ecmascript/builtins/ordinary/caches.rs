@@ -12,7 +12,7 @@ use crate::{
         types::{InternalMethods, Object, PropertyKey, Value},
     },
     engine::{
-        context::{Bindable, GcToken, NoGcScope},
+        context::{Bindable, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -716,18 +716,7 @@ impl<'a> PropertyLookupCache<'a> {
     }
 }
 
-// SAFETY: Properly implemented as a lifetime transmute.
-unsafe impl Bindable for PropertyLookupCache<'_> {
-    type Of<'a> = PropertyLookupCache<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PropertyLookupCache);
 
 impl<'a> Rootable for PropertyLookupCache<'a> {
     type RootRepr = HeapRootRef;
@@ -832,18 +821,7 @@ impl<'a> PropertyLookupCacheRecord<'a> {
     }
 }
 
-// SAFETY: Properly implemented as a lifetime transmute.
-unsafe impl Bindable for PropertyLookupCacheRecord<'_> {
-    type Of<'a> = PropertyLookupCacheRecord<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PropertyLookupCacheRecord);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -965,18 +943,7 @@ impl<'a> PropertyLookupCacheRecordPrototypes<'a> {
     }
 }
 
-// SAFETY: Properly implemented as a lifetime transmute.
-unsafe impl Bindable for PropertyLookupCacheRecordPrototypes<'_> {
-    type Of<'a> = PropertyLookupCacheRecordPrototypes<'a>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PropertyLookupCacheRecordPrototypes);
 
 impl HeapMarkAndSweep for Caches<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

@@ -18,7 +18,7 @@ use crate::{
             Primitive, PropertyKey, SetCachedProps, SetResult, String, Symbol, TryGetResult, Value,
         },
     },
-    engine::context::{Bindable, GcToken, NoGcScope},
+    engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
@@ -737,20 +737,7 @@ impl<'a> ObjectShape<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ObjectShape<'_> {
-    type Of<'a> = ObjectShape<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ObjectShape);
 
 /// Data structure describing the shape of an object.
 ///
@@ -856,20 +843,7 @@ impl<'a> ObjectShapeRecord<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ObjectShapeRecord<'_> {
-    type Of<'a> = ObjectShapeRecord<'static>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ObjectShapeRecord);
 
 /// Data structure for finding a forward transition from an Object Shape to a
 /// larger one when a property key is added.
@@ -938,20 +912,8 @@ impl<'a> ObjectShapeTransitionMap<'a> {
     }
 }
 
-// SAFETY: Properly implemented as a lifetime transmute.
-unsafe impl Bindable for ObjectShapeTransitionMap<'_> {
-    type Of<'a> = ObjectShapeTransitionMap<'a>;
+bindable_handle!(ObjectShapeTransitionMap);
 
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
 /// Lookup-table to find a root Object Shape for a given prototype.
 ///
 /// > NOTE: The values in the map are held weakly, while keys are held

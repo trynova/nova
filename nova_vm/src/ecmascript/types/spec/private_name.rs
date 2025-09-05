@@ -18,7 +18,7 @@ use crate::{
         execution::Agent,
         types::{PropertyKey, String},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::{Bindable, NoGcScope, trivially_bindable},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -60,20 +60,7 @@ impl From<PrivateName> for PropertyKey<'static> {
     }
 }
 
-// SAFETY: Trivially safe.
-unsafe impl Bindable for PrivateName {
-    type Of<'a> = PrivateName;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        self
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self
-    }
-}
+trivially_bindable!(PrivateName);
 
 // Private names are never garbage collected; only PrivateEnvironments are.
 impl HeapMarkAndSweep for PrivateName {

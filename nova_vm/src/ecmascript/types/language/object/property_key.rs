@@ -25,7 +25,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
@@ -246,20 +246,7 @@ impl<'a> PropertyKey<'a> {
     }
 }
 
-// SAFETY: Properly implemented as a lifetime transmute.
-unsafe impl Bindable for PropertyKey<'_> {
-    type Of<'a> = PropertyKey<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(PropertyKey);
 
 pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
     key: &'b PropertyKey<'a>,

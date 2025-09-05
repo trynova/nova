@@ -3,39 +3,33 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::OrdinaryObject,
-    engine::context::{Bindable, NoGcScope},
+    ecmascript::types::{OrdinaryObject, SharedDataBlock},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct SharedArrayBufferHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+pub struct SharedArrayBufferRecord<'a> {
+    pub(super) backing_object: Option<OrdinaryObject<'a>>,
+    pub(super) data_block: SharedDataBlock,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for SharedArrayBufferHeapData<'_> {
-    type Of<'a> = SharedArrayBufferHeapData<'a>;
+bindable_handle!(SharedArrayBufferRecord);
 
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl HeapMarkAndSweep for SharedArrayBufferHeapData<'static> {
+impl HeapMarkAndSweep for SharedArrayBufferRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self { object_index } = self;
-        object_index.mark_values(queues);
+        let Self {
+            backing_object,
+            data_block: _,
+        } = self;
+        backing_object.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self { object_index } = self;
-        object_index.sweep_values(compactions);
+        let Self {
+            backing_object,
+            data_block: _,
+        } = self;
+        backing_object.sweep_values(compactions);
     }
 }

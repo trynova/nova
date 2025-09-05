@@ -37,7 +37,7 @@ use crate::{
     },
     engine::{
         Executable,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
@@ -269,20 +269,7 @@ impl<'a> ECMAScriptFunction<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ECMAScriptFunction<'_> {
-    type Of<'a> = ECMAScriptFunction<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ECMAScriptFunction);
 
 impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
     fn get_name(self, agent: &Agent) -> String<'static> {
@@ -1173,20 +1160,7 @@ impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> 
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ECMAScriptFunctionHeapData<'_> {
-    type Of<'a> = ECMAScriptFunctionHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ECMAScriptFunctionHeapData);
 
 impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

@@ -10,7 +10,7 @@ use crate::{
         },
         types::OrdinaryObject,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -103,20 +103,7 @@ impl Default for TypedArrayHeapData<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for TypedArrayHeapData<'_> {
-    type Of<'a> = TypedArrayHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(TypedArrayHeapData);
 
 impl HeapMarkAndSweep for TypedArrayHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

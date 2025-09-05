@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use crate::{
     SmallInteger,
     ecmascript::types::{IntoValue, OrdinaryObject, Value},
-    engine::context::{Bindable, NoGcScope},
+    engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -98,20 +98,7 @@ impl DateHeapData<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for DateHeapData<'_> {
-    type Of<'a> = DateHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(DateHeapData);
 
 impl HeapMarkAndSweep for DateHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

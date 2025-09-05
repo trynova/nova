@@ -14,7 +14,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -51,20 +51,7 @@ impl Date<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Date<'_> {
-    type Of<'a> = Date<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Date);
 
 impl<'a> From<Date<'a>> for Value<'a> {
     fn from(value: Date<'a>) -> Self {
@@ -73,8 +60,8 @@ impl<'a> From<Date<'a>> for Value<'a> {
 }
 
 impl<'a> From<Date<'a>> for Object<'a> {
-    fn from(value: Date) -> Self {
-        Object::Date(value.unbind())
+    fn from(value: Date<'a>) -> Self {
+        Object::Date(value)
     }
 }
 

@@ -410,6 +410,7 @@ macro_rules! trivially_bindable {
         }
     };
 }
+pub(crate) use trivially_bindable;
 
 trivially_bindable!(());
 trivially_bindable!(bool);

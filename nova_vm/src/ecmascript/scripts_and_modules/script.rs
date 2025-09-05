@@ -22,7 +22,7 @@ use crate::{
     },
     engine::{
         Executable, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope},
+        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -232,20 +232,7 @@ unsafe impl Send for ScriptRecord<'_> {}
 
 pub type ScriptOrErrors<'a> = Result<Script<'a>, Vec<OxcDiagnostic>>;
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for Script<'_> {
-    type Of<'a> = Script<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(Script);
 
 impl Rootable for Script<'_> {
     type RootRepr = HeapRootRef;
@@ -270,20 +257,7 @@ impl Rootable for Script<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ScriptRecord<'_> {
-    type Of<'a> = ScriptRecord<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ScriptRecord);
 
 impl HeapMarkAndSweep for ScriptRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

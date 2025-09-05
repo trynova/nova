@@ -11,7 +11,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -66,20 +66,7 @@ impl<'a> ArrayIterator<'a> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ArrayIterator<'_> {
-    type Of<'a> = ArrayIterator<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ArrayIterator);
 
 impl<'a> From<ArrayIterator<'a>> for Object<'a> {
     fn from(value: ArrayIterator) -> Self {
@@ -225,20 +212,7 @@ pub struct ArrayIteratorHeapData<'a> {
     pub(crate) kind: CollectionIteratorKind,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ArrayIteratorHeapData<'_> {
-    type Of<'a> = ArrayIteratorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ArrayIteratorHeapData);
 
 impl HeapMarkAndSweep for ArrayIteratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

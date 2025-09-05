@@ -9,10 +9,12 @@ mod data;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{
+            InternalMethods, InternalSlots, Object, OrdinaryObject, Value, copy_data_block_bytes,
+        },
     },
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -24,7 +26,8 @@ use crate::{
 use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::{
     DetachKey, Ordering, allocate_array_buffer, array_buffer_byte_length, clone_array_buffer,
-    get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer,
+    get_array_buffer_max_byte_length_option, get_value_from_buffer, is_detached_buffer,
+    is_fixed_length_array_buffer, set_value_in_buffer,
 };
 use core::ops::{Index, IndexMut};
 pub use data::*;
@@ -140,7 +143,7 @@ impl ArrayBuffer<'_> {
         };
         let source_data = source_data.buffer.get_data_block();
         let target_data = target_data.buffer.get_data_block_mut();
-        target_data.copy_data_block_bytes(0, source_data, first, count);
+        copy_data_block_bytes(target_data, 0, source_data, first, count);
     }
 
     pub(crate) const fn _def() -> Self {
@@ -152,20 +155,7 @@ impl ArrayBuffer<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for ArrayBuffer<'_> {
-    type Of<'a> = ArrayBuffer<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(ArrayBuffer);
 
 impl<'a> TryFrom<Value<'a>> for ArrayBuffer<'a> {
     type Error = ();

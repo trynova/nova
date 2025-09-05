@@ -17,18 +17,15 @@ pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 use crate::{
     ecmascript::{
         builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
-        execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
+        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        Executable, ExecutionResult, SuspendedVm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{bindable_handle, Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable, Scopable}, Executable, ExecutionResult, SuspendedVm
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
         indexes::BaseIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues
     },
 };
 
@@ -343,20 +340,7 @@ impl AsyncGenerator<'_> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for AsyncGenerator<'_> {
-    type Of<'a> = AsyncGenerator<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AsyncGenerator);
 
 impl<'a> From<AsyncGenerator<'a>> for Value<'a> {
     fn from(value: AsyncGenerator<'a>) -> Self {
@@ -555,20 +539,7 @@ pub(crate) struct AsyncGeneratorRequest<'a> {
     pub(crate) capability: PromiseCapability<'a>,
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for AsyncGeneratorRequest<'_> {
-    type Of<'a> = AsyncGeneratorRequest<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AsyncGeneratorRequest);
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
@@ -577,20 +548,7 @@ pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
     Return(Value<'a>),
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
-    type Of<'a> = AsyncGeneratorRequestCompletion<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AsyncGeneratorRequestCompletion);
 
 impl Rootable for AsyncGenerator<'_> {
     type RootRepr = HeapRootRef;
@@ -662,20 +620,7 @@ impl HeapMarkAndSweep for AsyncGeneratorRequest<'static> {
     }
 }
 
-// SAFETY: Property implemented as a lifetime transmute.
-unsafe impl Bindable for AsyncGeneratorHeapData<'_> {
-    type Of<'a> = AsyncGeneratorHeapData<'a>;
-
-    #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
+bindable_handle!(AsyncGeneratorHeapData);
 
 impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
