@@ -60,7 +60,7 @@ impl Builtin for SharedArrayBufferPrototypeSlice {
 }
 
 impl SharedArrayBufferPrototype {
-    /// 25.2.5.1 get SharedArrayBuffer.prototype.byteLength
+    /// ### [25.2.5.1 get SharedArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.bytelength)
     ///
     /// SharedArrayBuffer.prototype.byteLength is an accessor property whose
     /// set accessor function is undefined.
@@ -91,22 +91,54 @@ impl SharedArrayBufferPrototype {
         Err(agent.todo("SharedArrayBuffer.prototype.grow", gc.into_nogc()))
     }
 
+    /// ### [25.2.5.4 get SharedArrayBuffer.prototype.growable](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.growable)
+    ///
+    /// SharedArrayBuffer.prototype.growable is an accessor property whose set
+    /// accessor function is undefined.
     fn get_growable<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("SharedArrayBuffer.prototype.growable", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        // 1. Let O be the this value.
+        let o = this_value.bind(gc);
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        let o = require_internal_slot_shared_array_buffer(agent, o, gc)?;
+        // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise
+        //    return false.
+        Ok(o.is_growable(agent).into_value())
     }
 
+    /// ### [25.2.5.5 get SharedArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.maxbytelength)
+    ///
+    /// SharedArrayBuffer.prototype.maxByteLength is an accessor property whose
+    /// set accessor function is undefined.
     fn get_max_byte_length<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("SharedArrayBuffer.prototype.maxByteLength", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        // 1. Let O be the this value.
+        // 1. Let O be the this value.
+        let o = this_value.bind(gc);
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        let o = require_internal_slot_shared_array_buffer(agent, o, gc)?;
+        // 4. If IsFixedLengthArrayBuffer(O) is true, then
+        // a. Let length be O.[[ArrayBufferByteLength]].
+        // 5. Else,
+        // a. Let length be O.[[ArrayBufferMaxByteLength]].
+        // 6. Return 𝔽(length).
+        let length = o.max_byte_length(agent);
+        // 5. Return 𝔽(length).
+        Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
 
     fn slice<'gc>(

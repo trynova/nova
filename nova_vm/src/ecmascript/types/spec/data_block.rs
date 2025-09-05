@@ -364,7 +364,7 @@ impl SharedDataBlockMaxByteLength {
     /// Note that the maximum byte length of a growable SharedArrayBuffer or
     /// the byte length of an static SharedArrayBuffer.
     #[inline(always)]
-    fn get_max_byte_length(self) -> usize {
+    fn max_byte_length(self) -> usize {
         if cfg!(target_pointer_width = "64") {
             self.0 & 0x7FFF_FFFF_FFFF_FFFF
         } else if cfg!(target_pointer_width = "32") {
@@ -377,7 +377,7 @@ impl SharedDataBlockMaxByteLength {
     /// Returns true if the SharedDataBlock has a 0 maximum byte length.
     #[inline(always)]
     fn is_dangling(self) -> bool {
-        self.get_max_byte_length() == 0
+        self.max_byte_length() == 0
     }
 
     /// Returns true if the SharedDataBlock is growable.
@@ -439,7 +439,7 @@ unsafe impl Sync for SharedDataBlock {}
 impl core::fmt::Debug for SharedDataBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // SAFETY: ptr points to a valid allocation of byte_length bytes.
-        unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), self.get_byte_length()) }.fmt(f)
+        unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), self.byte_length()) }.fmt(f)
     }
 }
 
@@ -505,7 +505,7 @@ impl Drop for SharedDataBlock {
             // SAFETY: layout guaranteed by type
             unsafe {
                 (
-                    self.get_max_byte_length()
+                    self.max_byte_length()
                         .unchecked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize)>()),
                     rc_ptr.sub(1),
                 )
@@ -513,7 +513,7 @@ impl Drop for SharedDataBlock {
         } else {
             unsafe {
                 (
-                    self.get_max_byte_length()
+                    self.max_byte_length()
                         .unchecked_add(core::mem::size_of::<AtomicUsize>()),
                     rc_ptr,
                 )
@@ -614,7 +614,7 @@ impl SharedDataBlock {
     /// can be grown from other threads and reading it is a sequentially
     /// consistent atomic operation.
     #[inline(always)]
-    pub(crate) fn get_byte_length(&self) -> usize {
+    pub(crate) fn byte_length(&self) -> usize {
         if self.is_dangling() {
             return 0;
         }
@@ -631,14 +631,14 @@ impl SharedDataBlock {
             };
             byte_length.load(Ordering::SeqCst)
         } else {
-            self.get_max_byte_length()
+            self.max_byte_length()
         }
     }
 
     /// Get the maximum byte length of the SharedDataBlock.
     #[inline(always)]
-    pub(crate) fn get_max_byte_length(&self) -> usize {
-        self.max_byte_length.get_max_byte_length()
+    pub(crate) fn max_byte_length(&self) -> usize {
+        self.max_byte_length.max_byte_length()
     }
 
     /// Return true if the SharedDataBlock is a dangling (has maximum byte

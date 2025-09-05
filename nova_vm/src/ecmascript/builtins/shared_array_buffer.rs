@@ -53,12 +53,22 @@ impl<'sab> SharedArrayBuffer<'sab> {
             .expect("Invalid SharedArrayBuffer")
     }
 
-    /// Get the byte length of this SharedArrayBuffer.
+    /// Returns true if the SharedArrayBuffer is growable.
+    pub fn is_growable(self, agent: &Agent) -> bool {
+        self.get(agent).data_block.is_growable()
+    }
+
+    /// Get the byte length of the SharedArrayBuffer.
     ///
     /// Note, if this is a growable SharedArrayBuffer then this is a
     /// synchronising operation.
     pub fn byte_length(self, agent: &Agent) -> usize {
-        self.get(agent).data_block.get_byte_length()
+        self.get(agent).data_block.byte_length()
+    }
+
+    /// Get the maximum byte length of the SharedArrayBuffer.
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        self.get(agent).data_block.max_byte_length()
     }
 
     /// Set the SharedArrayBuffer's internal buffer to `data_block`.
