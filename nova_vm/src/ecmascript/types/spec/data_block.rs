@@ -129,9 +129,7 @@ impl DataBlock {
             };
             // SAFETY: Size of allocation is non-zero.
             let ptr = unsafe { alloc_zeroed(layout) };
-            let Some(ptr) = NonNull::new(ptr) else {
-                return None;
-            };
+            let ptr = NonNull::new(ptr)?;
             debug_assert_eq!(ptr.align_offset(8), 0);
             Some(Self {
                 ptr: Some(ptr),
@@ -570,10 +568,7 @@ impl SharedDataBlock {
             };
             // SAFETY: Size of allocation is non-zero.
             let base_ptr = unsafe { alloc_zeroed(layout) };
-            let Some(base_ptr) = NonNull::new(base_ptr) else {
-                return None;
-            };
-            let base_ptr = base_ptr.cast::<usize>();
+            let base_ptr = NonNull::new(base_ptr)?.cast::<usize>();
             unsafe { assert_unchecked(base_ptr.is_aligned()) };
             let rc_ptr = if growable {
                 // Growable SharedArrayBuffer; write the byte length here.
@@ -737,7 +732,7 @@ pub(crate) fn create_byte_data_block<'a>(
                 Some(size)
             }
         })
-        .and_then(|size| DataBlock::new(size))
+        .and_then(DataBlock::new)
     {
         // 2. Let db be a new Data Block value consisting of size bytes.
         // 3. Set all of the bytes of db to 0.
