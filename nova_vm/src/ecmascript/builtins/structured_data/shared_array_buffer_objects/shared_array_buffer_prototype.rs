@@ -4,7 +4,12 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_index, try_to_index},
+        abstract_operations::{
+            operations_on_objects::{construct, species_constructor},
+            type_conversion::{
+                to_index, to_integer_or_infinity, try_to_index, try_to_integer_or_infinity,
+            },
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter,
@@ -14,7 +19,10 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, GrowSharedArrayBufferResult, try_result_into_js},
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
+        types::{
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Number, PropertyKey,
+            String, Value, copy_shared_data_block_bytes,
+        },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -183,11 +191,8 @@ impl SharedArrayBufferPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let O be the this value.
-        // 1. Let O be the this value.
         let o = this_value.bind(gc);
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
-        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
-        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
         // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
         let o = require_internal_slot_shared_array_buffer(agent, o, gc)?;
         // 4. If IsFixedLengthArrayBuffer(O) is true, then
@@ -200,13 +205,126 @@ impl SharedArrayBufferPrototype {
         Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
 
+    /// ### [25.2.5.6 SharedArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-hostgrowsharedarraybuffer)
     fn slice<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("SharedArrayBuffer.prototype.slice", gc.into_nogc()))
+        let this_value = this_value.bind(gc.nogc());
+        let args = args.bind(gc.nogc());
+        let start = args.get(0);
+        let mut end = args.get(1);
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        let o = require_internal_slot_shared_array_buffer(agent, o, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 4. Let len be ArrayBufferByteLength(O, seq-cst).
+        let len = o.byte_length(agent);
+        let o = o.scope(agent, gc.nogc());
+        // 5. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = if let Some(r) =
+            try_result_into_js(try_to_integer_or_infinity(agent, start, gc.nogc())).unbind()?
+        {
+            r
+        } else {
+            let scoped_end = end.scope(agent, gc.nogc());
+            let r = to_integer_or_infinity(agent, start.unbind(), gc.reborrow()).unbind()?;
+            end = unsafe { scoped_end.take(agent) }.bind(gc.nogc());
+            r
+        };
+        // 6. If relativeStart = -∞, let first be 0.
+        let first = if relative_start.is_neg_infinity() {
+            0
+        } else if relative_start.is_negative() {
+            // 7. Else if relativeStart < 0, let first be max(len + relativeStart, 0).
+            (len as u64).saturating_sub(relative_start.into_i64().unsigned_abs()) as usize
+        } else {
+            // 8. Else, let first be min(relativeStart, len).
+            relative_start.into_i64().min(len as i64) as usize
+        };
+        // 9. If end is undefined, let relativeEnd be len;
+        let final_end = if end.is_undefined() {
+            len
+        } else {
+            // else let relativeEnd be ? ToIntegerOrInfinity(end).
+            let relative_end =
+                to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
+            // 10. If relativeEnd = -∞, let final be 0.
+            if relative_end.is_neg_infinity() {
+                0
+            } else if relative_end.is_negative() {
+                // 11. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+                (len as u64).saturating_sub(relative_end.into_i64().unsigned_abs()) as usize
+            } else {
+                // 12. Else, let final be min(relativeEnd, len).
+                relative_end.into_i64().min(len as i64) as usize
+            }
+        };
+        // 13. Let newLen be max(final - first, 0).
+        let new_len = final_end.saturating_sub(first);
+        let default_constructor = agent
+            .current_realm_record()
+            .intrinsics()
+            .shared_array_buffer()
+            .bind(gc.nogc());
+        // 14. Let ctor be ? SpeciesConstructor(O, %SharedArrayBuffer%).
+        let ctor = species_constructor(
+            agent,
+            o.get(agent).into_object(),
+            default_constructor.into_function().unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 15. Let new be ? Construct(ctor, « 𝔽(newLen) »).
+        let new = {
+            let mut new_len = Number::from_i64(agent, new_len as i64, gc.nogc())
+                .into_value()
+                .unbind();
+            let args = ArgumentsList::from_mut_value(&mut new_len);
+            construct(agent, ctor.unbind(), Some(args), None, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
+        };
+        let new = new.unbind();
+        let gc = gc.into_nogc();
+        let new = new.bind(gc);
+        // SAFETY: not shared.
+        let o = unsafe { o.take(agent).bind(gc) };
+        // 16. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
+        // 17. If IsSharedArrayBuffer(new) is false, throw a TypeError exception.
+        let new = require_internal_slot_shared_array_buffer(agent, new.into_value(), gc)?;
+        // 18. If new.[[ArrayBufferData]] is O.[[ArrayBufferData]],
+        if new.get_data_block(agent) == o.get_data_block(agent) {
+            // throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "SharedArrayBuffer subclass returned this from species constructor",
+                gc,
+            ));
+        }
+        // 19. If ArrayBufferByteLength(new, seq-cst) < newLen,
+        if new.byte_length(agent) < new_len {
+            // throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "SharedArrayBuffer subclass returned smaller buffer from species constructor",
+                gc,
+            ));
+        }
+        // 20. Let fromBuf be O.[[ArrayBufferData]].
+        let from_buf = o.get_data_block(agent);
+        // 21. Let toBuf be new.[[ArrayBufferData]].
+        let to_buf = new.get_data_block(agent);
+        // 22. Perform CopyDataBlockBytes(toBuf, 0, fromBuf, first, newLen).
+        copy_shared_data_block_bytes(to_buf, 0, from_buf, first, new_len);
+        // 23. Return new.
+        Ok(new.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

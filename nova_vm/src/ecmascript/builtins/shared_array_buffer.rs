@@ -29,8 +29,8 @@ bindable_handle!(SharedArrayBuffer);
 
 impl<'sab> SharedArrayBuffer<'sab> {
     /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
-    pub fn get_data_block(self, agent: &Agent) -> SharedDataBlock {
-        self.get(agent).data_block.clone()
+    pub fn get_data_block(self, agent: &Agent) -> &SharedDataBlock {
+        &self.unbind().get(agent).data_block
     }
 
     /// Create a new SharedArrayBuffer from a SharedDataBlock.

@@ -426,6 +426,7 @@ impl SharedDataBlockMaxByteLength {
 /// buffer when the SharedDataBlock is growable.
 #[must_use]
 #[repr(C)]
+#[derive(PartialEq, Eq)]
 pub struct SharedDataBlock {
     ptr: NonNull<AtomicU8>,
     max_byte_length: SharedDataBlockMaxByteLength,
@@ -847,24 +848,11 @@ pub(crate) fn copy_data_block_bytes(
     // 5. Assert: toIndex + count ≤ toSize.
     assert!(to_index + count <= to_size);
     // 6. Repeat, while count > 0,
-    //      a. If fromBlock is a Shared Data Block, then
-    //          i. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
-    //          ii. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
-    //          iii. Let bytes be a List whose sole element is a nondeterministically chosen byte value.
-    //          iv. NOTE: In implementations, bytes is the result of a non-atomic read instruction on the underlying hardware. The nondeterminism is a semantic prescription of the memory model to describe observable behaviour of hardware with weak consistency.
-    //          v. Let readEvent be ReadSharedMemory { [[Order]]: UNORDERED, [[NoTear]]: true, [[Block]]: fromBlock, [[ByteIndex]]: fromIndex, [[ElementSize]]: 1 }.
-    //          vi. Append readEvent to eventsRecord.[[EventList]].
-    //          vii. Append Chosen Value Record { [[Event]]: readEvent, [[ChosenValue]]: bytes } to execution.[[ChosenValues]].
-    //          viii. If toBlock is a Shared Data Block, then
-    //              1. Append WriteSharedMemory { [[Order]]: UNORDERED, [[NoTear]]: true, [[Block]]: toBlock, [[ByteIndex]]: toIndex, [[ElementSize]]: 1, [[Payload]]: bytes } to eventsRecord.[[EventList]].
-    //          ix. Else,
-    //              1. Set toBlock[toIndex] to bytes[0].
-    //      b. Else,
-    //           i. Assert: toBlock is not a Shared Data Block.
-    //           ii. Set toBlock[toIndex] to fromBlock[fromIndex].
-    //           c. Set toIndex to toIndex + 1.
-    //           d. Set fromIndex to fromIndex + 1.
-    //           e. Set count to count - 1.
+    // i. Assert: toBlock is not a Shared Data Block.
+    // ii. Set toBlock[toIndex] to fromBlock[fromIndex].
+    // c. Set toIndex to toIndex + 1.
+    // d. Set fromIndex to fromIndex + 1.
+    // e. Set count to count - 1.
     let to_ptr = if let Some(ptr) = to_block.as_mut_ptr(to_index) {
         ptr
     } else {
@@ -875,6 +863,57 @@ pub(crate) fn copy_data_block_bytes(
     } else {
         return;
     };
+    // SAFETY: Pointers have been checked to not overlap.
+    unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
+    // 7. Return UNUSED.
+}
+
+/// ### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
+///
+/// The abstract operation CopyDataBlockBytes takes arguments toBlock (a
+/// Data Block or a Shared Data Block), toIndex (a non-negative integer),
+/// fromBlock (a Data Block or a Shared Data Block), fromIndex (a
+/// non-negative integer), and count (a non-negative integer) and returns
+/// UNUSED.
+pub(crate) fn copy_shared_data_block_bytes(
+    to_block: &SharedDataBlock,
+    to_index: usize,
+    from_block: &SharedDataBlock,
+    from_index: usize,
+    count: usize,
+) {
+    // 1. Assert: fromBlock and toBlock are distinct values.
+    debug_assert!(unsafe {
+        to_block.ptr.as_ptr().add(to_block.max_byte_length()) <= from_block.ptr.as_ptr()
+            || from_block.ptr.as_ptr().add(from_block.max_byte_length()) <= to_block.ptr.as_ptr()
+    });
+    // 2. Let fromSize be the number of bytes in fromBlock.
+    let from_size = from_block.max_byte_length();
+    // 3. Assert: fromIndex + count ≤ fromSize.
+    assert!(from_index + count <= from_size);
+    // 4. Let toSize be the number of bytes in toBlock.
+    let to_size = to_block.max_byte_length();
+    // 5. Assert: toIndex + count ≤ toSize.
+    assert!(to_index + count <= to_size);
+    // 6. Repeat, while count > 0,
+    // a. If fromBlock is a Shared Data Block, then
+    // i. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
+    // ii. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
+    // iii. Let bytes be a List whose sole element is a nondeterministically chosen byte value.
+    // iv. NOTE: In implementations, bytes is the result of a non-atomic read instruction on the underlying hardware. The nondeterminism is a semantic prescription of the memory model to describe observable behaviour of hardware with weak consistency.
+    // v. Let readEvent be ReadSharedMemory { [[Order]]: UNORDERED, [[NoTear]]: true, [[Block]]: fromBlock, [[ByteIndex]]: fromIndex, [[ElementSize]]: 1 }.
+    // vi. Append readEvent to eventsRecord.[[EventList]].
+    // vii. Append Chosen Value Record { [[Event]]: readEvent, [[ChosenValue]]: bytes } to execution.[[ChosenValues]].
+    // viii. If toBlock is a Shared Data Block, then
+    //     1. Append WriteSharedMemory { [[Order]]: UNORDERED, [[NoTear]]: true, [[Block]]: toBlock, [[ByteIndex]]: toIndex, [[ElementSize]]: 1, [[Payload]]: bytes } to eventsRecord.[[EventList]].
+    // ix. Else,
+    //     1. Set toBlock[toIndex] to bytes[0].
+    // Note: this can very well cause data races! That is language level UB in
+    // Rust, so this is very much undefined behaviour _if_ the JavaScript code
+    // causes a data race. The ECMAScript specification helpfully "recommends
+    // programs be kept data races free". We'll trust that, I guess!?
+    let to_ptr = to_block.ptr.cast::<u8>();
+    let from_ptr = from_block.ptr.cast::<u8>();
     // SAFETY: Pointers have been checked to not overlap.
     unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
     // 7. Return UNUSED.
