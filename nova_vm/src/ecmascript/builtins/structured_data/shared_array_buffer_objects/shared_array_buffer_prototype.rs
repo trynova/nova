@@ -5,11 +5,14 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, PropertyKey, String, Value},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
+            shared_array_buffer::SharedArrayBuffer,
+        },
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
 };
 
@@ -57,13 +60,26 @@ impl Builtin for SharedArrayBufferPrototypeSlice {
 }
 
 impl SharedArrayBufferPrototype {
+    /// 25.2.5.1 get SharedArrayBuffer.prototype.byteLength
+    ///
+    /// SharedArrayBuffer.prototype.byteLength is an accessor property whose
+    /// set accessor function is undefined.
     fn get_byte_length<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("SharedArrayBuffer.prototype.byteLength", gc.into_nogc()))
+        let gc = gc.into_nogc();
+        // 1. Let O be the this value.
+        let o = this_value.bind(gc);
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        let o = require_internal_slot_shared_array_buffer(agent, o, gc)?;
+        // 4. Let length be ArrayBufferByteLength(O, seq-cst).
+        let length = o.byte_length(agent);
+        // 5. Return 𝔽(length).
+        Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
 
     fn grow<'gc>(
@@ -126,5 +142,23 @@ impl SharedArrayBufferPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline]
+pub(crate) fn require_internal_slot_shared_array_buffer<'a>(
+    agent: &mut Agent,
+    o: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, SharedArrayBuffer<'a>> {
+    match o {
+        // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 2. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
+        Value::SharedArrayBuffer(sab) => Ok(sab.unbind()),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected this to be SharedArrayBuffer",
+            gc,
+        )),
     }
 }

@@ -90,11 +90,7 @@ pub(crate) fn allocate_array_buffer<'a>(
 /// The abstract operation ArrayBufferByteLength takes arguments arrayBuffer
 /// (an ArrayBuffer or SharedArrayBuffer) and order (SEQ-CST or UNORDERED)
 /// and returns a non-negative integer.
-pub(crate) fn array_buffer_byte_length(
-    agent: &Agent,
-    array_buffer: ArrayBuffer,
-    _order: Ordering,
-) -> usize {
+pub(crate) fn array_buffer_byte_length(agent: &Agent, array_buffer: ArrayBuffer) -> usize {
     let array_buffer = &agent[array_buffer];
     // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
     // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
