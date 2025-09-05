@@ -284,7 +284,7 @@ impl DataBlock {
         debug_assert!(new_byte_length < 2usize.pow(53));
         let ptr = if let Some(ptr) = self.ptr {
             if new_byte_length == 0 {
-                // When resizing to zero, we can just reassign self to an epty
+                // When resizing to zero, we can just reassign self to an empty
                 // data block; that drops the previous block which deallocs.
                 *self = Self::EMPTY_DATA_BLOCK;
                 return;
