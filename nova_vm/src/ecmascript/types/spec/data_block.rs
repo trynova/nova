@@ -547,7 +547,6 @@ impl SharedDataBlock {
         unsafe {
             assert_unchecked(byte_length <= size);
         }
-        let size = max_byte_length.unwrap_or(byte_length);
         let growable = max_byte_length.is_some();
         if size == 0 {
             if growable {

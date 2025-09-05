@@ -59,7 +59,7 @@ impl SharedArrayBufferConstructor {
         let arguments = arguments.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         let length = arguments.get(0);
-        let options = arguments.get(0).scope(agent, gc.nogc());
+        let options = arguments.get(1).scope(agent, gc.nogc());
         // 1. If NewTarget is undefined,
         let Some(new_target) = new_target else {
             // throw a TypeError exception.
