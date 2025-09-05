@@ -402,7 +402,7 @@ impl SharedDataBlockMaxByteLength {
 /// For statically sized SharedDataBlocks, the buffer memory layout is the
 /// following:
 ///
-/// ```rust
+/// ```rust,ignore
 /// #[repr(C)]
 /// struct StaticSharedDataBuffer<const N: usize> {
 ///   rc: AtomicUsize,
@@ -411,7 +411,7 @@ impl SharedDataBlockMaxByteLength {
 /// ```
 ///
 /// and for growable SharedDataBlocks, the layout is:
-/// ```rust
+/// ```rust,ignore
 /// #[repr(C)]
 /// struct GrowableSharedDataBuffer<const N: usize> {
 ///   byte_length: AtomicUsize,
@@ -424,7 +424,9 @@ impl SharedDataBlockMaxByteLength {
 ///
 /// Note that the "viewed" byte length of the buffer is defined inside the
 /// buffer when the SharedDataBlock is growable.
-pub(crate) struct SharedDataBlock {
+#[must_use]
+#[repr(C)]
+pub struct SharedDataBlock {
     ptr: NonNull<AtomicU8>,
     max_byte_length: SharedDataBlockMaxByteLength,
 }
@@ -1690,112 +1692,147 @@ impl Viewable for f64 {
     }
 }
 
-#[test]
-fn new_data_block() {
-    let db = DataBlock::new(0).unwrap();
-    assert_eq!(db.len(), 0);
-    assert_eq!(db.get::<u8>(0), None);
+mod tests {
+    #[test]
+    fn new_data_block() {
+        use super::DataBlock;
+        let db = DataBlock::new(0).unwrap();
+        assert_eq!(db.len(), 0);
+        assert_eq!(db.get::<u8>(0), None);
 
-    let db = DataBlock::new(8).unwrap();
-    assert_eq!(db.len(), 8);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i), Some(0));
-    }
-}
-
-#[test]
-fn data_block_set() {
-    let mut db = DataBlock::new(8).unwrap();
-    assert_eq!(db.len(), 8);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i), Some(0));
+        let db = DataBlock::new(8).unwrap();
+        assert_eq!(db.len(), 8);
+        for i in 0..8 {
+            assert_eq!(db.get::<u8>(i), Some(0));
+        }
     }
 
-    for i in 0..8 {
-        db.set::<u8>(i as usize, i + 1);
+    #[test]
+    fn data_block_set() {
+        use super::DataBlock;
+        let mut db = DataBlock::new(8).unwrap();
+        assert_eq!(db.len(), 8);
+        for i in 0..8 {
+            assert_eq!(db.get::<u8>(i), Some(0));
+        }
+
+        for i in 0..8 {
+            db.set::<u8>(i as usize, i + 1);
+        }
+
+        for i in 0..8 {
+            assert_eq!(db.get::<u8>(i as usize), Some(i + 1));
+        }
     }
 
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), Some(i + 1));
-    }
-}
+    #[test]
+    fn data_block_set_from() {
+        use super::DataBlock;
+        let mut db = DataBlock::new(8).unwrap();
+        let mut db2 = DataBlock::new(8).unwrap();
+        for i in 0..8 {
+            assert_eq!(db.get::<u8>(0), Some(0));
+            db2.set::<u8>(i as usize, i + 1);
+        }
+        assert_eq!(db2.get::<u8>(0), Some(1));
+        assert_eq!(db2.get::<u8>(1), Some(2));
+        assert_eq!(db2.get::<u8>(2), Some(3));
+        assert_eq!(db2.get::<u8>(3), Some(4));
+        assert_eq!(db2.get::<u8>(4), Some(5));
+        assert_eq!(db2.get::<u8>(5), Some(6));
+        assert_eq!(db2.get::<u8>(6), Some(7));
+        assert_eq!(db2.get::<u8>(7), Some(8));
+        db.set_from::<u8>(0, &db2, 4, 4);
+        assert_eq!(db.get::<u8>(0), Some(5));
+        assert_eq!(db.get::<u8>(1), Some(6));
+        assert_eq!(db.get::<u8>(2), Some(7));
+        assert_eq!(db.get::<u8>(3), Some(8));
+        assert_eq!(db.get::<u8>(4), Some(0));
+        assert_eq!(db.get::<u8>(5), Some(0));
+        assert_eq!(db.get::<u8>(6), Some(0));
+        assert_eq!(db.get::<u8>(7), Some(0));
 
-#[test]
-fn data_block_set_from() {
-    let mut db = DataBlock::new(8).unwrap();
-    let mut db2 = DataBlock::new(8).unwrap();
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(0), Some(0));
-        db2.set::<u8>(i as usize, i + 1);
+        // Reset
+        for i in 0..8 {
+            db.set::<u8>(i as usize, i + 1);
+        }
+        db.copy_within::<u8>(2, 4, 4);
+        assert_eq!(db.get::<u8>(0), Some(1));
+        assert_eq!(db.get::<u8>(1), Some(2));
+        assert_eq!(db.get::<u8>(2), Some(5));
+        assert_eq!(db.get::<u8>(3), Some(6));
+        assert_eq!(db.get::<u8>(4), Some(7));
+        assert_eq!(db.get::<u8>(5), Some(8));
+        assert_eq!(db.get::<u8>(6), Some(7));
+        assert_eq!(db.get::<u8>(7), Some(8));
     }
-    assert_eq!(db2.get::<u8>(0), Some(1));
-    assert_eq!(db2.get::<u8>(1), Some(2));
-    assert_eq!(db2.get::<u8>(2), Some(3));
-    assert_eq!(db2.get::<u8>(3), Some(4));
-    assert_eq!(db2.get::<u8>(4), Some(5));
-    assert_eq!(db2.get::<u8>(5), Some(6));
-    assert_eq!(db2.get::<u8>(6), Some(7));
-    assert_eq!(db2.get::<u8>(7), Some(8));
-    db.set_from::<u8>(0, &db2, 4, 4);
-    assert_eq!(db.get::<u8>(0), Some(5));
-    assert_eq!(db.get::<u8>(1), Some(6));
-    assert_eq!(db.get::<u8>(2), Some(7));
-    assert_eq!(db.get::<u8>(3), Some(8));
-    assert_eq!(db.get::<u8>(4), Some(0));
-    assert_eq!(db.get::<u8>(5), Some(0));
-    assert_eq!(db.get::<u8>(6), Some(0));
-    assert_eq!(db.get::<u8>(7), Some(0));
 
-    // Reset
-    for i in 0..8 {
-        db.set::<u8>(i as usize, i + 1);
-    }
-    db.copy_within::<u8>(2, 4, 4);
-    assert_eq!(db.get::<u8>(0), Some(1));
-    assert_eq!(db.get::<u8>(1), Some(2));
-    assert_eq!(db.get::<u8>(2), Some(5));
-    assert_eq!(db.get::<u8>(3), Some(6));
-    assert_eq!(db.get::<u8>(4), Some(7));
-    assert_eq!(db.get::<u8>(5), Some(8));
-    assert_eq!(db.get::<u8>(6), Some(7));
-    assert_eq!(db.get::<u8>(7), Some(8));
-}
+    #[test]
+    fn data_block_copy_within() {
+        use super::DataBlock;
+        let mut db = DataBlock::new(8).unwrap();
+        for i in 0..8 {
+            db.set::<u8>(i as usize, i + 1);
+        }
+        assert_eq!(db.get::<u8>(0), Some(1));
+        assert_eq!(db.get::<u8>(1), Some(2));
+        assert_eq!(db.get::<u8>(2), Some(3));
+        assert_eq!(db.get::<u8>(3), Some(4));
+        assert_eq!(db.get::<u8>(4), Some(5));
+        assert_eq!(db.get::<u8>(5), Some(6));
+        assert_eq!(db.get::<u8>(6), Some(7));
+        assert_eq!(db.get::<u8>(7), Some(8));
+        db.copy_within::<u8>(0, 4, 4);
+        assert_eq!(db.get::<u8>(0), Some(5));
+        assert_eq!(db.get::<u8>(1), Some(6));
+        assert_eq!(db.get::<u8>(2), Some(7));
+        assert_eq!(db.get::<u8>(3), Some(8));
+        assert_eq!(db.get::<u8>(4), Some(5));
+        assert_eq!(db.get::<u8>(5), Some(6));
+        assert_eq!(db.get::<u8>(6), Some(7));
+        assert_eq!(db.get::<u8>(7), Some(8));
 
-#[test]
-fn data_block_copy_within() {
-    let mut db = DataBlock::new(8).unwrap();
-    for i in 0..8 {
-        db.set::<u8>(i as usize, i + 1);
+        // Reset
+        for i in 0..8 {
+            db.set::<u8>(i as usize, i + 1);
+        }
+        db.copy_within::<u8>(2, 4, 4);
+        assert_eq!(db.get::<u8>(0), Some(1));
+        assert_eq!(db.get::<u8>(1), Some(2));
+        assert_eq!(db.get::<u8>(2), Some(5));
+        assert_eq!(db.get::<u8>(3), Some(6));
+        assert_eq!(db.get::<u8>(4), Some(7));
+        assert_eq!(db.get::<u8>(5), Some(8));
+        assert_eq!(db.get::<u8>(6), Some(7));
+        assert_eq!(db.get::<u8>(7), Some(8));
     }
-    assert_eq!(db.get::<u8>(0), Some(1));
-    assert_eq!(db.get::<u8>(1), Some(2));
-    assert_eq!(db.get::<u8>(2), Some(3));
-    assert_eq!(db.get::<u8>(3), Some(4));
-    assert_eq!(db.get::<u8>(4), Some(5));
-    assert_eq!(db.get::<u8>(5), Some(6));
-    assert_eq!(db.get::<u8>(6), Some(7));
-    assert_eq!(db.get::<u8>(7), Some(8));
-    db.copy_within::<u8>(0, 4, 4);
-    assert_eq!(db.get::<u8>(0), Some(5));
-    assert_eq!(db.get::<u8>(1), Some(6));
-    assert_eq!(db.get::<u8>(2), Some(7));
-    assert_eq!(db.get::<u8>(3), Some(8));
-    assert_eq!(db.get::<u8>(4), Some(5));
-    assert_eq!(db.get::<u8>(5), Some(6));
-    assert_eq!(db.get::<u8>(6), Some(7));
-    assert_eq!(db.get::<u8>(7), Some(8));
 
-    // Reset
-    for i in 0..8 {
-        db.set::<u8>(i as usize, i + 1);
+    #[test]
+    fn new_shared_data_block() {
+        use super::SharedDataBlock;
+        // SAFETY: max_byte_length is None.
+        let _ = unsafe { SharedDataBlock::new(1024, None).unwrap() };
     }
-    db.copy_within::<u8>(2, 4, 4);
-    assert_eq!(db.get::<u8>(0), Some(1));
-    assert_eq!(db.get::<u8>(1), Some(2));
-    assert_eq!(db.get::<u8>(2), Some(5));
-    assert_eq!(db.get::<u8>(3), Some(6));
-    assert_eq!(db.get::<u8>(4), Some(7));
-    assert_eq!(db.get::<u8>(5), Some(8));
-    assert_eq!(db.get::<u8>(6), Some(7));
-    assert_eq!(db.get::<u8>(7), Some(8));
+
+    #[test]
+    fn clone_shared_data_block() {
+        use super::SharedDataBlock;
+        // SAFETY: max_byte_length is None.
+        let a = unsafe { SharedDataBlock::new(1024, None).unwrap() };
+        let _ = a.clone();
+    }
+
+    #[test]
+    fn clone_shared_data_block_thread_safe() {
+        use super::SharedDataBlock;
+        use std::thread;
+        // SAFETY: max_byte_length is None.
+        let a = unsafe { SharedDataBlock::new(1024, None).unwrap() };
+        thread::scope(|s| {
+            s.spawn(|| a.clone());
+            s.spawn(|| a.clone());
+            s.spawn(|| a.clone());
+            s.spawn(|| a.clone());
+        });
+    }
 }

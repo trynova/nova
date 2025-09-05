@@ -28,6 +28,27 @@ pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>
 bindable_handle!(SharedArrayBuffer);
 
 impl<'sab> SharedArrayBuffer<'sab> {
+    /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
+    pub fn get_data_block(self, agent: &Agent) -> SharedDataBlock {
+        self.get(agent).data_block.clone()
+    }
+
+    /// Create a new SharedArrayBuffer from a SharedDataBlock.
+    pub fn new_from_data_block(
+        self,
+        agent: &mut Agent,
+        data_block: SharedDataBlock,
+        gc: NoGcScope<'sab, '_>,
+    ) -> Self {
+        agent
+            .heap
+            .create(SharedArrayBufferRecord {
+                backing_object: None,
+                data_block,
+            })
+            .bind(gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         SharedArrayBuffer(BaseIndex::from_u32_index(0))
     }
