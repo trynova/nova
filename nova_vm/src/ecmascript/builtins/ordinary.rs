@@ -53,7 +53,7 @@ use super::date::data::DateHeapData;
 #[cfg(feature = "regexp")]
 use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
-use super::shared_array_buffer::data::SharedArrayBufferHeapData;
+use super::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
 use super::{
     ArrayBufferHeapData, data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData,
@@ -1806,7 +1806,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         #[cfg(feature = "shared-array-buffer")]
         ProtoIntrinsics::SharedArrayBuffer => agent
             .heap
-            .create(SharedArrayBufferHeapData::default())
+            .create(SharedArrayBufferRecord::default())
             .into_object(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Uint16Array => {

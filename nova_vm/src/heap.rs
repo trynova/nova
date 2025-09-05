@@ -32,7 +32,7 @@ use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
+use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     ArrayBufferHeapData,
@@ -178,7 +178,7 @@ pub struct Heap {
     #[cfg(feature = "set")]
     pub set_iterators: Vec<Option<SetIteratorHeapData<'static>>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData<'static>>>,
+    pub(crate) shared_array_buffers: Vec<SharedArrayBufferRecord<'static>>,
     pub symbols: Vec<Option<SymbolHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,

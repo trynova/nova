@@ -4,14 +4,23 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_index,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, PropertyKey, String, Value},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array_buffer::get_array_buffer_max_byte_length_option,
+        },
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, PropertyKey, String, Value},
     },
-    engine::context::{Bindable, GcScope},
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
+
+use super::allocate_shared_array_buffer;
 
 pub(crate) struct SharedArrayBufferConstructor;
 impl Builtin for SharedArrayBufferConstructor {
@@ -39,14 +48,51 @@ impl Builtin for SharedArrayBufferGetSpecies {
 impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 
 impl SharedArrayBufferConstructor {
+    /// ### [25.2.3.1 SharedArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-sharedarraybuffer-constructor)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("SharedArrayBuffer", gc.into_nogc()))
+        let arguments = arguments.bind(gc.nogc());
+        let new_target = new_target.bind(gc.nogc());
+        let length = arguments.get(0);
+        let options = arguments.get(0).scope(agent, gc.nogc());
+        // 1. If NewTarget is undefined,
+        let Some(new_target) = new_target else {
+            // throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "SharedArrayBuffer Constructor requires 'new'",
+                gc.into_nogc(),
+            ));
+        };
+        let new_target = new_target.scope(agent, gc.nogc());
+        // 2. Let byteLength be ? ToIndex(length).
+        let byte_length = to_index(agent, length.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc()) as u64;
+        // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
+        let requested_max_byte_length = get_array_buffer_max_byte_length_option(
+            agent,
+            unsafe { options.take(agent) },
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc())
+        .map(|b| b as u64);
+        // 4. Return ? AllocateSharedArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
+        allocate_shared_array_buffer(
+            agent,
+            // SAFETY: not shared.
+            unsafe { new_target.take(agent) },
+            byte_length,
+            requested_max_byte_length,
+            gc,
+        )
+        .map(|sab| sab.into_value())
     }
 
     /// ### [25.2.4.2 get SharedArrayBuffer \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-sharedarraybuffer-%symbol.species%)
