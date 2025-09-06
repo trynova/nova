@@ -508,13 +508,42 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 }
                 f(LexicallyScopedDeclaration::DefaultExport)
             }
-            Statement::TSEnumDeclaration(_) |
-            Statement::TSExportAssignment(_) |
-            Statement::TSImportEqualsDeclaration(_) |
-            Statement::TSInterfaceDeclaration(_) |
-            Statement::TSModuleDeclaration(_) |
-            Statement::TSNamespaceExportDeclaration(_) |
-            Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(decl) => {
+                f(LexicallyScopedDeclaration::TSEnum(decl));
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSInterfaceDeclaration(_) => {
+                // Interfaces don't introduce lexically scoped declarations
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) => {
+                // Type aliases don't introduce lexically scoped declarations
+            }
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
         // 2. Return a new empty List.
     }
@@ -799,13 +828,42 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
                     decl.bound_names(f);
                 }
             },
-            Statement::TSEnumDeclaration(_) |
-            Statement::TSExportAssignment(_) |
-            Statement::TSImportEqualsDeclaration(_) |
-            Statement::TSInterfaceDeclaration(_) |
-            Statement::TSModuleDeclaration(_) |
-            Statement::TSNamespaceExportDeclaration(_) |
-            Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(_) => {
+                // TypeScript enums don't introduce var-declared names
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSInterfaceDeclaration(_) => {
+                // Interfaces don't introduce var-declared names
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) => {
+                // Type aliases don't introduce var-declared names
+            }
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1214,18 +1272,22 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
             #[cfg(feature = "typescript")]
             Statement::TSModuleDeclaration(_) => {
                 // TODO: implement when module declarations are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSImportEqualsDeclaration(_) => {
                 // TODO: implement when import equals declarations are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSExportAssignment(_) => {
                 // TODO: implement when export assignments are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSNamespaceExportDeclaration(_) => {
                 // TODO: implement when namespace export declarations are supported
+                unreachable!()
             }
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
@@ -1516,6 +1578,32 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
             | Statement::ExportAllDeclaration(_)
             | Statement::ExportDefaultDeclaration(_)
             | Statement::ExportNamedDeclaration(_) => self.body.var_declared_names(f),
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => {
+                // TypeScript enums, interfaces, and type aliases don't introduce var-declared names
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+                unreachable!()
+            }
+            #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
@@ -1688,6 +1776,29 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for LabeledStatement<'a> {
                 }
                 f(VarScopedDeclaration::Function(decl));
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSEnumDeclaration(_) => {
+                // Type aliases, interfaces, and enums don't introduce var-scoped declarations
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported, for now they don't introduce var-scoped declarations
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported, for now they don't introduce var-scoped declarations
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported, for now they don't introduce var-scoped declarations
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported, for now they don't introduce var-scoped declarations
+            }
+            #[cfg(not(feature = "typescript"))]
             Statement::TSTypeAliasDeclaration(_)
             | Statement::TSInterfaceDeclaration(_)
             | Statement::TSEnumDeclaration(_)
