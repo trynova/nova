@@ -1073,13 +1073,46 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
             },
             Statement::FunctionDeclaration(_) |
             Statement::ClassDeclaration(_) => {}
-            Statement::TSEnumDeclaration(_) |
-            Statement::TSExportAssignment(_) |
-            Statement::TSImportEqualsDeclaration(_) |
-            Statement::TSInterfaceDeclaration(_) |
-            Statement::TSModuleDeclaration(_) |
-            Statement::TSNamespaceExportDeclaration(_) |
-            Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(_) => {
+                // TypeScript enums don't introduce var-declared names
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSExportAssignment(_) => {
+                // TODO: implement when export assignments are supported
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSImportEqualsDeclaration(_) => {
+                // TODO: implement when import equals declarations are supported
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSInterfaceDeclaration(_) => {
+                // Interfaces don't introduce var-declared names
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSModuleDeclaration(_) => {
+                // TODO: implement when module declarations are supported
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSNamespaceExportDeclaration(_) => {
+                // TODO: implement when namespace export declarations are supported
+                unreachable!()
+            }
+            #[cfg(feature = "typescript")]
+            Statement::TSTypeAliasDeclaration(_) => {
+                // Type aliases don't introduce var-declared names
+            }
+            #[cfg(not(feature = "typescript"))]
+            Statement::TSEnumDeclaration(_)
+            | Statement::TSExportAssignment(_)
+            | Statement::TSImportEqualsDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSModuleDeclaration(_)
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
         }
     }
 }
