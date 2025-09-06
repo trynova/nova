@@ -1080,10 +1080,12 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
             #[cfg(feature = "typescript")]
             Statement::TSExportAssignment(_) => {
                 // TODO: implement when export assignments are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSImportEqualsDeclaration(_) => {
                 // TODO: implement when import equals declarations are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSInterfaceDeclaration(_) => {
@@ -1092,10 +1094,12 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
             #[cfg(feature = "typescript")]
             Statement::TSModuleDeclaration(_) => {
                 // TODO: implement when module declarations are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSNamespaceExportDeclaration(_) => {
                 // TODO: implement when namespace export declarations are supported
+                unreachable!()
             }
             #[cfg(feature = "typescript")]
             Statement::TSTypeAliasDeclaration(_) => {
