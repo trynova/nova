@@ -22,8 +22,8 @@ use crate::{
     SmallInteger, SmallString,
     ecmascript::{
         abstract_operations::type_conversion::{
-            to_big_int, to_int16, to_int32, to_number, to_numeric, to_string, to_uint16, to_uint32,
-            try_to_string,
+            to_big_int, to_big_int64, to_big_uint64, to_int8, to_int16, to_int32, to_number,
+            to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32, try_to_string,
         },
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
@@ -570,20 +570,49 @@ impl<'a> Value<'a> {
         to_numeric(agent, self, gc)
     }
 
+    #[inline]
     pub fn to_int32<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i32> {
         to_int32(agent, self, gc)
     }
 
+    #[inline]
     pub fn to_uint32<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u32> {
         to_uint32(agent, self, gc)
     }
 
+    #[inline]
     pub fn to_int16<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i16> {
         to_int16(agent, self, gc)
     }
 
+    #[inline]
     pub fn to_uint16<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u16> {
         to_uint16(agent, self, gc)
+    }
+
+    #[inline]
+    pub fn to_int8<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i8> {
+        to_int8(agent, self, gc)
+    }
+
+    #[inline]
+    pub fn to_uint8<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u8> {
+        to_uint8(agent, self, gc)
+    }
+
+    #[inline]
+    pub fn to_uint8_clamp<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u8> {
+        to_uint8_clamp(agent, self, gc)
+    }
+
+    #[inline]
+    pub fn to_big_int64<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i64> {
+        to_big_int64(agent, self, gc)
+    }
+
+    #[inline]
+    pub fn to_big_uint64<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u64> {
+        to_big_uint64(agent, self, gc)
     }
 
     pub fn to_string<'gc>(
