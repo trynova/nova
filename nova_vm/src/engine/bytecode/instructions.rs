@@ -504,7 +504,7 @@ impl Instruction {
         )
     }
 
-    pub fn argument_count(self) -> u8 {
+    pub const fn argument_count(self) -> u8 {
         match self {
             // Number of repetitions and lexical status
             Self::BeginSimpleArrayBindingPattern
@@ -571,7 +571,7 @@ impl Instruction {
         )
     }
 
-    pub fn has_cache_index(self) -> bool {
+    pub const fn has_cache_index(self) -> bool {
         matches!(
             self,
             Self::GetValueWithCache
@@ -581,7 +581,7 @@ impl Instruction {
         )
     }
 
-    pub fn has_constant_index(self) -> bool {
+    pub const fn has_constant_index(self) -> bool {
         matches!(
             self,
             Self::BindingPatternBindNamed
@@ -591,11 +591,11 @@ impl Instruction {
         )
     }
 
-    pub fn has_shape_index(self) -> bool {
+    pub const fn has_shape_index(self) -> bool {
         matches!(self, Self::ObjectCreateWithShape)
     }
 
-    pub fn has_identifier_index(self) -> bool {
+    pub const fn has_identifier_index(self) -> bool {
         let base_matches = matches!(
             self,
             Self::BindingPatternBind
@@ -621,7 +621,7 @@ impl Instruction {
         base_matches || typescript_matches
     }
 
-    pub fn has_function_expression_index(self) -> bool {
+    pub const fn has_function_expression_index(self) -> bool {
         matches!(
             self,
             Self::ClassDefineConstructor
@@ -634,7 +634,7 @@ impl Instruction {
         )
     }
 
-    pub fn has_jump_slot(self) -> bool {
+    pub const fn has_jump_slot(self) -> bool {
         matches!(
             self,
             Self::IteratorComplete
@@ -752,35 +752,26 @@ impl Instr {
             // SAFETY: one u16 arg is guaranteed.
             1 => unsafe { self.args.single_arg },
             2 => {
-                assert!(!self.kind.has_double_arg());
+                debug_assert!(!self.kind.has_double_arg());
                 // SAFETY: two u16 args are guaranteed.
                 unsafe { self.args.two_args[0] }
             }
-            _ => panic!("Instruction does not have an argument"),
+            _ => panic_no_argument(),
         }
     }
 
     pub(crate) fn get_first_index(&self) -> usize {
-        match self.kind.argument_count() {
-            // SAFETY: one u16 arg is guaranteed.
-            1 => unsafe { self.args.single_arg as usize },
-            2 => {
-                assert!(!self.kind.has_double_arg());
-                // SAFETY: two u16 args are guaranteed.
-                unsafe { self.args.two_args[0] as usize }
-            }
-            _ => panic!("Instruction does not have an argument"),
-        }
+        self.get_first_arg() as usize
     }
 
     pub(crate) fn get_second_index(&self) -> usize {
         match self.kind.argument_count() {
             2 => {
-                assert!(!self.kind.has_double_arg());
+                debug_assert!(!self.kind.has_double_arg());
                 // SAFETY: two u16 args are guaranteed.
                 unsafe { self.args.two_args[1] as usize }
             }
-            _ => panic!("Instruction does not have two argument"),
+            _ => panic_not_two_arguments(),
         }
     }
 
@@ -789,32 +780,32 @@ impl Instr {
             // SAFETY: one u16 arg is guaranteed.
             1 => unsafe { self.args.single_arg },
             2 => {
-                assert!(!self.kind.has_double_arg());
+                debug_assert!(!self.kind.has_double_arg());
                 // SAFETY: two u16 args are guaranteed.
                 unsafe { self.args.two_args[1] }
             }
-            _ => panic!("Instruction does not have two argument"),
+            _ => panic_not_two_arguments(),
         };
         if first_arg == 0 || first_arg == 1 {
             first_arg == 1
         } else {
-            panic!("First argument was not a boolean")
+            panic_first_argument_not_boolean()
         }
     }
 
     pub(crate) fn get_second_bool(&self) -> bool {
         match self.kind.argument_count() {
             2 => {
-                assert!(!self.kind.has_double_arg());
+                debug_assert!(!self.kind.has_double_arg());
                 // SAFETY: two u16 args are guaranteed.
                 let second_arg = unsafe { self.args.two_args[1] };
                 if second_arg == 0 || second_arg == 1 {
                     second_arg == 1
                 } else {
-                    panic!("Second argument was not a boolean")
+                    panic_second_argument_not_boolean()
                 }
             }
-            _ => panic!("Instruction does not have two argument"),
+            _ => panic_no_argument(),
         }
     }
 
@@ -1511,4 +1502,38 @@ impl TryFrom<u8> for Instruction {
             _ => Err(()),
         }
     }
+}
+
+// These panics are marked as cold and moved into their own non-inlineable
+// functions, they should be called very infrequently and by doing this
+// eliminates the setup and teardown of stack frames keeping the hot-paths
+// as hot as possible.
+//
+// For reference, on my ARM64 machine it reduced the assembly instructions
+// needed for `get_first_arg` from 34 all the way down to 14 and showing
+// a minor but noticeable performance increase when running the "richards"
+// benchmark.
+
+#[cold]
+#[inline(never)]
+fn panic_no_argument() -> ! {
+    panic!("Instruction does not have an argument")
+}
+
+#[cold]
+#[inline(never)]
+fn panic_not_two_arguments() -> ! {
+    panic!("Instruction does not have two argument")
+}
+
+#[cold]
+#[inline(never)]
+fn panic_first_argument_not_boolean() -> ! {
+    panic!("First argument was not a boolean")
+}
+
+#[cold]
+#[inline(never)]
+fn panic_second_argument_not_boolean() -> ! {
+    panic!("Second argument was not a boolean")
 }
