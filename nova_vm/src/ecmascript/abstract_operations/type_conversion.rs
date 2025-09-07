@@ -592,7 +592,6 @@ pub(crate) fn try_to_integer_or_infinity<'a>(
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
-#[inline]
 pub(crate) fn to_int32<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -613,7 +612,6 @@ pub(crate) fn to_int32<'a>(
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
 ///
 /// Implements steps 2 to 5 of the abstract operation, callable only with Numbers.
-#[inline]
 pub(crate) fn to_int32_number(agent: &mut Agent, number: Number) -> i32 {
     if let Number::Integer(int) = number {
         let int = int.into_i64();
@@ -632,7 +630,6 @@ pub(crate) fn to_int32_number(agent: &mut Agent, number: Number) -> i32 {
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
-#[inline]
 pub(crate) fn to_uint32<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -654,7 +651,6 @@ pub(crate) fn to_uint32<'a>(
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
 ///
 /// Implements steps 2 to 5 of the abstract operation, callable only with Numbers.
-#[inline]
 pub(crate) fn to_uint32_number(agent: &mut Agent, number: Number) -> u32 {
     if let Number::Integer(int) = number {
         let int = int.into_i64();
@@ -673,7 +669,6 @@ pub(crate) fn to_uint32_number(agent: &mut Agent, number: Number) -> u32 {
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
-#[inline]
 pub(crate) fn to_int16<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -691,7 +686,6 @@ pub(crate) fn to_int16<'a>(
     Ok(to_int16_number(agent, number))
 }
 
-#[inline]
 pub(crate) fn to_int16_number(agent: &mut Agent, number: Number) -> i16 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly int16 already.
@@ -711,7 +705,6 @@ pub(crate) fn to_int16_number(agent: &mut Agent, number: Number) -> i16 {
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
-#[inline]
 pub(crate) fn to_uint16<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -729,7 +722,6 @@ pub(crate) fn to_uint16<'a>(
     Ok(to_uint16_number(agent, number))
 }
 
-#[inline]
 pub(crate) fn to_uint16_number(agent: &mut Agent, number: Number) -> u16 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uin16 already.
@@ -749,7 +741,6 @@ pub(crate) fn to_uint16_number(agent: &mut Agent, number: Number) -> u16 {
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
-#[inline]
 pub(crate) fn to_int8<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -767,7 +758,6 @@ pub(crate) fn to_int8<'a>(
     Ok(to_int8_number(agent, number))
 }
 
-#[inline]
 pub(crate) fn to_int8_number(agent: &mut Agent, number: Number) -> i8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
@@ -787,7 +777,6 @@ pub(crate) fn to_int8_number(agent: &mut Agent, number: Number) -> i8 {
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
-#[inline]
 pub(crate) fn to_uint8<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -805,7 +794,6 @@ pub(crate) fn to_uint8<'a>(
     Ok(to_uint8_number(agent, number))
 }
 
-#[inline]
 pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
@@ -825,7 +813,6 @@ pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
 }
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
-#[inline]
 pub(crate) fn to_uint8_clamp<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -843,7 +830,6 @@ pub(crate) fn to_uint8_clamp<'a>(
     Ok(to_uint8_clamp_number(agent, number))
 }
 
-#[inline]
 pub(crate) fn to_uint8_clamp_number(agent: &mut Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint8 already.
