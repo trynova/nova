@@ -9,18 +9,15 @@ use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
-use std::{borrow::Cow, ops::ControlFlow};
+use std::borrow::Cow;
 
 use super::{
-    IntoPrimitive, IntoValue, NoCache, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, TryGetResult, Value,
+    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT, Value,
 };
 use crate::{
     SmallInteger, SmallString,
-    ecmascript::{
-        builtins::ordinary::caches::PropertyLookupCache, execution::Agent,
-        types::PropertyDescriptor,
-    },
+    ecmascript::{execution::Agent, types::PropertyDescriptor},
     engine::{
         Scoped,
         context::{Bindable, NoGcScope, bindable_handle},
@@ -36,7 +33,10 @@ pub use data::StringHeapData;
 use hashbrown::HashTable;
 use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 
-/// String data allocated onto the Agent heap.
+/// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+///
+/// Heap-allocated [String] data. Accessing the data must be done through the
+/// [Agent].
 ///
 /// ## Ordering
 ///
@@ -45,6 +45,7 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct HeapString<'a>(BaseIndex<'a, StringHeapData>);
+bindable_handle!(HeapString);
 
 impl HeapString<'_> {
     pub fn len(self, agent: &Agent) -> usize {
@@ -67,8 +68,6 @@ impl HeapString<'_> {
         agent[self].as_str()
     }
 }
-
-bindable_handle!(HeapString);
 
 impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
     type Output = StringHeapData;
@@ -156,6 +155,7 @@ pub enum String<'a> {
     String(HeapString<'a>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
 }
+bindable_handle!(String);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -640,21 +640,6 @@ impl<'a> String<'a> {
             None
         }
     }
-
-    pub(crate) fn get_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        p: PropertyKey,
-        cache: PropertyLookupCache,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<TryGetResult<'gc>, NoCache> {
-        if let Some(v) = self.get_property_value(agent, p) {
-            v.bind(gc).into()
-        } else {
-            self.object_shape(agent)
-                .get_cached(agent, p, self.into_value(), cache, gc)
-        }
-    }
 }
 
 impl<'gc> String<'gc> {
@@ -785,8 +770,6 @@ impl<'gc> String<'gc> {
         }
     }
 }
-
-bindable_handle!(String);
 
 impl Scoped<'_, String<'static>> {
     pub fn is_empty_string(&self) -> bool {

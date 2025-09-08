@@ -5,8 +5,8 @@
 //! Heap constants for initializing the heap
 //!
 //! These define the order in which built-in prototypes and constructors
-//! are placed into the heap vectors. The order is based on the ECMAScript
-//! definition found in https://tc39.es/ecma262/
+//! are placed into the heap vectors. The order is based on the [ECMAScript
+//! specification](https://tc39.es/ecma262/).
 
 use std::num::NonZeroU32;
 

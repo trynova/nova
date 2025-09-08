@@ -129,8 +129,8 @@ pub(crate) fn bound_function_create<'a>(
 }
 
 impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
-    fn get_name(self, agent: &Agent) -> String<'static> {
-        agent[self].name.unwrap_or(String::EMPTY_STRING)
+    fn get_name(self, agent: &Agent) -> &String<'a> {
+        agent[self].name.as_ref().unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {

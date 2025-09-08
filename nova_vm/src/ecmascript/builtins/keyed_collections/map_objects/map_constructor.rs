@@ -340,29 +340,30 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                 let array_heap = ArrayHeap::new(elements, arrays);
                 let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
+                let arr_elements = arr_iterable.get_elements(&array_heap);
                 // Iterable uses the normal Array iterator of this realm.
-                if arr_iterable.len(&array_heap) == 0 {
+                if arr_elements.is_empty() {
                     // Array iterator does not iterate empty arrays.
                     return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
                 }
-                if arr_iterable.is_trivial(&array_heap)
-                    && arr_iterable.as_slice(&array_heap).iter().all(|entry| {
-                        if let Some(Value::Array(entry)) = *entry {
-                            entry.len(&array_heap) == 2
-                                && entry.is_trivial(&array_heap)
-                                && entry.is_dense(&array_heap)
-                        } else {
-                            false
-                        }
-                    })
+                if arr_elements.is_trivial(&array_heap)
+                    && arr_elements
+                        .get_storage(&array_heap)
+                        .values
+                        .iter()
+                        .all(|entry| {
+                            if let Some(Value::Array(entry)) = *entry {
+                                entry.get_elements(&array_heap).len() == 2
+                                    && entry.is_trivial(&array_heap)
+                                    && entry.is_dense(&array_heap)
+                            } else {
+                                false
+                            }
+                        })
                 {
                     // Trivial, dense array of trivial, dense arrays of two elements.
-                    let target = target.unbind();
-                    let arr_iterable = arr_iterable.unbind();
-                    let gc = gc.into_nogc();
-                    let target = target.bind(gc);
-                    let arr_iterable = arr_iterable.bind(gc);
-                    let length = arr_iterable.len(&array_heap);
+                    let gc = gc.nogc();
+                    let length = arr_elements.len();
                     let MapData {
                         keys,
                         values,
@@ -411,7 +412,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                             }
                         }
                     }
-                    return Ok(scoped_target.get(agent).bind(gc));
+                    return Ok(scoped_target.get(agent));
                 }
             }
             let gc = gc.nogc();

@@ -14,8 +14,7 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, EmbedderObjectIndex},
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -25,7 +24,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct EmbedderObject<'a>(pub(crate) EmbedderObjectIndex<'a>);
+pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData>);
 
 impl EmbedderObject<'_> {
     pub(crate) const fn _def() -> Self {

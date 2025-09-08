@@ -121,8 +121,8 @@ impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Value<'a> {
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
-    fn get_name(self, _: &Agent) -> String<'static> {
-        String::EMPTY_STRING
+    fn get_name(self, _: &Agent) -> &String<'a> {
+        &String::EMPTY_STRING
     }
 
     fn get_length(self, agent: &Agent) -> u8 {

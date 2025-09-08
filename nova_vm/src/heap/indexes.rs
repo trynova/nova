@@ -5,10 +5,7 @@
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::typed_array::data::TypedArrayHeapData;
 use crate::{
-    ecmascript::{
-        builtins::embedder_object::data::EmbedderObjectHeapData,
-        types::{PropertyKey, Value},
-    },
+    ecmascript::types::{PropertyKey, Value},
     engine::context::{GcToken, bindable_handle},
 };
 use core::fmt::Debug;
@@ -176,11 +173,13 @@ impl<T> Default for BaseIndex<'_, T> {
 }
 
 pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
+bindable_handle!(ElementIndex);
 pub type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
-pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
+bindable_handle!(PropertyKeyIndex);
+
 #[cfg(feature = "array-buffer")]
 pub type TypedArrayIndex<'a> = BaseIndex<'a, TypedArrayHeapData<'static>>;
-
+#[cfg(feature = "array-buffer")]
 bindable_handle!(TypedArrayIndex);
 
 // Implement Default for ElementIndex: This is done to support Default
@@ -203,8 +202,6 @@ impl ElementIndex<'_> {
         Self::from_usize(vec.len())
     }
 }
-
-bindable_handle!(ElementIndex);
 
 impl<const N: usize> Index<ElementIndex<'_>> for Vec<Option<[Option<Value<'static>>; N]>> {
     type Output = [Option<Value<'static>>; N];
@@ -243,5 +240,3 @@ impl PropertyKeyIndex<'_> {
         Self::from_usize(vec.len())
     }
 }
-
-bindable_handle!(PropertyKeyIndex);

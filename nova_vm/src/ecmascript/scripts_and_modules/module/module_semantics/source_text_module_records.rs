@@ -60,6 +60,7 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    ndt,
 };
 
 use super::{
@@ -1474,6 +1475,12 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         let module = self.bind(gc.nogc());
         let capability = capability.bind(gc.nogc());
 
+        let mut id = 0;
+        ndt::module_evaluation_start!(|| {
+            id = create_id(agent, module);
+            id
+        });
+
         // 0. Bind module environment.
         // Note: this is a custom step that enables certain optimisations of
         // import binding value lookups.
@@ -1508,7 +1515,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
 
         // 8. Suspend the running execution context.
         // 9. If module.[[HasTLA]] is false, then
-        if !module.has_tla(agent) {
+        let result = if !module.has_tla(agent) {
             // a. Assert: capability is not present.
             assert!(capability.is_none());
             // b. Push moduleContext onto the execution context stack;
@@ -1529,7 +1536,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             //    context stack as the running execution context.
             // f. If result is an abrupt completion, then
             // i. Return ? result.
-            result?;
+            result.map(|_| ())
         } else {
             // 10. Else,
             // a. Assert: capability is a PromiseCapability Record.
@@ -1544,10 +1551,27 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 module_context,
                 gc,
             );
-        }
+            Ok(())
+        };
+
+        ndt::module_evaluation_done!(|| id);
+
         // 11. Return unused.
-        Ok(())
+        result
     }
+}
+
+#[inline(never)]
+fn create_id(agent: &Agent, module: SourceTextModule) -> u64 {
+    u64::try_from(
+        module
+            .get(agent)
+            .ecmascript_code
+            .cast::<()>()
+            .as_ptr()
+            .addr(),
+    )
+    .unwrap()
 }
 
 fn async_module_start(

@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ### 10.4.2 Array Exotic Objects
-//!
-//! https://tc39.es/ecma262/#sec-array-exotic-objects
+//! ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
 
 pub(crate) mod abstract_operations;
 mod data;
@@ -47,7 +45,7 @@ use crate::{
 };
 
 use ahash::AHashMap;
-pub use data::ArrayHeapData;
+pub(crate) use data::ArrayHeapData;
 use data::{ArrayHeapDataMut, ArrayHeapDataRef};
 use soavec::SoAVec;
 
@@ -189,7 +187,7 @@ impl<'a> Array<'a> {
         self.0.into_index()
     }
 
-    pub fn len(self, agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>) -> u32 {
+    pub fn len(self, agent: &Agent) -> u32 {
         self.get_elements(agent).len()
     }
 
@@ -205,7 +203,7 @@ impl<'a> Array<'a> {
         elems.len = len;
     }
 
-    pub fn length_writable(self, agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>) -> bool {
+    pub fn length_writable(self, agent: &Agent) -> bool {
         self.get_elements(agent).len_writable
     }
 
@@ -213,7 +211,7 @@ impl<'a> Array<'a> {
         self.get_elements_mut(agent).len_writable = false;
     }
 
-    pub fn is_empty(self, agent: &impl AsRef<SoAVec<ArrayHeapData<'static>>>) -> bool {
+    pub fn is_empty(self, agent: &Agent) -> bool {
         self.get_elements(agent).is_empty()
     }
 

@@ -51,7 +51,7 @@ where
     Self: Sized + Copy + Into<Object<'a>> + IntoObject<'a> + IntoFunction<'a> + core::fmt::Debug,
 {
     /// Value of the 'name' property.
-    fn get_name(self, agent: &Agent) -> String<'static>;
+    fn get_name(self, agent: &Agent) -> &String<'a>;
 
     /// Value of the 'length' property.
     fn get_length(self, agent: &Agent) -> u8;
@@ -133,8 +133,8 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalSlots<'a> for T {
         };
         let backing_object =
             OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry]);
-        self.set_backing_object(agent, backing_object);
-        backing_object
+        self.set_backing_object(agent, backing_object.unbind());
+        backing_object.unbind()
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
@@ -277,7 +277,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.length.into() {
             TryGetResult::Value(self.get_length(agent).into()).into()
         } else if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.name.into() {
-            TryGetResult::Value(self.get_name(agent).into_value()).into()
+            TryGetResult::Value(self.get_name(agent).into_value().bind(gc)).into()
         } else {
             ordinary_try_get(
                 agent,

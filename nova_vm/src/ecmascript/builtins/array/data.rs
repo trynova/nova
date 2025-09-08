@@ -16,9 +16,9 @@ use crate::{
 /// property whose value is always a non-negative integral Number whose
 /// mathematical value is strictly less than 2**32.
 #[derive(Debug, Clone, Copy, Default, SoAble)]
-pub struct ArrayHeapData<'a> {
-    pub elements: ElementsVector<'a>,
-    pub object_index: Option<OrdinaryObject<'a>>,
+pub(crate) struct ArrayHeapData<'a> {
+    pub(crate) elements: ElementsVector<'a>,
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
 }
 bindable_handle!(ArrayHeapData);
 
