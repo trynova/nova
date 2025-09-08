@@ -18,7 +18,123 @@ use super::{Executable, IndexType};
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
-    Debug,
+    // === HOT INSTRUCTIONS ===
+    /// Load the result value and add it to the stack.
+    Load,
+    /// Add the result value to the stack, without removing it as the result
+    /// value.
+    LoadCopy,
+    /// Store the last value from the stack as the result value.
+    Store,
+    /// Store a constant as the result value.
+    StoreConstant,
+    /// Jump to another instruction by setting the instruction pointer.
+    Jump,
+    /// Jump to another instruction by setting the instruction pointer
+    /// if the current result is falsey.
+    JumpIfNot,
+    /// Store ResolveBinding() in the reference register.
+    ResolveBinding,
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
+    GetValue,
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value. This variant caches the property lookup.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
+    GetValueWithCache,
+    /// Same as GetValue without taking the reference slot. Used for reference
+    /// property updates and function calls (where `this` comes from the
+    /// reference).
+    GetValueKeepReference,
+    GetValueWithCacheKeepReference,
+    /// Call PutValue() with the last reference on the reference stack and the
+    /// result value.
+    PutValue,
+    /// Same as PutValue but with a cache slot.
+    PutValueWithCache,
+    /// Store ToNumeric() as the result value.
+    ToNumeric,
+    /// Perform CreateImmutableBinding in the running execution context's
+    /// LexicalEnvironment with an identifier parameter and `true`
+    CreateImmutableBinding,
+    /// Perform CreateMutableBinding in the running execution context's
+    /// LexicalEnvironment with an identifier parameter and `false`
+    CreateMutableBinding,
+    /// Perform InitializeReferencedBinding with parameters reference (V) and
+    /// result (W).
+    InitializeReferencedBinding,
+    /// Push the last evaluated reference, if any.
+    PushReference,
+    /// Pop the last stored reference.
+    PopReference,
+    /// Perform EvaluatePropertyAccessWithIdentifierKey with the `baseValue` in
+    /// the result register and the `propertyNameString` given as the first
+    /// immediate argument, and store the result in the reference register.
+    EvaluatePropertyAccessWithIdentifierKey,
+    /// Perform EvaluatePropertyAccessWithExpressionKey with the `baseValue` at
+    /// the top of the stack and the `propertyNameValue` in result register,
+    /// and store the result in the reference register.
+    EvaluatePropertyAccessWithExpressionKey,
+
+    // === COLD INSTRUCTIONS ===
+
+    // = INLINED COLD INSTRUCTIONS =
+    /// Stop bytecode execution, indicating a return from the current function.
+    Return,
+    /// Performs Await() on the result value, and after resuming, stores the
+    /// promise result as the result value.
+    Await,
+    /// Performs Yield() on the result value, and after resuming, stores the
+    /// value passed to `next()` as the result value.
+    Yield,
+    /// Take the result value and the top stack value, compare them using
+    /// IsStrictlyEqual() and store the result as the result value.
+    IsStrictlyEqual,
+    /// Store true as the result value if the current result value is null or
+    /// undefined, false otherwise.
+    IsNullOrUndefined,
+    /// Store true as the result value if the current result value is null,
+    /// false otherwise.
+    IsNull,
+    /// Store true as the result value if the current result value is undefined,
+    /// false otherwise.
+    IsUndefined,
+    /// Store true as the result value if the current result value is an
+    /// object.
+    IsObject,
+    /// Call IsConstructor() on the current result value and store the result
+    /// as the result value.
+    IsConstructor,
+    /// Jump to another intrsuction by setting the instruction pointer if the
+    /// current result is `true`.
+    JumpIfTrue,
+    /// Load the result value, if present, to the top of the stack, replacing
+    /// the previous top of the stack value.
+    LoadReplace,
+    /// Load a constant and add it to the stack.
+    LoadConstant,
+    /// Swaps the last value in the stack and the result value.
+    LoadStoreSwap,
+    /// Perform UpdateEmpty with the value coming from the top of the stack,
+    /// and the Completion Record \[\[Value]] being the result value.
+    UpdateEmpty,
+    /// Swap the last two values on the stack.
+    Swap,
+    /// Empty the result register.
+    Empty,
+    /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
+    LogicalNot,
+
+    // = OUTLINED COLD INSTRUCTIONS =
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
     ApplyAdditionBinaryOperator,
     ApplySubtractionBinaryOperator,
@@ -41,9 +157,6 @@ pub enum Instruction {
     ArrayPush,
     /// Push a hole into an array
     ArrayElision,
-    /// Performs Await() on the result value, and after resuming, stores the
-    /// promise result as the result value.
-    Await,
     /// Performs steps 2-4 from the [UnaryExpression ~ Runtime Semantics](https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation).
     BitwiseNot,
     /// Performs CreateUnmappedArgumentsObject() on the arguments list present
@@ -88,14 +201,6 @@ pub enum Instruction {
     /// This instruction has the number of argument values that need to be
     /// popped from the stack (last to first) as an argument.
     EvaluateSuper,
-    /// Perform EvaluatePropertyAccessWithExpressionKey with the `baseValue` at
-    /// the top of the stack and the `propertyNameValue` in result register,
-    /// and store the result in the reference register.
-    EvaluatePropertyAccessWithExpressionKey,
-    /// Perform EvaluatePropertyAccessWithIdentifierKey with the `baseValue` in
-    /// the result register and the `propertyNameString` given as the first
-    /// immediate argument, and store the result in the reference register.
-    EvaluatePropertyAccessWithIdentifierKey,
     /// Perform MakePrivateReference with the `baseValue` in the result
     /// register and the `privateIdentifier` given as the first immediate
     /// argument, and store the result in the reference register.
@@ -107,27 +212,6 @@ pub enum Instruction {
     /// first immediate argument, and store the result in the reference
     /// register.
     MakeSuperPropertyReferenceWithIdentifierKey,
-    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
-    /// value.
-    ///
-    /// #### Note
-    /// We only call `GetValue` on reference values. This can be statically
-    /// analysed from the AST. Non-reference values are already in the result
-    /// value so a `GetValue` call would be a no-op.
-    GetValue,
-    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
-    /// value. This variant caches the property lookup.
-    ///
-    /// #### Note
-    /// We only call `GetValue` on reference values. This can be statically
-    /// analysed from the AST. Non-reference values are already in the result
-    /// value so a `GetValue` call would be a no-op.
-    GetValueWithCache,
-    /// Same as GetValue without taking the reference slot. Used for reference
-    /// property updates and function calls (where `this` comes from the
-    /// reference).
-    GetValueKeepReference,
-    GetValueWithCacheKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
     /// Compare the last two values on the stack using the '>=' operator rules.
@@ -186,57 +270,10 @@ pub enum Instruction {
     ClassInitializePrivateValue,
     /// Store IsLooselyEqual() as the result value.
     IsLooselyEqual,
-    /// Take the result value and the top stack value, compare them using
-    /// IsStrictlyEqual() and store the result as the result value.
-    IsStrictlyEqual,
-    /// Store true as the result value if the current result value is null or
-    /// undefined, false otherwise.
-    IsNullOrUndefined,
-    /// Store true as the result value if the current result value is null,
-    /// false otherwise.
-    IsNull,
-    /// Store true as the result value if the current result value is undefined,
-    /// false otherwise.
-    IsUndefined,
-    /// Store true as the result value if the current result value is an
-    /// object.
-    IsObject,
-    /// Call IsConstructor() on the current result value and store the result
-    /// as the result value.
-    IsConstructor,
-    /// Jump to another instruction by setting the instruction pointer.
-    Jump,
-    /// Jump to another instruction by setting the instruction pointer
-    /// if the current result is falsey.
-    JumpIfNot,
-    /// Jump to another intrsuction by setting the instruction pointer if the
-    /// current result is `true`.
-    JumpIfTrue,
     /// Compare the last two values on the stack using the '<' operator rules.
     LessThan,
     /// Compare the last two values on the stack using the '<=' operator rules.
     LessThanEquals,
-    /// Load the result value and add it to the stack.
-    Load,
-    /// Add the result value to the stack, without removing it as the result
-    /// value.
-    LoadCopy,
-    /// Load a constant and add it to the stack.
-    LoadConstant,
-    /// Swaps the last value in the stack and the result value.
-    LoadStoreSwap,
-    /// Load the result value, if present, to the top of the stack, replacing
-    /// the previous top of the stack value.
-    LoadReplace,
-    /// Perform UpdateEmpty with the value coming from the top of the stack,
-    /// and the Completion Record \[\[Value]] being the result value.
-    UpdateEmpty,
-    /// Swap the last two values on the stack.
-    Swap,
-    /// Empty the result register.
-    Empty,
-    /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
-    LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
     /// Store a new as the result Object created with the given shape, with its
@@ -257,32 +294,16 @@ pub enum Instruction {
     ObjectSetPrototype,
     /// Pop a jump target for uncaught exceptions
     PopExceptionJumpTarget,
-    /// Pop the last stored reference.
-    PopReference,
     /// Push a jump target for uncaught exceptions
     PushExceptionJumpTarget,
-    /// Push the last evaluated reference, if any.
-    PushReference,
-    /// Call PutValue() with the last reference on the reference stack and the
-    /// result value.
-    PutValue,
-    /// Same as PutValue but with a cache slot.
-    PutValueWithCache,
-    /// Store ResolveBinding() in the reference register.
-    ResolveBinding,
     /// Store ResolveBinding() in the reference register using a property
     /// lookup cache.
     ResolveBindingWithCache,
     /// Store ResolveThisBinding() in the result register.
     ResolveThisBinding,
-    /// Stop bytecode execution, indicating a return from the current function.
-    Return,
-    /// Store the last value from the stack as the result value.
-    Store,
+
     /// Store a copy of the last value from the stack as the result value.
     StoreCopy,
-    /// Store a constant as the result value.
-    StoreConstant,
     /// Take N items from the stack and string-concatenate them together.
     StringConcat,
     /// Throw the result value as an exception.
@@ -294,8 +315,6 @@ pub enum Instruction {
     ThrowError,
     /// Store ToNumber() as the result value.
     ToNumber,
-    /// Store ToNumeric() as the result value.
-    ToNumeric,
     /// Store ToObject() as the result value.
     ToObject,
     /// Apply the typeof operation to the evaluated expression and set it as
@@ -303,18 +322,7 @@ pub enum Instruction {
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
-    /// Performs Yield() on the result value, and after resuming, stores the
-    /// value passed to `next()` as the result value.
-    Yield,
-    /// Perform CreateImmutableBinding in the running execution context's
-    /// LexicalEnvironment with an identifier parameter and `true`
-    CreateImmutableBinding,
-    /// Perform CreateMutableBinding in the running execution context's
-    /// LexicalEnvironment with an identifier parameter and `false`
-    CreateMutableBinding,
-    /// Perform InitializeReferencedBinding with parameters reference (V) and
-    /// result (W).
-    InitializeReferencedBinding,
+
     /// Create a new VariableEnvironment and initialize it with variable names
     /// and values from the stack, where each name comes before the value.
     /// The first immediate argument is the number of variables to initialize.
@@ -503,6 +511,7 @@ pub enum Instruction {
     ///
     /// The error message is provided as an identifier.
     VerifyIsObject,
+    Debug,
 }
 
 impl Instruction {
@@ -665,6 +674,7 @@ impl Instruction {
     }
 }
 
+#[derive(Clone, Copy)]
 union InstructionArgs {
     none: (),
     single_arg: u16,
@@ -678,7 +688,7 @@ impl core::fmt::Debug for InstructionArgs {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Instr {
     pub kind: Instruction,
     args: InstructionArgs,
