@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ast::ast::BindingPattern;
-use oxc_syntax::{number::ToJsString, operator::BinaryOperator};
+use oxc_syntax::number::ToJsString;
 
 use crate::{
     ecmascript::{execution::Agent, types::String},
@@ -17,10 +17,138 @@ use super::{Executable, IndexType};
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Instruction {
-    Debug,
+    // === HOT INSTRUCTIONS ===
+    /// Load the result value and add it to the stack.
+    Load,
+    /// Add the result value to the stack, without removing it as the result
+    /// value.
+    LoadCopy,
+    /// Store the last value from the stack as the result value.
+    Store,
+    /// Store a constant as the result value.
+    StoreConstant,
+    /// Jump to another instruction by setting the instruction pointer.
+    Jump,
+    /// Jump to another instruction by setting the instruction pointer
+    /// if the current result is falsey.
+    JumpIfNot,
+    /// Store ResolveBinding() in the reference register.
+    ResolveBinding,
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
+    GetValue,
+    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
+    /// value. This variant caches the property lookup.
+    ///
+    /// #### Note
+    /// We only call `GetValue` on reference values. This can be statically
+    /// analysed from the AST. Non-reference values are already in the result
+    /// value so a `GetValue` call would be a no-op.
+    GetValueWithCache,
+    /// Same as GetValue without taking the reference slot. Used for reference
+    /// property updates and function calls (where `this` comes from the
+    /// reference).
+    GetValueKeepReference,
+    GetValueWithCacheKeepReference,
+    /// Call PutValue() with the last reference on the reference stack and the
+    /// result value.
+    PutValue,
+    /// Same as PutValue but with a cache slot.
+    PutValueWithCache,
+    /// Store ToNumeric() as the result value.
+    ToNumeric,
+    /// Perform CreateImmutableBinding in the running execution context's
+    /// LexicalEnvironment with an identifier parameter and `true`
+    CreateImmutableBinding,
+    /// Perform CreateMutableBinding in the running execution context's
+    /// LexicalEnvironment with an identifier parameter and `false`
+    CreateMutableBinding,
+    /// Perform InitializeReferencedBinding with parameters reference (V) and
+    /// result (W).
+    InitializeReferencedBinding,
+    /// Push the last evaluated reference, if any.
+    PushReference,
+    /// Pop the last stored reference.
+    PopReference,
+    /// Perform EvaluatePropertyAccessWithIdentifierKey with the `baseValue` in
+    /// the result register and the `propertyNameString` given as the first
+    /// immediate argument, and store the result in the reference register.
+    EvaluatePropertyAccessWithIdentifierKey,
+    /// Perform EvaluatePropertyAccessWithExpressionKey with the `baseValue` at
+    /// the top of the stack and the `propertyNameValue` in result register,
+    /// and store the result in the reference register.
+    EvaluatePropertyAccessWithExpressionKey,
+
+    // === COLD INSTRUCTIONS ===
+
+    // = INLINED COLD INSTRUCTIONS =
+    /// Stop bytecode execution, indicating a return from the current function.
+    Return,
+    /// Performs Await() on the result value, and after resuming, stores the
+    /// promise result as the result value.
+    Await,
+    /// Performs Yield() on the result value, and after resuming, stores the
+    /// value passed to `next()` as the result value.
+    Yield,
+    /// Take the result value and the top stack value, compare them using
+    /// IsStrictlyEqual() and store the result as the result value.
+    IsStrictlyEqual,
+    /// Store true as the result value if the current result value is null or
+    /// undefined, false otherwise.
+    IsNullOrUndefined,
+    /// Store true as the result value if the current result value is null,
+    /// false otherwise.
+    IsNull,
+    /// Store true as the result value if the current result value is undefined,
+    /// false otherwise.
+    IsUndefined,
+    /// Store true as the result value if the current result value is an
+    /// object.
+    IsObject,
+    /// Call IsConstructor() on the current result value and store the result
+    /// as the result value.
+    IsConstructor,
+    /// Jump to another intrsuction by setting the instruction pointer if the
+    /// current result is `true`.
+    JumpIfTrue,
+    /// Load the result value, if present, to the top of the stack, replacing
+    /// the previous top of the stack value.
+    LoadReplace,
+    /// Load a constant and add it to the stack.
+    LoadConstant,
+    /// Swaps the last value in the stack and the result value.
+    LoadStoreSwap,
+    /// Perform UpdateEmpty with the value coming from the top of the stack,
+    /// and the Completion Record \[\[Value]] being the result value.
+    UpdateEmpty,
+    /// Swap the last two values on the stack.
+    Swap,
+    /// Empty the result register.
+    Empty,
+    /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
+    LogicalNot,
+
+    // = OUTLINED COLD INSTRUCTIONS =
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
-    ApplyStringOrNumericBinaryOperator(BinaryOperator),
+    ApplyAdditionBinaryOperator,
+    ApplySubtractionBinaryOperator,
+    ApplyMultiplicationBinaryOperator,
+    ApplyDivisionBinaryOperator,
+    ApplyRemainderBinaryOperator,
+    ApplyExponentialBinaryOperator,
+    ApplyShiftLeftBinaryOperator,
+    ApplyShiftRightBinaryOperator,
+    ApplyShiftRightZeroFillBinaryOperator,
+    ApplyBitwiseORBinaryOperator,
+    ApplyBitwiseXORBinaryOperator,
+    ApplyBitwiseAndBinaryOperator,
     /// Store ArrayCreate(0) as the result value.
     ///
     /// This instruction has one immediate argument that is the minimum
@@ -30,9 +158,6 @@ pub enum Instruction {
     ArrayPush,
     /// Push a hole into an array
     ArrayElision,
-    /// Performs Await() on the result value, and after resuming, stores the
-    /// promise result as the result value.
-    Await,
     /// Performs steps 2-4 from the [UnaryExpression ~ Runtime Semantics](https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation).
     BitwiseNot,
     /// Performs CreateUnmappedArgumentsObject() on the arguments list present
@@ -77,14 +202,6 @@ pub enum Instruction {
     /// This instruction has the number of argument values that need to be
     /// popped from the stack (last to first) as an argument.
     EvaluateSuper,
-    /// Perform EvaluatePropertyAccessWithExpressionKey with the `baseValue` at
-    /// the top of the stack and the `propertyNameValue` in result register,
-    /// and store the result in the reference register.
-    EvaluatePropertyAccessWithExpressionKey,
-    /// Perform EvaluatePropertyAccessWithIdentifierKey with the `baseValue` in
-    /// the result register and the `propertyNameString` given as the first
-    /// immediate argument, and store the result in the reference register.
-    EvaluatePropertyAccessWithIdentifierKey,
     /// Perform MakePrivateReference with the `baseValue` in the result
     /// register and the `privateIdentifier` given as the first immediate
     /// argument, and store the result in the reference register.
@@ -96,27 +213,6 @@ pub enum Instruction {
     /// first immediate argument, and store the result in the reference
     /// register.
     MakeSuperPropertyReferenceWithIdentifierKey,
-    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
-    /// value.
-    ///
-    /// #### Note
-    /// We only call `GetValue` on reference values. This can be statically
-    /// analysed from the AST. Non-reference values are already in the result
-    /// value so a `GetValue` call would be a no-op.
-    GetValue,
-    /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
-    /// value. This variant caches the property lookup.
-    ///
-    /// #### Note
-    /// We only call `GetValue` on reference values. This can be statically
-    /// analysed from the AST. Non-reference values are already in the result
-    /// value so a `GetValue` call would be a no-op.
-    GetValueWithCache,
-    /// Same as GetValue without taking the reference slot. Used for reference
-    /// property updates and function calls (where `this` comes from the
-    /// reference).
-    GetValueKeepReference,
-    GetValueWithCacheKeepReference,
     /// Compare the last two values on the stack using the '>' operator rules.
     GreaterThan,
     /// Compare the last two values on the stack using the '>=' operator rules.
@@ -175,57 +271,10 @@ pub enum Instruction {
     ClassInitializePrivateValue,
     /// Store IsLooselyEqual() as the result value.
     IsLooselyEqual,
-    /// Take the result value and the top stack value, compare them using
-    /// IsStrictlyEqual() and store the result as the result value.
-    IsStrictlyEqual,
-    /// Store true as the result value if the current result value is null or
-    /// undefined, false otherwise.
-    IsNullOrUndefined,
-    /// Store true as the result value if the current result value is null,
-    /// false otherwise.
-    IsNull,
-    /// Store true as the result value if the current result value is undefined,
-    /// false otherwise.
-    IsUndefined,
-    /// Store true as the result value if the current result value is an
-    /// object.
-    IsObject,
-    /// Call IsConstructor() on the current result value and store the result
-    /// as the result value.
-    IsConstructor,
-    /// Jump to another instruction by setting the instruction pointer.
-    Jump,
-    /// Jump to another instruction by setting the instruction pointer
-    /// if the current result is falsey.
-    JumpIfNot,
-    /// Jump to another intrsuction by setting the instruction pointer if the
-    /// current result is `true`.
-    JumpIfTrue,
     /// Compare the last two values on the stack using the '<' operator rules.
     LessThan,
     /// Compare the last two values on the stack using the '<=' operator rules.
     LessThanEquals,
-    /// Load the result value and add it to the stack.
-    Load,
-    /// Add the result value to the stack, without removing it as the result
-    /// value.
-    LoadCopy,
-    /// Load a constant and add it to the stack.
-    LoadConstant,
-    /// Swaps the last value in the stack and the result value.
-    LoadStoreSwap,
-    /// Load the result value, if present, to the top of the stack, replacing
-    /// the previous top of the stack value.
-    LoadReplace,
-    /// Perform UpdateEmpty with the value coming from the top of the stack,
-    /// and the Completion Record \[\[Value]] being the result value.
-    UpdateEmpty,
-    /// Swap the last two values on the stack.
-    Swap,
-    /// Empty the result register.
-    Empty,
-    /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
-    LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
     /// Store a new as the result Object created with the given shape, with its
@@ -246,32 +295,16 @@ pub enum Instruction {
     ObjectSetPrototype,
     /// Pop a jump target for uncaught exceptions
     PopExceptionJumpTarget,
-    /// Pop the last stored reference.
-    PopReference,
     /// Push a jump target for uncaught exceptions
     PushExceptionJumpTarget,
-    /// Push the last evaluated reference, if any.
-    PushReference,
-    /// Call PutValue() with the last reference on the reference stack and the
-    /// result value.
-    PutValue,
-    /// Same as PutValue but with a cache slot.
-    PutValueWithCache,
-    /// Store ResolveBinding() in the reference register.
-    ResolveBinding,
     /// Store ResolveBinding() in the reference register using a property
     /// lookup cache.
     ResolveBindingWithCache,
     /// Store ResolveThisBinding() in the result register.
     ResolveThisBinding,
-    /// Stop bytecode execution, indicating a return from the current function.
-    Return,
-    /// Store the last value from the stack as the result value.
-    Store,
+
     /// Store a copy of the last value from the stack as the result value.
     StoreCopy,
-    /// Store a constant as the result value.
-    StoreConstant,
     /// Take N items from the stack and string-concatenate them together.
     StringConcat,
     /// Throw the result value as an exception.
@@ -283,8 +316,6 @@ pub enum Instruction {
     ThrowError,
     /// Store ToNumber() as the result value.
     ToNumber,
-    /// Store ToNumeric() as the result value.
-    ToNumeric,
     /// Store ToObject() as the result value.
     ToObject,
     /// Apply the typeof operation to the evaluated expression and set it as
@@ -292,18 +323,7 @@ pub enum Instruction {
     Typeof,
     /// Performs steps 3 and 4 from the [UnaryExpression - Runtime Semantics](https://tc39.es/ecma262/#sec-unary-minus-operator-runtime-semantics-evaluation).
     UnaryMinus,
-    /// Performs Yield() on the result value, and after resuming, stores the
-    /// value passed to `next()` as the result value.
-    Yield,
-    /// Perform CreateImmutableBinding in the running execution context's
-    /// LexicalEnvironment with an identifier parameter and `true`
-    CreateImmutableBinding,
-    /// Perform CreateMutableBinding in the running execution context's
-    /// LexicalEnvironment with an identifier parameter and `false`
-    CreateMutableBinding,
-    /// Perform InitializeReferencedBinding with parameters reference (V) and
-    /// result (W).
-    InitializeReferencedBinding,
+
     /// Create a new VariableEnvironment and initialize it with variable names
     /// and values from the stack, where each name comes before the value.
     /// The first immediate argument is the number of variables to initialize.
@@ -492,6 +512,7 @@ pub enum Instruction {
     ///
     /// The error message is provided as an identifier.
     VerifyIsObject,
+    Debug,
 }
 
 impl Instruction {
@@ -654,6 +675,7 @@ impl Instruction {
     }
 }
 
+#[derive(Clone, Copy)]
 union InstructionArgs {
     none: (),
     single_arg: u16,
@@ -667,7 +689,7 @@ impl core::fmt::Debug for InstructionArgs {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Instr {
     pub kind: Instruction,
     args: InstructionArgs,
@@ -1102,52 +1124,25 @@ impl TryFrom<u8> for Instruction {
     type Error = ();
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        const ADDITION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Addition).as_u8();
-        const BITWISEAND: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseAnd).as_u8();
-        const BITWISEOR: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseOR).as_u8();
-        const BITWISEXOR: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseXOR).as_u8();
-        const DIVISION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Division).as_u8();
-        const EQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Equality).as_u8();
-        const EXPONENTIAL: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Exponential).as_u8();
-        const GREATEREQUALTHAN: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::GreaterEqualThan)
-                .as_u8();
-        const GREATERTHAN_UNUSED: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::GreaterThan).as_u8();
-        const LESSEQUALTHAN: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::LessEqualThan).as_u8();
-        const LESSTHAN_UNUSED: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::LessThan).as_u8();
-        const MULTIPLICATION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Multiplication).as_u8();
-        const IN: u8 = Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::In).as_u8();
-        const INEQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Inequality).as_u8();
-        const INSTANCEOF: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Instanceof).as_u8();
-        const REMAINDER: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Remainder).as_u8();
-        const SHIFTLEFT: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftLeft).as_u8();
-        const SHIFTRIGHT: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftRight).as_u8();
-        const SHIFTRIGHTZEROFILL: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftRightZeroFill)
-                .as_u8();
-        const STRICTEQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::StrictEquality).as_u8();
-        const STRICTINEQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::StrictInequality)
-                .as_u8();
-        const SUBTRACTION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Subtraction).as_u8();
+        const APPLYADDITIONBINARYOPERATOR: u8 = Instruction::ApplyAdditionBinaryOperator.as_u8();
+        const APPLYSUBTRACTIONBINARYOPERATOR: u8 =
+            Instruction::ApplySubtractionBinaryOperator.as_u8();
+        const APPLYMULTIPLICATIONBINARYOPERATOR: u8 =
+            Instruction::ApplyMultiplicationBinaryOperator.as_u8();
+        const APPLYDIVISIONBINARYOPERATOR: u8 = Instruction::ApplyDivisionBinaryOperator.as_u8();
+        const APPLYREMAINDERBINARYOPERATOR: u8 = Instruction::ApplyRemainderBinaryOperator.as_u8();
+        const APPLYEXPONENTIALBINARYOPERATOR: u8 =
+            Instruction::ApplyExponentialBinaryOperator.as_u8();
+        const APPLYSHIFTLEFTBINARYOPERATOR: u8 = Instruction::ApplyShiftLeftBinaryOperator.as_u8();
+        const APPLYSHIFTRIGHTBINARYOPERATOR: u8 =
+            Instruction::ApplyShiftRightBinaryOperator.as_u8();
+        const APPLYSHIFTRIGHTZEROFILLBINARYOPERATOR: u8 =
+            Instruction::ApplyShiftRightZeroFillBinaryOperator.as_u8();
+        const APPLYBITWISEORBINARYOPERATOR: u8 = Instruction::ApplyBitwiseORBinaryOperator.as_u8();
+        const APPLYBITWISEXORBINARYOPERATOR: u8 =
+            Instruction::ApplyBitwiseXORBinaryOperator.as_u8();
+        const APPLYBITWISEANDBINARYOPERATOR: u8 =
+            Instruction::ApplyBitwiseAndBinaryOperator.as_u8();
         const DEBUG: u8 = Instruction::Debug.as_u8();
         const ARRAYCREATE: u8 = Instruction::ArrayCreate.as_u8();
         const ARRAYPUSH: u8 = Instruction::ArrayPush.as_u8();
@@ -1291,72 +1286,20 @@ impl TryFrom<u8> for Instruction {
         const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
         match value {
-            ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Addition,
-            )),
-            BITWISEAND => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseAnd,
-            )),
-            BITWISEOR => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseOR,
-            )),
-            BITWISEXOR => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseXOR,
-            )),
-            DIVISION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Division,
-            )),
-            EQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Equality,
-            )),
-            EXPONENTIAL => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Exponential,
-            )),
-            GREATEREQUALTHAN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::GreaterEqualThan,
-            )),
-            GREATERTHAN_UNUSED => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::GreaterThan,
-            )),
-            LESSEQUALTHAN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::LessEqualThan,
-            )),
-            LESSTHAN_UNUSED => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::LessThan,
-            )),
-            MULTIPLICATION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Multiplication,
-            )),
-            IN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::In,
-            )),
-            INEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Inequality,
-            )),
-            INSTANCEOF => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Instanceof,
-            )),
-            REMAINDER => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Remainder,
-            )),
-            SHIFTLEFT => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftLeft,
-            )),
-            SHIFTRIGHT => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftRight,
-            )),
-            SHIFTRIGHTZEROFILL => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftRightZeroFill,
-            )),
-            STRICTEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::StrictEquality,
-            )),
-            STRICTINEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::StrictInequality,
-            )),
-            SUBTRACTION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Subtraction,
-            )),
+            APPLYADDITIONBINARYOPERATOR => Ok(Instruction::ApplyAdditionBinaryOperator),
+            APPLYSUBTRACTIONBINARYOPERATOR => Ok(Instruction::ApplySubtractionBinaryOperator),
+            APPLYMULTIPLICATIONBINARYOPERATOR => Ok(Instruction::ApplyMultiplicationBinaryOperator),
+            APPLYDIVISIONBINARYOPERATOR => Ok(Instruction::ApplyDivisionBinaryOperator),
+            APPLYREMAINDERBINARYOPERATOR => Ok(Instruction::ApplyRemainderBinaryOperator),
+            APPLYEXPONENTIALBINARYOPERATOR => Ok(Instruction::ApplyExponentialBinaryOperator),
+            APPLYSHIFTLEFTBINARYOPERATOR => Ok(Instruction::ApplyShiftLeftBinaryOperator),
+            APPLYSHIFTRIGHTBINARYOPERATOR => Ok(Instruction::ApplyShiftRightBinaryOperator),
+            APPLYSHIFTRIGHTZEROFILLBINARYOPERATOR => {
+                Ok(Instruction::ApplyShiftRightZeroFillBinaryOperator)
+            }
+            APPLYBITWISEORBINARYOPERATOR => Ok(Instruction::ApplyBitwiseORBinaryOperator),
+            APPLYBITWISEXORBINARYOPERATOR => Ok(Instruction::ApplyBitwiseXORBinaryOperator),
+            APPLYBITWISEANDBINARYOPERATOR => Ok(Instruction::ApplyBitwiseAndBinaryOperator),
             DEBUG => Ok(Instruction::Debug),
             ARRAYCREATE => Ok(Instruction::ArrayCreate),
             ARRAYPUSH => Ok(Instruction::ArrayPush),

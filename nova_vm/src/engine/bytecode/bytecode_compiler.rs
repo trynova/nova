@@ -389,46 +389,40 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
         // 4. Let rval be ? GetValue(rref).
         compile_expression_get_value(&self.right, ctx);
 
-        match self.operator {
-            BinaryOperator::LessThan => {
-                ctx.add_instruction(Instruction::LessThan);
-            }
-            BinaryOperator::LessEqualThan => {
-                ctx.add_instruction(Instruction::LessThanEquals);
-            }
-            BinaryOperator::GreaterThan => {
-                ctx.add_instruction(Instruction::GreaterThan);
-            }
-            BinaryOperator::GreaterEqualThan => {
-                ctx.add_instruction(Instruction::GreaterThanEquals);
-            }
-            BinaryOperator::StrictEquality => {
-                ctx.add_instruction(Instruction::IsStrictlyEqual);
-            }
+        let op_text = match self.operator {
+            BinaryOperator::LessThan => Instruction::LessThan,
+            BinaryOperator::LessEqualThan => Instruction::LessThanEquals,
+            BinaryOperator::GreaterThan => Instruction::GreaterThan,
+            BinaryOperator::GreaterEqualThan => Instruction::GreaterThanEquals,
+            BinaryOperator::StrictEquality => Instruction::IsStrictlyEqual,
             BinaryOperator::StrictInequality => {
                 ctx.add_instruction(Instruction::IsStrictlyEqual);
-                ctx.add_instruction(Instruction::LogicalNot);
+                Instruction::LogicalNot
             }
-            BinaryOperator::Equality => {
-                ctx.add_instruction(Instruction::IsLooselyEqual);
-            }
+            BinaryOperator::Equality => Instruction::IsLooselyEqual,
             BinaryOperator::Inequality => {
                 ctx.add_instruction(Instruction::IsLooselyEqual);
-                ctx.add_instruction(Instruction::LogicalNot);
+                Instruction::LogicalNot
             }
-            BinaryOperator::In => {
-                ctx.add_instruction(Instruction::HasProperty);
+            BinaryOperator::In => Instruction::HasProperty,
+            BinaryOperator::Instanceof => Instruction::InstanceofOperator,
+            BinaryOperator::Addition => Instruction::ApplyAdditionBinaryOperator,
+            BinaryOperator::Subtraction => Instruction::ApplySubtractionBinaryOperator,
+            BinaryOperator::Multiplication => Instruction::ApplyMultiplicationBinaryOperator,
+            BinaryOperator::Division => Instruction::ApplyDivisionBinaryOperator,
+            BinaryOperator::Remainder => Instruction::ApplyRemainderBinaryOperator,
+            BinaryOperator::Exponential => Instruction::ApplyExponentialBinaryOperator,
+            BinaryOperator::ShiftLeft => Instruction::ApplyShiftLeftBinaryOperator,
+            BinaryOperator::ShiftRight => Instruction::ApplyShiftRightBinaryOperator,
+            BinaryOperator::ShiftRightZeroFill => {
+                Instruction::ApplyShiftRightZeroFillBinaryOperator
             }
-            BinaryOperator::Instanceof => {
-                ctx.add_instruction(Instruction::InstanceofOperator);
-            }
-            _ => {
-                // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
-                ctx.add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
-                    self.operator,
-                ));
-            }
-        }
+            BinaryOperator::BitwiseOR => Instruction::ApplyBitwiseORBinaryOperator,
+            BinaryOperator::BitwiseXOR => Instruction::ApplyBitwiseXORBinaryOperator,
+            BinaryOperator::BitwiseAnd => Instruction::ApplyBitwiseAndBinaryOperator,
+        };
+        // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+        ctx.add_instruction(op_text);
     }
 }
 
