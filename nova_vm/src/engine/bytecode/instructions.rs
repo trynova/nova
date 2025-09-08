@@ -17,6 +17,7 @@ use super::{Executable, IndexType};
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Instruction {
     // === HOT INSTRUCTIONS ===
     /// Load the result value and add it to the stack.
