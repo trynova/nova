@@ -198,7 +198,26 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // 6. Let opText be the sequence of Unicode code points associated with assignmentOpText in the following table:
             let op_text = self.operator.to_binary_operator().unwrap();
             // 7. Let r be ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
-            ctx.add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(op_text));
+            let op_text = match op_text {
+                ast::BinaryOperator::Addition => Instruction::ApplyAdditionBinaryOperator,
+                ast::BinaryOperator::Subtraction => Instruction::ApplySubtractionBinaryOperator,
+                ast::BinaryOperator::Multiplication => {
+                    Instruction::ApplyMultiplicationBinaryOperator
+                }
+                ast::BinaryOperator::Division => Instruction::ApplyDivisionBinaryOperator,
+                ast::BinaryOperator::Remainder => Instruction::ApplyRemainderBinaryOperator,
+                ast::BinaryOperator::Exponential => Instruction::ApplyExponentialBinaryOperator,
+                ast::BinaryOperator::ShiftLeft => Instruction::ApplyShiftLeftBinaryOperator,
+                ast::BinaryOperator::ShiftRight => Instruction::ApplyShiftRightBinaryOperator,
+                ast::BinaryOperator::ShiftRightZeroFill => {
+                    Instruction::ApplyShiftRightZeroFillBinaryOperator
+                }
+                ast::BinaryOperator::BitwiseOR => Instruction::ApplyBitwiseORBinaryOperator,
+                ast::BinaryOperator::BitwiseXOR => Instruction::ApplyBitwiseXORBinaryOperator,
+                ast::BinaryOperator::BitwiseAnd => Instruction::ApplyBitwiseAndBinaryOperator,
+                _ => unreachable!(),
+            };
+            ctx.add_instruction(op_text);
             ctx.add_instruction(Instruction::LoadCopy);
             // 8. Perform ? PutValue(lref, r).
             if do_push_reference {

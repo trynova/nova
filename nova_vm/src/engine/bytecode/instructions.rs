@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ast::ast::BindingPattern;
-use oxc_syntax::{number::ToJsString, operator::BinaryOperator};
+use oxc_syntax::number::ToJsString;
 
 use crate::{
     ecmascript::{execution::Agent, types::String},
@@ -20,7 +20,18 @@ use super::{Executable, IndexType};
 pub enum Instruction {
     Debug,
     /// Store ApplyStringOrNumericBinaryOperator() as the result value.
-    ApplyStringOrNumericBinaryOperator(BinaryOperator),
+    ApplyAdditionBinaryOperator,
+    ApplySubtractionBinaryOperator,
+    ApplyMultiplicationBinaryOperator,
+    ApplyDivisionBinaryOperator,
+    ApplyRemainderBinaryOperator,
+    ApplyExponentialBinaryOperator,
+    ApplyShiftLeftBinaryOperator,
+    ApplyShiftRightBinaryOperator,
+    ApplyShiftRightZeroFillBinaryOperator,
+    ApplyBitwiseORBinaryOperator,
+    ApplyBitwiseXORBinaryOperator,
+    ApplyBitwiseAndBinaryOperator,
     /// Store ArrayCreate(0) as the result value.
     ///
     /// This instruction has one immediate argument that is the minimum
@@ -1102,52 +1113,25 @@ impl TryFrom<u8> for Instruction {
     type Error = ();
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        const ADDITION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Addition).as_u8();
-        const BITWISEAND: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseAnd).as_u8();
-        const BITWISEOR: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseOR).as_u8();
-        const BITWISEXOR: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::BitwiseXOR).as_u8();
-        const DIVISION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Division).as_u8();
-        const EQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Equality).as_u8();
-        const EXPONENTIAL: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Exponential).as_u8();
-        const GREATEREQUALTHAN: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::GreaterEqualThan)
-                .as_u8();
-        const GREATERTHAN_UNUSED: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::GreaterThan).as_u8();
-        const LESSEQUALTHAN: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::LessEqualThan).as_u8();
-        const LESSTHAN_UNUSED: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::LessThan).as_u8();
-        const MULTIPLICATION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Multiplication).as_u8();
-        const IN: u8 = Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::In).as_u8();
-        const INEQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Inequality).as_u8();
-        const INSTANCEOF: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Instanceof).as_u8();
-        const REMAINDER: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Remainder).as_u8();
-        const SHIFTLEFT: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftLeft).as_u8();
-        const SHIFTRIGHT: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftRight).as_u8();
-        const SHIFTRIGHTZEROFILL: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::ShiftRightZeroFill)
-                .as_u8();
-        const STRICTEQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::StrictEquality).as_u8();
-        const STRICTINEQUALITY: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::StrictInequality)
-                .as_u8();
-        const SUBTRACTION: u8 =
-            Instruction::ApplyStringOrNumericBinaryOperator(BinaryOperator::Subtraction).as_u8();
+        const APPLYADDITIONBINARYOPERATOR: u8 = Instruction::ApplyAdditionBinaryOperator.as_u8();
+        const APPLYSUBTRACTIONBINARYOPERATOR: u8 =
+            Instruction::ApplySubtractionBinaryOperator.as_u8();
+        const APPLYMULTIPLICATIONBINARYOPERATOR: u8 =
+            Instruction::ApplyMultiplicationBinaryOperator.as_u8();
+        const APPLYDIVISIONBINARYOPERATOR: u8 = Instruction::ApplyDivisionBinaryOperator.as_u8();
+        const APPLYREMAINDERBINARYOPERATOR: u8 = Instruction::ApplyRemainderBinaryOperator.as_u8();
+        const APPLYEXPONENTIALBINARYOPERATOR: u8 =
+            Instruction::ApplyExponentialBinaryOperator.as_u8();
+        const APPLYSHIFTLEFTBINARYOPERATOR: u8 = Instruction::ApplyShiftLeftBinaryOperator.as_u8();
+        const APPLYSHIFTRIGHTBINARYOPERATOR: u8 =
+            Instruction::ApplyShiftRightBinaryOperator.as_u8();
+        const APPLYSHIFTRIGHTZEROFILLBINARYOPERATOR: u8 =
+            Instruction::ApplyShiftRightZeroFillBinaryOperator.as_u8();
+        const APPLYBITWISEORBINARYOPERATOR: u8 = Instruction::ApplyBitwiseORBinaryOperator.as_u8();
+        const APPLYBITWISEXORBINARYOPERATOR: u8 =
+            Instruction::ApplyBitwiseXORBinaryOperator.as_u8();
+        const APPLYBITWISEANDBINARYOPERATOR: u8 =
+            Instruction::ApplyBitwiseAndBinaryOperator.as_u8();
         const DEBUG: u8 = Instruction::Debug.as_u8();
         const ARRAYCREATE: u8 = Instruction::ArrayCreate.as_u8();
         const ARRAYPUSH: u8 = Instruction::ArrayPush.as_u8();
@@ -1291,72 +1275,20 @@ impl TryFrom<u8> for Instruction {
         const IMPORTMETA: u8 = Instruction::ImportMeta.as_u8();
         const VERIFYISOBJECT: u8 = Instruction::VerifyIsObject.as_u8();
         match value {
-            ADDITION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Addition,
-            )),
-            BITWISEAND => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseAnd,
-            )),
-            BITWISEOR => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseOR,
-            )),
-            BITWISEXOR => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::BitwiseXOR,
-            )),
-            DIVISION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Division,
-            )),
-            EQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Equality,
-            )),
-            EXPONENTIAL => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Exponential,
-            )),
-            GREATEREQUALTHAN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::GreaterEqualThan,
-            )),
-            GREATERTHAN_UNUSED => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::GreaterThan,
-            )),
-            LESSEQUALTHAN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::LessEqualThan,
-            )),
-            LESSTHAN_UNUSED => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::LessThan,
-            )),
-            MULTIPLICATION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Multiplication,
-            )),
-            IN => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::In,
-            )),
-            INEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Inequality,
-            )),
-            INSTANCEOF => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Instanceof,
-            )),
-            REMAINDER => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Remainder,
-            )),
-            SHIFTLEFT => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftLeft,
-            )),
-            SHIFTRIGHT => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftRight,
-            )),
-            SHIFTRIGHTZEROFILL => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::ShiftRightZeroFill,
-            )),
-            STRICTEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::StrictEquality,
-            )),
-            STRICTINEQUALITY => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::StrictInequality,
-            )),
-            SUBTRACTION => Ok(Instruction::ApplyStringOrNumericBinaryOperator(
-                BinaryOperator::Subtraction,
-            )),
+            APPLYADDITIONBINARYOPERATOR => Ok(Instruction::ApplyAdditionBinaryOperator),
+            APPLYSUBTRACTIONBINARYOPERATOR => Ok(Instruction::ApplySubtractionBinaryOperator),
+            APPLYMULTIPLICATIONBINARYOPERATOR => Ok(Instruction::ApplyMultiplicationBinaryOperator),
+            APPLYDIVISIONBINARYOPERATOR => Ok(Instruction::ApplyDivisionBinaryOperator),
+            APPLYREMAINDERBINARYOPERATOR => Ok(Instruction::ApplyRemainderBinaryOperator),
+            APPLYEXPONENTIALBINARYOPERATOR => Ok(Instruction::ApplyExponentialBinaryOperator),
+            APPLYSHIFTLEFTBINARYOPERATOR => Ok(Instruction::ApplyShiftLeftBinaryOperator),
+            APPLYSHIFTRIGHTBINARYOPERATOR => Ok(Instruction::ApplyShiftRightBinaryOperator),
+            APPLYSHIFTRIGHTZEROFILLBINARYOPERATOR => {
+                Ok(Instruction::ApplyShiftRightZeroFillBinaryOperator)
+            }
+            APPLYBITWISEORBINARYOPERATOR => Ok(Instruction::ApplyBitwiseORBinaryOperator),
+            APPLYBITWISEXORBINARYOPERATOR => Ok(Instruction::ApplyBitwiseXORBinaryOperator),
+            APPLYBITWISEANDBINARYOPERATOR => Ok(Instruction::ApplyBitwiseAndBinaryOperator),
             DEBUG => Ok(Instruction::Debug),
             ARRAYCREATE => Ok(Instruction::ArrayCreate),
             ARRAYPUSH => Ok(Instruction::ArrayPush),

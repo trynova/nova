@@ -7,7 +7,6 @@ mod binding_methods;
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use oxc_ast::ast;
 use oxc_span::Span;
-use oxc_syntax::operator::BinaryOperator;
 use std::{ops::ControlFlow, ptr::NonNull, sync::OnceLock};
 use wtf8::Wtf8Buf;
 
@@ -675,33 +674,62 @@ impl Vm {
                         .unbind(),
                 );
             }
-            Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
+            Instruction::ApplyAdditionBinaryOperator => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
                 let result = if let (Ok(lnum), Ok(rnum)) =
                     (Number::try_from(lval), Number::try_from(rval))
                 {
-                    number_binary_operator(agent, op_text, lnum, rnum, gc.into_nogc())?.into_value()
-                } else if op_text == BinaryOperator::Addition
-                    && let (Ok(lstr), Ok(rstr)) = (String::try_from(lval), String::try_from(rval))
+                    Number::add(agent, lnum, rnum).into_value()
+                } else if let (Ok(lstr), Ok(rstr)) =
+                    (String::try_from(lval), String::try_from(rval))
                 {
                     String::concat(agent, [lstr, rstr], gc.into_nogc()).into_value()
                 } else if let (Ok(lnum), Ok(rnum)) =
                     (BigInt::try_from(lval), BigInt::try_from(rval))
                 {
-                    bigint_binary_operator(agent, op_text, lnum, rnum, gc.into_nogc())?.into_value()
+                    BigInt::add(agent, lnum, rnum).into_value()
+                } else {
+                    with_vm_gc(
+                        agent,
+                        vm,
+                        |agent, gc| apply_string_or_numeric_addition(agent, lval, rval, gc),
+                        gc,
+                    )?
+                };
+                vm.result = Some(result.unbind());
+            }
+            Instruction::ApplySubtractionBinaryOperator
+            | Instruction::ApplyMultiplicationBinaryOperator
+            | Instruction::ApplyDivisionBinaryOperator
+            | Instruction::ApplyRemainderBinaryOperator
+            | Instruction::ApplyExponentialBinaryOperator
+            | Instruction::ApplyShiftLeftBinaryOperator
+            | Instruction::ApplyShiftRightBinaryOperator
+            | Instruction::ApplyShiftRightZeroFillBinaryOperator
+            | Instruction::ApplyBitwiseORBinaryOperator
+            | Instruction::ApplyBitwiseXORBinaryOperator
+            | Instruction::ApplyBitwiseAndBinaryOperator => {
+                let lval = vm.stack.pop().unwrap();
+                let rval = vm.result.take().unwrap();
+                let result = if let (Ok(lnum), Ok(rnum)) =
+                    (Number::try_from(lval), Number::try_from(rval))
+                {
+                    number_binary_operator(agent, instr.kind, lnum, rnum, gc.into_nogc())?
+                        .into_value()
+                } else if let (Ok(lnum), Ok(rnum)) =
+                    (BigInt::try_from(lval), BigInt::try_from(rval))
+                {
+                    bigint_binary_operator(agent, instr.kind, lnum, rnum, gc.into_nogc())?
+                        .into_value()
                 } else {
                     with_vm_gc(
                         agent,
                         vm,
                         |agent, gc| {
-                            if op_text == BinaryOperator::Addition {
-                                apply_string_or_numeric_addition(agent, lval, rval, gc)
-                            } else {
-                                apply_string_or_numeric_binary_operator(
-                                    agent, lval, op_text, rval, gc,
-                                )
-                            }
+                            apply_string_or_numeric_binary_operator(
+                                agent, lval, instr.kind, rval, gc,
+                            )
                         },
                         gc,
                     )?
@@ -3118,7 +3146,7 @@ fn concat_string_from_slice<'gc>(
 fn apply_string_or_numeric_binary_operator<'gc>(
     agent: &mut Agent,
     lval: Value,
-    op_text: BinaryOperator,
+    op_text: Instruction,
     rval: Value,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
@@ -3241,11 +3269,9 @@ fn apply_string_or_numeric_addition<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        bigint_binary_operator(agent, BinaryOperator::Addition, lnum, rnum, gc)
-            .map(|v| v.into_value())
+        Ok(BigInt::add(agent, lnum, rnum).into_value())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        number_binary_operator(agent, BinaryOperator::Addition, lnum, rnum, gc)
-            .map(|v| v.into_value())
+        Ok(Number::add(agent, lnum, rnum).into_value())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -3258,43 +3284,45 @@ fn apply_string_or_numeric_addition<'gc>(
 
 fn bigint_binary_operator<'a>(
     agent: &mut Agent,
-    op_text: BinaryOperator,
+    op_text: Instruction,
     lnum: BigInt<'a>,
     rnum: BigInt<'a>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, BigInt<'a>> {
     match op_text {
         // a. If opText is **, return ? BigInt::exponentiate(lnum, rnum).
-        BinaryOperator::Exponential => BigInt::exponentiate(agent, lnum, rnum, gc),
+        Instruction::ApplyExponentialBinaryOperator => BigInt::exponentiate(agent, lnum, rnum, gc),
         // b. If opText is /, return ? BigInt::divide(lnum, rnum).
-        BinaryOperator::Division => BigInt::divide(agent, lnum, rnum, gc),
+        Instruction::ApplyDivisionBinaryOperator => BigInt::divide(agent, lnum, rnum, gc),
         // c. If opText is %, return ? BigInt::remainder(lnum, rnum).
-        BinaryOperator::Remainder => BigInt::remainder(agent, lnum, rnum, gc),
+        Instruction::ApplyRemainderBinaryOperator => BigInt::remainder(agent, lnum, rnum, gc),
         // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
-        BinaryOperator::ShiftRightZeroFill => BigInt::unsigned_right_shift(agent, lnum, rnum, gc),
+        Instruction::ApplyShiftRightZeroFillBinaryOperator => {
+            BigInt::unsigned_right_shift(agent, lnum, rnum, gc)
+        }
         // <<	BigInt	BigInt::leftShift
-        BinaryOperator::ShiftLeft => BigInt::left_shift(agent, lnum, rnum, gc),
+        Instruction::ApplyShiftLeftBinaryOperator => BigInt::left_shift(agent, lnum, rnum, gc),
         // >>	BigInt	BigInt::signedRightShift
-        BinaryOperator::ShiftRight => BigInt::signed_right_shift(agent, lnum, rnum, gc),
-        // +	BigInt	BigInt::add
-        BinaryOperator::Addition => Ok(BigInt::add(agent, lnum, rnum)),
+        Instruction::ApplyShiftRightBinaryOperator => {
+            BigInt::signed_right_shift(agent, lnum, rnum, gc)
+        }
         // -	BigInt	BigInt::subtract
-        BinaryOperator::Subtraction => Ok(BigInt::subtract(agent, lnum, rnum)),
+        Instruction::ApplySubtractionBinaryOperator => Ok(BigInt::subtract(agent, lnum, rnum)),
         // *	BigInt	BigInt::multiply
-        BinaryOperator::Multiplication => Ok(BigInt::multiply(agent, lnum, rnum)),
+        Instruction::ApplyMultiplicationBinaryOperator => Ok(BigInt::multiply(agent, lnum, rnum)),
         // |	BigInt	BigInt::bitwiseOR
-        BinaryOperator::BitwiseOR => Ok(BigInt::bitwise_or(agent, lnum, rnum)),
+        Instruction::ApplyBitwiseORBinaryOperator => Ok(BigInt::bitwise_or(agent, lnum, rnum)),
         // ^	BigInt	BigInt::bitwiseXOR
-        BinaryOperator::BitwiseXOR => Ok(BigInt::bitwise_xor(agent, lnum, rnum)),
+        Instruction::ApplyBitwiseXORBinaryOperator => Ok(BigInt::bitwise_xor(agent, lnum, rnum)),
         // &	BigInt	BigInt::bitwiseAND
-        BinaryOperator::BitwiseAnd => Ok(BigInt::bitwise_and(agent, lnum, rnum)),
+        Instruction::ApplyBitwiseAndBinaryOperator => Ok(BigInt::bitwise_and(agent, lnum, rnum)),
         _ => unreachable!(),
     }
 }
 
 fn number_binary_operator<'a>(
     agent: &mut Agent,
-    op_text: BinaryOperator,
+    op_text: Instruction,
     lnum: Number<'a>,
     rnum: Number<'a>,
     gc: NoGcScope<'a, '_>,
@@ -3306,29 +3334,29 @@ fn number_binary_operator<'a>(
     Ok(match op_text {
         // opText	Type(lnum)	operation
         // **	Number	Number::exponentiate
-        BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum),
+        Instruction::ApplyExponentialBinaryOperator => Number::exponentiate(agent, lnum, rnum),
         // *	Number	Number::multiply
-        BinaryOperator::Multiplication => Number::multiply(agent, lnum, rnum, gc),
+        Instruction::ApplyMultiplicationBinaryOperator => Number::multiply(agent, lnum, rnum, gc),
         // /	Number	Number::divide
-        BinaryOperator::Division => Number::divide(agent, lnum, rnum, gc),
+        Instruction::ApplyDivisionBinaryOperator => Number::divide(agent, lnum, rnum, gc),
         // %	Number	Number::remainder
-        BinaryOperator::Remainder => Number::remainder(agent, lnum, rnum, gc),
-        // +	Number	Number::add
-        BinaryOperator::Addition => Number::add(agent, lnum, rnum),
+        Instruction::ApplyRemainderBinaryOperator => Number::remainder(agent, lnum, rnum, gc),
         // -	Number	Number::subtract
-        BinaryOperator::Subtraction => Number::subtract(agent, lnum, rnum),
+        Instruction::ApplySubtractionBinaryOperator => Number::subtract(agent, lnum, rnum),
         // <<	Number	Number::leftShift
-        BinaryOperator::ShiftLeft => Number::left_shift(agent, lnum, rnum),
+        Instruction::ApplyShiftLeftBinaryOperator => Number::left_shift(agent, lnum, rnum),
         // >>	Number	Number::signedRightShift
-        BinaryOperator::ShiftRight => Number::signed_right_shift(agent, lnum, rnum),
+        Instruction::ApplyShiftRightBinaryOperator => Number::signed_right_shift(agent, lnum, rnum),
         // >>>	Number	Number::unsignedRightShift
-        BinaryOperator::ShiftRightZeroFill => Number::unsigned_right_shift(agent, lnum, rnum),
+        Instruction::ApplyShiftRightZeroFillBinaryOperator => {
+            Number::unsigned_right_shift(agent, lnum, rnum)
+        }
         // |	Number	Number::bitwiseOR
-        BinaryOperator::BitwiseOR => Number::bitwise_or(agent, lnum, rnum).into(),
+        Instruction::ApplyBitwiseORBinaryOperator => Number::bitwise_or(agent, lnum, rnum).into(),
         // ^	Number	Number::bitwiseXOR
-        BinaryOperator::BitwiseXOR => Number::bitwise_xor(agent, lnum, rnum).into(),
+        Instruction::ApplyBitwiseXORBinaryOperator => Number::bitwise_xor(agent, lnum, rnum).into(),
         // &	Number	Number::bitwiseAND
-        BinaryOperator::BitwiseAnd => Number::bitwise_and(agent, lnum, rnum).into(),
+        Instruction::ApplyBitwiseAndBinaryOperator => Number::bitwise_and(agent, lnum, rnum).into(),
         _ => unreachable!(),
     })
 }
