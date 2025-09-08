@@ -461,7 +461,7 @@ impl Vm {
     #[inline(never)]
     #[cold]
     fn print_executing(instruction: Instruction) {
-        eprintln!("Executing: {:?}", instruction);
+        eprintln!("Executing: {instruction:?}");
     }
 
     #[inline(never)]
