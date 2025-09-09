@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::collections::TryReserveError;
-
 use super::Object;
 use crate::{
     ecmascript::builtins::ordinary::shape::{ObjectShape, ObjectShapeRecord},
@@ -15,69 +13,52 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
-pub struct ObjectHeapData<'a> {
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ObjectRecord<'a> {
     shape: ObjectShape<'a>,
     values: ElementIndex<'a>,
-    cap: ElementArrayKey,
-    len: u32,
-    // TODO: move this bit to ObjectShape value.
-    extensible: bool,
 }
 
-impl<'a> ObjectHeapData<'a> {
-    pub(crate) fn new(
-        shape: ObjectShape<'a>,
-        values: ElementIndex<'a>,
-        cap: ElementArrayKey,
-        len: u32,
-        extensible: bool,
-    ) -> Self {
-        Self {
-            shape,
-            values,
-            cap,
-            len,
-            extensible,
-        }
+impl<'a> ObjectRecord<'a> {
+    pub(crate) const BLANK: Self = Self {
+        shape: ObjectShape::NULL,
+        values: ElementIndex::ZERO,
+    };
+
+    pub(crate) fn new(shape: ObjectShape<'a>, values: ElementIndex<'a>) -> Self {
+        Self { shape, values }
     }
 
-    /// Reserve memory for given size property storage.
-    pub(super) fn reserve(
-        &mut self,
-        elements: &mut impl AsMut<ElementArrays>,
-        new_len: u32,
-    ) -> Result<(), TryReserveError> {
-        if self.cap >= ElementArrayKey::from(new_len) {
-            // Enough room to hold the new data; nothing to do.
-            return Ok(());
-        }
-        elements
-            .as_mut()
-            .reserve_elements_raw(&mut self.values, &mut self.cap, self.len, new_len)
-    }
-
-    pub(super) fn get_storage<'e>(&self, elements: &'e ElementArrays) -> ElementStorageRef<'e, 'a> {
-        elements.get_element_storage_raw(self.values, self.cap, self.len)
+    pub(super) fn get_storage<'e>(
+        &self,
+        elements: &'e ElementArrays,
+        shapes: &[ObjectShapeRecord<'static>],
+    ) -> ElementStorageRef<'e, 'a> {
+        elements.get_element_storage_raw(
+            self.values,
+            self.shape.capacity(&shapes),
+            self.shape.len(&shapes),
+        )
     }
 
     pub(super) fn get_storage_uninit<'e>(
         &self,
         elements: &'e mut ElementArrays,
+        shapes: &[ObjectShapeRecord<'static>],
     ) -> ElementStorageUninit<'e> {
-        elements.get_element_storage_uninit_raw(self.values, self.cap)
+        elements.get_element_storage_uninit_raw(self.values, self.shape.capacity(&shapes))
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        self.cap == ElementArrayKey::Empty
+    pub(crate) fn is_empty(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {
+        self.shape == ObjectShape::NULL || self.shape.is_empty(agent)
     }
 
     pub(super) fn get_extensible(&self) -> bool {
-        self.extensible
+        self.shape.extensible()
     }
 
     pub(super) fn set_extensible(&mut self, extensible: bool) {
-        self.extensible = extensible;
+        self.shape.set_extensible(extensible)
     }
 
     pub(super) fn get_prototype(
@@ -99,95 +80,36 @@ impl<'a> ObjectHeapData<'a> {
         self.values
     }
 
-    pub(super) fn get_cap(&self) -> ElementArrayKey {
-        self.cap
+    pub(super) fn set_values(&mut self, values: ElementIndex<'a>) {
+        self.values = values;
     }
 
-    pub(crate) fn len(&self) -> u32 {
-        self.len
+    pub(super) fn capacity_key(
+        &self,
+        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+    ) -> ElementArrayKey {
+        self.shape.capacity(agent)
     }
 
-    pub(crate) fn set_len(&mut self, len: u32) {
-        self.len = len
+    pub(crate) fn len(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
+        self.shape.len(agent)
     }
 }
 
-bindable_handle!(ObjectHeapData);
+bindable_handle!(ObjectRecord);
 
-impl HeapMarkAndSweep for ObjectHeapData<'static> {
+impl HeapMarkAndSweep for ObjectRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            shape,
-            values,
-            cap,
-            len,
-            extensible: _,
-        } = self;
+        let Self { shape, values: _ } = self;
         shape.mark_values(queues);
-        match cap {
-            ElementArrayKey::Empty => {}
-            ElementArrayKey::E4 => {
-                queues.e_2_4.push((*values, *len));
-            }
-            ElementArrayKey::E6 => {
-                queues.e_2_6.push((*values, *len));
-            }
-            ElementArrayKey::E8 => {
-                queues.e_2_8.push((*values, *len));
-            }
-            ElementArrayKey::E10 => {
-                queues.e_2_10.push((*values, *len));
-            }
-            ElementArrayKey::E12 => {
-                queues.e_2_12.push((*values, *len));
-            }
-            ElementArrayKey::E16 => {
-                queues.e_2_16.push((*values, *len));
-            }
-            ElementArrayKey::E24 => {
-                queues.e_2_24.push((*values, *len));
-            }
-            ElementArrayKey::E32 => {
-                queues.e_2_32.push((*values, *len));
-            }
-        }
+        // Note: we cannot mark the values here as we don't know the capacity
+        // or length of it.
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            shape,
-            values,
-            cap,
-            len: _,
-            extensible: _,
-        } = self;
+        let Self { shape, values: _ } = self;
         shape.sweep_values(compactions);
-        match cap {
-            ElementArrayKey::Empty => {}
-            ElementArrayKey::E4 => {
-                compactions.e_2_4.shift_index(values);
-            }
-            ElementArrayKey::E6 => {
-                compactions.e_2_6.shift_index(values);
-            }
-            ElementArrayKey::E8 => {
-                compactions.e_2_8.shift_index(values);
-            }
-            ElementArrayKey::E10 => {
-                compactions.e_2_10.shift_index(values);
-            }
-            ElementArrayKey::E12 => {
-                compactions.e_2_12.shift_index(values);
-            }
-            ElementArrayKey::E16 => {
-                compactions.e_2_16.shift_index(values);
-            }
-            ElementArrayKey::E24 => {
-                compactions.e_2_24.shift_index(values);
-            }
-            ElementArrayKey::E32 => {
-                compactions.e_2_32.shift_index(values);
-            }
-        }
+        // Note: we cannot sweep the values here as we don't know the capacity
+        // or length of it.
     }
 }

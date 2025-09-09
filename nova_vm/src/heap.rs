@@ -94,7 +94,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorRecord, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, ObjectHeapData, String, StringHeapData, Symbol,
+            HeapNumber, HeapString, NumberHeapData, ObjectRecord, String, StringHeapData, Symbol,
             SymbolHeapData, bigint::HeapBigInt,
         },
     },
@@ -161,7 +161,7 @@ pub(crate) struct Heap {
     pub(crate) object_shapes: Vec<ObjectShapeRecord<'static>>,
     pub(crate) object_shape_transitions: Vec<ObjectShapeTransitionMap<'static>>,
     pub(crate) prototype_shapes: PrototypeShapeTable,
-    pub(crate) objects: Vec<Option<ObjectHeapData<'static>>>,
+    pub(crate) objects: Vec<ObjectRecord<'static>>,
     pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
     pub(crate) promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
     pub(crate) promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,

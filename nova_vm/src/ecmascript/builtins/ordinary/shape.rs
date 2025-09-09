@@ -32,14 +32,18 @@ use super::caches::PropertyLookupCache;
 /// Data structure describing the shape of an object.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ObjectShape<'a>(NonZeroU32, PhantomData<&'a GcToken>);
+pub struct ObjectShape<'a>(
+    // Non-zero u31; zero is reserved for None.
+    // The top bit is reserved for OrdinaryObject extensible bit.
+    NonZeroU32,
+    PhantomData<&'a GcToken>,
+);
 
 impl<'a> ObjectShape<'a> {
     /// Object Shape for `{ __proto__: null }`.
     ///
     /// This is the root Object Shape for all null-prototype objects, hence why
     /// it can be accessed statically.
-    // SAFETY: statically safe.
     pub(crate) const NULL: Self = Self::from_non_zero(NonZeroU32::new(1).unwrap());
 
     /// Returns true if the Object Shape belongs to an intrinsic object.
@@ -78,7 +82,9 @@ impl<'a> ObjectShape<'a> {
     /// Get the implied usize index of the ObjectShape reference.
     #[inline(always)]
     pub(crate) const fn get_index(self) -> usize {
-        (self.0.get() - 1) as usize
+        let raw_value = self.0.get() - 1;
+        // Extract the raw value by masking out the extensible bit.
+        (raw_value & 0x7FFF_FFFF) as usize
     }
 
     pub(crate) fn keys<'e>(
@@ -99,7 +105,7 @@ impl<'a> ObjectShape<'a> {
     }
 
     /// Get the capacity of the Object Shape.
-    pub(crate) fn get_cap(
+    pub(crate) fn capacity(
         self,
         agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
     ) -> ElementArrayKey {
@@ -107,8 +113,31 @@ impl<'a> ObjectShape<'a> {
     }
 
     /// Get the length of the Object Shape keys.
-    pub(crate) fn get_length(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
+    pub(crate) fn len(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
         agent.as_ref()[self.get_index()].len
+    }
+
+    /// Return true if the OrdinaryObject holder of this ObjectShape reference
+    /// is extensible.
+    ///
+    /// Note that this is not an inherent property of the ObjectShape itself.
+    pub(crate) fn extensible(self) -> bool {
+        (self.0.get() & 0x8000_0000) == 0
+    }
+
+    pub(crate) fn set_extensible(&mut self, extensible: bool) {
+        if !extensible {
+            // SAFETY: Non-null u31 OR'd with a top bit is also non-null.
+            self.0 = unsafe { NonZeroU32::new_unchecked(self.0.get() | 0x8000_0000) };
+        } else {
+            // SAFETY: Non-null u31 AND'd with all but top bit set is also non-null.
+            self.0 = unsafe { NonZeroU32::new_unchecked(self.0.get() & 0x7FFF_FFFF) };
+        }
+    }
+
+    /// Get the length of the Object Shape keys.
+    pub(crate) fn is_empty(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {
+        agent.as_ref()[self.get_index()].is_empty()
     }
 
     /// Get the prototype of the Object Shape.
@@ -157,6 +186,9 @@ impl<'a> ObjectShape<'a> {
     /// Get an Object Shape containing the given NonZeroU32.
     #[inline(always)]
     pub(crate) const fn from_non_zero(idx: NonZeroU32) -> Self {
+        if (idx.get() & 0x8000_0000) > 0 {
+            handle_object_shape_count_overflow();
+        }
         ObjectShape(idx, PhantomData)
     }
 
@@ -272,6 +304,10 @@ impl<'a> ObjectShape<'a> {
 
     /// Get or create an Object Shape with the given key added to this shape.
     ///
+    /// This API preserves the `extensible` bit of the ObjectShape reference.
+    /// It is necessary to preserve because private properties can be added
+    /// onto frozen objects.
+    ///
     /// > NOTE: This function will create a new Object Shape if an existing one
     /// > cannot be found.
     pub(crate) fn get_child_shape(self, agent: &mut Agent, key: PropertyKey<'a>) -> Self {
@@ -280,12 +316,16 @@ impl<'a> ObjectShape<'a> {
             unsafe { self.push_key(agent, key) };
             return self;
         }
-        if let Some(next_shape) = self.get_transition_to(agent, key) {
+        let frozen = !self.extensible();
+        if let Some(mut next_shape) = self.get_transition_to(agent, key) {
+            if frozen {
+                next_shape.set_extensible(false);
+            }
             return next_shape;
         }
         let prototype = self.get_prototype(agent);
-        let len = self.get_length(agent) as usize;
-        let cap = self.get_cap(agent);
+        let len = self.len(agent) as usize;
+        let cap = self.capacity(agent);
         let keys_index = self.get_keys(agent);
         let keys_uninit = agent.heap.elements.get_keys_uninit_raw(cap, keys_index);
         let shape_record = if let Some(slot) = keys_uninit.get_mut(len)
@@ -295,41 +335,44 @@ impl<'a> ObjectShape<'a> {
             // we want to add c as the third key. In this case we can just add
             // it directly and create a new shape with the same keys.
             slot.replace(key.unbind());
-            ObjectShapeRecord::create(prototype, keys_index, cap, len.wrapping_add(1))
+            ObjectShapeRecord::create(prototype, keys_index, cap, len.checked_add(1).unwrap())
         } else {
             // Our current shape keys is something like [a, b, x] and we want
             // to add c as the third key. In this case we have to create a new
             // keys storage.
-            let new_len = len.wrapping_add(1);
+            let new_len = len.checked_add(1).unwrap();
             let (new_keys_cap, new_keys_index) = agent
                 .heap
                 .elements
                 .copy_keys_with_addition(cap, keys_index, len as u32, key);
             ObjectShapeRecord::create(prototype, new_keys_index, new_keys_cap, new_len)
         };
-        let child = agent
+        let mut child = agent
             .heap
             .create((shape_record, ObjectShapeTransitionMap::with_parent(self)));
         self.add_transition(agent, key, child);
+        if frozen {
+            child.set_extensible(false);
+        }
         child
     }
 
     /// Get an ancestor Object Shape with the given number of keys.
     fn get_ancestor_shape(self, agent: &mut Agent, new_len: u32) -> Option<Self> {
-        let original_len = self.get_length(agent);
+        let original_len = self.len(agent);
         debug_assert!(new_len < original_len);
         let prototype = self.get_prototype(agent);
         if new_len == 0 {
             // Asking for the prototype shape.
             return Some(Self::get_shape_for_prototype(agent, prototype));
         }
-        let cap = self.get_cap(agent);
+        let cap = self.capacity(agent);
         let keys_index = self.get_keys(agent);
         // Find the ancestor.
         let mut ancestor_len = original_len.wrapping_sub(1);
         let mut ancestor_shape = self.get_parent(agent);
         while let Some(parent) = ancestor_shape {
-            debug_assert_eq!(parent.get_length(agent), ancestor_len);
+            debug_assert_eq!(parent.len(agent), ancestor_len);
             debug_assert_eq!(parent.get_prototype(agent), prototype);
             debug_assert_eq!(
                 parent.keys(&agent.heap.object_shapes, &agent.heap.elements),
@@ -338,7 +381,7 @@ impl<'a> ObjectShape<'a> {
                     .elements
                     .get_keys_raw(cap, keys_index, ancestor_len)
             );
-            if parent.get_length(agent) == new_len {
+            if parent.len(agent) == new_len {
                 // Found the ancestor.
                 return Some(parent);
             }
@@ -361,7 +404,7 @@ impl<'a> ObjectShape<'a> {
         cap: ElementArrayKey,
         index: PropertyKeyIndex<'a>,
     ) -> Self {
-        let new_len = self.get_length(agent).wrapping_add(1);
+        let new_len = self.len(agent).wrapping_add(1);
         let key = *agent
             .heap
             .elements
@@ -390,7 +433,7 @@ impl<'a> ObjectShape<'a> {
         len: u32,
     ) -> Self {
         let mut shape = self;
-        for _ in self.get_length(agent)..len {
+        for _ in self.len(agent)..len {
             shape = shape.create_child_with_storage(agent, prototype, cap, index);
         }
         shape
@@ -398,12 +441,17 @@ impl<'a> ObjectShape<'a> {
 
     /// Get an Object Shape with the given key index removed.
     ///
+    /// This method does not preserve the `extensible` bit of the ObjectShape
+    /// reference, as it should be impossible to remove properties from frozen
+    /// objects.
+    ///
     /// > NOTE: This function will create a new Object Shape, or possibly
     /// > multiple ones, if an existing one cannot be found.
     pub(crate) fn get_shape_with_removal(self, agent: &mut Agent, index: u32) -> Self {
-        let len = self.get_length(agent);
+        debug_assert!(self.extensible(), "ObjectShape reference is frozen");
+        let len = self.len(agent);
         debug_assert!(index < len);
-        let cap = self.get_cap(agent);
+        let cap = self.capacity(agent);
         let keys_index = self.get_keys(agent);
         if self.is_intrinsic(agent) {
             // SAFETY: Mutating an intrinsic Object Shape.
@@ -516,7 +564,7 @@ impl<'a> ObjectShape<'a> {
         // SAFETY: User guarantees that the fields are not backed by memory
         // that we're going to be mutating.
         let private_fields = unsafe { private_fields.as_ref() };
-        let original_len = self.get_length(agent);
+        let original_len = self.len(agent);
         let insertion_index = if original_len == 0 {
             // Property storage is currently empty: We don't need to do any
             // shifting of existing properties.
@@ -571,7 +619,7 @@ impl<'a> ObjectShape<'a> {
         // to first find our common ancestor shape.
         let ancestor_shape = self.get_ancestor_shape(agent, insertion_index as u32);
         let prototype = self.get_prototype(agent);
-        let cap = self.get_cap(agent);
+        let cap = self.capacity(agent);
         let keys_index = self.get_keys(agent);
         if let Some(mut parent_shape) = ancestor_shape {
             for field in private_fields {
@@ -640,8 +688,8 @@ impl<'a> ObjectShape<'a> {
             self.get_mut(agent).prototype = prototype.unbind();
             return self;
         }
-        let original_len = self.get_length(agent);
-        let original_cap = self.get_cap(agent);
+        let original_len = self.len(agent);
+        let original_cap = self.capacity(agent);
         let original_keys_index = self.get_keys(agent);
         let mut shape = Self::get_shape_for_prototype(agent, prototype);
         let keys = self.keys(&agent.heap.object_shapes, &agent.heap.elements);
@@ -684,7 +732,7 @@ impl<'a> ObjectShape<'a> {
 
     /// Create an intrinsic copy of the given Object Shape.
     pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Self {
-        let properties_count = self.get_length(agent);
+        let properties_count = self.len(agent);
         let prototype = self.get_prototype(agent);
         // Note: intrinsics should always allocate a keys storage.
         let (cap, index) = if properties_count == 0 {
@@ -693,7 +741,7 @@ impl<'a> ObjectShape<'a> {
                 .elements
                 .allocate_keys_with_capacity(properties_count.max(1) as usize)
         } else {
-            let cap = self.get_cap(agent);
+            let cap = self.capacity(agent);
             let keys = self.get_keys(agent);
             agent.heap.elements.copy_keys_with_capacity(
                 properties_count as usize,
@@ -738,6 +786,12 @@ impl<'a> ObjectShape<'a> {
 }
 
 bindable_handle!(ObjectShape);
+
+#[inline(never)]
+#[cold]
+const fn handle_object_shape_count_overflow() -> ! {
+    panic!("ObjectShape count overflowed");
+}
 
 /// Data structure describing the shape of an object.
 ///
@@ -840,6 +894,10 @@ impl<'a> ObjectShapeRecord<'a> {
             cap,
             len: u32::try_from(len).expect("Unreasonable object size"),
         }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
 
@@ -1098,10 +1156,20 @@ impl HeapMarkAndSweep for ObjectShape<'static> {
 
 impl HeapSweepWeakReference for ObjectShape<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        // Mask the top bit into a separate u32.
+        let top_bit = self.0.get() & 0x8000_0000;
+        // SAFETY: Non-zero u31; masking the top bit still leaves a non-zero
+        // value.
+        let raw_value = unsafe { NonZeroU32::new_unchecked(self.0.get() & 0x7FFF_FFFF) };
         compactions
             .object_shapes
-            .shift_weak_non_zero_u32_index(self.0)
-            .map(|i| Self(i, PhantomData))
+            .shift_weak_non_zero_u32_index(raw_value)
+            .map(|i| {
+                // SAFETY: Non-zero u31 OR'd with a possibly set top bit is
+                // still non-zero.
+                let i = unsafe { NonZeroU32::new_unchecked(i.get() | top_bit) };
+                Self(i, PhantomData)
+            })
     }
 }
 
@@ -1115,7 +1183,7 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         } = self;
         prototype.mark_values(queues);
         match cap {
-            ElementArrayKey::Empty => {}
+            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
             ElementArrayKey::E4 => queues.k_2_4.push((*keys, *len)),
             ElementArrayKey::E6 => queues.k_2_6.push((*keys, *len)),
             ElementArrayKey::E8 => queues.k_2_8.push((*keys, *len)),
@@ -1136,7 +1204,7 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         } = self;
         prototype.sweep_values(compactions);
         match cap {
-            ElementArrayKey::Empty => {}
+            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
             ElementArrayKey::E4 => compactions.k_2_4.shift_index(keys),
             ElementArrayKey::E6 => compactions.k_2_6.shift_index(keys),
             ElementArrayKey::E8 => compactions.k_2_8.shift_index(keys),

@@ -5,7 +5,6 @@
 pub(crate) mod caches;
 pub mod shape;
 
-use core::ops::{Index, IndexMut};
 use std::{
     collections::{TryReserveError, hash_map::Entry},
     ops::ControlFlow,
@@ -41,8 +40,8 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            String, Symbol, Value,
+            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol,
+            Value,
         },
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
@@ -78,40 +77,6 @@ use super::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
 };
-
-impl Index<OrdinaryObject<'_>> for Agent {
-    type Output = ObjectHeapData<'static>;
-
-    fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
-        &self.heap.objects[index]
-    }
-}
-
-impl IndexMut<OrdinaryObject<'_>> for Agent {
-    fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
-        &mut self.heap.objects[index]
-    }
-}
-
-impl Index<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
-    type Output = ObjectHeapData<'static>;
-
-    fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Object out of bounds")
-            .as_ref()
-            .expect("Object slot empty")
-    }
-}
-
-impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData<'static>>> {
-    fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Object out of bounds")
-            .as_mut()
-            .expect("Object slot empty")
-    }
-}
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {

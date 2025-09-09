@@ -76,28 +76,31 @@ impl<T: ?Sized> Hash for BaseIndex<'_, T> {
 }
 
 impl<T: ?Sized> BaseIndex<'_, T> {
+    /// First valid BaseIndex.
+    pub(crate) const ZERO: Self = Self::from_u32_index(0);
+
     #[inline(always)]
-    pub const fn into_index(self) -> usize {
+    pub(crate) const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
 
     #[inline(always)]
-    pub const fn into_u32_index(self) -> u32 {
+    pub(crate) const fn into_u32_index(self) -> u32 {
         self.0.get() - 1
     }
 
     #[inline(always)]
-    pub const fn into_usize(self) -> usize {
+    pub(crate) const fn into_usize(self) -> usize {
         self.0.get() as usize
     }
 
     #[inline(always)]
-    pub const fn into_u32(self) -> u32 {
+    pub(crate) const fn into_u32(self) -> u32 {
         self.0.get()
     }
 
     #[inline(always)]
-    pub const fn from_index(value: usize) -> Self {
+    pub(crate) const fn from_index(value: usize) -> Self {
         let value = value as u32;
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
@@ -110,7 +113,7 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    pub const fn from_u32_index(value: u32) -> Self {
+    pub(crate) const fn from_u32_index(value: u32) -> Self {
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
@@ -122,7 +125,7 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    pub const fn from_usize(value: usize) -> Self {
+    pub(crate) const fn from_usize(value: usize) -> Self {
         let value = value as u32;
         assert!(value != 0);
         // SAFETY: Number is not zero.
@@ -135,7 +138,7 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    pub const fn from_u32(value: u32) -> Self {
+    pub(crate) const fn from_u32(value: u32) -> Self {
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.
@@ -147,7 +150,7 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    pub fn last(vec: &[Option<T>]) -> Self
+    pub(crate) fn last(vec: &[Option<T>]) -> Self
     where
         T: Sized,
     {

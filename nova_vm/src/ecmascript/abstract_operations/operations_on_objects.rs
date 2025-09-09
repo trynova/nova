@@ -459,6 +459,7 @@ pub(crate) fn define_property_or_throw<'a, 'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     let property_key = property_key.bind(gc.nogc());
+    let scoped_key = property_key.scope(agent, gc.nogc());
     let desc = desc.bind(gc.nogc());
     // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
     let success = object
@@ -466,11 +467,13 @@ pub(crate) fn define_property_or_throw<'a, 'gc>(
         .unbind()?;
     // 2. If success is false, throw a TypeError exception.
     if !success {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Failed to defined property on object",
-            gc.into_nogc(),
-        ))
+        // SAFETY: not shared.
+        let property_key = unsafe { scoped_key.take(agent).bind(gc.nogc()) };
+        let message = format!(
+            "Failed to defined property '{}' on object",
+            property_key.as_display(agent)
+        );
+        Err(agent.throw_exception(ExceptionType::TypeError, message, gc.into_nogc()))
     } else {
         // 3. Return UNUSED.
         Ok(())
@@ -2072,18 +2075,6 @@ pub(crate) fn copy_data_properties<'a>(
         from = scoped_from.as_ref().unwrap().get(agent).bind(gc.nogc());
         keys
     };
-    // Reserve space in the target object.
-    {
-        let new_size = u32::try_from(
-            (target.len(agent) as usize)
-                .checked_add(keys.len())
-                .unwrap(),
-        )
-        .unwrap();
-        if let Err(err) = target.reserve(agent, new_size) {
-            return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
-        };
-    }
 
     // 4. For each element nextKey of keys, do
     let mut broke = false;

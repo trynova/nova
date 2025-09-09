@@ -99,7 +99,8 @@ impl<'a> PropertyStorage<'a> {
         } = &agent.heap;
         let private_env = environments.get_private_environment(private_env);
         let private_fields = private_env.get_instance_private_fields(gc);
-        if objects[object]
+        if object
+            .get_direct(objects)
             .get_shape()
             .keys(object_shapes, elements)
             .contains(&private_fields[0].get_key().into())
@@ -120,39 +121,50 @@ impl<'a> PropertyStorage<'a> {
         Ok(())
     }
 
+    /// Insert a list of private fields to an object.
+    ///
     /// ## Safety
     ///
-    /// TODO
+    /// The private_fields must not be backed by memory in the Agent heap's
+    /// Elements or Object Shape related vectors.
+    ///
+    /// The method will read from the private_fields parameter but does not
+    /// mutate them. The method also does not touch the Agent's environments at
+    /// all. As a result, it is safe to pass in private fields backed by a
+    /// PrivateEnvironment held in the Agent.
     unsafe fn insert_private_fields(
         agent: &mut Agent,
         object: OrdinaryObject,
         private_fields: NonNull<[PrivateField]>,
     ) -> Result<(), TryReserveError> {
-        let original_len = object.len(agent);
-        let original_shape = object.object_shape(agent);
+        let old_len = object.len(agent);
+        let new_len = old_len.checked_add(private_fields.len() as u32).unwrap();
+        let old_shape = object.object_shape(agent);
+        let mut elements_vector = object.get_elements_vector(agent);
+        elements_vector.reserve(&mut agent.heap.elements, new_len)?;
         // SAFETY: User says so.
         let (new_shape, insertion_index) =
-            unsafe { original_shape.add_private_fields(agent, private_fields) };
-        let insertion_end_index = insertion_index.wrapping_add(private_fields.len());
+            unsafe { old_shape.add_private_fields(agent, private_fields) };
+        // SAFETY: insertion index is <= old_len; old_len + private_fields.len() was checked.
+        let insertion_end_index = unsafe { insertion_index.unchecked_add(private_fields.len()) };
         // Note: use saturating_mul to avoid a panic site.
         agent.heap.alloc_counter +=
             core::mem::size_of::<Option<Value>>().saturating_mul(private_fields.len());
-        agent[object].set_shape(new_shape);
-        object.reserve(agent, original_len + private_fields.len() as u32)?;
-        let ElementStorageUninit {
+        elements_vector.len = new_len;
+        let ElementStorageMut {
             values,
             mut descriptors,
-        } = object.get_elements_storage_uninit(agent);
+        } = elements_vector.get_storage_mut(agent);
 
-        if insertion_index != original_len as usize {
+        if insertion_index != old_len as usize {
             // Shift keys over by necessary amount.
             // Then do the same for values.
-            values.copy_within(insertion_index..original_len as usize, insertion_end_index);
+            values.copy_within(insertion_index..old_len as usize, insertion_end_index);
             // Finally, shift descriptors over if we have any.
             if let Entry::Occupied(d) = &mut descriptors {
                 let d = d.get_mut();
                 let lower_bound = insertion_index as u32;
-                let upper_bound = original_len;
+                let upper_bound = old_len;
                 let range = lower_bound..upper_bound;
                 let keys_to_shift = d.extract_if(|k, _| range.contains(k)).collect::<Vec<_>>();
                 for (k, v) in keys_to_shift {
@@ -181,7 +193,8 @@ impl<'a> PropertyStorage<'a> {
         // If we found some methods then we'll want to put their descriptors
         // in.
         if methods_count > 0 {
-            let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(methods_count));
+            let descriptors = descriptors.or_default();
+            descriptors.reserve(methods_count);
             for (i, private_field) in private_fields.iter().enumerate() {
                 if private_field.is_method() {
                     let k = (insertion_index + i) as u32;
@@ -189,7 +202,9 @@ impl<'a> PropertyStorage<'a> {
                 }
             }
         }
-        agent[object].set_len(original_len.wrapping_add(private_fields.len() as u32));
+        let data = object.get_mut(agent);
+        data.set_shape(new_shape);
+        data.set_values(elements_vector.elements_index.unbind());
         Ok(())
     }
 
@@ -393,9 +408,12 @@ impl<'a> PropertyStorage<'a> {
     ) -> Result<(), TryReserveError> {
         let object = self.0;
 
-        let cur_len = object.len(agent);
-        let new_len = cur_len.checked_add(1).unwrap();
+        let old_len = object.len(agent);
+        let new_len = old_len.checked_add(1).unwrap();
         let old_shape = object.object_shape(agent);
+        let mut elements_vector = object.get_elements_vector(agent);
+        elements_vector.reserve(&mut agent.heap.elements, new_len)?;
+        elements_vector.len = new_len;
         let new_shape = old_shape.get_child_shape(agent, key);
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
             + if desc.is_some() {
@@ -403,46 +421,44 @@ impl<'a> PropertyStorage<'a> {
             } else {
                 0
             };
-        object.reserve(agent, new_len)?;
-        agent[object].set_len(new_len);
         let ElementStorageMut {
             values,
             descriptors,
-        } = object.get_elements_storage_mut(agent);
+        } = elements_vector.get_storage_mut(agent);
         debug_assert!(
-            values[cur_len as usize].is_none()
+            values[old_len as usize].is_none()
                 && match &descriptors {
                     Entry::Occupied(e) => {
-                        !e.get().contains_key(&cur_len)
+                        !e.get().contains_key(&old_len)
                     }
                     Entry::Vacant(_) => true,
                 }
         );
-        values[cur_len as usize] = value.unbind();
+        values[old_len as usize] = value.unbind();
         if let Some(desc) = desc {
             let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
-            descriptors.insert(cur_len, desc.unbind());
+            descriptors.insert(old_len, desc.unbind());
         }
         if old_shape == new_shape {
             // Intrinsic shape! Adding a new property to an intrinsic needs to
             // invalidate any NOT_FOUND caches for the added key.
             Caches::invalidate_caches_on_intrinsic_shape_property_addition(
-                agent, o, old_shape, key, cur_len, gc,
+                agent, o, old_shape, key, old_len, gc,
             );
-        } else {
-            agent[object].set_shape(new_shape);
         }
+        let data = object.get_mut(agent);
+        data.set_shape(new_shape);
+        data.set_values(elements_vector.elements_index.unbind());
         Ok(())
     }
 
     pub fn remove(self, agent: &mut Agent, o: Object, key: PropertyKey<'a>) {
         let object = self.0;
 
-        let PropertyStorageMut {
-            keys,
-            values,
-            descriptors,
-        } = object.unbind().get_property_storage_mut(agent).unwrap();
+        let old_shape = object.object_shape(agent);
+        let old_cap = old_shape.capacity(agent);
+
+        let keys = old_shape.keys(&agent.heap.object_shapes, &agent.heap.elements);
 
         let result = keys
             .iter()
@@ -457,38 +473,65 @@ impl<'a> PropertyStorage<'a> {
         let index = index as u32;
         let old_len = keys.len() as u32;
         let new_len = old_len - 1;
-        if index == new_len {
-            // Removing last property.
-            values[index as usize] = None;
-            if let Entry::Occupied(mut e) = descriptors {
-                let descs = e.get_mut();
-                descs.remove(&index);
-                if descs.is_empty() {
-                    e.remove();
-                }
-            }
+
+        let new_shape = old_shape.get_shape_with_removal(agent, index);
+        let new_cap = new_shape.capacity(agent);
+
+        if new_cap != old_cap {
+            // We need to perform a copy with this removal, as it changes the
+            // capacity of the shape and thus the object.
+            // Note: we purposefully check new_cap from shape after removal,
+            // allowing intrinsic object to drift be temporarily invalid here.
+            // This is because it's possible that the new shape is actually
+            // allocated based on some much larger shape and overallocates a
+            // bunch. That's intentional (at least for now).
+            let new_values = agent.heap.elements.realloc_values_with_removal(
+                old_cap,
+                object.get(agent).get_values(),
+                new_cap,
+                old_len,
+                index,
+            );
+            object.get_mut(agent).set_values(new_values);
         } else {
-            // Removing indexed property.
-            // First overwrite the noted index with subsequent values.
-            values.copy_within((index as usize) + 1.., index as usize);
-            *values.last_mut().unwrap() = None;
-            // Then move our descriptors if found.
-            if let Entry::Occupied(mut e) = descriptors {
-                let descs = e.get_mut();
-                descs.remove(&index);
-                if descs.is_empty() {
-                    e.remove();
-                } else {
-                    let extracted = descs.extract_if(|k, _| *k > index).collect::<Vec<_>>();
-                    for (k, v) in extracted {
-                        descs.insert(k.wrapping_sub(1), v);
+            // Capacity of the property storage isn't changing, so we can
+            // perform the deletion directly in the storage.
+            let ElementStorageUninit {
+                values,
+                descriptors,
+            } = object.unbind().get_elements_storage_uninit(agent);
+
+            if index == new_len {
+                // Removing last property.
+                values[index as usize] = None;
+                if let Entry::Occupied(mut e) = descriptors {
+                    let descs = e.get_mut();
+                    descs.remove(&index);
+                    if descs.is_empty() {
+                        e.remove();
+                    }
+                }
+            } else {
+                // Removing indexed property.
+                // First overwrite the noted index with subsequent values.
+                values.copy_within((index as usize) + 1.., index as usize);
+                *values.last_mut().unwrap() = None;
+                // Then move our descriptors if found.
+                if let Entry::Occupied(mut e) = descriptors {
+                    let descs = e.get_mut();
+                    descs.remove(&index);
+                    if descs.is_empty() {
+                        e.remove();
+                    } else {
+                        let extracted = descs.extract_if(|k, _| *k > index).collect::<Vec<_>>();
+                        for (k, v) in extracted {
+                            descs.insert(k - 1, v);
+                        }
                     }
                 }
             }
         }
-        let old_shape = object.object_shape(agent);
-        let new_shape = old_shape.get_shape_with_removal(agent, index);
-        agent[object].set_len(new_len);
+
         if old_shape == new_shape {
             // Shape did not change with removal: this is an intrinsic shape!
             // We must invalidate any property lookup caches associated with
@@ -497,7 +540,7 @@ impl<'a> PropertyStorage<'a> {
                 agent, o, old_shape, index,
             );
         } else {
-            agent[object].set_shape(new_shape);
+            object.get_mut(agent).set_shape(new_shape);
         }
     }
 }

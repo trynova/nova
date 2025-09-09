@@ -99,7 +99,7 @@ pub(crate) fn bound_function_create<'a>(
     let mut elements = match agent
         .heap
         .elements
-        .allocate_elements_with_capacity(bound_args.len())
+        .allocate_elements_with_length(bound_args.len())
     {
         Ok(e) => e,
         Err(err) => {
