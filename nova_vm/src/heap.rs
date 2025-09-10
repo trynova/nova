@@ -174,7 +174,7 @@ pub(crate) struct Heap {
     pub(crate) promises: Vec<Option<PromiseHeapData<'static>>>,
     pub(crate) proxys: Vec<Option<ProxyHeapData<'static>>>,
     pub(crate) realms: Vec<Option<RealmRecord<'static>>>,
-    pub(crate) promise_all_records: Vec<Option<PromiseAllRecord<'static>>>,
+    pub(crate) promise_all_records: Vec<PromiseAllRecord<'static>>,
     #[cfg(feature = "regexp")]
     pub(crate) regexps: Vec<Option<RegExpHeapData<'static>>>,
     #[cfg(feature = "regexp")]
